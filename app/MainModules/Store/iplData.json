@@ -1,0 +1,488 @@
+{
+  "report_date": "2026-05-12",
+  "generated_at": "2026-05-12T06:00:00",
+  "version": "1.0",
+  "source": "SportsFan360 Intelligence",
+  "meta": {
+    "title": "IPL 2026 Pulse — May 12",
+    "subtitle": "24-Hour Sentiment Report",
+    "summary": "DC keep playoffs alive with record chase at Dharamshala. PBKS spiral deepens — 4 straight losses. GT vs SRH tonight in Ahmedabad."
+  },
+  "match_result": {
+    "match_number": 55,
+    "date": "2026-05-11",
+    "venue": "HPCA Stadium, Dharamshala",
+    "team1": {
+      "name": "Punjab Kings",
+      "short": "PBKS",
+      "score": "210/5",
+      "overs": 20,
+      "result": "lost"
+    },
+    "team2": {
+      "name": "Delhi Capitals",
+      "short": "DC",
+      "score": "216/7",
+      "overs": 19,
+      "result": "won"
+    },
+    "result": "DC won by 3 wickets",
+    "note": "Highest ever successful chase at Dharamshala. No over of spin bowled by either side — only 2nd time in IPL history.",
+    "player_of_match": "Madhav Tiwari (2/40 + 18* off 8)"
+  },
+  "tonight": {
+    "match_number": 56,
+    "teams": "Gujarat Titans vs Sunrisers Hyderabad",
+    "venue": "Narendra Modi Stadium, Ahmedabad",
+    "time": "7:30 PM IST",
+    "context": "Both on 14 pts. Winner goes to 16 and near playoff certainty.",
+    "badge": "Winner goes #1 + near playoff lock"
+  },
+  "kpis": [
+    {
+      "value": "3",
+      "label": "DC's winning margin — wickets",
+      "sub": "Record chase at Dharamshala — 211 gunned down in 19 ov",
+      "color": "var(--blue)"
+    },
+    {
+      "value": "4",
+      "label": "PBKS losses in a row",
+      "sub": "Table toppers → 4th · 3 must-wins to qualify",
+      "color": "var(--red)"
+    },
+    {
+      "value": "14",
+      "label": "Points — GT and SRH tonight",
+      "sub": "Both on 14 pts from 11 games · Winner to 16",
+      "color": "var(--gold)"
+    },
+    {
+      "value": "8",
+      "label": "Teams still in playoff contention",
+      "sub": "Only MI + LSG eliminated · All others alive",
+      "color": "var(--green)"
+    }
+  ],
+  "quotes": [
+    {
+      "text": "I won't beat around the bush; I'll just say fielding and bowling again. I feel it was 30 runs more on this wicket given how the ball was seaming and the variable bounce.",
+      "speaker": "Shreyas Iyer",
+      "role": "PBKS captain",
+      "context": "post-match Dharamshala",
+      "sentiment": "self-critical",
+      "color": "var(--red)",
+      "badgeClass": "bc",
+      "badgeText": "Same story"
+    },
+    {
+      "text": "It was a thought but the way it was seaming, if we had executed our lines and lengths, we may have gotten wickets. But we did not. We fell short of planning.",
+      "speaker": "Shreyas Iyer",
+      "role": "PBKS captain",
+      "context": "on not bowling Chahal all game",
+      "sentiment": "tactical regret",
+      "color": "var(--red)",
+      "badgeClass": "bw",
+      "badgeText": "Tactical regret"
+    },
+    {
+      "text": "Very happy with how the team played. In the bowling, first 3-4 overs they had 60 runs but to finish with only 72 in the powerplay — that was a winning moment. The future is strong.",
+      "speaker": "Axar Patel",
+      "role": "DC captain",
+      "context": "post-match",
+      "sentiment": "positive",
+      "color": "var(--green)",
+      "badgeClass": "bp",
+      "badgeText": "Composed leader"
+    },
+    {
+      "text": "We were behind. Axar has been working very hard. Tonight it came off. That is why he has been playing for so long — dug in deep and came out with good energy. We complement each other well.",
+      "speaker": "David Miller",
+      "role": "DC batter",
+      "context": "on his partnership with Axar",
+      "sentiment": "positive",
+      "color": "var(--green)",
+      "badgeClass": "bp",
+      "badgeText": "Partnership quality"
+    },
+    {
+      "text": "I would like to say I am a 100 percent bowler and a 100 percent batter. The wicket was helping the length balls, and I was sticking to that. Lucky to bowl four overs for the team.",
+      "speaker": "Madhav Tiwari",
+      "role": "DC — Player of the Match",
+      "context": "debut all-rounder",
+      "sentiment": "composed",
+      "color": "var(--gold)",
+      "badgeClass": "bw",
+      "badgeText": "Poised on debut"
+    },
+    {
+      "text": "He's becoming sort of an artist now. He's just becoming so, so good at what he's doing.",
+      "speaker": "Ambati Rayudu",
+      "role": "Commentator",
+      "context": "on Bhuvneshwar Kumar's IPL 2026 season",
+      "sentiment": "high praise",
+      "color": "var(--blue)",
+      "badgeClass": "bb",
+      "badgeText": "High praise"
+    },
+    {
+      "text": "SRH arrive with momentum in their batting unit but must overcome a poor record against GT in Ahmedabad, as both teams eye No. 1 spot.",
+      "speaker": "ESPNcricinfo",
+      "role": "Match preview",
+      "context": "GT vs SRH tonight",
+      "sentiment": "neutral",
+      "color": "var(--t3)",
+      "badgeClass": "bn",
+      "badgeText": "Tonight's frame"
+    }
+  ],
+  "points_table": [
+    { "rank": 1, "team": "RCB", "played": 11, "won": 7, "points": 14, "form": ["W","W","W","L","W"], "playoff_zone": true, "color": "#cc0000" },
+    { "rank": 2, "team": "SRH", "played": 11, "won": 7, "points": 14, "form": ["W","W","W","L","W"], "playoff_zone": true, "color": "#f26522" },
+    { "rank": 3, "team": "GT",  "played": 11, "won": 7, "points": 14, "form": ["W","W","W","W","L"], "playoff_zone": true, "color": "#1d4e9b" },
+    { "rank": 4, "team": "PBKS","played": 11, "won": 6, "points": 13, "form": ["L","L","L","L","W"], "playoff_zone": true, "color": "#dd4444" },
+    { "rank": 5, "team": "CSK", "played": 11, "won": 6, "points": 12, "form": ["W","W","W","L","W"], "playoff_zone": false, "color": "#f9cd05" },
+    { "rank": 6, "team": "RR",  "played": 10, "won": 6, "points": 12, "form": ["L","W","L","W","W"], "playoff_zone": false, "color": "#254aa5" },
+    { "rank": 7, "team": "DC",  "played": 12, "won": 5, "points": 10, "form": ["W","L","L","L","W"], "playoff_zone": false, "color": "#2561ae" },
+    { "rank": 8, "team": "KKR", "played": 11, "won": 4, "points": 8,  "form": ["W","W","W","L","L"], "playoff_zone": false, "color": "#3a225d" },
+    { "rank": 9, "team": "MI",  "played": 11, "won": 3, "points": 6,  "form": ["L","L","L","L","L"], "playoff_zone": false, "eliminated": true, "color": "#004c93" },
+    { "rank": 10,"team": "LSG", "played": 11, "won": 3, "points": 6,  "form": ["L","L","L","L","W"], "playoff_zone": false, "eliminated": true, "color": "#a5c8e1" }
+  ],
+  "top_searches": [
+    { "rank": 1,  "query": "GT vs SRH tonight Ahmedabad", "heat": "hot" },
+    { "rank": 2,  "query": "Axar Patel 56 DC vs PBKS", "heat": "hot" },
+    { "rank": 3,  "query": "David Miller return DC", "heat": "hot" },
+    { "rank": 4,  "query": "IPL 2026 points table May 12", "heat": "hot" },
+    { "rank": 5,  "query": "PBKS 4 losses in a row", "heat": "hot" },
+    { "rank": 6,  "query": "Madhav Tiwari debut Player of Match", "heat": "warm" },
+    { "rank": 7,  "query": "DC highest chase Dharamshala record", "heat": "warm" },
+    { "rank": 8,  "query": "Priyansh Arya 56 first over record", "heat": "warm" },
+    { "rank": 9,  "query": "PBKS playoff chances 3 games left", "heat": "warm" },
+    { "rank": 10, "query": "GT SRH playing 11 tonight", "heat": "warm" },
+    { "rank": 11, "query": "Shubman Gill GT vs SRH", "heat": "normal" },
+    { "rank": 12, "query": "Travis Head SRH Ahmedabad", "heat": "normal" },
+    { "rank": 13, "query": "Yuzvendra Chahal not bowled PBKS", "heat": "normal" },
+    { "rank": 14, "query": "RCB NRR lead over SRH GT", "heat": "normal" },
+    { "rank": 15, "query": "Axar Patel first fifty IPL 2026", "heat": "normal" },
+    { "rank": 16, "query": "IPL 2026 playoff scenarios CSK", "heat": "normal" },
+    { "rank": 17, "query": "Eshan Malinga wickets SRH", "heat": "normal" },
+    { "rank": 18, "query": "KL Rahul dismissed early PBKS DC", "heat": "normal" },
+    { "rank": 19, "query": "DC 2 must-win games left", "heat": "normal" },
+    { "rank": 20, "query": "JioHotstar GT vs SRH stream", "heat": "normal" }
+  ],
+  "fan_trends": [
+    {
+      "rank": 1,
+      "trend": "#MillerTime — David Miller trending after return to DC XI. Fans who called his benching 'criminal' now vindicated.",
+      "sentiment": "euphoric",
+      "platform": ["X", "Instagram"],
+      "badgeClass": "bp"
+    },
+    {
+      "rank": 2,
+      "trend": "'Axar's first six of IPL 2026' — fans stunned it took this long. Tweet went massively viral during the chase.",
+      "sentiment": "viral",
+      "platform": ["X"],
+      "badgeClass": "bfire"
+    },
+    {
+      "rank": 3,
+      "trend": "PBKS spiral discourse — 'from table toppers to 4 losses in a row.' CSK, RR, GT, SRH fans celebrating PBKS's pain.",
+      "sentiment": "schadenfreude",
+      "platform": ["X", "Instagram"],
+      "badgeClass": "bc"
+    },
+    {
+      "rank": 4,
+      "trend": "GT vs SRH hype building all morning — 'this is the match of the season.' Fans calling it a playoff final preview.",
+      "sentiment": "building hype",
+      "platform": ["X", "Instagram", "WhatsApp"],
+      "badgeClass": "bw"
+    },
+    {
+      "rank": 5,
+      "trend": "Chahal not bowling at Dharamshala — cricket Twitter baffled. 'Experienced leg spinner, seaming conditions, benched.'",
+      "sentiment": "analytical debate",
+      "platform": ["X"],
+      "badgeClass": "bn"
+    },
+    {
+      "rank": 6,
+      "trend": "Madhav Tiwari debut Player of Match — new fan favourite emerging. 'Find someone who performs like Madhav Tiwari on debut' format spreading.",
+      "sentiment": "positive",
+      "platform": ["X", "Instagram"],
+      "badgeClass": "bp"
+    },
+    {
+      "rank": 7,
+      "trend": "Bhuvneshwar Kumar India comeback campaign — Rayudu's quote boosting the campaign. Selectors + NCA discussions trending.",
+      "sentiment": "campaign",
+      "platform": ["X"],
+      "badgeClass": "bb"
+    },
+    {
+      "rank": 8,
+      "trend": "DC playoff maths — fans calculating DC need to win both remaining games AND need results to go their way. 'DC never die' energy back.",
+      "sentiment": "hope vs math",
+      "platform": ["X", "WhatsApp"],
+      "badgeClass": "bw"
+    }
+  ],
+  "ads": [
+    {
+      "brand": "Google",
+      "product": "AI Mode / Gemini",
+      "status": "confirmed",
+      "tier": "co-presenting sponsor",
+      "detail": "Category-exclusive co-presenting slot JioStar TV + digital. ~12% total IPL TV ad volume. ~₹270 Cr BCCI deal.",
+      "borderColor": "rgba(74,158,255,.2)",
+      "badgeClass": "bb"
+    },
+    {
+      "brand": "OpenAI",
+      "product": "ChatGPT",
+      "status": "confirmed",
+      "tier": "5 franchise partner",
+      "detail": "Everyday Superheroes campaign — 150+ TV channels, 25+ platforms, 9 languages. CSK, DC, LSG, RCB, RR deals.",
+      "borderColor": "rgba(43,221,140,.2)",
+      "badgeClass": "bp"
+    },
+    {
+      "brand": "Amazon",
+      "product": null,
+      "status": "confirmed",
+      "tier": "co-powered sponsor",
+      "detail": "Official co-powered category on JioStar's 27-brand sponsor roster.",
+      "borderColor": "var(--bd)",
+      "badgeClass": "bn"
+    },
+    {
+      "brand": "Microsoft",
+      "product": "Copilot",
+      "status": "unconfirmed",
+      "tier": "digital advertising",
+      "detail": "Bing AI cricket APIs + Azure analytics integrations. No co-presenting tier confirmed.",
+      "borderColor": "var(--bd)",
+      "badgeClass": "bn"
+    },
+    {
+      "brand": "Meta",
+      "product": null,
+      "status": "confirmed",
+      "tier": "adtech / UGC platform",
+      "detail": "Instagram + WhatsApp primary vehicle for Miller/Axar fan content and GT vs SRH preview graphics today.",
+      "borderColor": "var(--bd)",
+      "badgeClass": "bn"
+    },
+    {
+      "brand": "Adobe",
+      "product": null,
+      "status": "not confirmed",
+      "tier": null,
+      "detail": "No verified IPL 2026 advertising campaign.",
+      "borderColor": "rgba(255,68,102,.15)",
+      "badgeClass": "bc"
+    }
+  ],
+  "language_consumption": [
+    {
+      "rank": 1,
+      "language": "Hindi",
+      "share_pct": 52,
+      "platform": "Star Sports 1 Hindi HD + JioHotstar",
+      "note": "DC comeback and Miller return dominated Hindi commentary last night. GT vs SRH the prime-time Hindi storyline tonight.",
+      "width": "100%",
+      "gradient": "linear-gradient(90deg,#4a9eff,#2277cc)"
+    },
+    {
+      "rank": 2,
+      "language": "Tamil",
+      "share_pct": 13,
+      "platform": "Star Sports Tamil",
+      "note": "CSK's playoff qualification math keeping Tamil fans engaged. Dhoni question simmering.",
+      "width": "25%",
+      "gradient": "linear-gradient(90deg,#ffd94a,#cc9900)"
+    },
+    {
+      "rank": 3,
+      "language": "Telugu",
+      "share_pct": 11,
+      "platform": "Star Sports Telugu",
+      "note": "SRH fanbase locked in for tonight's GT vs SRH. Audience spiking ahead of the big match.",
+      "width": "21%",
+      "gradient": "linear-gradient(90deg,#2bdd8c,#119960)"
+    }
+  ],
+  "memes": [
+    {
+      "rank": 1,
+      "description": "\"And these clowns benched him\" — DC fan account tweet next to David Miller's 51 off 28. The most shared reaction post of the night. Every DC fan who questioned the selection got their moment.",
+      "platform": "X",
+      "vibe": "vindicated rage",
+      "verified_source": "@KLfied_"
+    },
+    {
+      "rank": 2,
+      "description": "\"That was 1st ever six hit by Axar Patel in IPL 2026\" — posted mid-match, fans reacted with shock. \"FIRST six in the ENTIRE season??\" format took over replies instantly.",
+      "platform": "X",
+      "vibe": "stunned disbelief",
+      "verified_source": "@Adityakrsaha"
+    },
+    {
+      "rank": 3,
+      "description": "\"CSK, RR, GT, SRH fans when DC beats PBKS\" — stock photo of people cheering. Four rival fanbases united in joy at PBKS's 4th straight loss. Rivals celebrating rivals' loss is peak IPL.",
+      "platform": "X",
+      "vibe": "collective schadenfreude",
+      "verified_source": "@sagarcasm"
+    },
+    {
+      "rank": 4,
+      "description": "Shreyas Iyer's \"fielding and bowling again\" post-match face — freeze frame of his expression while saying the same thing for the 4th match in a row. Caption: \"New season, same diagnosis.\"",
+      "platform": "Instagram / WhatsApp",
+      "vibe": "dry despair",
+      "verified_source": "multiple fan accounts"
+    },
+    {
+      "rank": 5,
+      "description": "\"Yuzvendra Chahal at Dharamshala watching the game\" — meme of someone sitting unused in a corner. No over of spin bowled, two spinners in both squads. Cricket Twitter had a field day.",
+      "platform": "X",
+      "vibe": "tactical bafflement turned comedy",
+      "verified_source": "cricket Twitter"
+    }
+  ],
+  "most_liked_posts": [
+    {
+      "rank": 1,
+      "description": "David Miller's return knock highlight — 51 off 28, four sixes, back after being benched. DC official post + fan reaction clips. \"Miller Time is back\" wave on X and Instagram.",
+      "source": "DC Official + fan accounts",
+      "platform": ["X", "Instagram"],
+      "engagement": "Most engaged cricket post overnight"
+    },
+    {
+      "rank": 2,
+      "description": "PTI match report: \"Miller, Axar keep DC alive in IPL with record chase; PBKS lose four in a row\" — most widely shared headline framing of the night. Clean, devastating summary.",
+      "source": "PTI via Siasat.com",
+      "platform": ["X"],
+      "engagement": "Best headline of the day"
+    },
+    {
+      "rank": 3,
+      "description": "ESPNcricinfo match report: \"Only 2nd time in IPL history an over of spin was not bowled in a full-length game\" — Dharamshala stat that floored cricket nerds everywhere.",
+      "source": "ESPNcricinfo",
+      "platform": ["X"],
+      "engagement": "High engagement among analysts and fans"
+    },
+    {
+      "rank": 4,
+      "description": "Ambati Rayudu on Bhuvneshwar Kumar: \"He's becoming sort of an artist now. He's just becoming so, so good at what he's doing.\" — Bhuvi India comeback campaign getting major boost.",
+      "source": "ESPNcricinfo video clip",
+      "platform": ["X"],
+      "engagement": "India cricket fans + selectors watching"
+    },
+    {
+      "rank": 5,
+      "description": "GT vs SRH tonight promo — \"Both on 14 pts. One match. One top spot.\" Official IPL graphic. Building fever all morning across platforms.",
+      "source": "IPL Official + GT + SRH accounts",
+      "platform": ["X", "Instagram"],
+      "engagement": "Pre-match hype building fast"
+    }
+  ],
+  "articles": [
+    {
+      "rank": 1,
+      "title": "IPL 2026: Shreyas Iyer blames fielding, bowling as PBKS suffer defeat vs DC",
+      "summary": "Skipper Shreyas Iyer pointed to fielding and bowling shortcomings as key reasons behind PBKS's three-wicket loss to DC, saying the team fell 30 runs short of a par score. DC completed the highest-ever successful chase at Dharamshala with Axar Patel and David Miller the architects of a record 211-run pursuit.",
+      "source": "Tribune India",
+      "url": "https://www.tribuneindia.com/news/cricket-news/ipl-2026-shreyas-iyer-blames-fielding-bowling-as-pbks-suffer-defeat-vs-dc",
+      "tag": "match report",
+      "badgeClass": "bb",
+      "color": "var(--blue)"
+    },
+    {
+      "rank": 2,
+      "title": "\"Very happy with how the team played\": Axar Patel after DC's 3-wicket win over PBKS",
+      "summary": "Axar Patel spoke warmly about the team's collective effort — praising debutant Madhav Tiwari's composure, his 64-run partnership with Miller, and youngsters finishing the game. He flagged the powerplay turnaround as the decisive tactical moment and highlighted Sahil Parakh as a future star.",
+      "source": "Tribune India",
+      "url": "https://www.tribuneindia.com/news/axar-patel/very-happy-with-how-the-team-played-axar-patel-after-dcs-3-wicket-win-over-pbks",
+      "tag": "player quote",
+      "badgeClass": "bp",
+      "color": "var(--green)"
+    },
+    {
+      "rank": 3,
+      "title": "PBKS vs DC HIGHLIGHTS IPL 2026: Axar-Miller shine as DC beat PBKS to keep their season alive",
+      "summary": "Full highlights coverage of DC's record chase at Dharamshala — Priyansh Arya's first-over onslaught setting up PBKS's 210/5, DC's early collapse to 14/2, and the Axar-Miller resurgence. PBKS's fourth consecutive defeat leaves them stuck on 13 points while DC jump to 10.",
+      "source": "Business Standard",
+      "url": "https://www.business-standard.com/cricket/ipl/ipl-2026-live-score-updates-pbks-vs-dc-full-scorecard-punjab-kings-vs-delhi-capitals-highlights-126051100740_1.html",
+      "tag": "match highlights",
+      "badgeClass": "bw",
+      "color": "var(--gold)"
+    },
+    {
+      "rank": 4,
+      "title": "IPL 2026: GT vs SRH Playing 11, live toss and match time, streaming",
+      "summary": "With both GT and SRH on 14 points from 11 matches, tonight's clash at Ahmedabad is effectively a top-of-table shootout. The winner moves to 16 points and near-certain playoff qualification. Preview covers playing 11 options, venue history, and the pivotal individual battles to watch.",
+      "source": "Business Standard",
+      "url": "https://www.business-standard.com/cricket/ipl/ipl-2026-gt-vs-srh-playing-11-live-toss-and-match-time-streaming-126051100745_1.html",
+      "tag": "tonight's preview",
+      "badgeClass": "bfire",
+      "color": "var(--orange)"
+    },
+    {
+      "rank": 5,
+      "title": "Miller, Axar keep DC alive in IPL with record chase; PBKS lose four in a row",
+      "summary": "PTI's definitive match narrative — DC gunned down 211 in 19 overs for the highest-ever T20 chase at Dharamshala. PBKS, once the season's pace-setters, have now lost four straight and need at least two wins from three remaining games to make the playoffs. The contrast between the two teams' seasons crystallised in one night.",
+      "source": "Siasat Daily (PTI)",
+      "url": "https://www.siasat.com/miller-axar-keep-dc-alive-in-ipl-with-record-chase-pbks-lose-four-in-a-row-3469549/",
+      "tag": "narrative",
+      "badgeClass": "bn",
+      "color": "var(--purple)"
+    }
+  ],
+  "signals": [
+    {
+      "rank": 1,
+      "title": "DC are alive — and the Axar + Miller combination is finally clicking at the right time",
+      "description": "Record chase at Dharamshala. Axar's first fifty of the season. David Miller back from the bench delivering 51 off 28. Debutant Madhav Tiwari winning Player of the Match. DC's \"never say die\" brand is back in full force. They need both remaining games — and results to go their way — but after last night, no one is writing them off. The content angle: DC's resurrection story, told through Axar's leadership and Miller's return.",
+      "theme": "performance",
+      "teams": ["DC"]
+    },
+    {
+      "rank": 2,
+      "title": "PBKS's collapse is now a four-match structural crisis — not bad luck",
+      "description": "Fielding. Bowling. Again. Shreyas Iyer's fourth identical post-match assessment in a row. Dropped catches. Chahal unused at Dharamshala on a seaming pitch. A team that was unbeaten through 7 games has now lost 4 straight. They're still technically in playoff contention with 13 pts but the form curve is brutal. The story: what went wrong at PBKS — from table-toppers to four in a row.",
+      "theme": "collapse",
+      "teams": ["PBKS"]
+    },
+    {
+      "rank": 3,
+      "title": "GT vs SRH tonight is the match of the season so far — both teams, one top spot, Ahmedabad",
+      "description": "Both on 14 points. Winner gets 16 and near-certain playoff qualification. Shubman Gill's GT — four-match winning streak — vs Pat Cummins's SRH — six wins in last seven. Ahmedabad's Narendra Modi Stadium is this season's most high-scoring venue. Travis Head vs Shubman Gill. Two of the most explosive top orders in T20 cricket right now. Tonight decides the season's first confirmed playoff qualifier.",
+      "theme": "must-watch",
+      "teams": ["GT", "SRH"]
+    },
+    {
+      "rank": 4,
+      "title": "The \"no spin bowled\" stat from Dharamshala is sparking cricket's analytical conversation of the week",
+      "description": "Only the second time in IPL history — across a full-length game — that not a single over of spin was bowled by either side. Axar Patel didn't bowl. Yuzvendra Chahal didn't bowl. Both teams had world-class spinners, both opted for pace throughout on a seaming surface. Cricket Twitter is split: brilliant tactical adaptation vs an era-defining shift in T20 thinking. Strong content angle for the analytical audience.",
+      "theme": "analysis",
+      "teams": ["PBKS", "DC"]
+    },
+    {
+      "rank": 5,
+      "title": "Bhuvneshwar Kumar's India comeback campaign is no longer fringe — mainstream cricket media is picking it up",
+      "description": "Ambati Rayudu's \"he's becoming an artist\" quote on air is the latest mainstream voice joining what started as a fan campaign. 21 wickets, 7.46 economy, Purple Cap, match-winning six vs MI. At 35, defying age in the most physical format. The Yuvraj Singh fan account demand has become a broader conversation involving ex-players, analysts, and now media. Selectors name squads soon. This story has a natural endpoint — either vindication or frustration — and both are strong content.",
+      "theme": "player narrative",
+      "teams": ["RCB"]
+    }
+  ],
+  "sources": [
+    "ESPNcricinfo",
+    "PTI / Siasat Daily",
+    "Tribune India",
+    "Business Standard",
+    "Yardbarker",
+    "CricTracker",
+    "IPLT20.com"
+  ]
+}
