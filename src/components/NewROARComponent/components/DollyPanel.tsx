@@ -399,6 +399,7 @@ interface DollyPanelProps {
     // Called when the user taps "New Chat" — parent should reset to the
     // live room's thread (or start a fresh one).
     onNewChat?: () => void;
+    constrainedToParent?: boolean;
 }
 
 export default function DollyPanel({
@@ -410,6 +411,7 @@ export default function DollyPanel({
     loadingHistory = false,
     onSelectHistorySession,
     onNewChat,
+    constrainedToParent = false,
 }: DollyPanelProps) {
     const [view, setView] = useState<"chat" | "history">("chat");
     const inputRef = useRef<HTMLInputElement>(null);
@@ -484,7 +486,7 @@ export default function DollyPanel({
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: 12 }}
                         transition={{ duration: 0.2 }}
-                        className="fixed right-0 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-2 py-2 px-1 rounded-l-2xl rounded-r-none bg-gradient-to-b from-blue-900 to-slate-800 border border-r-0 border-blue-500/50 shadow-[-4px_4px_20px_rgba(59,130,246,0.35)] cursor-pointer"
+                        className={`${constrainedToParent ? "absolute" : "fixed"} right-0 top-1/2 -translate-y-1/2 z-[55] flex flex-col items-center gap-2 py-2 px-1 rounded-l-2xl rounded-r-none bg-gradient-to-b from-blue-900 to-slate-800 border border-r-0 border-blue-500/50 shadow-[-4px_4px_20px_rgba(59,130,246,0.35)] cursor-pointer`}
                     >
                         <div className="w-[24px] h-[24px] rounded-full overflow-hidden border-2 border-white/85 shrink-0">
                             <img
@@ -514,7 +516,7 @@ export default function DollyPanel({
                             exit={{ opacity: 0 }}
                             transition={{ duration: 0.2 }}
                             onClick={onClose}
-                            className="fixed inset-0 z-[70] bg-black/55"
+                            className={`${constrainedToParent ? "absolute" : "fixed"} inset-0 z-[70] bg-black/55`}
                         />
                         <motion.div
                             key="dolly-panel"
@@ -522,8 +524,8 @@ export default function DollyPanel({
                             animate={{ x: 0 }}
                             exit={{ x: "100%" }}
                             transition={{ duration: 0.32, ease: [0.32, 0.72, 0, 1] }}
-                            className="fixed right-0 left-8 sm:left-16 z-[71] flex flex-col min-h-0 bg-[#0b0e17] border-l border-blue-500/25 rounded-l-2xl overflow-hidden shadow-[-12px_0_40px_rgba(0,0,0,0.5)]"
-                            style={{ top: 0, height: viewportHeight ?? "100dvh" }}
+                            className={`${constrainedToParent ? "absolute" : "fixed"} right-0 left-8 sm:left-16 z-[71] flex flex-col min-h-0 bg-[#0b0e17] border-l border-blue-500/25 rounded-l-2xl overflow-hidden shadow-[-12px_0_40px_rgba(0,0,0,0.5)]`}
+                            style={constrainedToParent ? { top: 0, bottom: 0, height: "100%" } : { top: 0, height: viewportHeight ?? "100dvh" }}
                             onClick={e => e.stopPropagation()}
                         >
                             {view === "chat" ? (

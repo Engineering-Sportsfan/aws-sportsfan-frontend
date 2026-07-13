@@ -1,6 +1,4 @@
 
-
-
 // "use client";
 // import { useState, useEffect } from "react";
 // import { motion, AnimatePresence } from "framer-motion";
@@ -12,10 +10,14 @@
 // import { fmt } from "../utils";
 // import BackButton from "../../ReusableComponent/BackButton";
 // import { useActivity } from "@/context/ActivityContext";
-// import firstRoarColor from "/public/images/Frame 1984081839.png";
-// import firstRoarGray from "/public/images/image 189.png";
 // import Link from "next/link";
 // import { RoarJourneySection } from "../components/RoarJourneySection";
+
+// const FIRST_ROAR_BADGE_SRC = "/images/badges/postl1.png";
+// const toBadgeImageSrc = (imageUrl: string) => {
+//   if (/^(https?:)?\/\//.test(imageUrl) || imageUrl.startsWith("/")) return imageUrl;
+//   return `/images/badges/${imageUrl}`;
+// };
 
 // // ─── Avatar images (base64) 
 // const avatar1 = "data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCABkAGQDASIAAhEBAxEB/8QAHQAAAQUBAQEBAAAAAAAAAAAAAAUGBwgJBAMCAf/EAEMQAAEDAwIDBgMEBgYLAAAAAAECAwQABREGIQcSMQgTIkFRYRQycRUjQoEkUnKRoaIWM2Jjc4IYQ5KTo7GywcLw8f/EABsBAQACAwEBAAAAAAAAAAAAAAAFBgEDBAIH/8QALBEAAgEDAQYFBAMAAAAAAAAAAAECAwQRIQUSMUFRoRNxscHwFSJhgWJy0f/aAAwDAQACEQMRAD8AplRRSnpew3bU1+i2OxwnJs+UvkaaQOvqSegAG5J2AGTQCey2486hpptTji1BKEJGSonoAPM1PHC7sxaw1KyzcdTPJ01b1kENOo55a0/4ewR6eIgj9WrB8B+Btg4cw2bjOQzdNSqSC7MUnKI580sgjYb45up9htUuk4GTQETaQ7PHCzTzaC5YftmSkDL9ycLvN/k2b/lqR7XYLFakBFrsttgoSMBMaKhsAf5QKRJPEzh3GecZf1xp1Djaw2tJuLWUq9D4v/lOS23CBc4qZdumxpsdRwl2O6lxBPsUkigPZ9ll9HI+026n0WkEfxpqah4Y8Pb+hQuujbK8pXV1MVLbv+2jCv407qKArZxB7J2nZ7bknRV3fs8jBKYssl+Oo+Q5vnQPc8/0qsPEXh7q3QFxEPU9pcihZIZkJIWy9+ysbH6HBHmBWmNcF/s1qv8AaX7TerfHnwXxhxh9AUlXv7EeRG4oDLOipy7R3AiZw/cXqDTvfztMuKAXzHmdhKJ2SsgboJ2CvyO+CqDaAKKKKA+mm1uuJaaQpa1kJSlIyVE9AB61fzsz8JY3DnSqJ1xYQvUtxbCpjpGTHQcEMJPoCMqI6q9QBivnYt0EjUvEB3U1waS5b7AEuISoZC5K893t6JAUr2IT61eCgCqedrnizd52sJHDyw3T4C0xQlm4utqKS+6oZUlSk5PdpBAKQNzzZztVuLzcItotEy6zl93FhsLkPKxnlQhJUo/uBrMu+3NvUep7ze7vPkJemOvSUr7gLU44pWUpUAQEjfqM4xsDWHoZXESJjIjy3WA80+G1lIcaJKF4OMpJAOD9KkfgPxRmcMbjPnRosu5JkthtUEPhuOrrhxfhUeYHlAwBsVDO9RnSvPt+oLJHXElR5kWPNbbcUBnupCN1IOR4VjYkbkbH0rDfLJlLi8FhP9KfXzC1TpmjbaLcUqQ3ypdA7zG2XMkHfqMZ+nWnjw87VlgvE5qBquyuWNSwczGnw6wMDJKgQFJG2wHMc4FVh0LqbV8fVEEWJbs2U4luImCWwtmQ0kYDS2/lKcZJJ6ZKs5yam3VPA+xX4x58E/0amuBK5kZj9IjhRHiSjJGMHzHh9AK5Kt3GhJKppn99jso2criLdLXH67lq9LajsWqbSi66eusW5Q1nAdYXzYP6qh1SrfoQDSrVSeHvDnUXDPUSNRaW1QqaED9LtrsctpnNDct5CiAs78pI2VjfGatVYrpCvdlh3e3O97DmMIfZXjGUqGRkeR36eVbqFzTrpum84NFe2q0GlUWMnvNixp0N6HMYbkRn21NutOJCkLQoYKSDsQR5VQHtL8K3OG2sQ5b0LVp+5FTkFZye6OfEyT6pyME9QR5g1oHTK43aHjcQOHFzsDjYMvkL8BzzbkIBKDnyB3SfZRreaDNmivt9p1h9xh5tTbraihaFDBSoHBBHkaKA0A7JmnEae4IWZRaCJF05rg+cfN3h8B/3aW6lik3SsBFq0vabW2nlRDhMx0j0CEBI/wCVKVAMXtAPOscFdWqa5eZdtca8RwAF+AnJ9lGs6rvCRb564qJ0ScEY++iqUptW24BIB26dPpmtBe1EoJ4C6qJSpX6M2MA46vI3rPi2swnnXEzpq4iEtKUhSWS5zLA8KcZGAfXy9Kw9NTK10PaTcUC8t3K2QWbYWlIW000pTiELTjf7wqJyRnBJG/pTt0TxLvmk+5TDlv3GO+6t2fAmAKYWpRO7Z3KVEE5UMZJ3BFNCwwDdL1Dt+XkpfeShSmWFPLSknxKCE7qwMnA64qSbdwxk2fiNpjv303CwXC4oSzMDSmySk8xadbWOZtzCflPXfBODXNcOiluVOnp88zqt41m9+npr6/j4iyUK2Wxp5ufHs8OJLW3nnTGQh1HOAVJKgM+x9cV3qSpJwoEH3FIWsoFwukdtlvUCrFbRzuXGUysIfKcDlSlxWzacklSuuwA6mkLg9ddIS7E5F0vdJkhXfOPPMXCT3kpJyElZGdkHw4I2333NVXw3KG/nPzqWzxFGe5jHv5IfSAvIUkHY9QKVeAc4to1RphR8NpuynYyf1Y8lIeSPoFqdH5VF/FVnSaEwpF9dlwpzy+5i3CG6oPQgAVd8UpV/VpPzHB6jPrTr4QSjE4zSYvxomt3fS0aT8VsPiVsOFAcAG3iS4Fbbb1J7K+yp/ZPsRe1vvpP+LXcnOiiirCVwz57Vum0ab43XpthsNxrhyXBkAY/rR4/+IHKKtZxl4aQ9ZanjXSRGadW1CSwCpGTgLWr/AMqKAleM6l+O2+g5Q4gLT9CM1900eC96TqDhPpi7JUFKetrKXCD/AKxCeRf8yVU7qAjntNMCRwI1W2XFN4hhzI8+VxCsdPPGPzrPaALZ8NLM9UwP93+ihkJ5Sv8AtknOPpvWknGNRRwp1S6IseV3dqkOdy+kqbXytk4UAQSNvWs4++ZvFxlzLxPREcW2pxJaiDlccAASgIRypSD6gYHpXmR6iP3s5SLMjU9whXac7bXJ0ItRJjUn4daFhaVFKXPwkgfQ9PPBsrZGHfstpEy6NXvlc7xiYUIytIOUKJT4SsdOdOM9cA5qG+yRpWxapuF60prWwJlxJUNq5QfiAttY5FlBW0oEKwrnGSnY8oz0FSV8Vb9A66kcOJzSbdBUoyNOvKJDTzDhKiwVE/OhZWkEnKhjO+Mw+07WUk6sHkmtl3cYtUZrHR+w4bjb4FxbbauEKPMbbWHEIfbC0hQ6HlOxI9+lfkxPwsZ6XBtbUqW20Q2y3yNKd8+QLIwkH32rrIIJBBBHUGuK9xZcy1vR4Fxct0s8qmZKEBfIpKgRlJ2Uk4wR5gmoGL1Sb0J9rRtcRI0i7fXLvc5EyFdoVrebQWGrottTyXipXeJbKFK+5xy4Cj1zjau3T6+TtC6UbaAGbJOCwkYwjmTj8siubSNkvEGdcrlfLwLlcLitvLbDZbjR0IBCUtoJJGc5J89vqevga1/SnjDqLWbHjtNniCyQnQcpedKg48pJ8wDgZ8woVK7PjvXW9Hgly8sEVtGe5absuLfPzyTzRRRVjKyJt1vUS3SEsP8ANzKQFjAPTJH/AGoqqXa94hXO0cWG7VaH0pTFtjKXwR0cUpa/+lSKKAdnYT1gidpO5aKkufpFsdMqKk+bDh8QH7K8k/4gqydZn8JtaTtAa8t2poXOtLC+WSyk479hWy0em43GehAPlWkOnrxb7/Y4V6tMhMmDNZS8w4n8SSP4HyI8jkUAn8SLYu9cPdRWlpHO7MtkhltPJzZUptQTt5nOKzNQhtcYx0RH1TA4VFYVkBAG45MZznJJz08vOtMtdavsejLN9p3uQpIWsNR47KO8flOn5W2kDdSj+4dSQN6pPqHhBqxsT9SWWIuC9KnExbSw9zPx4zpVkLWnAykFKSBnYqJ6VhnRQta1fLpxbS44Hr2ELBdV6vuuqXI7v2YiAuC3IPKUl0raUUDJ5shIzsMb/SpF7Tsm062dgcNrXGjXC8iQiRNmBPN9jsAgqUVD5VrGAEeY6jdJpB03w9i6U0e/A0+Qq7qw98U45yrccATloOI5VIbVylOxBAVmlrQz9ik2LvLBBbt7QdUiXE7vldYkD50PeZWDnc5yNxsa4L67lQhmK48+hMLYU6c4+NLjrj2/0/L1AvcHR6bfpCU0LhEabbjLuJ7zvEowClav1iB8x2+nUNRPE65W5vuNT8PtSQpiB4zDY79lePNKsjb8z9akmv1C1o+Rak/Q1W4VYpYnHPZkvOlJvMJY7oY1kZ4gcWIbTVgtTuk9LTE/f3mW4FSXmjsUsIHTO+/T+0OhsJovTVo0hpmFp6xxu4gw0cqATlSj1UpR81Ekkn1NV007GuFr4mybJpDUt3ttkgsLmzYbDqTHizHtkIQlQIO2XC2oFI9qljSHEpxF5j6Z1szHt9ykq5LfcGciHcT5JTzElp3+7UTn8JOQKtVnGlGmnTWEyu3ttduPjVdYp4yvnxkl143CXGt8CRPmvIYixmlPPOrOEoQkEqUfYAE17VW3trcS0WnT6eH1qfBn3JAcuCkndmPnIR9VkdP1Qc/MK6iKKr8SdTPax15edTPgpM+UpxCD+BvohP5ICR+VFN6igCps7N3HF/hut6y3xqRO04/zOpQyAXYzuOqMkApVjBTkb7jzBhOigLr6eam6guade6kcZkXaY1mCy04HGLZGUMpaaPQqIOVuDqSQNurjqonC/ile9FLTEVm4WgqyqI4sgt+pbP4fXHQ/XerKaJ13pnV7CTaLigyeXK4jvgeR6+E9QPUZHvWuSZf9jX1pOjGlT+1rl7/kc9N2/wCmDKuZvljuK7Le+UIckIbC2pSB0Q+2dlgdArZQ8jtinFRWuUVJYfAmKtKFWO7NZQ0BeNdQsN3DRUa5kbd/arohCFe/dvAKT+818uP8QL0ksR7ZB0mwvZUqRJTMlJH922jCAr3UaeNFcqsLdSzu+px/ToZ1k8dNPVLPcS9L2G3actKbdbUuFJWXXnnl87sh1XzOOK/Eo+v5CvW/2i3X60P2q6xkyIj4wtJ2II6KSfwqHUGuqXJjw465MuQ1HZQMrcdWEpSPcnYVDfEnjnbreh236RSm4TPlMxY+4b/ZHVZ/l+tdiT5Hu6uLa0pYq4UccOv6HnN45XHhppS5aX1IHbzqSEEpsstweGdHWFcjrxH4m+UpV5qIHuqqk3+7XG/XqZebtKXKnTHlPPur6qUTk/QeQA2AwBXndbjOutweuFylOypTyuZx1xWVKP8A75Vy1uPmtZwlUbprEeSCiiihrCiiigCvpta23EuNrUhaTkKScEH60UUA/NPcXteWZCGk3f49lPRuagO/zbL/AJqnrhtre7algNPzo8JtS8ZDKFAdD6qPpRRXiRb9g16s1iUm/Nj0vMtyFDU80lBUAT4htUCcQeMur7dcFW+3otsYcuQ6mOVLG5H4lFP8KKK8x4krtarOnSbg2vIibUmp9Qaje7293eVNIOUpcX4En2SPCPyFI9FFbT57Ocpvek8sKKKKHkKKKKA//9k=";
@@ -135,12 +137,75 @@
 //   }
 // };
 
-// // ─── Component ────────────────────────────────────────────────────────────────
+// // ─── Native share-with-image helpers ──────────────────────────────────────────
+// // Checks whether the browser can actually share a file (not just text/url).
+// // This is the correct feature-detect for "will WhatsApp get the image" on mobile Chrome.
+// const supportsFileShare = (file: File): boolean => {
+//   return (
+//     typeof navigator !== "undefined" &&
+//     typeof navigator.canShare === "function" &&
+//     navigator.canShare({ files: [file] })
+//   );
+// };
+
+// // Draws the profile share card: profilecard.png background + stat numbers overlaid.
+// // Mirrors the approach already used in RoarJourneySection.generateShareCard.
+// function generateProfileShareCard(stats: {
+//   predictions: number;
+//   debates: number;
+//   posts: number;
+//   badges: number;
+// }): Promise<Blob | null> {
+//   return new Promise((resolve) => {
+//     const canvas = document.createElement("canvas");
+//     canvas.width = 1340;
+//     canvas.height = 752;
+//     const ctx = canvas.getContext("2d");
+//     if (!ctx) return resolve(null);
+
+//     const bg = new window.Image();
+//     // profilecard.png lives in /public/images, so it's same-origin — crossOrigin is
+//     // defensive only and won't block anything as long as it stays same-origin.
+//     bg.crossOrigin = "anonymous";
+//     bg.src = "/images/profilecard.png";
+
+//     bg.onload = () => {
+//       ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+
+//       const statBlocks = [
+//         { label: "PREDICTIONS", value: stats.predictions, x: 220, color: "#9333EA" },
+//         { label: "DEBATES", value: stats.debates, x: 490, color: "#F97316" },
+//         { label: "POSTS", value: stats.posts, x: 760, color: "#14B8A6" },
+//         { label: "BADGES EARNED", value: stats.badges, x: 1030, color: "#F97316" },
+//       ];
+
+//       statBlocks.forEach(({ label, value, x, color }) => {
+//         const y = 530;
+
+//         ctx.font = "bold 88px Arial";
+//         ctx.fillStyle = color;
+//         ctx.textAlign = "center";
+//         ctx.fillText(String(value), x + 50, y);
+
+//         ctx.font = "bold 22px Arial";
+//         ctx.fillStyle = "#1a1a1a";
+//         ctx.fillText(label, x + 50, y + 48);
+//       });
+
+//       canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
+//     };
+
+//     bg.onerror = () => resolve(null);
+//   });
+// }
+
+// // ─── Component 
 // export default function Profile({
 //   userBadge, setUserBadge, onCompose, onToast, setOnboarded, onNavigateTab,
 //   viewingProfile, onClose,
 //   isViewingOther, fanData, onBack,
 // }: Props) {
+
 //   const isOtherProfile = !!(viewingProfile || isViewingOther);
 //   const handleBack = onBack ?? onClose;
 
@@ -148,9 +213,8 @@
 
 //   const [profileMetadata, setProfileMetadata] = useState<any>(null);
 //   const [loading, setLoading] = useState(true);
+//   const [editShowActivity, setEditShowActivity] = useState(true);
 
-//   // Activities fetched from /api/user-activity for BOTH own and other profiles
-//   // Key fix: own profile must use actualUserId (email), not userId (formatted string)
 //   const [fetchedActivities, setFetchedActivities] = useState<any[]>([]);
 //   const [fetchedActivitiesLoading, setFetchedActivitiesLoading] = useState(false);
 
@@ -158,6 +222,7 @@
 //   const [editOpen, setEditOpen] = useState(false);
 //   const [shareOpen, setShareOpen] = useState(false);
 //   const [copied, setCopied] = useState(false);
+//   const [sharingImage, setSharingImage] = useState(false);
 //   const [fanMatchOpen, setFanMatchOpen] = useState(false);
 
 //   const [editName, setEditName] = useState("");
@@ -168,7 +233,11 @@
 //   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
 //   const [activeActivityTab, setActiveActivityTab] = useState<"posts" | "predictions" | "debates">("posts");
 
-//   // ── Helper: fetch activities by actualUserId ───────────────────────────────
+//   const [globalTier, setGlobalTier] = useState<any>(null);
+//   const [globalTierProgress, setGlobalTierProgress] = useState(0);
+//   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
+//   const [specialBadges, setSpecialBadges] = useState<any[]>([]);
+
 //   const fetchActivities = async (actualUserId: string) => {
 //     if (!actualUserId) return;
 //     setFetchedActivitiesLoading(true);
@@ -186,14 +255,12 @@
 //     }
 //   };
 
-//   // ── Data fetching ──────────────────────────────────────────────────────────
 //   useEffect(() => {
 //     const fetchProfileData = async () => {
 //       setLoading(true);
 //       setFetchedActivities([]);
 //       try {
 //         if (!isOtherProfile) {
-//           // ── Own profile ──
 //           const res = await axios.get("/api/roar/profile", { withCredentials: true });
 //           if (res.data?.success) {
 //             setProfileMetadata({
@@ -205,14 +272,16 @@
 //             setEditFavPlayer(res.data.user?.favPlayer ?? "");
 //             setEditAbout(res.data.user?.about ?? "");
 //             setEditShowPredHistory(res.data.user?.showPredHistory !== false);
+//             setEditShowActivity(res.data.user?.showActivity !== false);
+//             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
+//             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
+//             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
+//             if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
 //             if (res.data.user?.avatarUrl) {
 //               setSelectedAvatar(res.data.user.avatarUrl);
 //               try { localStorage.setItem("roar_avatar_url", res.data.user.avatarUrl); } catch { }
 //             }
 
-//             // CRITICAL: use actualUserId (email-based) not userId (formatted string)
-//             // userId = "prince_princechandu357_gmail_com" → returns empty from /api/user-activity
-//             // actualUserId = "princechandu357@gmail.com" → returns correct data
 //             const actualUid = res.data.user?.actualUserId;
 //             if (actualUid) {
 //               await fetchActivities(actualUid);
@@ -222,7 +291,6 @@
 //           return;
 //         }
 
-//         // ── fanData path (pre-fetched) ──
 //         if (fanData) {
 //           setProfileMetadata({
 //             user: fanData || {},
@@ -238,7 +306,6 @@
 //           return;
 //         }
 
-//         // ── viewingProfile path ──
 //         if (viewingProfile) {
 //           const res = await axios.get(
 //             `/api/roar/profile?userId=${encodeURIComponent(viewingProfile)}`
@@ -251,7 +318,6 @@
 //             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
 //             if (res.data.user?.avatarUrl) setSelectedAvatar(res.data.user.avatarUrl);
 
-//             // Use actualUserId from API response — this is always the email-based ID
 //             const uid = res.data.user?.actualUserId || res.data.user?.userId || viewingProfile;
 //             await fetchActivities(uid);
 //           }
@@ -285,30 +351,20 @@
 //   const user = profileMetadata.user ?? CURRENT_USER;
 //   const rival = profileMetadata.rival ?? RIVAL;
 
-//   // ── Badges — from API user object only ─────────────────────────────────────
 //   const badgesToDisplay = user?.badges?.length ? user.badges : BADGES_LIST;
 //   const ownedBadges = badgesToDisplay.filter((b: any) => b.unlocked);
 
-//   // ── Stats — purely from API user.activityCounts & user.totalPoints ─────────
 //   const actCounts = user?.activityCounts ?? {};
-//   // const statPosts = actCounts.total ?? 0;
-//   // const statDebates = actCounts.ROAR_DEBATE_PARTICIPATE ?? 0;
-//   // const statPredictions = actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0;
-//   // Derive counts from fetched activities when activityCounts is missing/zero
-//   // const derivedPosts = fetchedActivities.length > 0 ? fetchedActivities.length : 0;
-//   // const derivedPosts = fetchedActivities.length;
 //   const derivedCreatedPosts =
-//   (actCounts.ROAR_POST ?? 0) +
-//   (actCounts.ROAR_DEBATE ?? 0) +
-//   (actCounts.ROAR_PREDICTION ?? 0);
+//     (actCounts.ROAR_POST ?? 0) +
+//     (actCounts.ROAR_DEBATE ?? 0) +
+//     (actCounts.ROAR_PREDICTION ?? 0);
 //   const derivedDebates = fetchedActivities.filter((a: any) => a.type === "ROAR_DEBATE_PARTICIPATE").length;
 //   const derivedPredictions = fetchedActivities.filter((a: any) => a.type === "ROAR_PREDICTION_PARTICIPATE").length;
 
-//   // Prefer API activityCounts, fall back to derived counts from fetched activities
-//   // const statPosts = (actCounts.total && actCounts.total > 0) ? actCounts.total : derivedPosts;
-// const statPosts = derivedCreatedPosts > 0
-//   ? derivedCreatedPosts
-//   : fetchedActivities.filter((a: any) =>
+//   const statPosts = derivedCreatedPosts > 0
+//     ? derivedCreatedPosts
+//     : fetchedActivities.filter((a: any) =>
 //       ["ROAR_POST", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
 //     ).length;
 
@@ -317,15 +373,10 @@
 
 //   const statAccuracy = user?.accuracy != null ? `${user.accuracy}%` : "N/A";
 
-//   // ── Roar Points — from API user.totalPoints ────────────────────────────────
 //   const repScore = user?.totalPoints ?? user?.reputationScore ?? 0;
 //   const repMax = Math.max(repScore, 500);
 //   const repPct = Math.round((repScore / repMax) * 100);
 
-//   // ── Activity feed ──────────────────────────────────────────────────────────
-//   // Both own and other profiles now use fetchedActivities from /api/user-activity
-//   // fetchedActivities is populated for ALL profiles using actualUserId (email)
-//   // Falls back to ActivityContext only if fetch hasn't completed yet
 //   const sourceActivities = fetchedActivities.length > 0
 //     ? fetchedActivities
 //     : (!isOtherProfile ? activities : []);
@@ -353,7 +404,6 @@
 //     a.type === "ROAR_DEBATE_PARTICIPATE"
 //   );
 
-//   // ── Avatar ─────────────────────────────────────────────────────────────────
 //   const handleAvatarSelect = async (src: string) => {
 //     setSelectedAvatar(src);
 //     setAvatarPickerOpen(false);
@@ -363,9 +413,68 @@
 //     try { await axios.patch("/api/roar/profile", { avatarUrl: src }); } catch { }
 //   };
 
-//   // ── Share ──────────────────────────────────────────────────────────────────
+//   // ── WhatsApp / native image share ───────────────────────────────────────────
+//   // IMPORTANT: this must be called directly from the tap handler with minimal
+//   // async work beforehand, or Chrome on Android will treat navigator.share()
+//   // as no longer being "in response to a user gesture" and silently reject it.
+//   const handleWhatsAppShare = async () => {
+//     if (sharingImage) return;
+//     setSharingImage(true);
+//     try {
+//       const blob = await generateProfileShareCard({
+//         predictions: statPredictions,
+//         debates: statDebates,
+//         posts: statPosts - (actCounts.ROAR_QUIZ ?? 0),
+//         badges: ownedBadges.length,
+//       });
+
+//       if (!blob) {
+//         onToast("Couldn't generate the share image.");
+//         return;
+//       }
+
+//       const file = new File([blob], "my-roar-profile.png", { type: "image/png" });
+
+//       // Mobile Chrome (Android) supports this — it opens the native OS share
+//       // sheet with the image attached, and WhatsApp shows up as one of the
+//       // share targets. The person taps WhatsApp and the image lands in the
+//       // chat composer already attached.
+//       if (supportsFileShare(file)) {
+//         try {
+//           await navigator.share({
+//             files: [file],
+//             title: "My ROAR Profile",
+//             text: buildShareText(user, userBadge),
+//           });
+//           return;
+//         } catch (err: any) {
+//           // User backing out of the share sheet is not an error.
+//           if (err?.name === "AbortError") return;
+//           console.error("navigator.share failed", err);
+//           // fall through to download fallback below
+//         }
+//       }
+
+//       // Desktop / unsupported browsers: no API exists to push a file straight
+//       // into WhatsApp Web, so the best we can do is save the image so the
+//       // person can attach it manually.
+//       const url = URL.createObjectURL(blob);
+//       const a = document.createElement("a");
+//       a.href = url;
+//       a.download = "my-roar-profile.png";
+//       a.click();
+//       URL.revokeObjectURL(url);
+//       onToast("Card saved! Attach it in WhatsApp from your gallery.");
+//     } catch (err: any) {
+//       if (err?.name !== "AbortError") onToast("Could not share.");
+//     } finally {
+//       setSharingImage(false);
+//     }
+//   };
+
+//   // ── Share 
 //   const shareActions = [
-//     { alt: "WhatsApp", src: "/images/share_whatsapp.png", handler: () => window.open(`https://wa.me/?text=${encodeURIComponent(buildShareText(user, userBadge))}`, "_blank") },
+//     { alt: "WhatsApp", src: "/images/share_whatsapp.png", handler: handleWhatsAppShare },
 //     { alt: "Threads", src: "/images/share_thread.png", handler: () => window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(buildShareText(user, userBadge))}`, "_blank") },
 //     { alt: "Instagram", src: "/images/share_insta.png", handler: async () => { await copyToClipboard(buildShareText(user, userBadge)); setCopied(true); setTimeout(() => setCopied(false), 1600); window.open("https://www.instagram.com/", "_blank"); } },
 //     { alt: "LinkedIn", src: "/images/Share_linkedin.png", handler: () => window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(buildShareUrl(user))}`, "_blank") },
@@ -376,8 +485,8 @@
 //   const ShareButtons = ({ size }: { size: string }) => (
 //     <>
 //       {shareActions.map(({ alt, src, handler }) => (
-//         <button key={alt} onClick={handler} type="button"
-//           className={`${size} shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center`}>
+//         <button key={alt} onClick={handler} type="button" disabled={alt === "WhatsApp" && sharingImage}
+//           className={`${size} shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center ${alt === "WhatsApp" && sharingImage ? "opacity-50" : ""}`}>
 //           <Image src={src} alt={alt} width={36} height={36} className="w-full h-full object-cover rounded-full" />
 //         </button>
 //       ))}
@@ -390,7 +499,7 @@
 //     padding: "0 14px", color: "white", fontSize: 15, marginBottom: 16,
 //   };
 
-//   // ── Render ─────────────────────────────────────────────────────────────────
+//   // ── Render 
 //   return (
 //     <div className="screen-scroll">
 
@@ -412,111 +521,69 @@
 //         </Link>
 //       </div>
 
+
+
+
 //       {/* ── Hero ── */}
-//       <div style={{ padding: "28px 20px 0", textAlign: "center" }}>
-//         <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 14px" }}>
-//           <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
-//           <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
-//           <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
-//             {selectedAvatar ? (
-//               <img src={selectedAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-//             ) : (
-//               <AvatarWithBadge username={user.username ?? CURRENT_USER.username} badge={userBadge} size="lg" />
+//       <div style={{ padding: "24px 20px 0", display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 20 }}>
+
+//         {/* Avatar — left column, smaller, with Edit Profile button below it */}
+//         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+//           <div style={{ position: "relative", width: 84, height: 84 }}>
+//             <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
+//             <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
+//             <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
+//               {selectedAvatar ? (
+//                 <img src={selectedAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+//               ) : (
+//                 <AvatarWithBadge username={user.username ?? CURRENT_USER.username} badge={userBadge} size="lg" />
+//               )}
+//             </div>
+//             {!isOtherProfile && (
+//               <button onClick={() => setAvatarPickerOpen(true)} aria-label="Change avatar"
+//                 style={{ position: "absolute", bottom: 0, right: 0, zIndex: 10, width: 22, height: 22, borderRadius: "50%", background: "var(--accent-magenta)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid rgba(10,10,16,0.97)", cursor: "pointer", padding: 0, boxShadow: "0 2px 8px rgba(233,30,140,0.7)" }}>
+//                 <PencilIcon />
+//               </button>
 //             )}
 //           </div>
+
 //           {!isOtherProfile && (
-//             <button onClick={() => setAvatarPickerOpen(true)} aria-label="Change avatar"
-//               style={{ position: "absolute", bottom: 2, right: 2, zIndex: 10, width: 24, height: 24, borderRadius: "50%", background: "var(--accent-magenta)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid rgba(10,10,16,0.97)", cursor: "pointer", padding: 0, boxShadow: "0 2px 8px rgba(233,30,140,0.7)" }}>
-//               <PencilIcon />
+//             <button onClick={() => setEditOpen(true)}
+//               style={{ marginTop: 12, padding: "4px 8px", background: "none", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 22, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+//               Edit Profile
 //             </button>
 //           )}
 //         </div>
 
-//         <h1 className="font-display" style={{ fontSize: 26, fontWeight: 900, letterSpacing: "0.04em", color: "#fff", margin: "0 0 4px" }}>
-//           {(user.username ?? "ROARFAN").toUpperCase()}
-//         </h1>
-//         <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 4px" }}>
-//           {BADGE_LABELS[userBadge] ?? "Fan"}
-//         </p>
-//         {(user.favPlayer || editFavPlayer) && (
-//           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
-//             Favourite player: <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
+//         {/* Right column — username, tagline, bio */}
+//         <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+//           <h1 className="font-display" style={{ fontSize: 20, fontWeight: 900, letterSpacing: "0.03em", color: "#fff", margin: "0 0 4px" }}>
+//             {(user.username ?? "ROARFAN").toUpperCase()}
+//           </h1>
+//           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>
+//             {BADGE_LABELS[userBadge] ?? "Fan"}
 //           </p>
-//         )}
-//         {(user.about || editAbout) && (
-//           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.5, maxWidth: 270, margin: "6px auto 0" }}>
-//             {user.about || editAbout}
-//           </p>
-//         )}
 
-//         <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 18 }}>
-//           {!isOtherProfile && (
-//             <button onClick={() => setEditOpen(true)}
-//               style={{ padding: "9px 22px", background: "none", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 22, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", letterSpacing: "0.01em" }}>
-//               Edit Profile
-//             </button>
+//           {(user.favPlayer || editFavPlayer) && (
+//             <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
+//               Favourite player: <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
+//             </p>
 //           )}
-//           <button onClick={() => { setShareOpen(true); setCopied(false); }} className="btn-gradient"
-//             style={{ padding: "9px 22px", border: "none", borderRadius: 22, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", letterSpacing: "0.01em" }}>
-//             Share Profile
-//           </button>
+//           {(user.about || editAbout) && (
+//             <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.5 }}>
+//               {user.about || editAbout}
+//             </p>
+//           )}
 //         </div>
 //       </div>
 
 //       {/* ── Stats row ── */}
 //       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, padding: "22px 14px 0" }}>
-//         {/* {[
-//           {
-//             value: isOtherProfile ? (user.activityCounts?.total ?? 0) : profileStats.posts,
-//             label: "Posts",
-//             accent: true,
-//           },
-//           // {  
-//           //   value: isOtherProfile ? (user.activityCounts?.ROAR_DEBATE ?? 0) : profileStats.debates,
-//           //   label: "Debates",
-//           //   accent: false,
-//           // },
-//           {
-//             value: isOtherProfile
-//               ? (user.activityCounts?.ROAR_DEBATE_PARTICIPATE ?? 0)
-//               : activities.filter((a: any) => a.type === "ROAR_DEBATE_PARTICIPATE").length,
-//             label: "Debates",
-//             accent: true,
-//           },
-//           {
-//             value: isOtherProfile
-//               ? (user.activityCounts?.ROAR_PREDICTION_PARTICIPATE ?? 0)
-//               : activities.filter((a: any) => a.type === "ROAR_PREDICTION_PARTICIPATE").length,
-//             label: "Predictions",
-//             accent: true,
-//           },
-//           {
-//             value: user.accuracy !== undefined && user.accuracy !== null ? `${user.accuracy}%` : "N/A",
-//             label: "Accuracy",
-//             accent: true,
-//           },
-//         ] */}
 //         {[
-//           {
-//             value: statPosts,
-//             label: "Posts",
-//             accent: true,
-//           },
-//           {
-//             value: statDebates,
-//             label: "Debates",
-//             accent: true,
-//           },
-//           {
-//             value: statPredictions,
-//             label: "Predictions",
-//             accent: true,
-//           },
-//           {
-//             value: user.accuracy !== undefined && user.accuracy !== null ? `${user.accuracy}%` : "N/A",
-//             label: "Accuracy",
-//             accent: true,
-//           },
+//           { value: statPosts, label: "Posts", accent: true },
+//           { value: statDebates, label: "Debates", accent: true },
+//           { value: statPredictions, label: "Predictions", accent: true },
+//           { value: user.accuracy !== undefined && user.accuracy !== null ? `${user.accuracy}%` : "N/A", label: "Accuracy", accent: true },
 //         ].map(({ value, label, accent }) => (
 //           <div
 //             key={label}
@@ -540,8 +607,6 @@
 //                       ? "Count all debates you've participated in."
 //                       : "Your accuracy rate across resolved predictions and debates.";
 
-//               // Posts is the leftmost tile — anchor tooltip to the left so it opens
-//               // rightward instead of overflowing off the left edge of the screen.
 //               const isLeftmost = label === "Posts";
 
 //               return (
@@ -610,170 +675,299 @@
 //         </div>
 //       </div>
 
-//       {/* ── Badges ── */}
-//       <div style={{ padding: "18px 0 0" }}>
-//         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 12 }}>
-//           <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-//             {isOtherProfile ? "Badges" : "Your Badges"}
-//           </span>
-//         </div>
-//         <div style={{ display: "flex", gap: 14, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
-//           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 72 }}>
-//             <img src="/images/Frame 1984081839.png" alt="First Roar" style={{ width: 64, height: 64, objectFit: "contain" }} />
-//           </div>
-//           {[...Array(4)].map((_, i) => (
-//             <div key={`gray-roar-${i}`} style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 72 }}>
-//               <img src="/images/image 189.png" alt="First Roar Gray" style={{ width: 64, height: 64, objectFit: "contain" }} />
+
+
+
+//       {/* ── Global Reputation ── */}
+//       {globalTier && (
+//         <div style={{ padding: "18px 14px 8px" }}>
+//           <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+//               <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
+//                 {globalTier.label} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>· Tier {globalTier.tierLevel}/7</span>
+//               </span>
+//               {globalTier.tier !== "GOAT" && (
+//                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{globalTierProgress}% to next</span>
+//               )}
 //             </div>
-//           ))}
+//             <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
+//               <div style={{ height: "100%", width: `${globalTierProgress}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 4, transition: "width 1s ease" }} />
+//             </div>
+//           </div>
 //         </div>
-//       </div>
+//       )}
 
 //       {/* ── Roar Journey ── */}
 //       <RoarJourneySection
 //         predictions={actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0}
 //         debates={actCounts.ROAR_DEBATE_PARTICIPATE ?? 0}
-//         posts={actCounts.total ?? 0}
-//         //   posts={
+//         posts={statPosts}
+//         // posts={
 //         //   (actCounts.total ?? 0) -
-//         //   ((actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) +
-//         //    (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0))
+//         //   (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) -
+//         //   (actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) - (actCounts.ROAR_PREDICTION_CORRECT ?? 0)
 //         // }
 //         badgeSrcs={[
-//           "/images/Frame 1984081839.png",          // First Roar (always unlocked)
+//           FIRST_ROAR_BADGE_SRC,
 //           ...(user.badges ?? [])
 //             .filter((b: any) => b.unlocked && b.imageUrl)
 //             .slice(0, 3)
-//             .map((b: any) => b.imageUrl),
+//             .map((b: any) => toBadgeImageSrc(b.imageUrl)),
 //         ]}
 //         onToast={onToast}
 //       />
 
-//       {/* ── Activity (tabbed) ── */}
-//       <div style={{ padding: "18px 14px 0" }}>
-//         <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-//           {isOtherProfile ? "Activity" : "Your Activity"}
-//         </span>
-
-//         <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 14 }}>
-//           {(["posts", "predictions", "debates"] as const).map((tab) => (
-//             <button key={tab} onClick={() => setActiveActivityTab(tab)}
-//               style={{ padding: "7px 16px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: activeActivityTab === tab ? "#fff" : "rgba(255,255,255,0.08)", color: activeActivityTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)", transition: "all 0.18s" }}>
-//               {tab.charAt(0).toUpperCase() + tab.slice(1)}
-//             </button>
-//           ))}
+//       {/* ── Feature Mastery Badges (rows = categories, 5 badges per row) ── */}
+//       <div style={{ padding: "18px 0 0" }}>
+//         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 14 }}>
+//           <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+//             {isOtherProfile ? "Badges" : "Your Badges"}
+//           </span>
 //         </div>
 
-//         {/* ── Posts tab ── */}
-//         {activeActivityTab === "posts" && (() => {
-//           const postActivities = sourceActivities.filter((a: any) =>
-//             ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
-//           );
-//           if (isLoadingActivities) {
-//             return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
-//           }
-//           if (postActivities.length === 0) {
-//             return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No posts yet.</p>;
-//           }
-//           return (
-//             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-//               {postActivities
-//                 .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
-//                 .map((p: any) => (
-//                   <div key={p.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-//                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-//                       <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-//                         {p.metadata?.sport?.toUpperCase() ?? "GENERAL"}
+//         <div style={{ display: "flex", flexDirection: "column", gap: 18, padding: "0 14px" }}>
+//           {featureBadges.map((fb) => (
+//             <div key={fb.feature}>
+//               {/* Category label + current level */}
+//               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+//                 <span style={{ fontSize: 12, fontWeight: 700, color: fb.level > 0 ? "#fff" : "rgba(255,255,255,0.45)", textTransform: "capitalize" }}>
+//                   {fb.feature.replace(/([A-Z])/g, " $1")}
+//                 </span>
+//                 <span style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700 }}>
+//                   {fb.level > 0 ? `${fb.label} · L${fb.level}/5` : "Locked"}
+//                 </span>
+//               </div>
+
+//               {/* 5 badges in a row, no scroll — flex with equal columns */}
+//               <div style={{ display: "flex", gap: 6 }}>
+//                 {[1, 2, 3, 4, 5].map((lvl) => {
+//                   const achieved = lvl <= fb.level;
+//                   const isCurrentTarget = lvl === fb.level + 1;
+//                   return (
+//                     <button
+//                       key={lvl}
+//                       onClick={() => setBadgeModal({
+//                         id: fb.feature,
+//                         badgeId: fb.feature,
+//                         unlocked: fb.level > 0,
+//                         progress: fb.progress,
+//                         _feature: fb,
+//                       })}
+//                       style={{
+//                         flex: "1 1 0",
+//                         minWidth: 0,
+//                         background: "none",
+//                         border: "none",
+//                         padding: 0,
+//                         cursor: "pointer",
+//                         display: "flex",
+//                         flexDirection: "column",
+//                         alignItems: "center",
+//                       }}
+//                     >
+//                       <div style={{
+//                         width: "100%",
+//                         aspectRatio: "1 / 1",
+//                         maxWidth: 56,
+//                         borderRadius: "50%",
+//                         display: "flex", alignItems: "center", justifyContent: "center",
+//                         overflow: "hidden",
+//                         fontSize: 20,
+//                         background: achieved
+//                           ? "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))"
+//                           : "rgba(255,255,255,0.05)",
+//                         border: achieved
+//                           ? "2px solid rgba(233,30,140,0.5)"
+//                           : isCurrentTarget
+//                             ? "2px dashed rgba(255,255,255,0.25)"
+//                             : "2px solid rgba(255,255,255,0.08)",
+//                         filter: achieved ? "none" : "grayscale(1) opacity(0.5)",
+//                       }}>
+//                         {fb.icons?.[lvl - 1] ? (
+//                           <img
+//                             src={fb.icons[lvl - 1]}
+//                             alt={`${fb.feature} L${lvl}`}
+//                             style={{ width: "70%", height: "70%", objectFit: "contain" }}
+//                             onError={(e) => {
+//                               const target = e.currentTarget;
+//                               target.style.display = "none";
+//                               const parent = target.parentElement;
+//                               if (parent && !parent.querySelector(".pip-fallback")) {
+//                                 const span = document.createElement("span");
+//                                 span.className = "pip-fallback";
+//                                 span.textContent = achieved || isCurrentTarget ? "🏅" : "🔒";
+//                                 parent.appendChild(span);
+//                               }
+//                             }}
+//                           />
+//                         ) : (
+//                           <span>{achieved || isCurrentTarget ? "🏅" : "🔒"}</span>
+//                         )}
+//                       </div>
+//                       <span style={{ fontSize: 8, color: achieved ? "#fff" : "rgba(255,255,255,0.35)", marginTop: 3 }}>
+//                         L{lvl}
 //                       </span>
-//                       <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
-//                         {p.type === "ROAR_PREDICTION" ? "PREDICTION" : p.type === "ROAR_DEBATE" ? "DEBATE" : "POST"}
+//                     </button>
+//                   );
+//                 })}
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+//       </div>
+
+//       {/* ── Special / Achievement Badges (only show unlocked ones) ── */}
+//       {specialBadges.filter((b) => b.unlocked).length > 0 && (
+//         <div style={{ padding: "18px 0 0" }}>
+//           <div style={{ padding: "0 14px", marginBottom: 12 }}>
+//             <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Special Achievements</span>
+//           </div>
+//           <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
+//             {specialBadges.filter((b) => b.unlocked).map((b) => (
+//               <div key={b.id} style={{
+//                 flexShrink: 0, padding: "8px 14px", borderRadius: 20,
+//                 background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
+//                 border: "1px solid rgba(255,215,0,0.35)",
+//                 fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
+//               }}>
+//                 🏆 {b.name}
+//               </div>
+//             ))}
+//           </div>
+//         </div>
+//       )}
+
+
+
+//       {/* ── Activity (tabbed) ── */}
+//       {/* {!isOtherProfile && ( */}
+//       {(!isOtherProfile || user.showActivity !== false) && (
+//         <div style={{ padding: "18px 14px 0" }}>
+//           <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+//             {isOtherProfile ? "Activity" : "Your Activity"}
+//           </span>
+
+//           <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 14 }}>
+//             {(["posts", "predictions", "debates"] as const).map((tab) => (
+//               <button key={tab} onClick={() => setActiveActivityTab(tab)}
+//                 style={{ padding: "7px 16px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: activeActivityTab === tab ? "#fff" : "rgba(255,255,255,0.08)", color: activeActivityTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)", transition: "all 0.18s" }}>
+//                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
+//               </button>
+//             ))}
+//           </div>
+
+
+//           {/* ── Posts tab ── */}
+//           {activeActivityTab === "posts" && (() => {
+//             const postActivities = sourceActivities.filter((a: any) =>
+//               ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
+//             );
+//             if (isLoadingActivities) {
+//               return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
+//             }
+//             if (postActivities.length === 0) {
+//               return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No posts yet.</p>;
+//             }
+//             return (
+//               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+//                 {postActivities
+//                   .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+//                   .map((p: any) => (
+//                     <div key={p.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+//                         <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+//                           {p.metadata?.sport?.toUpperCase() ?? "GENERAL"}
+//                         </span>
+//                         <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
+//                           {p.type === "ROAR_PREDICTION" ? "PREDICTION" : p.type === "ROAR_DEBATE" ? "DEBATE" : "POST"}
+//                         </span>
+//                       </div>
+//                       <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+//                         {p.metadata?.statement || p.label || "Post"}
+//                       </p>
+//                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+//                         {p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
 //                       </span>
 //                     </div>
-//                     <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-//                       {p.metadata?.statement || p.label || "Post"}
-//                     </p>
-//                     <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-//                       {p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
-//                     </span>
+//                   ))}
+//               </div>
+//             );
+//           })()}
+
+//           {/* ── Predictions tab ── */}
+//           {activeActivityTab === "predictions" && (
+//             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+//               {isLoadingActivities ? (
+//                 <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading predictions...</p>
+//               ) : filteredPreds.length === 0 ? (
+//                 <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No predictions yet.</p>
+//               ) : filteredPreds.map((p: any) => {
+//                 const isCorrect = p.status === "CORRECT" || p.status === "settled_correct";
+//                 const isWrong = p.status === "WRONG" || p.status === "settled_wrong";
+//                 const status = isCorrect ? "CORRECT" : isWrong ? "WRONG" : "PENDING";
+//                 const statusColor = isCorrect ? "#22C55E" : isWrong ? "#EF4444" : "#F59E0B";
+//                 return (
+//                   <div key={p.id ?? p.postId} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+//                       <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>{p.matchId ?? "GENERAL"}</span>
+//                       <span style={{ fontSize: 10, fontWeight: 800, color: statusColor, background: `${statusColor}18`, padding: "2px 7px", borderRadius: 4 }}>{status}</span>
+//                     </div>
+//                     <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>{p.text ?? p.label}</p>
+//                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+//                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+//                         {p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
+//                       </span>
+//                       {!isOtherProfile && (
+//                         <button onClick={() => onToast("Shared call!")}
+//                           style={{ background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>
+//                           Share
+//                         </button>
+//                       )}
+//                     </div>
 //                   </div>
-//                 ))}
+//                 );
+//               })}
 //             </div>
-//           );
-//         })()}
+//           )}
 
-//         {/* ── Predictions tab ── */}
-//         {activeActivityTab === "predictions" && (
-//           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-//             {isLoadingActivities ? (
-//               <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading predictions...</p>
-//             ) : filteredPreds.length === 0 ? (
-//               <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No predictions yet.</p>
-//             ) : filteredPreds.map((p: any) => {
-//               const isCorrect = p.status === "CORRECT" || p.status === "settled_correct";
-//               const isWrong = p.status === "WRONG" || p.status === "settled_wrong";
-//               const status = isCorrect ? "CORRECT" : isWrong ? "WRONG" : "PENDING";
-//               const statusColor = isCorrect ? "#22C55E" : isWrong ? "#EF4444" : "#F59E0B";
-//               return (
-//                 <div key={p.id ?? p.postId} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-//                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-//                     <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>{p.matchId ?? "GENERAL"}</span>
-//                     <span style={{ fontSize: 10, fontWeight: 800, color: statusColor, background: `${statusColor}18`, padding: "2px 7px", borderRadius: 4 }}>{status}</span>
-//                   </div>
-//                   <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>{p.text ?? p.label}</p>
-//                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-//                     <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-//                       {p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
-//                     </span>
-//                     {!isOtherProfile && (
-//                       <button onClick={() => onToast("Shared call!")}
-//                         style={{ background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>
-//                         Share
-//                       </button>
-//                     )}
-//                   </div>
-//                 </div>
-//               );
-//             })}
-//           </div>
-//         )}
-
-//         {/* ── Debates tab ── */}
-//         {activeActivityTab === "debates" && (
-//           <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 80 }}>
-//             {isLoadingActivities ? (
-//               <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading debates...</p>
-//             ) : debateActivities.length === 0 ? (
-//               <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No debates yet.</p>
-//             ) : debateActivities
-//               .slice()
-//               .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
-//               .map((debate: any) => (
-//                 <div key={debate.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-//                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-//                     <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-//                       {(debate.metadata?.sport ?? debate.sport ?? "GENERAL").toUpperCase()}
-//                     </span>
-//                     <span style={{ fontSize: 10, fontWeight: 800, color: "#A78BFA", background: "rgba(167,139,250,0.12)", padding: "2px 7px", borderRadius: 4 }}>DEBATE</span>
-//                   </div>
-//                   <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-//                     {(debate.metadata?.statement || debate.text || debate.label || "Debate").trim()}
-//                   </p>
-//                   {(debate.metadata?.sideA || debate.sideA) && (debate.metadata?.sideB || debate.sideB) && (
-//                     <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
-//                       <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideA ?? debate.sideA}</strong>
-//                       {" vs "}
-//                       <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideB ?? debate.sideB}</strong>
+//           {/* ── Debates tab ── */}
+//           {activeActivityTab === "debates" && (
+//             <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 80 }}>
+//               {isLoadingActivities ? (
+//                 <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading debates...</p>
+//               ) : debateActivities.length === 0 ? (
+//                 <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No debates yet.</p>
+//               ) : debateActivities
+//                 .slice()
+//                 .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+//                 .map((debate: any) => (
+//                   <div key={debate.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+//                       <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+//                         {(debate.metadata?.sport ?? debate.sport ?? "GENERAL").toUpperCase()}
+//                       </span>
+//                       <span style={{ fontSize: 10, fontWeight: 800, color: "#A78BFA", background: "rgba(167,139,250,0.12)", padding: "2px 7px", borderRadius: 4 }}>DEBATE</span>
+//                     </div>
+//                     <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+//                       {(debate.metadata?.statement || debate.text || debate.label || "Debate").trim()}
 //                     </p>
-//                   )}
-//                   <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-//                     {debate.createdAt ? new Date(debate.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
-//                   </span>
-//                 </div>
-//               ))
-//             }
-//           </div>
-//         )}
-//       </div>
+//                     {(debate.metadata?.sideA || debate.sideA) && (debate.metadata?.sideB || debate.sideB) && (
+//                       <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
+//                         <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideA ?? debate.sideA}</strong>
+//                         {" vs "}
+//                         <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideB ?? debate.sideB}</strong>
+//                       </p>
+//                     )}
+//                     <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+//                       {debate.createdAt ? new Date(debate.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
+//                     </span>
+//                   </div>
+//                 ))
+//               }
+//             </div>
+//           )}
+//         </div>
+//       )}
 
 //       {/* ── Modals ── */}
 
@@ -826,7 +1020,20 @@
 //               <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
 //                 <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.18)" }} />
 //               </div>
-//               <h3 className="font-display" style={{ fontSize: 22, marginBottom: 20, letterSpacing: "0.05em" }}>EDIT PROFILE</h3>
+//               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+//                 <h3 className="font-display" style={{ fontSize: 22, letterSpacing: "0.05em", margin: 0 }}>EDIT PROFILE</h3>
+//                 <button
+//                   onClick={() => setEditOpen(false)}
+//                   aria-label="Close"
+//                   style={{
+//                     background: "rgba(255,255,255,0.08)", border: "none", color: "rgba(255,255,255,0.7)",
+//                     width: 32, height: 32, borderRadius: "50%", fontSize: 16, cursor: "pointer",
+//                     display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+//                   }}
+//                 >
+//                   ✕
+//                 </button>
+//               </div>
 //               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Display name</label>
 //               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} />
 //               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Favourite player</label>
@@ -834,19 +1041,55 @@
 //               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>About me (140 chars)</label>
 //               <textarea value={editAbout} onChange={(e) => setEditAbout(e.target.value.slice(0, 140))} rows={4}
 //                 style={{ width: "100%", borderRadius: 14, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", padding: "12px 14px", color: "white", fontSize: 14, marginBottom: 16, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
-//               <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, cursor: "pointer" }}>
+//               {/* <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, cursor: "pointer" }}>
 //                 <input type="checkbox" checked={editShowPredHistory} onChange={(e) => setEditShowPredHistory(e.target.checked)}
 //                   style={{ width: 18, height: 18, accentColor: "var(--accent-magenta)", cursor: "pointer", flexShrink: 0 }} />
 //                 <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>Show prediction history to other fans</span>
 //               </label>
+//               <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, cursor: "pointer" }}>
+//                 <input type="checkbox" checked={editShowActivity} onChange={(e) => setEditShowActivity(e.target.checked)}
+//                   style={{ width: 18, height: 18, accentColor: "var(--accent-magenta)", cursor: "pointer", flexShrink: 0 }} />
+//                 <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>Show my activity (posts, debates, predictions) to other fans</span>
+//               </label> */}
+//               {/* Small reusable toggle switch component (put above the Profile component, or inline here) */}
+//               {[
+//                 // { checked: editShowPredHistory, onToggle: () => setEditShowPredHistory(v => !v), label: "Show prediction history to other fans" },
+//                 { checked: editShowActivity, onToggle: () => setEditShowActivity(v => !v), label: "Show my activity (posts, debates, predictions) to other fans" },
+//               ].map(({ checked, onToggle, label }, i) => (
+//                 <div
+//                   key={i}
+//                   onClick={onToggle}
+//                   style={{
+//                     display: "flex", alignItems: "center", justifyContent: "space-between",
+//                     gap: 12, marginBottom: 18, cursor: "pointer", userSelect: "none",
+//                   }}
+//                 >
+//                   <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500, flex: 1 }}>{label}</span>
+//                   <div
+//                     style={{
+//                       width: 42, height: 24, borderRadius: 12, flexShrink: 0,
+//                       background: checked ? "var(--accent-magenta)" : "rgba(255,255,255,0.15)",
+//                       position: "relative", transition: "background 0.2s ease",
+//                     }}
+//                   >
+//                     <div
+//                       style={{
+//                         position: "absolute", top: 2, left: checked ? 20 : 2,
+//                         width: 20, height: 20, borderRadius: "50%", background: "#fff",
+//                         transition: "left 0.2s ease", boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
+//                       }}
+//                     />
+//                   </div>
+//                 </div>
+//               ))}
 //               <motion.button whileTap={{ scale: 0.97 }} className="btn-gradient"
 //                 onClick={async () => {
-//                   setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory } }));
+//                   setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, } }));
 //                   setEditOpen(false);
 //                   onToast("Profile updated successfully");
-//                   try { await axios.patch("/api/roar/profile", { username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory }); } catch { }
+//                   try { await axios.patch("/api/roar/profile", { username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, }); } catch { }
 //                 }}
-//                 style={{ width: "100%", padding: "16px 0", borderRadius: 999, fontSize: 16, fontWeight: 800, border: "none", cursor: "pointer", letterSpacing: "0.06em" }}>
+//                 style={{ width: "100%", padding: "8px 0", borderRadius: 999, fontSize: 16, fontWeight: 800, border: "none", cursor: "pointer", letterSpacing: "0.06em" }}>
 //                 SAVE
 //               </motion.button>
 //             </motion.div>
@@ -855,38 +1098,111 @@
 //       </AnimatePresence>
 
 //       {/* Share */}
+//       {/* ── Share Modal — fully inline styles, no Tailwind dependency ── */}
 //       <AnimatePresence>
 //         {shareOpen && (
 //           <>
-//             <motion.button type="button" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShareOpen(false)} className="fixed inset-0 z-40 bg-black/70 lg:hidden" />
-//             <motion.div initial={{ y: 24, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 24, opacity: 0 }} onClick={(e) => e.stopPropagation()}
-//               className="fixed bottom-16 inset-x-4 z-50 mx-auto w-full max-w-[280px] rounded-2xl border border-white/10 bg-[#1a1a1e] p-3 shadow-2xl lg:hidden">
-//               <div className="flex items-center justify-between mb-2">
-//                 <p className="text-white text-sm font-semibold">Share</p>
-//                 <button type="button" onClick={() => setShareOpen(false)} className="text-gray-400 hover:text-white">
-//                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+//             {/* Backdrop */}
+//             <motion.div
+//               initial={{ opacity: 0 }}
+//               animate={{ opacity: 1 }}
+//               exit={{ opacity: 0 }}
+//               onClick={() => setShareOpen(false)}
+//               style={{
+//                 position: "fixed", inset: 0, zIndex: 40,
+//                 background: "rgba(0,0,0,0.7)",
+//               }}
+//             />
+
+//             {/* Modal panel */}
+//             <motion.div
+//               initial={{ opacity: 0, y: 20, scale: 0.95 }}
+//               animate={{ opacity: 1, y: 0, scale: 1 }}
+//               exit={{ opacity: 0, y: 20, scale: 0.95 }}
+//               transition={{ type: "spring", damping: 28, stiffness: 320 }}
+//               onClick={(e) => e.stopPropagation()}
+//               style={{
+//                 position: "fixed",
+//                 bottom: 80,
+//                 left: "50%",
+//                 transform: "translateX(-50%)",
+//                 zIndex: 50,
+//                 width: "calc(100% - 32px)",
+//                 maxWidth: 320,
+//                 background: "#1a1a1e",
+//                 borderRadius: 20,
+//                 border: "1px solid rgba(255,255,255,0.1)",
+//                 padding: "16px",
+//                 boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
+//               }}
+//             >
+//               {/* Header */}
+//               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+//                 <p style={{ color: "#fff", fontSize: 14, fontWeight: 600, margin: 0 }}>
+//                   Share ROAR Profile
+//                 </p>
+//                 <button
+//                   type="button"
+//                   onClick={() => setShareOpen(false)}
+//                   style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" }}
+//                 >
+//                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+//                     <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+//                   </svg>
 //                 </button>
 //               </div>
-//               <div className="flex flex-row flex-nowrap items-center gap-1.5 mb-2 overflow-x-auto"><ShareButtons size="w-8 h-8" /></div>
-//               {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
-//             </motion.div>
-//             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShareOpen(false)}
-//               className="hidden lg:flex fixed inset-0 z-50 items-center justify-center bg-black/60">
-//               <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={(e) => e.stopPropagation()}
-//                 className="bg-[#1a1a1e] rounded-2xl border border-white/10 p-4 w-[300px] shadow-2xl">
-//                 <div className="flex items-center justify-between mb-3">
-//                   <p className="text-white text-sm font-semibold">Share ROAR Profile</p>
-//                   <button type="button" onClick={() => setShareOpen(false)} className="text-gray-400 hover:text-white">
-//                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+
+//               {/* Profile preview */}
+//               <div style={{ borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)", background: "#111114", padding: "10px 12px", marginBottom: 14 }}>
+//                 <p style={{ color: "#fff", fontSize: 13, fontWeight: 600, margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+//                   {user.username ?? "ROAR Profile"}
+//                 </p>
+//                 <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+//                   {buildShareUrl(user)}
+//                 </p>
+//               </div>
+
+//               {/* Share icons */}
+//               <div style={{ display: "flex", flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
+//                 {shareActions.map(({ alt, src, handler }) => (
+//                   <button
+//                     key={alt}
+//                     type="button"
+//                     onClick={handler}
+//                     disabled={alt === "WhatsApp" && sharingImage}
+//                     style={{
+//                       flexShrink: 0,
+//                       width: 48, height: 48,
+//                       borderRadius: "50%",
+//                       overflow: "hidden",
+//                       background: "rgba(255,255,255,0.05)",
+//                       border: "1px solid rgba(255,255,255,0.1)",
+//                       display: "flex", alignItems: "center", justifyContent: "center",
+//                       cursor: alt === "WhatsApp" && sharingImage ? "not-allowed" : "pointer",
+//                       opacity: alt === "WhatsApp" && sharingImage ? 0.5 : 1,
+//                       padding: 0,
+//                     }}
+//                   >
+//                     <img
+//                       src={src}
+//                       alt={alt}
+//                       style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+//                     />
 //                   </button>
-//                 </div>
-//                 <div className="rounded-xl border border-white/10 bg-[#111114] p-3 mb-3">
-//                   <p className="text-white text-sm font-semibold line-clamp-2">{user.username ?? "ROAR Profile"}</p>
-//                   <p className="text-white/45 text-[11px] mt-2 line-clamp-2 break-all">{buildShareUrl(user)}</p>
-//                 </div>
-//                 <div className="flex flex-row flex-nowrap items-center gap-2 mb-2"><ShareButtons size="w-9 h-9" /></div>
-//                 {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
-//               </motion.div>
+//                 ))}
+//               </div>
+
+//               {/* Status messages */}
+//               {sharingImage && (
+//                 <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "8px 0 0" }}>
+//                   Preparing image…
+//                 </p>
+//               )}
+//               {copied && (
+//                 <p style={{ fontSize: 11, color: "#34D399", margin: "8px 0 0" }}>
+//                   Copied to clipboard!
+//                 </p>
+//               )}
 //             </motion.div>
 //           </>
 //         )}
@@ -899,14 +1215,47 @@
 //             style={{ position: "absolute", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
 //             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={(e) => e.stopPropagation()} className="glass-card"
 //               style={{ width: "100%", maxWidth: 300, padding: 20, textAlign: "center", background: "var(--bg-secondary)" }}>
-//               <div style={{ fontSize: 48, marginBottom: 12 }}>{BADGE_CONFIG[badgeModal.badgeId ?? badgeModal.id]?.icon}</div>
+//               {/* <div style={{ fontSize: 48, marginBottom: 12 }}>{BADGE_CONFIG[badgeModal.badgeId ?? badgeModal.id]?.icon}</div>
 //               <h3 className="font-display" style={{ fontSize: 26, marginBottom: 4 }}>{BADGE_CONFIG[badgeModal.badgeId ?? badgeModal.id]?.name}</h3>
 //               <p style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700, letterSpacing: "0.05em" }}>{badgeModal.unlocked ? "UNLOCKED" : "LOCKED"}</p>
-//               <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.4 }}>{BADGE_DETAIL[badgeModal.badgeId ?? badgeModal.id]?.description ?? "Unlock by building your legacy!"}</p>
+//               <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.4 }}>{BADGE_DETAIL[badgeModal.badgeId ?? badgeModal.id]?.description ?? "Unlock by building your legacy!"}</p> */}
+//               {/* <div style={{ fontSize: 48, marginBottom: 12 }}>{badgeModal._feature?.icon ?? "🏅"}</div> */}
+//               <div style={{ width: 64, height: 64, margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+//                 <img
+//                   src={badgeModal._feature?.icons?.[Math.max(0, (badgeModal._feature?.level || 1) - 1)] ?? badgeModal._feature?.icon}
+//                   alt={badgeModal._feature?.label ?? "Badge"}
+//                   style={{ width: "100%", height: "100%", objectFit: "contain" }}
+//                   onError={(e) => {
+//                     const target = e.currentTarget;
+//                     target.style.display = "none";
+//                     const parent = target.parentElement;
+//                     if (parent && !parent.querySelector(".badge-modal-fallback")) {
+//                       const span = document.createElement("span");
+//                       span.className = "badge-modal-fallback";
+//                       span.textContent = "🏅";
+//                       span.style.fontSize = "48px";
+//                       parent.appendChild(span);
+//                     }
+//                   }}
+//                 />
+//               </div>
+
+//               <h3 className="font-display" style={{ fontSize: 26, marginBottom: 4 }}>
+//                 {badgeModal._feature?.label ?? "Badge"}
+//               </h3>
+//               <p style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700, letterSpacing: "0.05em" }}>
+//                 {badgeModal.unlocked ? `LEVEL ${badgeModal._feature?.level}/5` : "LOCKED"}
+//               </p>
+//               <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.4 }}>
+//                 {badgeModal._feature?.nextThreshold
+//                   ? `${badgeModal._feature.count}/${badgeModal._feature.nextThreshold} toward next level.`
+//                   : "Max level reached!"}
+//               </p>
 //               <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, margin: "16px 0 6px", overflow: "hidden" }}>
 //                 <div style={{ height: "100%", width: `${badgeModal.progress}%`, background: "var(--accent-magenta)" }} />
 //               </div>
 //               <p style={{ fontSize: 11, color: "var(--text-muted)" }}>Progress: {badgeModal.progress}%</p>
+
 //             </motion.div>
 //           </motion.div>
 //         )}
@@ -921,7 +1270,7 @@
 //               style={{ width: "100%", maxWidth: 320, padding: 20, background: "var(--bg-secondary)" }}>
 //               <h3 className="font-display" style={{ fontSize: 24, marginBottom: 4, textAlign: "center", color: "#fff" }}>YOUR FAN MATCH TRIBE</h3>
 //               <p style={{ fontSize: 11, color: "var(--text-secondary)", textAlign: "center", lineHeight: 1.4, marginBottom: 16 }}>We analysed your takes & predictions to find similar fans.</p>
-//               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+//               {/* <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
 //                 {[
 //                   { username: "Rahul_77", badge: "BOLD_CALLER", similarity: 72 },
 //                   { username: "StatsKing_99", badge: "ORACLE", similarity: 68 },
@@ -941,7 +1290,7 @@
 //                     </div>
 //                   </div>
 //                 ))}
-//               </div>
+//               </div> */}
 //               <button onClick={() => setFanMatchOpen(false)} className="btn-gradient"
 //                 style={{ width: "100%", marginTop: 18, padding: "12px 0", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13 }}>
 //                 Close Tribe
@@ -958,16 +1307,8 @@
 
 
 
-
-
-
-
-
-
-
-
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import Image from "next/image";
@@ -985,6 +1326,8 @@ const toBadgeImageSrc = (imageUrl: string) => {
   if (/^(https?:)?\/\//.test(imageUrl) || imageUrl.startsWith("/")) return imageUrl;
   return `/images/badges/${imageUrl}`;
 };
+
+
 
 // ─── Avatar images (base64) 
 const avatar1 = "data:image/png;base64,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";
@@ -1086,6 +1429,21 @@ const buildShareText = (user: RoarShareUser, badge: string) => {
   ].join("\n");
 };
 
+const truncateText = (text: string, max = 90) => {
+  if (!text) return "";
+  return text.length > max ? text.slice(0, max).trimEnd() + "…" : text;
+};
+
+const formatActivityTimestamp = (ts?: number) => {
+  if (!ts) return "Just now";
+  return new Date(ts).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
 const copyToClipboard = async (text: string) => {
   try {
     await navigator.clipboard.writeText(text);
@@ -1105,8 +1463,6 @@ const copyToClipboard = async (text: string) => {
 };
 
 // ─── Native share-with-image helpers ──────────────────────────────────────────
-// Checks whether the browser can actually share a file (not just text/url).
-// This is the correct feature-detect for "will WhatsApp get the image" on mobile Chrome.
 const supportsFileShare = (file: File): boolean => {
   return (
     typeof navigator !== "undefined" &&
@@ -1115,8 +1471,6 @@ const supportsFileShare = (file: File): boolean => {
   );
 };
 
-// Draws the profile share card: profilecard.png background + stat numbers overlaid.
-// Mirrors the approach already used in RoarJourneySection.generateShareCard.
 function generateProfileShareCard(stats: {
   predictions: number;
   debates: number;
@@ -1131,8 +1485,6 @@ function generateProfileShareCard(stats: {
     if (!ctx) return resolve(null);
 
     const bg = new window.Image();
-    // profilecard.png lives in /public/images, so it's same-origin — crossOrigin is
-    // defensive only and won't block anything as long as it stays same-origin.
     bg.crossOrigin = "anonymous";
     bg.src = "/images/profilecard.png";
 
@@ -1166,7 +1518,7 @@ function generateProfileShareCard(stats: {
   });
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+// ─── Component
 export default function Profile({
   userBadge, setUserBadge, onCompose, onToast, setOnboarded, onNavigateTab,
   viewingProfile, onClose,
@@ -1185,6 +1537,39 @@ export default function Profile({
   const [fetchedActivities, setFetchedActivities] = useState<any[]>([]);
   const [fetchedActivitiesLoading, setFetchedActivitiesLoading] = useState(false);
 
+  // Activity pagination: fetch in rolling 7-day windows instead of everything at once
+  const ACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+  const [activityWindowStart, setActivityWindowStart] = useState<number>(Date.now() - ACTIVITY_WINDOW_MS);
+  const [activityHasMore, setActivityHasMore] = useState(true);
+  const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
+  const [activityUserId, setActivityUserId] = useState<string | null>(null);
+  const activityIdsRef = useRef<Set<string>>(new Set());
+
+  // Room name lookup: roomId -> { name, icon } (from /api/roar/rooms), used to label
+  // activity cards with the actual room name instead of falling back to "General Room".
+  const [roomsById, setRoomsById] = useState<Record<string, { name: string; icon?: string }>>({});
+
+  useEffect(() => {
+    const fetchRooms = async () => {
+      try {
+        const res = await axios.get("/api/roar/rooms");
+        if (res.data?.success) {
+          const map: Record<string, { name: string; icon?: string }> = {};
+          (res.data.rooms || []).forEach((r: any) => {
+            if (r.roomId) map[r.roomId] = { name: r.name, icon: r.icon };
+          });
+          setRoomsById(map);
+        }
+      } catch {
+        // non-critical — activity cards will fall back to metadata/"General Room"
+      }
+    };
+    fetchRooms();
+  }, []);
+
+  const getRoomName = (roomId?: string, fallback?: string) =>
+    (roomId && roomsById[roomId]?.name) || fallback || "General Room";
+
   const [badgeModal, setBadgeModal] = useState<any>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -1198,34 +1583,128 @@ export default function Profile({
   const [editShowPredHistory, setEditShowPredHistory] = useState(true);
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
-  const [activeActivityTab, setActiveActivityTab] = useState<"posts" | "predictions" | "debates">("posts");
+  const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [activeActivityTab, setActiveActivityTab] = useState<"all" | "posts" | "predictions" | "debates">("all");
+
+  // NEW: top-level section tabs shown after the Roar Journey section
+  const [activeMainTab, setActiveMainTab] = useState<"overview" | "badges" | "activity">("overview");
 
   const [globalTier, setGlobalTier] = useState<any>(null);
   const [globalTierProgress, setGlobalTierProgress] = useState(0);
   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
   const [specialBadges, setSpecialBadges] = useState<any[]>([]);
 
-  const fetchActivities = async (actualUserId: string) => {
+  // Fetches a single 7-day window of activity. By default fetches the most
+  // recent 7 days. Pass `before` (an epoch ms timestamp) to page further back
+  // in time — e.g. "Load more" fetches the 7 days immediately preceding the
+  // oldest window already loaded. `append` controls whether results are
+  // merged onto the existing list or replace it (used when switching profiles).
+  //
+  // NOTE: we also filter client-side by createdAt, because some backends
+  // silently ignore startDate/endDate query params and return everything —
+  // that was the cause of "first fetch" showing weeks-old activity even
+  // though only a 7-day window was requested.
+
+  // Refetch on return-to-screen, since posting happens elsewhere (ComposeModal's
+  // parent room screen) with no direct link back to this component — the only
+  // reliable signal that "something may have changed" is the user navigating
+  // back here.
+  useEffect(() => {
+    const reload = () => {
+      if (document.visibilityState !== "visible") return;
+      refreshActivities(); // clears ActivityContext's 30s cache
+
+      if (!isOtherProfile) {
+        axios.get("/api/roar/profile", { withCredentials: true })
+          .then((res) => {
+            if (!res.data?.success) return;
+            setProfileMetadata((prev: any) => ({
+              ...prev,
+              user: res.data.user || {},
+            }));
+            if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
+            if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
+            if (res.data.globalTier) setGlobalTier(res.data.globalTier);
+            if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
+
+            const actualUid = res.data.user?.actualUserId;
+            if (actualUid) fetchActivities(actualUid);
+          })
+          .catch(() => { });
+      }
+    };
+
+    document.addEventListener("visibilitychange", reload);
+    window.addEventListener("focus", reload);
+    return () => {
+      document.removeEventListener("visibilitychange", reload);
+      window.removeEventListener("focus", reload);
+    };
+  }, [isOtherProfile]);
+
+  const fetchActivities = async (
+    actualUserId: string,
+    opts?: { before?: number; append?: boolean }
+  ) => {
     if (!actualUserId) return;
-    setFetchedActivitiesLoading(true);
+    const endDate = opts?.before ?? Date.now();
+    const startDate = endDate - ACTIVITY_WINDOW_MS;
+    const isAppend = !!opts?.append;
+    const setLoadingFlag = isAppend ? setLoadingMoreActivities : setFetchedActivitiesLoading;
+
+    setLoadingFlag(true);
+    if (!isAppend) activityIdsRef.current = new Set();
     try {
       const actRes = await axios.get(
-        `/api/user-activity?userId=${encodeURIComponent(actualUserId)}&limit=200`
+        `/api/user-activity?userId=${encodeURIComponent(actualUserId)}&limit=200&startDate=${startDate}&endDate=${endDate}`
       );
       if (actRes.data?.success) {
-        setFetchedActivities(actRes.data.activities || []);
+        const rawItems: any[] = actRes.data.activities || [];
+
+        // Client-side safety net: enforce the requested window regardless of
+        // what the API actually returned.
+        const newItems = rawItems.filter((a: any) => {
+          const ts = a?.createdAt;
+          if (!ts) return true; // keep items with no timestamp rather than silently drop them
+          return ts >= startDate && ts <= endDate;
+        });
+
+        const deduped = newItems.filter((a: any) => a?.id != null && !activityIdsRef.current.has(a.id));
+        deduped.forEach((a: any) => activityIdsRef.current.add(a.id));
+
+        setFetchedActivities((prev) => (isAppend ? [...prev, ...deduped] : deduped));
+        // hasMore is based on whether the API returned anything in this window at all,
+        // not just what survived the client-side filter, so paging still advances
+        // correctly even if a window happens to be empty.
+        setActivityHasMore(isAppend ? rawItems.length > 0 : rawItems.length > 0);
+        setActivityWindowStart(startDate);
+        setActivityUserId(actualUserId);
+      } else if (!isAppend) {
+        setFetchedActivities([]);
       }
     } catch {
-      setFetchedActivities([]);
+      if (!isAppend) setFetchedActivities([]);
     } finally {
-      setFetchedActivitiesLoading(false);
+      setLoadingFlag(false);
     }
+  };
+
+  // Loads the next-older 7-day window and appends it to what's already shown.
+  const handleLoadMoreActivities = async () => {
+    if (!activityUserId || loadingMoreActivities || !activityHasMore) return;
+    await fetchActivities(activityUserId, { before: activityWindowStart, append: true });
   };
 
   useEffect(() => {
     const fetchProfileData = async () => {
       setLoading(true);
       setFetchedActivities([]);
+      setActivityWindowStart(Date.now() - ACTIVITY_WINDOW_MS);
+      setActivityHasMore(true);
+      setActivityUserId(null);
+      activityIdsRef.current = new Set();
+      setCoverPhoto(null);
       try {
         if (!isOtherProfile) {
           const res = await axios.get("/api/roar/profile", { withCredentials: true });
@@ -1248,6 +1727,9 @@ export default function Profile({
               setSelectedAvatar(res.data.user.avatarUrl);
               try { localStorage.setItem("roar_avatar_url", res.data.user.avatarUrl); } catch { }
             }
+            if (res.data.user?.coverPhotoUrl) {
+              setCoverPhoto(res.data.user.coverPhotoUrl);
+            }
 
             const actualUid = res.data.user?.actualUserId;
             if (actualUid) {
@@ -1265,6 +1747,7 @@ export default function Profile({
           });
           if (fanData.badge) setUserBadge(fanData.badge);
           if (fanData.avatarUrl) setSelectedAvatar(fanData.avatarUrl);
+          if (fanData.coverPhotoUrl) setCoverPhoto(fanData.coverPhotoUrl);
 
           const uid = fanData.actualUserId || fanData.userId;
           if (uid) await fetchActivities(uid);
@@ -1284,6 +1767,7 @@ export default function Profile({
             });
             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
             if (res.data.user?.avatarUrl) setSelectedAvatar(res.data.user.avatarUrl);
+            if (res.data.user?.coverPhotoUrl) setCoverPhoto(res.data.user.coverPhotoUrl);
 
             const uid = res.data.user?.actualUserId || res.data.user?.userId || viewingProfile;
             await fetchActivities(uid);
@@ -1315,6 +1799,8 @@ export default function Profile({
     );
   }
 
+
+
   const user = profileMetadata.user ?? CURRENT_USER;
   const rival = profileMetadata.rival ?? RIVAL;
 
@@ -1322,21 +1808,53 @@ export default function Profile({
   const ownedBadges = badgesToDisplay.filter((b: any) => b.unlocked);
 
   const actCounts = user?.activityCounts ?? {};
-  const derivedCreatedPosts =
+
+  // const derivedCreatedPosts =
+  //   (actCounts.ROAR_POST ?? 0) +
+  //   (actCounts.ROAR_DEBATE ?? 0) +
+  //   (actCounts.ROAR_PREDICTION ?? 0);
+  // const derivedDebates = fetchedActivities.filter((a: any) => a.type === "ROAR_DEBATE_PARTICIPATE").length;
+  // const derivedPredictions = fetchedActivities.filter((a: any) => a.type === "ROAR_PREDICTION_PARTICIPATE").length;
+
+  // const statPosts = derivedCreatedPosts > 0
+  //   ? derivedCreatedPosts
+  //   : fetchedActivities.filter((a: any) =>
+  //     ["ROAR_POST", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
+  //   ).length;
+
+  // const statDebates = (actCounts.ROAR_DEBATE_PARTICIPATE && actCounts.ROAR_DEBATE_PARTICIPATE > 0) ? actCounts.ROAR_DEBATE_PARTICIPATE : derivedDebates;
+  // const statPredictions = (actCounts.ROAR_PREDICTION_PARTICIPATE && actCounts.ROAR_PREDICTION_PARTICIPATE > 0) ? actCounts.ROAR_PREDICTION_PARTICIPATE : derivedPredictions;
+
+
+  // Prefer ActivityContext's profileStats — it's driven by /api/user-activity's
+  // `counts` (activityCounts on the user doc), the same source that already
+  // powers badge progress correctly. Only fall back to deriving from the
+  // windowed fetchedActivities list if profileStats hasn't loaded anything yet
+  // (e.g. ActivityContext hasn't resolved a userId).
+  // const hasLiveProfileStats = profileStats && profileStats.totalActivity > 0;
+
+  // const derivedDebates = fetchedActivities.filter((a: any) => a.type === "ROAR_DEBATE_PARTICIPATE").length;
+  // const derivedPredictions = fetchedActivities.filter((a: any) => a.type === "ROAR_PREDICTION_PARTICIPATE").length;
+  // const derivedCreatedPosts = fetchedActivities.filter((a: any) =>
+  //   ["ROAR_POST", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
+  // ).length;
+
+  // const statPosts = hasLiveProfileStats ? profileStats.posts : derivedCreatedPosts;
+  // const statDebates = hasLiveProfileStats ? profileStats.debates : derivedDebates;
+  // const statPredictions = (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) > 0
+  //   ? actCounts.ROAR_PREDICTION_PARTICIPATE
+  //   : derivedPredictions;
+
+  const statPosts =
     (actCounts.ROAR_POST ?? 0) +
     (actCounts.ROAR_DEBATE ?? 0) +
     (actCounts.ROAR_PREDICTION ?? 0);
-  const derivedDebates = fetchedActivities.filter((a: any) => a.type === "ROAR_DEBATE_PARTICIPATE").length;
-  const derivedPredictions = fetchedActivities.filter((a: any) => a.type === "ROAR_PREDICTION_PARTICIPATE").length;
 
-  const statPosts = derivedCreatedPosts > 0
-    ? derivedCreatedPosts
-    : fetchedActivities.filter((a: any) =>
-      ["ROAR_POST", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
-    ).length;
+  // Debates = debates you participated in (voted on)
+  const statDebates = actCounts.ROAR_DEBATE_PARTICIPATE ?? 0;
 
-  const statDebates = (actCounts.ROAR_DEBATE_PARTICIPATE && actCounts.ROAR_DEBATE_PARTICIPATE > 0) ? actCounts.ROAR_DEBATE_PARTICIPATE : derivedDebates;
-  const statPredictions = (actCounts.ROAR_PREDICTION_PARTICIPATE && actCounts.ROAR_PREDICTION_PARTICIPATE > 0) ? actCounts.ROAR_PREDICTION_PARTICIPATE : derivedPredictions;
+  // Predictions = predictions you participated in (voted on)
+  const statPredictions = actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0;
 
   const statAccuracy = user?.accuracy != null ? `${user.accuracy}%` : "N/A";
 
@@ -1344,11 +1862,14 @@ export default function Profile({
   const repMax = Math.max(repScore, 500);
   const repPct = Math.round((repScore / repMax) * 100);
 
-  const sourceActivities = fetchedActivities.length > 0
-    ? fetchedActivities
-    : (!isOtherProfile ? activities : []);
-  const isLoadingActivities = fetchedActivitiesLoading ||
-    (!isOtherProfile && fetchedActivities.length === 0 && activityLoading);
+  // sourceActivities now ONLY reflects fetchedActivities (the windowed list).
+  // Falling back to the unwindowed `activities` context caused the "last 7
+  // days" filter to be silently bypassed whenever fetchedActivities was
+  // momentarily empty (e.g. between the profile fetch resolving and the
+  // activity fetch resolving), so that fallback has been removed for the
+  // logged-in-user case — the loading state below covers that gap instead.
+  const sourceActivities = fetchedActivities;
+  const isLoadingActivities = fetchedActivitiesLoading;
 
   const predictionActivities = sourceActivities.filter((a: any) =>
     a.type === "ROAR_PREDICTION_PARTICIPATE"
@@ -1361,6 +1882,9 @@ export default function Profile({
     text: (a.metadata?.statement || a.label || "").trim() || `Prediction: ${a.label}`,
     status: a.metadata?.status || "PENDING",
     createdAt: a.createdAt,
+    roomId: a.roomId,
+    roomName: a.metadata?.roomName || a.roomName,
+    matchId: a.matchId,
   }));
 
   const filteredPreds = (displayPredictions || [])
@@ -1380,10 +1904,41 @@ export default function Profile({
     try { await axios.patch("/api/roar/profile", { avatarUrl: src }); } catch { }
   };
 
+  // Cover photo is a free-form upload (unlike the fixed avatar gallery), so
+  // it's handled as a file input read into a data URL, matching the format
+  // the backend already accepts for avatarUrl. Optional field — clearing it
+  // is also supported.
+  const MAX_COVER_BYTES = 4 * 1024 * 1024; // 4MB, keep the profile doc small
+  const handleCoverPhotoFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      onToast("Please choose an image file.");
+      return;
+    }
+    if (file.size > MAX_COVER_BYTES) {
+      onToast("Image is too large — please pick one under 4MB.");
+      return;
+    }
+    setUploadingCover(true);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Could not read file"));
+        reader.readAsDataURL(file);
+      });
+      setCoverPhoto(dataUrl);
+    } catch {
+      onToast("Could not load that image.");
+    } finally {
+      setUploadingCover(false);
+    }
+  };
+
+  const handleRemoveCoverPhoto = () => {
+    setCoverPhoto(null);
+  };
+
   // ── WhatsApp / native image share ───────────────────────────────────────────
-  // IMPORTANT: this must be called directly from the tap handler with minimal
-  // async work beforehand, or Chrome on Android will treat navigator.share()
-  // as no longer being "in response to a user gesture" and silently reject it.
   const handleWhatsAppShare = async () => {
     if (sharingImage) return;
     setSharingImage(true);
@@ -1402,10 +1957,6 @@ export default function Profile({
 
       const file = new File([blob], "my-roar-profile.png", { type: "image/png" });
 
-      // Mobile Chrome (Android) supports this — it opens the native OS share
-      // sheet with the image attached, and WhatsApp shows up as one of the
-      // share targets. The person taps WhatsApp and the image lands in the
-      // chat composer already attached.
       if (supportsFileShare(file)) {
         try {
           await navigator.share({
@@ -1415,16 +1966,11 @@ export default function Profile({
           });
           return;
         } catch (err: any) {
-          // User backing out of the share sheet is not an error.
           if (err?.name === "AbortError") return;
           console.error("navigator.share failed", err);
-          // fall through to download fallback below
         }
       }
 
-      // Desktop / unsupported browsers: no API exists to push a file straight
-      // into WhatsApp Web, so the best we can do is save the image so the
-      // person can attach it manually.
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -1439,7 +1985,7 @@ export default function Profile({
     }
   };
 
-  // ── Share ──────────────────────────────────────────────────────────────────
+  // ── Share
   const shareActions = [
     { alt: "WhatsApp", src: "/images/share_whatsapp.png", handler: handleWhatsAppShare },
     { alt: "Threads", src: "/images/share_thread.png", handler: () => window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(buildShareText(user, userBadge))}`, "_blank") },
@@ -1466,7 +2012,7 @@ export default function Profile({
     padding: "0 14px", color: "white", fontSize: 15, marginBottom: 16,
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  // ── Render
   return (
     <div className="screen-scroll">
 
@@ -1488,63 +2034,49 @@ export default function Profile({
         </Link>
       </div>
 
+      {/* ── Cover photo banner ── */}
+      <div style={{
+        position: "relative",
+        width: "100%",
+        height: 120,
+        background: coverPhoto
+          ? undefined
+          : "linear-gradient(135deg, rgba(233,30,140,0.35), rgba(255,107,53,0.35))",
+        overflow: "hidden",
+      }}>
+        {coverPhoto && (
+          <img
+            src={coverPhoto}
+            alt="Cover"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        )}
+        <div style={{
+          position: "absolute", inset: 0,
+          background: "linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(10,10,16,0.85) 100%)",
+        }} />
+        {!isOtherProfile && (
+          <button
+            onClick={() => setEditOpen(true)}
+            aria-label="Edit cover photo"
+            style={{
+              position: "absolute", top: 12, right: 12, zIndex: 5,
+              width: 32, height: 32, borderRadius: "50%",
+              background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)",
+              border: "1px solid rgba(255,255,255,0.25)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", padding: 0,
+            }}
+          >
+            <PencilIcon />
+          </button>
+        )}
+      </div>
+
       {/* ── Hero ── */}
-      {/* <div style={{ padding: "28px 20px 0", textAlign: "center" }}>
-        <div style={{ position: "relative", width: 100, height: 100, margin: "0 auto 14px" }}>
-          <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
-          <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
-          <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
-            {selectedAvatar ? (
-              <img src={selectedAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <AvatarWithBadge username={user.username ?? CURRENT_USER.username} badge={userBadge} size="lg" />
-            )}
-          </div>
-          {!isOtherProfile && (
-            <button onClick={() => setAvatarPickerOpen(true)} aria-label="Change avatar"
-              style={{ position: "absolute", bottom: 2, right: 2, zIndex: 10, width: 24, height: 24, borderRadius: "50%", background: "var(--accent-magenta)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid rgba(10,10,16,0.97)", cursor: "pointer", padding: 0, boxShadow: "0 2px 8px rgba(233,30,140,0.7)" }}>
-              <PencilIcon />
-            </button>
-          )}
-        </div>
-
-        <h1 className="font-display" style={{ fontSize: 26, fontWeight: 900, letterSpacing: "0.04em", color: "#fff", margin: "0 0 4px" }}>
-          {(user.username ?? "ROARFAN").toUpperCase()}
-        </h1>
-        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 4px" }}>
-          {BADGE_LABELS[userBadge] ?? "Fan"}
-        </p>
-        {(user.favPlayer || editFavPlayer) && (
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
-            Favourite player: <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
-          </p>
-        )}
-        {(user.about || editAbout) && (
-          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.5, maxWidth: 270, margin: "6px auto 0" }}>
-            {user.about || editAbout}
-          </p>
-        )}
-
-        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginTop: 18 }}>
-          {!isOtherProfile && (
-            <button onClick={() => setEditOpen(true)}
-              style={{ padding: "9px 22px", background: "none", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 22, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", letterSpacing: "0.01em" }}>
-              Edit Profile
-            </button>
-          )}
-          {/* <button onClick={() => { setShareOpen(true); setCopied(false); }} className="btn-gradient"
-            style={{ padding: "9px 22px", border: "none", borderRadius: 22, color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", letterSpacing: "0.01em" }}>
-            Share Profile
-          </button> */}
-      {/* </div> */}
-      {/* // </div>  */}
-
-
-{/* ── Hero ── */}
       <div style={{ padding: "24px 20px 0", display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 20 }}>
 
-        {/* Avatar — left column, smaller, with Edit Profile button below it */}
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, marginTop: -48 }}>
           <div style={{ position: "relative", width: 84, height: 84 }}>
             <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
             <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
@@ -1571,7 +2103,6 @@ export default function Profile({
           )}
         </div>
 
-        {/* Right column — username, tagline, bio */}
         <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
           <h1 className="font-display" style={{ fontSize: 20, fontWeight: 900, letterSpacing: "0.03em", color: "#fff", margin: "0 0 4px" }}>
             {(user.username ?? "ROARFAN").toUpperCase()}
@@ -1691,29 +2222,9 @@ export default function Profile({
         </div>
       </div>
 
-      {/* ── Badges ── */}
-      {/* <div style={{ padding: "18px 0 0" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 12 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-            {isOtherProfile ? "Badges" : "Your Badges"}
-          </span>
-        </div>
-        <div style={{ display: "flex", gap: 14, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 72 }}>
-            <img src="/images/Frame 1984081839.png" alt="First Roar" style={{ width: 64, height: 64, objectFit: "contain" }} />
-          </div>
-          {/* {[...Array(4)].map((_, i) => (
-            <div key={`gray-roar-${i}`} style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, width: 72 }}>
-              <img src="/images/image 189.png" alt="First Roar Gray" style={{ width: 64, height: 64, objectFit: "contain" }} />
-            </div>
-          ))} */}
-      {/* </div> */}
-      {/* </div> */}
-
-
       {/* ── Global Reputation ── */}
       {globalTier && (
-        <div style={{ padding: "18px 14px 0" }}>
+        <div style={{ padding: "18px 14px 8px" }}>
           <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
@@ -1730,168 +2241,350 @@ export default function Profile({
         </div>
       )}
 
-      {/* ── Feature Mastery Badges (rows = categories, 5 badges per row) ── */}
-      <div style={{ padding: "18px 0 0" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 14 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-            {isOtherProfile ? "Badges" : "Your Badges"}
-          </span>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 18, padding: "0 14px" }}>
-          {featureBadges.map((fb) => (
-            <div key={fb.feature}>
-              {/* Category label + current level */}
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: fb.level > 0 ? "#fff" : "rgba(255,255,255,0.45)", textTransform: "capitalize" }}>
-                  {fb.feature.replace(/([A-Z])/g, " $1")}
-                </span>
-                <span style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700 }}>
-                  {fb.level > 0 ? `${fb.label} · L${fb.level}/5` : "Locked"}
-                </span>
-              </div>
-
-              {/* 5 badges in a row, no scroll — flex with equal columns */}
-              <div style={{ display: "flex", gap: 6 }}>
-                {[1, 2, 3, 4, 5].map((lvl) => {
-                  const achieved = lvl <= fb.level;
-                  const isCurrentTarget = lvl === fb.level + 1;
-                  return (
-                    <button
-                      key={lvl}
-                      onClick={() => setBadgeModal({
-                        id: fb.feature,
-                        badgeId: fb.feature,
-                        unlocked: fb.level > 0,
-                        progress: fb.progress,
-                        _feature: fb,
-                      })}
-                      style={{
-                        flex: "1 1 0",
-                        minWidth: 0,
-                        background: "none",
-                        border: "none",
-                        padding: 0,
-                        cursor: "pointer",
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                      }}
-                    >
-                      <div style={{
-                        width: "100%",
-                        aspectRatio: "1 / 1",
-                        maxWidth: 56,
-                        borderRadius: "50%",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        overflow: "hidden",
-                        fontSize: 20,
-                        background: achieved
-                          ? "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))"
-                          : "rgba(255,255,255,0.05)",
-                        border: achieved
-                          ? "2px solid rgba(233,30,140,0.5)"
-                          : isCurrentTarget
-                            ? "2px dashed rgba(255,255,255,0.25)"
-                            : "2px solid rgba(255,255,255,0.08)",
-                        filter: achieved ? "none" : "grayscale(1) opacity(0.5)",
-                      }}>
-                        {fb.icons?.[lvl - 1] ? (
-                          <img
-                            src={fb.icons[lvl - 1]}
-                            alt={`${fb.feature} L${lvl}`}
-                            style={{ width: "70%", height: "70%", objectFit: "contain" }}
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              target.style.display = "none";
-                              const parent = target.parentElement;
-                              if (parent && !parent.querySelector(".pip-fallback")) {
-                                const span = document.createElement("span");
-                                span.className = "pip-fallback";
-                                span.textContent = achieved || isCurrentTarget ? "🏅" : "🔒";
-                                parent.appendChild(span);
-                              }
-                            }}
-                          />
-                        ) : (
-                          <span>{achieved || isCurrentTarget ? "🏅" : "🔒"}</span>
-                        )}
-                      </div>
-                      <span style={{ fontSize: 8, color: achieved ? "#fff" : "rgba(255,255,255,0.35)", marginTop: 3 }}>
-                        L{lvl}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Special / Achievement Badges (only show unlocked ones) ── */}
-      {specialBadges.filter((b) => b.unlocked).length > 0 && (
-        <div style={{ padding: "18px 0 0" }}>
-          <div style={{ padding: "0 14px", marginBottom: 12 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Special Achievements</span>
-          </div>
-          <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
-            {specialBadges.filter((b) => b.unlocked).map((b) => (
-              <div key={b.id} style={{
-                flexShrink: 0, padding: "8px 14px", borderRadius: 20,
-                background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
-                border: "1px solid rgba(255,215,0,0.35)",
-                fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
-              }}>
-                🏆 {b.name}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── Roar Journey ── */}
       <RoarJourneySection
         predictions={actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0}
         debates={actCounts.ROAR_DEBATE_PARTICIPATE ?? 0}
         posts={statPosts}
-        // posts={
-        //   (actCounts.total ?? 0) -
-        //   (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) -
-        //   (actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) - (actCounts.ROAR_PREDICTION_CORRECT ?? 0)
-        // }
+        // badgeSrcs={[
+        //   FIRST_ROAR_BADGE_SRC,
+        //   ...(user.badges ?? [])
+        //     .filter((b: any) => b.unlocked && b.imageUrl)
+        //     .slice(0, 3)
+        //     .map((b: any) => toBadgeImageSrc(b.imageUrl)),
+        // ]}
         badgeSrcs={[
-          FIRST_ROAR_BADGE_SRC,
-          ...(user.badges ?? [])
-            .filter((b: any) => b.unlocked && b.imageUrl)
-            .slice(0, 3)
+          ...featureBadges
+            .filter((fb) => fb.level > 0)
+            .map((fb) => fb.icons?.[Math.max(0, fb.level - 1)])
+            .filter(Boolean),
+          ...specialBadges
+            .filter((b) => b.unlocked && b.imageUrl)
             .map((b: any) => toBadgeImageSrc(b.imageUrl)),
         ]}
         onToast={onToast}
       />
 
-      {/* ── Activity (tabbed) ── */}
-      {/* {!isOtherProfile && ( */}
-      {(!isOtherProfile || user.showActivity !== false) && (
-        <div style={{ padding: "18px 14px 0" }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-            {isOtherProfile ? "Activity" : "Your Activity"}
-          </span>
+      {/* ── Main section tabs: Overview / Badges / Activity ── */}
+      <div style={{ padding: "18px 14px 0" }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+          {(["overview", "badges", "activity"] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveMainTab(tab)}
+              style={{
+                flex: 1,
+                padding: "9px 0",
+                borderRadius: 20,
+                border: "none",
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 700,
+                background: activeMainTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
+                color: activeMainTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
+                transition: "all 0.18s",
+              }}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
 
-          <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 14 }}>
-            {(["posts", "predictions", "debates"] as const).map((tab) => (
+      {/* ── OVERVIEW TAB: badges won summary ── */}
+      {activeMainTab === "overview" && (
+        <div style={{ padding: "0 14px 8px" }}>
+          {(() => {
+            const wonFeatureBadges = featureBadges.filter((fb) => fb.level > 0);
+            const wonSpecialBadges = specialBadges.filter((b) => b.unlocked);
+            const totalWon = wonFeatureBadges.length + wonSpecialBadges.length;
+
+            if (totalWon === 0) {
+              return (
+                <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>
+                    {isOtherProfile ? "No badges won yet." : "No badges won yet — get posting, predicting, and debating!"}
+                  </p>
+                </div>
+              );
+            }
+
+            return (
+              <>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+                    {isOtherProfile ? "Badges Won" : "Your Badges Won"}
+                  </span>
+                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{totalWon} total</span>
+                </div>
+
+                {wonFeatureBadges.length > 0 && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: wonSpecialBadges.length > 0 ? 16 : 0 }}>
+                    {wonFeatureBadges.map((fb) => (
+                      <button
+                        key={fb.feature}
+                        onClick={() => setBadgeModal({
+                          id: fb.feature,
+                          badgeId: fb.feature,
+                          unlocked: fb.level > 0,
+                          progress: fb.progress,
+                          _feature: fb,
+                        })}
+                        style={{
+                          display: "flex", flexDirection: "column", alignItems: "center",
+                          width: 76, background: "none", border: "none", cursor: "pointer", padding: 0,
+                        }}
+                      >
+                        <div style={{
+                          width: 56, height: 56, borderRadius: "50%",
+                          background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
+                          border: "2px solid rgba(233,30,140,0.5)",
+                          display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+                        }}>
+                          {fb.icons?.[Math.max(0, fb.level - 1)] ? (
+                            <img src={fb.icons[Math.max(0, fb.level - 1)]} alt={fb.feature} style={{ width: "70%", height: "70%", objectFit: "contain" }} />
+                          ) : (
+                            <span style={{ fontSize: 20 }}>🏅</span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: 10, color: "#fff", fontWeight: 600, marginTop: 6, textAlign: "center", textTransform: "capitalize" }}>
+                          {fb.feature.replace(/([A-Z])/g, " $1")}
+                        </span>
+                        <span style={{ fontSize: 9, color: "var(--accent-magenta)", fontWeight: 700 }}>L{fb.level}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {wonSpecialBadges.length > 0 && (
+                  <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
+                    {wonSpecialBadges.map((b) => (
+                      <div key={b.id} style={{
+                        flexShrink: 0, padding: "8px 14px", borderRadius: 20,
+                        background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
+                        border: "1px solid rgba(255,215,0,0.35)",
+                        fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
+                      }}>
+                        🏆 {b.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ── BADGES TAB: full feature mastery + special badges ── */}
+      {activeMainTab === "badges" && (
+        <>
+          <div style={{ padding: "0 0 0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 14 }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+                {isOtherProfile ? "Badges" : "Your Badges"}
+              </span>
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 18, padding: "0 14px" }}>
+              {featureBadges.map((fb) => (
+                <div key={fb.feature}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: fb.level > 0 ? "#fff" : "rgba(255,255,255,0.45)", textTransform: "capitalize" }}>
+                      {fb.feature.replace(/([A-Z])/g, " $1")}
+                    </span>
+                    <span style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700 }}>
+                      {fb.level > 0 ? `${fb.label} · L${fb.level}/5` : "Locked"}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {[1, 2, 3, 4, 5].map((lvl) => {
+                      const achieved = lvl <= fb.level;
+                      const isCurrentTarget = lvl === fb.level + 1;
+                      return (
+                        <button
+                          key={lvl}
+                          onClick={() => setBadgeModal({
+                            id: fb.feature,
+                            badgeId: fb.feature,
+                            unlocked: fb.level > 0,
+                            progress: fb.progress,
+                            _feature: fb,
+                          })}
+                          style={{
+                            flex: "1 1 0",
+                            minWidth: 0,
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            cursor: "pointer",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                          }}
+                        >
+                          <div style={{
+                            width: "100%",
+                            aspectRatio: "1 / 1",
+                            maxWidth: 56,
+                            borderRadius: "50%",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            overflow: "hidden",
+                            fontSize: 20,
+                            background: achieved
+                              ? "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))"
+                              : "rgba(255,255,255,0.05)",
+                            border: achieved
+                              ? "2px solid rgba(233,30,140,0.5)"
+                              : isCurrentTarget
+                                ? "2px dashed rgba(255,255,255,0.25)"
+                                : "2px solid rgba(255,255,255,0.08)",
+                            filter: achieved ? "none" : "grayscale(1) opacity(0.5)",
+                          }}>
+                            {fb.icons?.[lvl - 1] ? (
+                              <img
+                                src={fb.icons[lvl - 1]}
+                                alt={`${fb.feature} L${lvl}`}
+                                style={{ width: "70%", height: "70%", objectFit: "contain" }}
+                                onError={(e) => {
+                                  const target = e.currentTarget;
+                                  target.style.display = "none";
+                                  const parent = target.parentElement;
+                                  if (parent && !parent.querySelector(".pip-fallback")) {
+                                    const span = document.createElement("span");
+                                    span.className = "pip-fallback";
+                                    span.textContent = achieved || isCurrentTarget ? "🏅" : "🔒";
+                                    parent.appendChild(span);
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <span>{achieved || isCurrentTarget ? "🏅" : "🔒"}</span>
+                            )}
+                          </div>
+                          <span style={{ fontSize: 8, color: achieved ? "#fff" : "rgba(255,255,255,0.35)", marginTop: 3 }}>
+                            L{lvl}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {specialBadges.filter((b) => b.unlocked).length > 0 && (
+            <div style={{ padding: "18px 0 0" }}>
+              <div style={{ padding: "0 14px", marginBottom: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Special Achievements</span>
+              </div>
+              <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
+                {specialBadges.filter((b) => b.unlocked).map((b) => (
+                  <div key={b.id} style={{
+                    flexShrink: 0, padding: "8px 14px", borderRadius: 20,
+                    background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
+                    border: "1px solid rgba(255,215,0,0.35)",
+                    fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
+                  }}>
+                    🏆 {b.name}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ── ACTIVITY TAB (tabbed all/posts/predictions/debates) ── */}
+      {activeMainTab === "activity" && (!isOtherProfile || user.showActivity !== false) && (
+        <div style={{ padding: "0 14px 0" }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 0, marginBottom: 14 }}>
+            {(["all", "posts", "predictions", "debates"] as const).map((tab) => (
               <button key={tab} onClick={() => setActiveActivityTab(tab)}
-                style={{ padding: "7px 16px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: activeActivityTab === tab ? "#fff" : "rgba(255,255,255,0.08)", color: activeActivityTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)", transition: "all 0.18s" }}>
+                style={{ padding: "4px 10px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 600, background: activeActivityTab === tab ? "#fff" : "rgba(255,255,255,0.08)", color: activeActivityTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)", transition: "all 0.18s" }}>
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
               </button>
             ))}
           </div>
 
+          {/* ── All tab ── */}
+          {activeActivityTab === "all" && (() => {
+            if (isLoadingActivities) {
+              return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
+            }
+            const allActivities = sourceActivities
+              .filter((a: any) =>
+                ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION", "ROAR_DEBATE_PARTICIPATE", "ROAR_PREDICTION_PARTICIPATE"].includes(a.type)
+                && a.type !== "ROAR_PREDICTION_LIVE"
+                && a.metadata?.predictionType !== "live"
+              )
+              .slice()
+              .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+
+            if (allActivities.length === 0) {
+              return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No activity yet.</p>;
+            }
+
+            // const typeLabel = (type: string) => {
+            //   if (type === "ROAR_PREDICTION" || type === "ROAR_PREDICTION_PARTICIPATE") return { label: "PREDICTION", color: "#F59E0B" };
+            //   if (type === "ROAR_DEBATE" || type === "ROAR_DEBATE_PARTICIPATE") return { label: "DEBATE", color: "#A78BFA" };
+            //   return { label: "POST", color: "#F59E0B" };
+            // };
+
+            const typeLabel = (type: string): { label: string; color: string } => {
+              const map: Record<string, { label: string; color: string }> = {
+                ROAR_POST: { label: "ROAR_POST", color: "#F59E0B" },
+                ROAR_HOT_TAKE: { label: "ROAR_HOT_TAKE", color: "#F59E0B" },
+                ROAR_RAW_REACTIONS: { label: "ROAR_RAW_REACTIONS", color: "#F59E0B" },
+                ROAR_MEMORY: { label: "ROAR_MEMORY", color: "#F59E0B" },
+                ROAR_QUIZ: { label: "ROAR_QUIZ", color: "#F59E0B" },
+                ROAR_DEBATE: { label: "ROAR_DEBATE", color: "#A78BFA" },
+                ROAR_DEBATE_PARTICIPATE: { label: "ROAR_DEBATE_PARTICIPATE", color: "#6EE7B7" },
+                ROAR_PREDICTION: { label: "ROAR_PREDICTION", color: "#F59E0B" },
+                ROAR_PREDICTION_PARTICIPATE: { label: "ROAR_PREDICTION_PARTICIPATE", color: "#6EE7B7" },
+              };
+              return map[type] ?? { label: type, color: "#9CA3AF" };
+            };
+
+            return (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {allActivities.map((a: any) => {
+                  const { label, color } = typeLabel(a.type);
+                  const roomName = getRoomName(a.roomId, a.metadata?.roomName || a.roomName || a.metadata?.roomTitle);
+                  const text = (a.metadata?.statement || a.label || "Activity").trim();
+                  return (
+                    <div key={a.id ?? `${a.type}-${a.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color, background: `${color}18`, padding: "2px 7px", borderRadius: 4 }}>
+                          {label}
+                        </span>
+                      </div>
+                      <div style={{ marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                          Room : {roomName.toUpperCase()}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+                        {truncateText(text)}
+                      </p>
+                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                        {formatActivityTimestamp(a.createdAt)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* ── Posts tab ── */}
           {activeActivityTab === "posts" && (() => {
             const postActivities = sourceActivities.filter((a: any) =>
               ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
+              && a.type !== "ROAR_PREDICTION_LIVE"
+              && a.metadata?.predictionType !== "live"
             );
             if (isLoadingActivities) {
               return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
@@ -1904,20 +2597,20 @@ export default function Profile({
                 {postActivities
                   .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
                   .map((p: any) => (
-                    <div key={p.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                    <div key={p.id ?? `${p.type}-${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                         <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                          {p.metadata?.sport?.toUpperCase() ?? "GENERAL"}
+                          Room : {getRoomName(p.roomId, p.metadata?.roomName || p.roomName || p.metadata?.sport).toUpperCase()}
                         </span>
                         <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
                           {p.type === "ROAR_PREDICTION" ? "PREDICTION" : p.type === "ROAR_DEBATE" ? "DEBATE" : "POST"}
                         </span>
                       </div>
                       <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-                        {p.metadata?.statement || p.label || "Post"}
+                        {truncateText(p.metadata?.statement || p.label || "Post")}
                       </p>
                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
+                        {formatActivityTimestamp(p.createdAt)}
                       </span>
                     </div>
                   ))}
@@ -1938,22 +2631,19 @@ export default function Profile({
                 const status = isCorrect ? "CORRECT" : isWrong ? "WRONG" : "PENDING";
                 const statusColor = isCorrect ? "#22C55E" : isWrong ? "#EF4444" : "#F59E0B";
                 return (
-                  <div key={p.id ?? p.postId} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                  <div key={p.id ?? `${p.postId}-${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>{p.matchId ?? "GENERAL"}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                        Room : {getRoomName(p.roomId, p.roomName) || p.matchId || "GENERAL"}
+                      </span>
                       <span style={{ fontSize: 10, fontWeight: 800, color: statusColor, background: `${statusColor}18`, padding: "2px 7px", borderRadius: 4 }}>{status}</span>
                     </div>
-                    <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>{p.text ?? p.label}</p>
+                    <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>{truncateText(p.text ?? p.label)}</p>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                        {p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
+                        {formatActivityTimestamp(p.createdAt)}
                       </span>
-                      {!isOtherProfile && (
-                        <button onClick={() => onToast("Shared call!")}
-                          style={{ background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>
-                          Share
-                        </button>
-                      )}
+
                     </div>
                   </div>
                 );
@@ -1972,15 +2662,15 @@ export default function Profile({
                 .slice()
                 .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
                 .map((debate: any) => (
-                  <div key={debate.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                  <div key={debate.id ?? `${debate.type}-${debate.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
                       <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                        {(debate.metadata?.sport ?? debate.sport ?? "GENERAL").toUpperCase()}
+                        Room : {getRoomName(debate.roomId, debate.metadata?.roomName || debate.roomName || debate.metadata?.sport || debate.sport).toUpperCase()}
                       </span>
                       <span style={{ fontSize: 10, fontWeight: 800, color: "#A78BFA", background: "rgba(167,139,250,0.12)", padding: "2px 7px", borderRadius: 4 }}>DEBATE</span>
                     </div>
                     <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-                      {(debate.metadata?.statement || debate.text || debate.label || "Debate").trim()}
+                      {truncateText((debate.metadata?.statement || debate.text || debate.label || "Debate").trim())}
                     </p>
                     {(debate.metadata?.sideA || debate.sideA) && (debate.metadata?.sideB || debate.sideB) && (
                       <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
@@ -1990,12 +2680,40 @@ export default function Profile({
                       </p>
                     )}
                     <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                      {debate.createdAt ? new Date(debate.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
+                      {formatActivityTimestamp(debate.createdAt)}
                     </span>
                   </div>
                 ))
               }
             </div>
+          )}
+
+          {/* ── Load more (shared across all / posts / predictions / debates) ── */}
+          {!isLoadingActivities && activityHasMore && (
+            <div style={{ display: "flex", justifyContent: "center", padding: "4px 0 24px" }}>
+              <button
+                onClick={handleLoadMoreActivities}
+                disabled={loadingMoreActivities}
+                style={{
+                  padding: "9px 22px",
+                  borderRadius: 20,
+                  border: "1px solid rgba(255,255,255,0.15)",
+                  background: "rgba(255,255,255,0.06)",
+                  color: "rgba(255,255,255,0.75)",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: loadingMoreActivities ? "default" : "pointer",
+                  opacity: loadingMoreActivities ? 0.6 : 1,
+                }}
+              >
+                {loadingMoreActivities ? "Loading..." : "Load more (older activity)"}
+              </button>
+            </div>
+          )}
+          {!isLoadingActivities && !activityHasMore && sourceActivities.length > 0 && (
+            <p style={{ textAlign: "center", padding: "4px 0 24px", color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
+              You're all caught up — no earlier activity.
+            </p>
           )}
         </div>
       )}
@@ -2016,17 +2734,27 @@ export default function Profile({
                 <button onClick={() => setAvatarPickerOpen(false)} style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "rgba(255,255,255,0.7)", width: 28, height: 28, borderRadius: "50%", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
               </div>
               <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", marginBottom: 18 }}>Tap an avatar to set it as your profile picture</p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, padding: "0 4px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, padding: "0 2px" }}>
                 {AVATAR_OPTIONS.map((src, idx) => {
                   const sel = selectedAvatar === src;
                   return (
                     <motion.button key={idx} whileTap={{ scale: 0.92 }} onClick={() => handleAvatarSelect(src)}
                       style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                      <div style={{ position: "relative", width: 64, height: 64, borderRadius: "50%", border: sel ? "3px solid var(--accent-magenta)" : "2px solid rgba(255,255,255,0.08)", boxShadow: sel ? "0 0 0 2px rgba(233,30,140,0.35),0 4px 16px rgba(233,30,140,0.3)" : "none", overflow: "hidden", background: "rgba(255,255,255,0.04)" }}>
+                      <div style={{
+                        position: "relative",
+                        width: "100%",
+                        aspectRatio: "1 / 1",
+                        maxWidth: 72,
+                        borderRadius: "50%",
+                        border: sel ? "3px solid var(--accent-magenta)" : "2px solid rgba(255,255,255,0.08)",
+                        boxShadow: sel ? "0 0 0 2px rgba(233,30,140,0.35),0 4px 16px rgba(233,30,140,0.3)" : "none",
+                        overflow: "hidden",
+                        background: "rgba(255,255,255,0.04)",
+                      }}>
                         <img src={src} alt={`Avatar ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", filter: sel ? "none" : "brightness(0.85)" }} />
                         {sel && (
                           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(233,30,140,0.25)" }}>
-                            <span style={{ fontSize: 22, color: "#fff" }}>✓</span>
+                            <span style={{ fontSize: 20, color: "#fff" }}>✓</span>
                           </motion.div>
                         )}
                       </div>
@@ -2065,6 +2793,61 @@ export default function Profile({
                   ✕
                 </button>
               </div>
+              <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Cover photo (optional)</label>
+              <div style={{
+                position: "relative",
+                width: "100%",
+                height: 90,
+                borderRadius: 14,
+                overflow: "hidden",
+                marginBottom: 16,
+                background: coverPhoto ? undefined : "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                {coverPhoto ? (
+                  <img src={coverPhoto} alt="Cover preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>No cover photo set</span>
+                )}
+                {uploadingCover && (
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff" }}>
+                    Uploading…
+                  </div>
+                )}
+              </div>
+              <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+                <label style={{
+                  flex: 1, textAlign: "center", padding: "9px 0", borderRadius: 12,
+                  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+                  color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}>
+                  {coverPhoto ? "Change photo" : "Upload photo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleCoverPhotoFile(file);
+                      e.target.value = "";
+                    }}
+                    style={{ display: "none" }}
+                  />
+                </label>
+                {coverPhoto && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoverPhoto}
+                    style={{
+                      padding: "9px 16px", borderRadius: 12,
+                      background: "none", border: "1px solid rgba(255,255,255,0.15)",
+                      color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Display name</label>
               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} />
               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Favourite player</label>
@@ -2072,19 +2855,7 @@ export default function Profile({
               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>About me (140 chars)</label>
               <textarea value={editAbout} onChange={(e) => setEditAbout(e.target.value.slice(0, 140))} rows={4}
                 style={{ width: "100%", borderRadius: 14, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", padding: "12px 14px", color: "white", fontSize: 14, marginBottom: 16, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
-              {/* <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, cursor: "pointer" }}>
-                <input type="checkbox" checked={editShowPredHistory} onChange={(e) => setEditShowPredHistory(e.target.checked)}
-                  style={{ width: 18, height: 18, accentColor: "var(--accent-magenta)", cursor: "pointer", flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>Show prediction history to other fans</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, cursor: "pointer" }}>
-                <input type="checkbox" checked={editShowActivity} onChange={(e) => setEditShowActivity(e.target.checked)}
-                  style={{ width: 18, height: 18, accentColor: "var(--accent-magenta)", cursor: "pointer", flexShrink: 0 }} />
-                <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>Show my activity (posts, debates, predictions) to other fans</span>
-              </label> */}
-              {/* Small reusable toggle switch component (put above the Profile component, or inline here) */}
               {[
-                // { checked: editShowPredHistory, onToggle: () => setEditShowPredHistory(v => !v), label: "Show prediction history to other fans" },
                 { checked: editShowActivity, onToggle: () => setEditShowActivity(v => !v), label: "Show my activity (posts, debates, predictions) to other fans" },
               ].map(({ checked, onToggle, label }, i) => (
                 <div
@@ -2115,10 +2886,19 @@ export default function Profile({
               ))}
               <motion.button whileTap={{ scale: 0.97 }} className="btn-gradient"
                 onClick={async () => {
-                  setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, } }));
+                  setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
                   setEditOpen(false);
                   onToast("Profile updated successfully");
-                  try { await axios.patch("/api/roar/profile", { username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, }); } catch { }
+                  try {
+                    await axios.patch("/api/roar/profile", {
+                      username: editName,
+                      favPlayer: editFavPlayer,
+                      about: editAbout,
+                      showPredHistory: editShowPredHistory,
+                      showActivity: editShowActivity,
+                      coverPhotoUrl: coverPhoto ?? "",
+                    });
+                  } catch { }
                 }}
                 style={{ width: "100%", padding: "8px 0", borderRadius: 999, fontSize: 16, fontWeight: 800, border: "none", cursor: "pointer", letterSpacing: "0.06em" }}>
                 SAVE
@@ -2129,11 +2909,9 @@ export default function Profile({
       </AnimatePresence>
 
       {/* Share */}
-      {/* ── Share Modal — fully inline styles, no Tailwind dependency ── */}
       <AnimatePresence>
         {shareOpen && (
           <>
-            {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2145,7 +2923,6 @@ export default function Profile({
               }}
             />
 
-            {/* Modal panel */}
             <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -2167,7 +2944,6 @@ export default function Profile({
                 boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
               }}
             >
-              {/* Header */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
                 <p style={{ color: "#fff", fontSize: 14, fontWeight: 600, margin: 0 }}>
                   Share ROAR Profile
@@ -2183,7 +2959,6 @@ export default function Profile({
                 </button>
               </div>
 
-              {/* Profile preview */}
               <div style={{ borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)", background: "#111114", padding: "10px 12px", marginBottom: 14 }}>
                 <p style={{ color: "#fff", fontSize: 13, fontWeight: 600, margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {user.username ?? "ROAR Profile"}
@@ -2193,7 +2968,6 @@ export default function Profile({
                 </p>
               </div>
 
-              {/* Share icons */}
               <div style={{ display: "flex", flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
                 {shareActions.map(({ alt, src, handler }) => (
                   <button
@@ -2223,7 +2997,6 @@ export default function Profile({
                 ))}
               </div>
 
-              {/* Status messages */}
               {sharingImage && (
                 <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "8px 0 0" }}>
                   Preparing image…
@@ -2246,11 +3019,6 @@ export default function Profile({
             style={{ position: "absolute", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={(e) => e.stopPropagation()} className="glass-card"
               style={{ width: "100%", maxWidth: 300, padding: 20, textAlign: "center", background: "var(--bg-secondary)" }}>
-              {/* <div style={{ fontSize: 48, marginBottom: 12 }}>{BADGE_CONFIG[badgeModal.badgeId ?? badgeModal.id]?.icon}</div>
-              <h3 className="font-display" style={{ fontSize: 26, marginBottom: 4 }}>{BADGE_CONFIG[badgeModal.badgeId ?? badgeModal.id]?.name}</h3>
-              <p style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700, letterSpacing: "0.05em" }}>{badgeModal.unlocked ? "UNLOCKED" : "LOCKED"}</p>
-              <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.4 }}>{BADGE_DETAIL[badgeModal.badgeId ?? badgeModal.id]?.description ?? "Unlock by building your legacy!"}</p> */}
-              {/* <div style={{ fontSize: 48, marginBottom: 12 }}>{badgeModal._feature?.icon ?? "🏅"}</div> */}
               <div style={{ width: 64, height: 64, margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <img
                   src={badgeModal._feature?.icons?.[Math.max(0, (badgeModal._feature?.level || 1) - 1)] ?? badgeModal._feature?.icon}
@@ -2301,27 +3069,6 @@ export default function Profile({
               style={{ width: "100%", maxWidth: 320, padding: 20, background: "var(--bg-secondary)" }}>
               <h3 className="font-display" style={{ fontSize: 24, marginBottom: 4, textAlign: "center", color: "#fff" }}>YOUR FAN MATCH TRIBE</h3>
               <p style={{ fontSize: 11, color: "var(--text-secondary)", textAlign: "center", lineHeight: 1.4, marginBottom: 16 }}>We analysed your takes & predictions to find similar fans.</p>
-              {/* <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {[
-                  { username: "Rahul_77", badge: "BOLD_CALLER", similarity: 72 },
-                  { username: "StatsKing_99", badge: "ORACLE", similarity: 68 },
-                  { username: "MumbaiMagic", badge: "RISING_FAN", similarity: 61 },
-                ].map((fan) => (
-                  <div key={fan.username} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                      <AvatarWithBadge username={fan.username} badge={fan.badge} size="sm" />
-                      <div>
-                        <h4 className="font-display" style={{ fontSize: 14, color: "#fff" }}>{fan.username.toUpperCase()}</h4>
-                        <p style={{ fontSize: 10, color: "var(--text-muted)" }}>{BADGE_LABELS[fan.badge]}</p>
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right" }}>
-                      <span style={{ background: "var(--accent-gradient)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontSize: 16, fontWeight: 800 }}>{fan.similarity}%</span>
-                      <p style={{ fontSize: 8, color: "var(--text-muted)" }}>Match</p>
-                    </div>
-                  </div>
-                ))}
-              </div> */}
               <button onClick={() => setFanMatchOpen(false)} className="btn-gradient"
                 style={{ width: "100%", marginTop: 18, padding: "12px 0", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13 }}>
                 Close Tribe

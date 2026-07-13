@@ -583,6 +583,17 @@ function clearStoredVote(postId: string, qIdx: number) {
   }
 }
 
+function computeAllVotedFromPersisted(posts: any[], flatQuestions: FlatQuestion[]): boolean {
+  if (flatQuestions.length === 0) return false;
+  return flatQuestions.every((fq) => {
+    const srcPost = posts.find(p => p.id === fq.postId);
+    const serverVote = srcPost?.userPredictionVotes?.[fq.qIdx];
+    const localVote = getStoredVote(fq.postId, fq.qIdx);
+    return serverVote !== undefined || localVote !== null;
+  });
+}
+
+
 interface FlatQuestion {
   question: string;
   options: { text: string; emoji?: string }[];
@@ -623,6 +634,8 @@ export default function PredictionsLivePanel({
 }: PredictionsLivePanelProps) {
   const latestPost = posts[0];
   const matchTitle: string = latestPost?.matchTitle ?? "LIVE";
+  const matchStartAt: number | null = latestPost?.matchStartAt ?? null;
+
 
   const flatQuestions: FlatQuestion[] = posts.flatMap((p, _pi) => {
     const qs: { question: string; options: { text: string; emoji?: string }[] }[] =
@@ -646,7 +659,15 @@ export default function PredictionsLivePanel({
   const allClosesAt = posts.map(p => p.closesAt).filter((v): v is number => typeof v === 'number' && v > 0);
   const overallClosesAt = allClosesAt.length > 0 ? Math.min(...allClosesAt) : 0;
 
-  const [expanded, setExpanded] = useState(true);
+  // const [expanded, setExpanded] = useState(true);
+  const userToggledRef = useRef(false);
+const nowMsRef = useRef(Date.now());
+
+const [expanded, setExpanded] = useState<boolean>(() =>{
+  // matchStartAt ? Date.now() < matchStartAt : true
+if (computeAllVotedFromPersisted(posts, flatQuestions)) return false;
+  return matchStartAt ? Date.now() < matchStartAt : true;
+});
 
   const [userVotes, setUserVotes] = useState<Record<number, number>>(() => {
     const saved: Record<number, number> = {};
@@ -681,10 +702,11 @@ export default function PredictionsLivePanel({
   const [nowMs, setNowMs] = useState(Date.now());
   const autoSlideRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    const id = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, []);
+  // useEffect(() => {
+  //   const id = setInterval(() => setNowMs(Date.now()), 1000);
+  //   return () => clearInterval(id);
+  // }, []);
+
 
   const isQuestionExpired = (fq: FlatQuestion) =>
     fq.closesAt > 0 && nowMs > fq.closesAt;
@@ -737,6 +759,25 @@ export default function PredictionsLivePanel({
       autoCollapsedRef.current = false;
     }
   }, [allVoted]);
+
+
+ useEffect(() => {
+  const id = setInterval(() => {
+    const now = Date.now();
+    setNowMs(now);
+    nowMsRef.current = now;
+
+    // Voting completion always wins — never force this panel open, whether
+    // pre-match or post-match, once the fan has answered everything.
+    if (allVoted) return;
+
+    if (!userToggledRef.current && matchStartAt) {
+      const shouldBeExpanded = now < matchStartAt;
+      setExpanded(prev => (prev !== shouldBeExpanded ? shouldBeExpanded : prev));
+    }
+  }, 1000);
+  return () => clearInterval(id);
+}, [matchStartAt, allVoted]);
 
   // If server-side userPredictionVotes arrives/updates after the initial
   // render (e.g. the backend fix propagates via a later poll), fold it in —
@@ -861,11 +902,11 @@ export default function PredictionsLivePanel({
   // ── COLLAPSED BANNER ──────────────────────────────────────────────────────
   if (!expanded) {
     return (
-      <div onClick={() => setExpanded(true)} style={{
+     <button onClick={() => { userToggledRef.current = true; setExpanded(true); }} style={{
         padding: "9px 16px", background: isAllExpired ? "rgba(249,115,22,0.07)" : "rgba(14,14,20,0.98)",
         borderBottom: "1px solid rgba(255,255,255,0.08)",
         display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
-      }}>
+       }}>
         <span style={{ width: 7, height: 7, borderRadius: "50%", flexShrink: 0, background: isAllExpired ? "#f97316" : "#22c55e", boxShadow: isAllExpired ? "none" : "0 0 6px #22c55e" }} />
         <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: "0.07em", color: isAllExpired ? "#f97316" : "#22c55e" }}>
           {isAllExpired ? "RESULTS" : "PREDICTIONS LIVE"}
@@ -907,7 +948,7 @@ export default function PredictionsLivePanel({
           </span>
         )}
         <ChevronDown size={14} style={{ color: "rgba(255,255,255,0.3)", flexShrink: 0, marginLeft: 4 }} />
-      </div>
+      </button>
     );
   }
 
@@ -936,7 +977,7 @@ export default function PredictionsLivePanel({
           {!hasValidTimer && (
             <span style={{ fontSize: 10, fontWeight: 600, color: "rgba(255,255,255,0.2)" }}>No timer</span>
           )}
-          <button onClick={() => setExpanded(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.25)", padding: 2, display: "flex" }}>
+          <button onClick={() => { userToggledRef.current = true; setExpanded(false); }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.25)", padding: 2, display: "flex" }}>
             <ChevronUp size={14} />
           </button>
         </div>

@@ -2577,7 +2577,7 @@ import ConfettiWrapper from "./ConfettiWrapper";
 import Telestrator, { Stroke } from "./Telestrator";
 // Live camera feed via native getUserMedia API
 import Link from "next/link";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown, TrendingUp, Flame, MoreHorizontal } from "lucide-react";
 
 
 const JitsiMeeting = dynamic(
@@ -2881,6 +2881,7 @@ function LiveCameraFeed({
                             defaultLogoUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
                             logoImageUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
                             logoClickUrl: '',
+                            disableUnsupportedBrowserPage: true,
                         }}
                         interfaceConfigOverwrite={{
                             SHOW_JITSI_WATERMARK: false,
@@ -3139,7 +3140,12 @@ function TabContent({
     qnaInput = "",
     setQnaInput,
     sendChatMessage,
-    isMobile = false
+    isMobile = false,
+    composeOpen,
+    setComposeOpen,
+    composeType,
+    setComposeType,
+    handleComposePost
 }: {
     activeTab: string;
     matchId: string | undefined;
@@ -3157,6 +3163,11 @@ function TabContent({
     setQnaInput?: any;
     sendChatMessage?: any;
     isMobile?: boolean;
+    composeOpen: boolean;
+    setComposeOpen: (open: boolean) => void;
+    composeType: string | null;
+    setComposeType: (type: string | null) => void;
+    handleComposePost: (payload: any) => Promise<void>;
 }) {
     const { updateRoom, fetchRoomById } = useWatchAlong();
 
@@ -3170,35 +3181,6 @@ function TabContent({
             </div>
         );
     }
-
-    const [composeOpen, setComposeOpen] = useState(false);
-    const [composeType, setComposeType] = useState<string | null>(null);
-
-    const handleComposePost = async (payload: any) => {
-        try {
-            const msgTypeMap: Record<string, string> = { prediction: "prediction", hot_take: "hottake", hottake: "hottake", debate: "debate", raw_reactions: "raw_reactions", post: "post", chat: "chat" };
-            let mediaUrls: string[] = [];
-            if (payload.mediaFiles?.length > 0) {
-                mediaUrls = await Promise.all(payload.mediaFiles.map(async (file: File) => {
-                    const fd = new FormData(); fd.append("file", file);
-                    const r = await axios.post("/api/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
-                    return r.data.url;
-                }));
-            }
-            const mappedType = msgTypeMap[payload.type] || "post";
-            await axios.post(`/api/roar/rooms/${room.id || room.liveMatchId}/messages`, {
-                text: payload.text, type: mappedType,
-                mediaUrls: mediaUrls.length ? mediaUrls : undefined, sideA: payload.sideA, sideB: payload.sideB,
-                predictionOptions: payload.predictionOptions,
-                memGifUrl: payload.gifUrl ?? undefined, memTag: payload.sf360Tag ?? undefined,
-                ...(payload.type === "prediction" && { closesAt: payload.closesAt, closeAfterMinutes: payload.closeAfterMinutes }),
-            });
-            setComposeOpen(false);
-            setComposeType(null);
-        } catch (e) {
-            console.error(e);
-        }
-    };
 
     switch (activeTab) {
         case 'prediction': return <Prediction matchId={matchId!} />;
@@ -3587,6 +3569,63 @@ export default function WatchRoom({ room, onBack }: Props) {
     const [showPollModal, setShowPollModal] = useState(false);
     const [showQuizModal, setShowQuizModal] = useState(false);
     const [showPinModal, setShowPinModal] = useState(false);
+
+    // Dynamic draggable Resizable sidebar width states
+    const [sidebarWidth, setSidebarWidth] = useState(400);
+    const [isResizing, setIsResizing] = useState(false);
+
+    const [composeOpen, setComposeOpen] = useState(false);
+    const [composeType, setComposeType] = useState<string | null>(null);
+
+    const handleComposePost = async (payload: any) => {
+        try {
+            const msgTypeMap: Record<string, string> = { prediction: "prediction", hot_take: "hottake", hottake: "hottake", debate: "debate", raw_reactions: "raw_reactions", post: "post", chat: "chat" };
+            let mediaUrls: string[] = [];
+            if (payload.mediaFiles?.length > 0) {
+                mediaUrls = await Promise.all(payload.mediaFiles.map(async (file: File) => {
+                    const fd = new FormData(); fd.append("file", file);
+                    const r = await axios.post("/api/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
+                    return r.data.url;
+                }));
+            }
+            const mappedType = msgTypeMap[payload.type] || "post";
+            await axios.post(`/api/roar/rooms/${room.id || room.liveMatchId}/messages`, {
+                text: payload.text, type: mappedType,
+                mediaUrls: mediaUrls.length ? mediaUrls : undefined, sideA: payload.sideA, sideB: payload.sideB,
+                predictionOptions: payload.predictionOptions,
+                memGifUrl: payload.gifUrl ?? undefined, memTag: payload.sf360Tag ?? undefined,
+                ...(payload.type === "prediction" && { closesAt: payload.closesAt, closeAfterMinutes: payload.closeAfterMinutes }),
+            });
+            setComposeOpen(false);
+            setComposeType(null);
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const startResize = useCallback((mouseDownEvent: React.MouseEvent) => {
+        mouseDownEvent.preventDefault();
+        setIsResizing(true);
+    }, []);
+
+    useEffect(() => {
+        if (!isResizing) return;
+        const doResize = (e: MouseEvent) => {
+            const newWidth = window.innerWidth - e.clientX;
+            if (newWidth >= 280 && newWidth <= 750) {
+                setSidebarWidth(newWidth);
+            }
+        };
+        const stopResize = () => {
+            setIsResizing(false);
+        };
+        window.addEventListener("mousemove", doResize);
+        window.addEventListener("mouseup", stopResize);
+        return () => {
+            window.removeEventListener("mousemove", doResize);
+            window.removeEventListener("mouseup", stopResize);
+        };
+    }, [isResizing]);
 
     // Pinned Message state
     const [pinnedMessage, setPinnedMessage] = useState<string | null>("Welcome to the Live Watchroom! Stay tuned for host polls and flash quizzes.");
@@ -4409,110 +4448,96 @@ export default function WatchRoom({ room, onBack }: Props) {
 
             {/* ── Top Host CTA Panel ── */}
             {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
-                <div className="bg-[#161618] border-b border-[#222] px-2 sm:px-6 lg:px-8 py-2 lg:py-3 flex items-center gap-2 lg:gap-3 overflow-x-auto scrollbar-hide z-30 pointer-events-auto">
-                    
-                    {/* Create Prediction Button */}
-                    <button 
-                        onClick={() => setShowPredictionModal(true)}
-                        className="flex-shrink-0 flex items-center gap-3 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white rounded-xl px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95 shadow-[0_4px_12px_rgba(239,68,68,0.25)]"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center font-bold text-lg">
-                            <Plus size={18} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-xs font-black tracking-wide uppercase">Create Prediction</p>
-                            <p className="text-[10px] text-white/80 font-medium">Predict & compete</p>
-                        </div>
-                    </button>
+                <div className="bg-[#0c0c0e] shrink-0 border-b border-[#222]">
 
-                    {/* Create Poll Button */}
-                    <button 
-                        onClick={() => setShowPollModal(true)}
-                        className="flex-shrink-0 flex items-center gap-3 bg-[#202023] hover:bg-[#28282b] border border-white/5 rounded-xl px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center font-bold text-lg border border-blue-500/20">
-                            <BarChart3 size={16} />
+                    {/* ── MOBILE: compact scrollable icon+label cards (like SS2) ── */}
+                    <div className="lg:hidden px-2 py-1.5">
+                        <div className="flex items-center gap-1 text-[8px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 px-0.5">
+                            <span>🛡️ Host Actions</span>
                         </div>
-                        <div className="text-left">
-                            <p className="text-xs font-black tracking-wide uppercase text-white">Create Poll</p>
-                            <p className="text-[10px] text-gray-400 font-medium">Vote & see results</p>
+                        <div className="flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+                            <button onClick={() => setShowPredictionModal(true)} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
+                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-pink-400 flex items-center justify-center group-active:scale-90 transition-all">
+                                    <TrendingUp className="w-5 h-5" />
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Prediction</span>
+                            </button>
+                            <button onClick={() => { setComposeType('debate'); setComposeOpen(true); }} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
+                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-red-400 flex items-center justify-center group-active:scale-90 transition-all">
+                                    <Flame className="w-5 h-5" />
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Debate</span>
+                            </button>
+                            <button onClick={() => setShowPollModal(true)} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
+                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-blue-400 flex items-center justify-center group-active:scale-90 transition-all">
+                                    <BarChart3 className="w-5 h-5" />
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Poll</span>
+                            </button>
+                            <button onClick={() => setShowQuizModal(true)} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
+                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-purple-400 flex items-center justify-center group-active:scale-90 transition-all">
+                                    <Brain className="w-5 h-5" />
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Flash Quiz</span>
+                            </button>
+                            <button onClick={() => { setShowPredictTemplates(true); setShowDropsMenu(false); setShowInterviewMenu(false); }} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
+                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-orange-400 flex items-center justify-center group-active:scale-90 transition-all">
+                                    <span className="text-lg">🎯</span>
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Templates</span>
+                            </button>
+                            <button onClick={handleEmojiStorm} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
+                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-yellow-400 flex items-center justify-center group-active:scale-90 transition-all">
+                                    <Zap className="w-5 h-5" />
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Emoji Storm</span>
+                            </button>
+                            <button onClick={() => setShowPinModal(true)} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
+                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-red-400 flex items-center justify-center group-active:scale-90 transition-all">
+                                    <Pin className="w-5 h-5" />
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Pin Message</span>
+                            </button>
+                            <button onClick={handleShare} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
+                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-gray-400 flex items-center justify-center group-active:scale-90 transition-all">
+                                    <MoreHorizontal className="w-5 h-5" />
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">More</span>
+                            </button>
                         </div>
-                    </button>
+                    </div>
 
-                    {/* Flash Quiz Button */}
-                    <button 
-                        onClick={() => setShowQuizModal(true)}
-                        className="flex-shrink-0 flex items-center gap-3 bg-[#202023] hover:bg-[#28282b] border border-white/5 rounded-xl px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-pink-500/10 text-pink-400 flex items-center justify-center font-bold text-lg border border-pink-500/20">
-                            <Brain size={16} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-xs font-black tracking-wide uppercase text-white">Flash Quiz</p>
-                            <p className="text-[10px] text-gray-400 font-medium">Test your knowledge</p>
-                        </div>
-                    </button>
-
-                    {/* Predict With Me Templates Button */}
-                    <button 
-                        onClick={() => {
-                            setShowPredictTemplates(true);
-                            setShowDropsMenu(false);
-                            setShowInterviewMenu(false);
-                        }}
-                        className="flex-shrink-0 flex items-center gap-3 bg-[#202023] hover:bg-[#28282b] border border-white/5 rounded-xl px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center font-bold text-lg border border-orange-500/20">
-                            🎯
-                        </div>
-                        <div className="text-left">
-                            <p className="text-xs font-black tracking-wide uppercase text-white">Predict Templates</p>
-                            <p className="text-[10px] text-gray-400 font-medium">Fan predictions</p>
-                        </div>
-                    </button>
-
-                    {/* Emoji Storm Button */}
-                    <button 
-                        onClick={handleEmojiStorm}
-                        className="flex-shrink-0 flex items-center gap-3 bg-[#202023] hover:bg-[#28282b] border border-white/5 rounded-xl px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-orange-500/10 text-orange-400 flex items-center justify-center font-bold text-lg border border-orange-500/20">
-                            <Zap size={16} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-xs font-black tracking-wide uppercase text-white">Emoji Storm</p>
-                            <p className="text-[10px] text-gray-400 font-medium">Trigger 6s Storm</p>
-                        </div>
-                    </button>
-
-                    {/* Pin Message Button */}
-                    <button 
-                        onClick={() => setShowPinModal(true)}
-                        className="flex-shrink-0 flex items-center gap-3 bg-[#202023] hover:bg-[#28282b] border border-white/5 rounded-xl px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center font-bold text-lg border border-red-500/20">
-                            <Pin size={16} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-xs font-black tracking-wide uppercase text-white">Pin Message</p>
-                            <p className="text-[10px] text-gray-400 font-medium">Highlight your message</p>
-                        </div>
-                    </button>
-
-                    {/* Share Button */}
-                    <button 
-                        onClick={handleShare}
-                        className="flex-shrink-0 flex items-center gap-3 bg-[#202023] hover:bg-[#28282b] border border-white/5 rounded-xl px-4 py-2.5 transition-all duration-300 hover:scale-105 active:scale-95"
-                    >
-                        <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold text-lg border border-purple-500/20">
-                            <Share2 size={16} />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-xs font-black tracking-wide uppercase text-white">Share</p>
-                            <p className="text-[10px] text-gray-400 font-medium">Invite & share</p>
-                        </div>
-                    </button>
-
+                    {/* ── DESKTOP: full-width horizontal strip (unchanged) ── */}
+                    <div className="hidden lg:flex items-center justify-between w-full gap-2 px-3 py-1.5">
+                        <button onClick={() => setShowPredictionModal(true)} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-pink-600/10 border border-pink-500/20 text-pink-400 hover:bg-pink-600/20 hover:border-pink-500/40 active:scale-95 transition-all cursor-pointer group">
+                            <TrendingUp className="w-4 h-4 shrink-0" />
+                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Create Prediction</span>
+                        </button>
+                        <button onClick={() => setShowPollModal(true)} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600/20 hover:border-blue-500/40 active:scale-95 transition-all cursor-pointer group">
+                            <BarChart3 className="w-4 h-4 shrink-0" />
+                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Create Poll</span>
+                        </button>
+                        <button onClick={() => setShowQuizModal(true)} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-purple-600/10 border border-purple-500/20 text-purple-400 hover:bg-purple-600/20 hover:border-purple-500/40 active:scale-95 transition-all cursor-pointer group">
+                            <Brain className="w-4 h-4 shrink-0" />
+                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Flash Quiz</span>
+                        </button>
+                        <button onClick={() => { setShowPredictTemplates(true); setShowDropsMenu(false); setShowInterviewMenu(false); }} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-orange-600/10 border border-orange-500/20 text-orange-400 hover:bg-orange-600/20 hover:border-orange-500/40 active:scale-95 transition-all cursor-pointer group">
+                            <span className="text-[14px] leading-none">🎯</span>
+                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Predict Templates</span>
+                        </button>
+                        <button onClick={handleEmojiStorm} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-yellow-600/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-600/20 hover:border-yellow-500/40 active:scale-95 transition-all cursor-pointer group">
+                            <Zap className="w-4 h-4 shrink-0" />
+                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Emoji Storm</span>
+                        </button>
+                        <button onClick={() => setShowPinModal(true)} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-red-600/10 border border-red-500/20 text-red-400 hover:bg-red-600/20 hover:border-red-500/40 active:scale-95 transition-all cursor-pointer group">
+                            <Pin className="w-4 h-4 shrink-0" />
+                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Pin Message</span>
+                        </button>
+                        <button onClick={handleShare} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-purple-600/10 border border-purple-500/20 text-purple-400 hover:bg-purple-600/20 hover:border-purple-500/40 active:scale-95 transition-all cursor-pointer group">
+                            <Share2 className="w-4 h-4 shrink-0" />
+                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Share</span>
+                        </button>
+                    </div>
                 </div>
             )}
 
@@ -4859,12 +4884,23 @@ export default function WatchRoom({ room, onBack }: Props) {
                         )}
                     </div>
                     <div className="flex-1 flex flex-col min-h-[300px] lg:min-h-0 lg:hidden relative">
-                        <TabContent isMobile={true} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} />
+                        <TabContent isMobile={true} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
                     </div>
                 </div>
 
                 {/* ── RIGHT: tab content sidebar — desktop only ── */}
-                <div className="hidden lg:flex lg:flex-col lg:w-[360px] xl:w-[400px] border-l border-[#222] min-h-0 bg-[#0e0e10]">
+                <div 
+                    onMouseDown={startResize}
+                    className={`hidden lg:block w-1.5 hover:w-2 bg-[#1a1a1c] hover:bg-pink-500/80 cursor-col-resize select-none transition-all duration-150 relative group ${isResizing ? 'bg-pink-500 w-2' : ''}`}
+                    style={{ height: '100%', zIndex: 30 }}
+                >
+                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-white/10 group-hover:bg-white/30 transition-colors pointer-events-none" />
+                </div>
+
+                <div 
+                    className="hidden lg:flex lg:flex-col border-l border-[#222] min-h-0 bg-[#0e0e10]"
+                    style={{ width: `${sidebarWidth}px` }}
+                >
                     {/* Tab Header row */}
                     <div className="flex border-b border-[#222] px-2 py-1.5 gap-1 overflow-x-auto scrollbar-hide bg-[#121214]">
                         {sidebarTabs.map((tab) => (
@@ -4899,11 +4935,15 @@ export default function WatchRoom({ room, onBack }: Props) {
                     )}
 
                     <div className="flex-1 flex flex-col min-h-0 relative">
-                        <TabContent isMobile={false} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} />
+                        <TabContent isMobile={false} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
                     </div>
                 </div>
 
             </div>
+
+            {isResizing && (
+                <div className="fixed inset-0 z-[100] cursor-col-resize select-none bg-transparent" />
+            )}
 
             {/* Create Prediction Modal */}
             {showPredictionModal && (
