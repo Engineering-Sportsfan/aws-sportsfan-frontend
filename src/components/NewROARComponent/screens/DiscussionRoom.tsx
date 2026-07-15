@@ -5549,6 +5549,9 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
         }
         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
         onToast(`${opt.emoji} ${opt.label} posted!`);
+      } else {
+        setPosts(p => p.filter(post => post.id !== tempId));
+        onToast(res.data?.error || "Failed to post");
       }
     } catch {
       setPosts(p => p.filter(post => post.id !== tempId));

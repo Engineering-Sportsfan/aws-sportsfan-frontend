@@ -636,6 +636,40 @@ const nextConfig = {
         //   // destination: `http://localhost:3001/api/roar/:path*`,
         // },
 
+
+        // ── v2 APIs (Athlete Home / Store / Playbook / Articles / Records) ──
+        { source: "/api/v2/health", destination: `${apiTarget}/api/v2/health` },
+
+        { source: "/api/v2/athletes", destination: `${apiTarget}/api/v2/athletes` },
+        {
+          source: "/api/v2/athletes/:path*",
+          destination: `${apiTarget}/api/v2/athletes/:path*`,
+        },
+
+        { source: "/api/v2/articles", destination: `${apiTarget}/api/v2/articles` },
+        {
+          source: "/api/v2/articles/:path*",
+          destination: `${apiTarget}/api/v2/articles/:path*`,
+        },
+
+        { source: "/api/v2/store", destination: `${apiTarget}/api/v2/store` },
+        {
+          source: "/api/v2/store/:path*",
+          destination: `${apiTarget}/api/v2/store/:path*`,
+        },
+
+        { source: "/api/v2/playbook", destination: `${apiTarget}/api/v2/playbook` },
+        {
+          source: "/api/v2/playbook/:path*",
+          destination: `${apiTarget}/api/v2/playbook/:path*`,
+        },
+
+        { source: "/api/v2/records", destination: `${apiTarget}/api/v2/records` },
+        {
+          source: "/api/v2/records/:path*",
+          destination: `${apiTarget}/api/v2/records/:path*`,
+        },
+
       ],
     };
   },
