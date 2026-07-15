@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthHeaders } from '@/lib/getAuthHeaders';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sportsfan360.vercel.app';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://api.sportsfan360.com';
 const API_BASE = `${BACKEND_URL}/api/watch-along`;
 
 /** GET /api/watch-along/matches/[matchId] — fetch single match (public) */

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 // OG unfurling requires an absolute, publicly reachable HTTPS URL — it
 // cannot be tested on localhost because WhatsApp/X's crawlers fetch this
 // server-side from the public internet, not from your browser.
-const SITE_URL = "https://sportsfan-frontend.vercel.app";
+const SITE_URL = "https://sportsfan360.com";
 
 interface SharePageProps {
   searchParams: Promise<{

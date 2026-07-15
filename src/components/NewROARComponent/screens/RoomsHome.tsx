@@ -50,7 +50,7 @@ const SHARE_ACTIONS = [
 
 function buildRoomShareUrl(room: Room) {
   if (typeof window === "undefined") {
-    return `https://sportsfan-frontend.vercel.app/MainModules/ROAR?room=${room.roomId}`;
+    return `https://sportsfan360.com/MainModules/ROAR?room=${room.roomId}`;
   }
   const url = new URL(`${window.location.origin}/MainModules/ROAR`);
   url.searchParams.set("room", room.roomId);

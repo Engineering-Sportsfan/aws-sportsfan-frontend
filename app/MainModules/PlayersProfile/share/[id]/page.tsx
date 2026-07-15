@@ -6,7 +6,7 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.NEXT_PUBLIC_ADMIN_URL ||
-  "https://sportsfan360.vercel.app";
+  "https://api.sportsfan360.com";
 
 type PlayerProfile = {
   name?: string;

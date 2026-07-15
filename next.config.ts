@@ -11,7 +11,7 @@ const nextConfig = {
     const apiTarget =
       process.env.NEXT_PUBLIC_BACKEND_URL ||
       process.env.NEXT_PUBLIC_ADMIN_URL ||
-      "https://sportsfan360.vercel.app";
+      "https://api.sportsfan360.com";
 
     return {
       beforeFiles: [
@@ -623,17 +623,17 @@ const nextConfig = {
         // {
         //   source: "/api/roar/:path*",
         //   destination: `${apiTarget}/api/roar/:path*`,
-        //   // destination: `http://localhost:3001/api/roar/:path*`,
+        //   // destination: `https://api.sportsfan360.com/api/roar/:path*`,
         // },
         //  {
         //   source: "/api/roar/rooms/[roomId]/dolly/:path*",
         //   destination: `${apiTarget}/api/roar/rooms/[roomId]/dolly/:path*`,
-        //   // destination: `http://localhost:3001/api/roar/:path*`,
+        //   // destination: `https://api.sportsfan360.com/api/roar/:path*`,
         // },
         // {
         //   source: "/api/roar/posts/:path*",
         //   destination: `${apiTarget}/api/roar/posts/:path*`,
-        //   // destination: `http://localhost:3001/api/roar/:path*`,
+        //   // destination: `https://api.sportsfan360.com/api/roar/:path*`,
         // },
 
 
