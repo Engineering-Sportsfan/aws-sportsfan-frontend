@@ -6,6 +6,10 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  env: {
+    AUTH_TRUST_HOST: "true",
+    AUTH_URL: process.env.AUTH_URL || process.env.NEXTAUTH_URL || "",
+  },
   skipTrailingSlashRedirect: true,
   async rewrites() {
     const apiTarget =
