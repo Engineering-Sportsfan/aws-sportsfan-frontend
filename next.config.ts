@@ -9,6 +9,8 @@ const nextConfig = {
   env: {
     AUTH_TRUST_HOST: "true",
     AUTH_URL: process.env.AUTH_URL || process.env.NEXTAUTH_URL || "",
+    AUTH_SECRET: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "",
+    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || "",
   },
   skipTrailingSlashRedirect: true,
   async rewrites() {
