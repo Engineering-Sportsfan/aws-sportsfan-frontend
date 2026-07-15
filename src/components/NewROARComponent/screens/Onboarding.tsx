@@ -438,7 +438,15 @@ export default function Onboarding({ onComplete }: Props) {
         repPointsAwarded: FIRST_ROAR_BADGE.repPoints,
       });
     } catch (err) {
-      console.error(err);
+      console.error("[AWS Migration Temporary Fallback] Backend not deployed yet:", err);
+      // TODO: AWS_MIGRATION_FALLBACK - Remove this fallback once the Admin Panel (backend) is deployed on AWS.
+      onComplete({
+        sports,
+        badge: "RISING_FAN",
+        firstContribution: debatePrompt,
+        firstVote,
+        repPointsAwarded: FIRST_ROAR_BADGE.repPoints,
+      });
     }
   };
 
