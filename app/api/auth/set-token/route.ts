@@ -2,6 +2,8 @@
 // Called by AuthContext after Google sign-in to set the same httpOnly
 // "token" cookie that email/password users get, but on the frontend domain.
 
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth.config";
 import jwt from "jsonwebtoken";

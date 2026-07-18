@@ -3,9 +3,13 @@ import { ArrowLeft, Star, Wallet, Tag, Award, RefreshCw, AlertCircle } from 'luc
 import { useState, useEffect } from 'react';
 import { storeService } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
+import { useAuth } from '@/context/AuthContext';
 
 export default function StoreWallet() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || '';
+
   const [walletBalance, setWalletBalance] = useState<number>(0);
   const [coinsBalance, setCoinsBalance] = useState<number>(0);
   const [walletTx, setWalletTx] = useState<any[]>([]);
@@ -13,13 +17,14 @@ export default function StoreWallet() {
   const [loading, setLoading] = useState(true);
 
   const fetchData = async () => {
+    if (!userId) return;
     setLoading(true);
     try {
       const [walletRes, coinsRes, walletTxRes, coinsTxRes] = await Promise.all([
-        storeService.getWalletBalance('abhishekrt959_gmail_com'),
-        storeService.getCoinsBalance('abhishekrt959_gmail_com'),
-        storeService.getWalletTransactions('abhishekrt959_gmail_com'),
-        storeService.getCoinsTransactions('abhishekrt959_gmail_com'),
+        storeService.getWalletBalance(userId),
+        storeService.getCoinsBalance(userId),
+        storeService.getWalletTransactions(userId),
+        storeService.getCoinsTransactions(userId),
       ]);
 
       setWalletBalance(walletRes.balancePaise);
@@ -35,7 +40,7 @@ export default function StoreWallet() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [userId]);
 
   const getTier = (coins: number) => {
     if (coins >= 1000) return { name: 'Elite', color: '#c9115f', bg: 'rgba(201,17,95,0.15)' };

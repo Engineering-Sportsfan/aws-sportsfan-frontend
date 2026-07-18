@@ -6,20 +6,12 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  env: {
-    AUTH_TRUST_HOST: "true",
-    AUTH_URL: process.env.AUTH_URL || process.env.NEXTAUTH_URL || "",
-    AUTH_SECRET: process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || "",
-    NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET || process.env.AUTH_SECRET || "",
-    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID || "",
-    GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET || "",
-  },
   skipTrailingSlashRedirect: true,
   async rewrites() {
     const apiTarget =
       process.env.NEXT_PUBLIC_BACKEND_URL ||
       process.env.NEXT_PUBLIC_ADMIN_URL ||
-      "https://api.sportsfan360.com";
+      "https://sportsfan360.vercel.app";
 
     return {
       beforeFiles: [
@@ -631,17 +623,17 @@ const nextConfig = {
         // {
         //   source: "/api/roar/:path*",
         //   destination: `${apiTarget}/api/roar/:path*`,
-        //   // destination: `https://api.sportsfan360.com/api/roar/:path*`,
+        //   // destination: `http://localhost:3001/api/roar/:path*`,
         // },
         //  {
         //   source: "/api/roar/rooms/[roomId]/dolly/:path*",
         //   destination: `${apiTarget}/api/roar/rooms/[roomId]/dolly/:path*`,
-        //   // destination: `https://api.sportsfan360.com/api/roar/:path*`,
+        //   // destination: `http://localhost:3001/api/roar/:path*`,
         // },
         // {
         //   source: "/api/roar/posts/:path*",
         //   destination: `${apiTarget}/api/roar/posts/:path*`,
-        //   // destination: `https://api.sportsfan360.com/api/roar/:path*`,
+        //   // destination: `http://localhost:3001/api/roar/:path*`,
         // },
 
 
@@ -665,7 +657,15 @@ const nextConfig = {
           source: "/api/v2/store/:path*",
           destination: `${apiTarget}/api/v2/store/:path*`,
         },
-
+        { source: "/api/v2/products", destination: `${apiTarget}/api/v2/products` },
+        {
+          source: "/api/v2/products/:path*",
+          destination: `${apiTarget}/api/v2/products/:path*`,
+        },
+        {
+          source: "/api/v2/orders/:path*",
+          destination: `${apiTarget}/api/v2/orders/:path*`,
+        },
         { source: "/api/v2/playbook", destination: `${apiTarget}/api/v2/playbook` },
         {
           source: "/api/v2/playbook/:path*",

@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { storeService } from '@/services/store.service';
 import { asianGamesEvents } from './Store';
+import { useAuth } from '@/context/AuthContext';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Video,
@@ -209,6 +210,8 @@ function BookingModal({ event, onClose, onSuccess }: { event: any; onClose: () =
   if (!event) return null;
 
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || '';
 
   // steps: 0=details, 1=payment, 2=waitlist, 3=confirmed, 4=qr+participated, 5=badge+memento
   const [step, setStep] = useState(0);
@@ -223,7 +226,7 @@ function BookingModal({ event, onClose, onSuccess }: { event: any; onClose: () =
     try {
       const payload = {
         productId: event.id,
-        userId: 'abhishekrt959_gmail_com',
+        userId: userId || 'anonymous',
         paymentMethod,
         pricePaise: Math.round(totalAmount * 100),
         idempotencyKey: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
@@ -625,7 +628,7 @@ function BookingModal({ event, onClose, onSuccess }: { event: any; onClose: () =
 
           <button
             onClick={() => setStep(1)}
-            className="w-full py-3.5 rounded-[16px] text-white text-[14px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
+            className="w-full py-3.5  rounded-[16px] text-white text-[14px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition-transform"
             style={{ background: `linear-gradient(135deg, ${event.color || '#0ea5e9'}, #cd620e)`, boxShadow: `0 6px 20px ${event.color || '#0ea5e9'}45` }}
           >
             <Ticket className="w-[14px] h-[14px]" />
@@ -640,6 +643,8 @@ function BookingModal({ event, onClose, onSuccess }: { event: any; onClose: () =
 
 export default function StoreTicketedEvents() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || '';
   const [events, setEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [bookingId, setBookingId] = useState<string | null>(null);
@@ -648,7 +653,7 @@ export default function StoreTicketedEvents() {
   useEffect(() => {
     Promise.all([
       storeService.getProducts('events'),
-      storeService.getUserOrders('abhishekrt959_gmail_com').catch(() => [])
+      userId ? storeService.getUserOrders(userId).catch(() => []) : Promise.resolve([])
     ])
       .then(([res, orders]) => {
         // Fallback to local mock data if Firestore has 0 event products

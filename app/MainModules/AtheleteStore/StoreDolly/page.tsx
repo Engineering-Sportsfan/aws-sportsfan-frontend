@@ -218,7 +218,7 @@ function DollyChat() {
               <p className="text-white text-[12px] font-semibold mb-2">Coaches who can help with this:</p>
               <div className="flex gap-3">
                 {suggestedCoaches.map((c, i) => (
-                  <button key={i} className="flex items-center gap-2 flex-1 bg-[rgba(0,0,0,0.3)] rounded-[10px] p-2" onClick={() => router.push(`/MainModules/AtheleteStore/StoreCoachListing/${i + 1}`)}>
+                  <button key={i} className="flex items-center gap-2 flex-1 bg-[rgba(0,0,0,0.3)] rounded-[10px] p-2" onClick={() => router.push(`/MainModules/AtheleteStore/StoreCoachProfile/${i + 1}`)}>
                     <img src={c.img} alt={c.name} className="w-[32px] h-[32px] rounded-full object-cover border border-[rgba(201,17,95,0.3)]" />
                     <div className="text-left">
                       <p className="text-white text-[11px] font-semibold">{c.name.split(' ')[0]}</p>
