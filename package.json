@@ -10,7 +10,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-     "vercel-install": "npm install --legacy-peer-deps"
+    "vercel-install": "npm install --legacy-peer-deps"
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
@@ -29,8 +29,10 @@
     "react-confetti": "^6.4.0",
     "react-dom": "19.1.0",
     "react-player": "^3.4.0",
+    "react-qr-code": "^2.2.0",
     "react-use": "^17.6.0",
-    "react-youtube": "^10.1.0"
+    "react-youtube": "^10.1.0",
+    "recharts": "^3.9.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
