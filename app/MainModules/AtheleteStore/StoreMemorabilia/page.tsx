@@ -61,29 +61,6 @@ function ItemDetail({ item, onBack, onStatusUpdate }: { item: any; onBack: () =>
   const isReserved = (item.status === 'reserved' || item.status === 'locked') && item.lockedBy !== userId;
 
   return (
-<<<<<<< HEAD
-    <div className="flex-1 overflow-y-auto pb-[100px] no-scrollbar relative">
-      <div className="relative h-[260px] bg-[#1a1a1f]">
-        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0f] to-transparent" />
-      </div>
-
-      <div className="px-4 pt-4">
-        <div className="flex items-center gap-2 mb-2">
-          {item.governance_state === 'approved' && (
-            <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-[rgba(0,200,100,0.12)] border border-[rgba(0,200,100,0.25)] text-[#00c864]">
-              ✓ Certified Authentic
-            </span>
-          )}
-          {(item.status === 'reserved' || item.status === 'locked') && (
-            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-400 flex items-center gap-1">
-              <Lock className="w-[10px] h-[10px]" /> Reserved
-            </span>
-          )}
-        </div>
-        <h2 className="text-white text-[19px] font-bold leading-tight mb-1">{item.title}</h2>
-        <p className="text-[#99A1AF] text-[13px] mb-4">By {item.athlete || 'Athlete'}</p>
-=======
     <div className="flex-1 flex flex-col min-h-0">
       {/* Scrollable content with proper bottom padding */}
       <div className="flex-1 overflow-y-auto no-scrollbar pb-[90px]">
@@ -91,7 +68,6 @@ function ItemDetail({ item, onBack, onStatusUpdate }: { item: any; onBack: () =>
           <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0f] to-transparent" />
         </div>
->>>>>>> a5f56e1d92cdb8d2cbad9c62343eb1263ecab338
 
         <div className="px-4 py-6 pt-4">
           <div className="flex items-center gap-2 mb-2">
@@ -100,22 +76,15 @@ function ItemDetail({ item, onBack, onStatusUpdate }: { item: any; onBack: () =>
                 ✓ Certified Authentic
               </span>
             )}
+            {(item.status === 'reserved' || item.status === 'locked') && (
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-400 flex items-center gap-1">
+                <Lock className="w-[10px] h-[10px]" /> Reserved
+              </span>
+            )}
           </div>
           <h2 className="text-white text-[19px] font-bold leading-tight mb-1">{item.title}</h2>
-          <p className="text-[#99A1AF] text-[13px] mb-4">By {item.athleteId || 'Athlete'}</p>
+          <p className="text-[#99A1AF] text-[13px] mb-4">By {item.athlete || 'Athlete'}</p>
 
-<<<<<<< HEAD
-          {certExpanded && (
-            <div className="px-4 pb-4 pt-1 border-t border-[rgba(255,255,255,0.04)]">
-              <div className="flex flex-col gap-2">
-                <div className="flex justify-between">
-                  <span className="text-[#5a5a6a] text-[12px]">Serial Number</span>
-                  <span className="text-white text-[12px] font-mono">{item.serialNo || 'AS-BIB-NTAC23'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-[#5a5a6a] text-[12px]">Verified Owner</span>
-                  <span className="text-white text-[12px]">SportsFan Official Vault</span>
-=======
           {/* Certificate section */}
           <div className="bg-[#111116] rounded-[18px] border border-[rgba(255,255,255,0.06)] overflow-hidden mb-4">
             <button
@@ -134,13 +103,12 @@ function ItemDetail({ item, onBack, onStatusUpdate }: { item: any; onBack: () =>
                 <div className="flex flex-col gap-2">
                   <div className="flex justify-between">
                     <span className="text-[#5a5a6a] text-[12px]">Serial Number</span>
-                    <span className="text-white text-[12px] font-mono">AS-BIB-NTAC23</span>
+                    <span className="text-white text-[12px] font-mono">{item.serialNo || 'AS-BIB-NTAC23'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-[#5a5a6a] text-[12px]">Verified Owner</span>
                     <span className="text-white text-[12px]">SportsFan Official Vault</span>
                   </div>
->>>>>>> a5f56e1d92cdb8d2cbad9c62343eb1263ecab338
                 </div>
               </div>
             )}
@@ -155,12 +123,8 @@ function ItemDetail({ item, onBack, onStatusUpdate }: { item: any; onBack: () =>
         )}
       </div>
 
-<<<<<<< HEAD
-      <div className="absolute bottom-0 left-0 right-0 px-4 py-4 bg-[#0b0b0f] border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between z-10">
-=======
       {/* Fixed bottom bar with proper positioning */}
       <div className="absolute bottom-0 left-0 right-0 px-4 py-6 pb-15 bg-[#0b0b0f] border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between z-10 safe-bottom">
->>>>>>> a5f56e1d92cdb8d2cbad9c62343eb1263ecab338
         <div>
           <p className="text-[#5a5a6a] text-[10px] uppercase font-bold">Price</p>
           <p className="text-white text-[20px] font-black">{formatPrice(item.pricePaise)}</p>
