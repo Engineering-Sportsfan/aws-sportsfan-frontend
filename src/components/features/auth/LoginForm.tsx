@@ -275,7 +275,7 @@
 //                 > */}
 //                 {/* <button
 //                     onClick={() => {
-//                         const MASTER_URL = 'https://sportsfan360.com';
+//                         const MASTER_URL = 'https://sportsfan-frontend-git-master-chandu-sportsfans-projects.vercel.app';
 //                         signIn("google", {
 //                             callbackUrl: `${MASTER_URL}/MainModules/ROAR`
 //                         });

@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 
 // Use the exact secrets we configured on the EC2 server!
 const JITSI_APP_ID = "sportsfan_app";
-const JITSI_APP_SECRET = process.env.JITSI_APP_SECRET || "fallback_secret";
+const JITSI_APP_SECRET = "super_secure_sportsfan_secret_2026";
 const JITSI_ISSUER = "sportsfan";
 const JITSI_AUDIENCE = "sportsfan";
 

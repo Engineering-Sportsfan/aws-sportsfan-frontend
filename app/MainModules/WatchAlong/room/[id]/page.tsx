@@ -73,7 +73,6 @@ export default function WatchRoomPage() {
   const roomId = rawRoomId ? rawRoomId.split('?')[0] : "";
   
   const [hasJoined, setHasJoined] = useState(false);
-  const [hasStartedFetching, setHasStartedFetching] = useState(false);
   
   const { 
     rooms,
@@ -96,7 +95,6 @@ export default function WatchRoomPage() {
   useEffect(() => {
     if (roomId && !isMockRoom) {
       fetchRoomById(roomId);
-      setHasStartedFetching(true);
     }
   }, [roomId, fetchRoomById, isMockRoom]);
 
@@ -128,7 +126,7 @@ export default function WatchRoomPage() {
     );
   }
 
-  if (((!isMockRoom && !hasStartedFetching) || loading) && !currentRoom) {
+  if (loading && !currentRoom) {
     return (
       <div className="min-h-screen bg-[#111] flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>

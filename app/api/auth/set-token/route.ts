@@ -2,8 +2,6 @@
 // Called by AuthContext after Google sign-in to set the same httpOnly
 // "token" cookie that email/password users get, but on the frontend domain.
 
-export const dynamic = "force-dynamic";
-
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth.config";
 import jwt from "jsonwebtoken";
@@ -29,7 +27,7 @@ export async function POST(req: NextRequest) {
 
     if (!dbUserId) {
       try {
-        const apiTarget = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.sportsfan360.com";
+        const apiTarget = process.env.NEXT_PUBLIC_BACKEND_URL || "https://sportsfan360.vercel.app";
         const signupRes = await fetch(`${apiTarget}/api/auth/google-signup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

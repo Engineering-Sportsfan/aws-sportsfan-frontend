@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthHeaders } from '@/lib/getAuthHeaders';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://api.sportsfan360.com';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'https://sportsfan360.vercel.app';
 const API_BASE = `${BACKEND_URL}/api/watch-along`;
 
 // GET /api/watch-along — fetch all rooms

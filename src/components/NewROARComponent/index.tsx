@@ -635,7 +635,6 @@ export default function ROARApp() {
   const [currentUsername, setCurrentUsername] = useState("RoarUser");
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState<string | undefined>();
-  const pathname = typeof window !== "undefined" ? window.location.pathname : "/MainModules/ROAR";
 
   useEffect(() => {
     setMounted(true);
@@ -697,36 +696,6 @@ export default function ROARApp() {
   const [overlay, setOverlay] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
-
-  // ── Room URL / back-button handling ────────────────────────────────────
-  const openRoom = useCallback((room: Room) => {
-    setSelectedRoom(room);
-    setOverlay("room");
-    try {
-      const url = `${window.location.pathname}?room=${encodeURIComponent(room.roomId)}`;
-      if (window.location.search !== `?room=${encodeURIComponent(room.roomId)}`) {
-        window.history.pushState({ roarRoom: room.roomId }, "", url);
-      }
-    } catch (e) { console.error("Failed to push room history state:", e); }
-  }, []);
-
-  const closeRoom = useCallback(() => {
-    setOverlay(null);
-    setActiveTab("home");
-  }, []);
-
-  useEffect(() => {
-    const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const roomParam = params.get("room");
-      if (!roomParam) {
-        setOverlay(prev => (prev === "room" ? null : prev));
-        setActiveTab("home");
-      }
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
 
   useEffect(() => {
     if (selectedPost && phog) {
@@ -889,9 +858,8 @@ export default function ROARApp() {
       if (autoJoinId) {
         const matched = rooms.find(r => r.roomId === autoJoinId);
         if (matched) {
-          // setSelectedRoom(matched);
-          // setOverlay("room");
-          openRoom(matched);
+          setSelectedRoom(matched);
+          setOverlay("room");
           localStorage.removeItem("roar_auto_join_room_id");
         }
       }
@@ -936,9 +904,8 @@ export default function ROARApp() {
       if (autoJoinRoomId) {
         const matchedRoom = rooms.find(r => r.roomId === autoJoinRoomId);
         if (matchedRoom) {
-          // setSelectedRoom(matchedRoom);
-          // setOverlay("room");
-          openRoom(matchedRoom);
+          setSelectedRoom(matchedRoom);
+          setOverlay("room");
           localStorage.removeItem("roar_auto_join_room_id");
         }
       }
@@ -1168,18 +1135,9 @@ export default function ROARApp() {
     }
   }, [showToast, overlay, selectedRoom, currentUserId, currentUsername, currentAvatarUrl, userBadge]);
 
-  // const handleTab = (tab: string) => {
-  //   setOverlay(null);
-  //   if (tab === "discuss") { setOverlay("room"); return; }
-  //   setActiveTab(tab);
-  // };
   const handleTab = (tab: string) => {
-    if (tab === "discuss") {
-      if (selectedRoom) openRoom(selectedRoom);
-      else setOverlay("room");
-      return;
-    }
     setOverlay(null);
+    if (tab === "discuss") { setOverlay("room"); return; }
     setActiveTab(tab);
   };
 
@@ -1309,11 +1267,7 @@ export default function ROARApp() {
                     score={selectedRoom?.score}
                     scoreSubtitle={selectedRoom?.scoreSubtitle}
                     watchAlongRoomId={selectedRoom?.watchAlongRoomId}
-                    // onBack={() => { setOverlay(null); setActiveTab("home"); }}
-                    onBack={() => {
-                      if (window.history.state?.roarRoom) window.history.back();
-                      else closeRoom();
-                    }}
+                    onBack={() => { setOverlay(null); setActiveTab("home"); }}
                     onToast={showToast}
                     onPostClick={post => setSelectedPost(post)}
                     onCompose={type => openCompose(type)}
@@ -1341,14 +1295,10 @@ export default function ROARApp() {
                       //   }
                       // }}
                       onJoinRoom={room => {
-                        const target = room ?? (rooms.length ? rooms[0] : null);
-                        if (target) openRoom(target);
+                        if (room) setSelectedRoom(room);
+                        else if (rooms.length) setSelectedRoom(rooms[0]);
+                        setOverlay("room");
                       }}
-                      // onJoinRoom={room => {
-                      //   if (room) setSelectedRoom(room);
-                      //   else if (rooms.length) setSelectedRoom(rooms[0]);
-                      //   setOverlay("room");
-                      // }}
                       onToast={showToast}
                     />
                   )}
@@ -1356,11 +1306,7 @@ export default function ROARApp() {
                     <Profile userBadge={userBadge} setUserBadge={setUserBadge} onCompose={() => openCompose("prediction")} onToast={showToast} setOnboarded={setOnboarded} onNavigateTab={handleTab} />
                   )}
                   {activeTab === "alerts" && (
-                    <Notifications notifications={notifications} onMarkRead={id => markRoarRead(id)} onMarkAllRead={markAllRoarRead} onCompose={() => openCompose()}
-                    //  onJoinRoom={room => { if (room) setSelectedRoom(room); else if (rooms.length) setSelectedRoom(rooms[0]); setOverlay("room"); }}
-                    onJoinRoom={room => { const target = room ?? (rooms.length ? rooms[0] : null); if (target) openRoom(target); }}
-                      onNavigateTab={handleTab} rooms={rooms} />
-
+                    <Notifications notifications={notifications} onMarkRead={id => markRoarRead(id)} onMarkAllRead={markAllRoarRead} onCompose={() => openCompose()} onJoinRoom={room => { if (room) setSelectedRoom(room); else if (rooms.length) setSelectedRoom(rooms[0]); setOverlay("room"); }} onNavigateTab={handleTab} rooms={rooms} />
                   )}
                 </motion.div>
               )}

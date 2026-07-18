@@ -66,7 +66,7 @@
 //     callbacks: {
 //         async signIn({ user }) {
 //             try {
-//                 const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.sportsfan360.com";
+//                 const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://sportsfan360.vercel.app";
 //                 const res = await fetch(`${adminUrl}/api/auth/google-signup`, {
 //                     method: "POST",
 //                     headers: { "Content-Type": "application/json" },
@@ -87,7 +87,7 @@
 //         async jwt({ token, user, account }) {
 //             if (account?.provider === "google" && user?.email) {
 //                 try {
-//                     const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.sportsfan360.com";
+//                     const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://sportsfan360.vercel.app";
 //                     const res = await fetch(`${adminUrl}/api/auth/google-signup`, {
 //                         method: "POST",
 //                         headers: { "Content-Type": "application/json" },
@@ -141,7 +141,7 @@
 // import GoogleProvider from "next-auth/providers/google";
 
 // // HARDCODE MASTER BRANCH URL
-// const MASTER_URL = 'https://sportsfan360.com';
+// const MASTER_URL = 'https://sportsfan-frontend-git-master-chandu-sportsfans-projects.vercel.app';
 
 // export const { handlers, auth, signIn, signOut } = NextAuth({
 //     providers: [
@@ -154,7 +154,7 @@
 //     callbacks: {
 //         async signIn({ user }) {
 //             try {
-//                 const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.sportsfan360.com";
+//                 const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://sportsfan360.vercel.app";
 //                 const res = await fetch(`${adminUrl}/api/auth/google-signup`, {
 //                     method: "POST",
 //                     headers: { "Content-Type": "application/json" },
@@ -175,7 +175,7 @@
 //         async jwt({ token, user, account }) {
 //             if (account?.provider === "google" && user?.email) {
 //                 try {
-//                     const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.sportsfan360.com";
+//                     const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://sportsfan360.vercel.app";
 //                     const res = await fetch(`${adminUrl}/api/auth/google-signup`, {
 //                         method: "POST",
 //                         headers: { "Content-Type": "application/json" },
@@ -237,7 +237,6 @@ import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-    trustHost: true,
     providers: [
         GoogleProvider({
             clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -248,7 +247,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     callbacks: {
         async signIn({ user }) {
             try {
-                const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.sportsfan360.com";
+                const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://sportsfan360.vercel.app";
                 const res = await fetch(`${adminUrl}/api/auth/google-signup`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -269,7 +268,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         async jwt({ token, user, account }) {
             if (account?.provider === "google" && user?.email) {
                 try {
-                    const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.sportsfan360.com";
+                    const adminUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://sportsfan360.vercel.app";
                     const res = await fetch(`${adminUrl}/api/auth/google-signup`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },

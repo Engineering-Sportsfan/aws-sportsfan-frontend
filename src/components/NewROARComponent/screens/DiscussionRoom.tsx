@@ -5549,9 +5549,6 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
         }
         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
         onToast(`${opt.emoji} ${opt.label} posted!`);
-      } else {
-        setPosts(p => p.filter(post => post.id !== tempId));
-        onToast(res.data?.error || "Failed to post");
       }
     } catch {
       setPosts(p => p.filter(post => post.id !== tempId));
@@ -5834,57 +5831,53 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
         </>
       )}
 
-      {!watchAlongRoomId && (
-        <>
-          <div className="shrink-0 px-3 py-2 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
-            <div className="flex justify-between items-start gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <button type="button" onPointerDown={handleBack} onClick={handleBack} className="bg-transparent border-none cursor-pointer text-white flex items-center p-0 flex-shrink-0" style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
-                  <ChevronLeft size={22} />
-                </button>
-                <div className="text-left pt-0.5 min-w-0 flex-1">
-                  <p className="font-display text-lg tracking-[0.04em] m-0 leading-tight text-white font-extrabold uppercase truncate">{roomName || "WORLDCUP"}</p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <span className="live-pulse w-1.5 h-1.5 rounded-full bg-[var(--live-green)] inline-block flex-shrink-0" />
-                      <span className="text-[8px] font-bold text-[var(--live-green)] flex-shrink-0">LIVE</span>
-                    </div>
-                  </div>
+      <div className="shrink-0 px-3 py-2 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
+        <div className="flex justify-between items-start gap-2">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <button type="button" onPointerDown={handleBack} onClick={handleBack} className="bg-transparent border-none cursor-pointer text-white flex items-center p-0 flex-shrink-0" style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
+              <ChevronLeft size={22} />
+            </button>
+            <div className="text-left pt-0.5 min-w-0 flex-1">
+              <p className="font-display text-lg tracking-[0.04em] m-0 leading-tight text-white font-extrabold uppercase truncate">{roomName || "WORLDCUP"}</p>
+              <div className="flex items-center gap-1 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <span className="live-pulse w-1.5 h-1.5 rounded-full bg-[var(--live-green)] inline-block flex-shrink-0" />
+                  <span className="text-[8px] font-bold text-[var(--live-green)] flex-shrink-0">LIVE</span>
                 </div>
-              </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={toggleSound}
-                  className="flex-shrink-0 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] rounded-[10px] p-1.5 cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center"
-                  style={{ width: "32px", height: "32px" }}
-                  title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
-                >
-                  {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
-                </button>
-                <button type="button" onClick={shareRoomLink} className="flex-shrink-0 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] rounded-[10px] p-1.5 cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center" style={{ width: "32px", height: "32px" }}>
-                  <Share2 size={14} />
-                </button>
-                {(score || scoreSubtitle) && (
-                  <div className="text-right pr-0.5 flex-shrink-0">
-                    {score && <div className="font-display text-[22px] text-[var(--accent-yellow)] leading-none">{score}</div>}
-                    {scoreSubtitle && <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">{scoreSubtitle}</div>}
-                  </div>
-                )}
               </div>
             </div>
           </div>
-
-          <div className="shrink-0 px-3 py-0 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)]">
-            <ActiveFansStack
-              fans={activeFans}
-              count={liveCount}
-              totalJoinCount={totalJoinCount}
-              onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
-            />
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={toggleSound}
+              className="flex-shrink-0 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] rounded-[10px] p-1.5 cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center"
+              style={{ width: "32px", height: "32px" }}
+              title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
+            >
+              {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+            </button>
+            <button type="button" onClick={shareRoomLink} className="flex-shrink-0 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] rounded-[10px] p-1.5 cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center" style={{ width: "32px", height: "32px" }}>
+              <Share2 size={14} />
+            </button>
+            {(score || scoreSubtitle) && (
+              <div className="text-right pr-0.5 flex-shrink-0">
+                {score && <div className="font-display text-[22px] text-[var(--accent-yellow)] leading-none">{score}</div>}
+                {scoreSubtitle && <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">{scoreSubtitle}</div>}
+              </div>
+            )}
           </div>
-        </>
-      )}
+        </div>
+      </div>
+
+      <div className="shrink-0 px-3 py-0 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)]">
+        <ActiveFansStack
+          fans={activeFans}
+          count={liveCount}
+          totalJoinCount={totalJoinCount}
+          onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
+        />
+      </div>
 
       {pinnedPost && (
         <div
@@ -6405,7 +6398,7 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
                     </p>
                     <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 0.5, scrollbarWidth: "none" }}>
                       {QUICK_REACT_OPTS
-                        .filter((q) => q.sport === (roomSports || "cricket").toLowerCase() || q.sport === "both")
+                        .filter((q) => q.sport === roomSports?.toLowerCase() || q.sport === "both")
                         .map((q) => (
                           <motion.button
                             key={q.id}
@@ -6470,7 +6463,7 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
               </div>
             )}
 
-            <div className="flex items-center w-full gap-0.5 pl-7 sm:pl-0">
+            <div className="flex items-center w-full gap-0.5">
               <button type="button" onClick={() => triggerUpload("image")} disabled={uploading} className="bg-transparent border-none -ml-1.5 text-white/40 cursor-pointer flex items-center justify-center p-1 shrink-0">
                 <Image size={16} />
               </button>
@@ -6589,7 +6582,6 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
         loadingHistory={dollyHistoryLoading}
         onSelectHistorySession={handleSelectDollySession}
         onNewChat={handleNewDollyChat}
-        constrainedToParent={!!watchAlongRoomId}
       />
 
       <AnimatePresence>

@@ -24,7 +24,7 @@
 //         `✏️ Posts: ${posts}`,
 //         badgeCount > 0 ? `🏅 Badges Earned: ${badgeCount}` : null,
 //         "",
-//         "Join us 👉 https://sportsfan360.com/",
+//         "Join us 👉 https://sportsfan-frontend.vercel.app/",
 //         "#StartRoaring #Sportsfan360",
 //     ]
 //         .filter((l) => l !== null)
@@ -148,7 +148,7 @@
 //                         await navigator.share({
 //                             files: [file],
 //                             title: "My Roar Journey",
-//                             text: "Hey! Join me on Sportsfan360 👉 https://sportsfan360.com/MainModules/ROAR",
+//                             text: "Hey! Join me on Sportsfan360 👉 https://sportsfan-frontend.vercel.app/MainModules/ROAR",
 //                         });
 //                         setSharing(false);
 //                         return;
@@ -424,7 +424,7 @@ function buildShareText(
         `✏️ Posts: ${posts}`,
         badgeCount > 0 ? `🏅 Badges Earned: ${badgeCount}` : null,
         "",
-        "Join us 👉 https://sportsfan360.com/MainModules/ROAR",
+        "Join us 👉 https://sportsfan-frontend.vercel.app/MainModules/ROAR",
         "#StartRoaring #Sportsfan360",
     ]
         .filter((l) => l !== null)
@@ -508,7 +508,7 @@ export function RoarJourneySection({
     const handleLinkedIn = () =>
         window.open(
             `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
-                "https://sportsfan360.com/MainModules/ROAR"
+                "https://sportsfan-frontend.vercel.app/MainModules/ROAR"
             )}`,
             "_blank"
         );
@@ -602,7 +602,7 @@ export function RoarJourneySection({
                         await navigator.share({
                             files: [file],
                             title: "My Roar Journey",
-                            text: "Hey! Join me on Sportsfan360 👉 https://sportsfan360.com/MainModules/ROAR",
+                            text: "Hey! Join me on Sportsfan360 👉 https://sportsfan-frontend.vercel.app/MainModules/ROAR",
                         });
                         return;
                     } catch (shareErr: any) {

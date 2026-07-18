@@ -31,7 +31,6 @@ export interface Match {
     videoType?: string;
     createdAt?: number;
     updatedAt?: number;
-    title?: string;
 }
 
 export interface ChatMessage {
@@ -98,7 +97,6 @@ export interface Room {
     roarRoomId?: string;   // Synced ROAR Room ID
     createdAt?: number;
     updatedAt?: number;
-    sport?: string;
 }
 
 export interface CreateMatchPayload {
