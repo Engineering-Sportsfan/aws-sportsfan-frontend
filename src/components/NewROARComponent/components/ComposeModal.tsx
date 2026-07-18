@@ -528,6 +528,7 @@ interface Props {
   onPost: (p: ComposePayload) => void;
   initialType: string | null;
   onOpenQuiz?: () => void;
+  constrainedToParent?: boolean;
 }
 
 interface MentionUser {
@@ -754,7 +755,7 @@ function MentionPopup({ users, activeIndex, onSelect, onHover }: MentionPopupPro
 
 // ── Main ComposeModal ─────────────────────────────────────────────────────────
 
-export default function ComposeModal({ open, onClose, onPost, initialType, onOpenQuiz }: Props) {
+export default function ComposeModal({ open, onClose, onPost, initialType, onOpenQuiz, constrainedToParent }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [sideA, setSideA] = useState("");
@@ -1006,7 +1007,7 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
               exit={{ opacity: 0 }}
               onClick={onClose}
               style={{
-                position: "fixed", inset: 0, zIndex: 10060,
+                position: constrainedToParent ? "absolute" : "fixed", inset: 0, zIndex: 10060,
                 background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
               }}
             />
@@ -1018,7 +1019,7 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 28, stiffness: 300 }}
               style={{
-                position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 10070,
+                position: constrainedToParent ? "absolute" : "fixed", bottom: 0, left: 0, right: 0, zIndex: 10070,
                 background: "var(--bg-glass)",
                 backdropFilter: "blur(20px)",
                 borderRadius: "32px 32px 0 0",
@@ -1621,5 +1622,6 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
   );
 
   if (!domReady) return null;
+  if (constrainedToParent) return modalContent;
   return createPortal(modalContent, document.body);
 }
