@@ -421,24 +421,21 @@ export default function Onboarding({ onComplete }: Props) {
   };
 
   const handleCompleteOnboarding = async () => {
-    try {
-      await axios.post("/api/roar/onboarding", {
-        sports,
-        badge: "RISING_FAN",
-        firstContribution: debatePrompt,
-        firstVote,
-        repPointsAwarded: FIRST_ROAR_BADGE.repPoints,
-      });
+    const payload = {
+      sports,
+      badge: "RISING_FAN",
+      firstContribution: debatePrompt,
+      firstVote,
+      repPointsAwarded: FIRST_ROAR_BADGE.repPoints,
+    };
 
-      onComplete({
-        sports,
-        badge: "RISING_FAN",
-        firstContribution: debatePrompt,
-        firstVote,
-        repPointsAwarded: FIRST_ROAR_BADGE.repPoints,
-      });
+    try {
+      await axios.post("/api/roar/onboarding", payload);
     } catch (err) {
-      console.error(err);
+      console.error("Onboarding API error:", err);
+    } finally {
+      // ALWAYS call onComplete so the UI doesn't freeze!
+      onComplete(payload);
     }
   };
 
