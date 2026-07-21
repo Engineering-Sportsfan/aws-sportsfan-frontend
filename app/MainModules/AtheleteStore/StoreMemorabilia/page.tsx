@@ -61,9 +61,9 @@ function ItemDetail({ item, onBack, onStatusUpdate }: { item: any; onBack: () =>
   const isReserved = (item.status === 'reserved' || item.status === 'locked') && item.lockedBy !== userId;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div className="flex-1 flex flex-col min-h-0 relative">
       {/* Scrollable content with proper bottom padding */}
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-[90px]">
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-[100px]">
         <div className="relative h-[260px] bg-[#1a1a1f]">
           <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0f] to-transparent" />
@@ -83,7 +83,7 @@ function ItemDetail({ item, onBack, onStatusUpdate }: { item: any; onBack: () =>
             )}
           </div>
           <h2 className="text-white text-[19px] font-bold leading-tight mb-1">{item.title}</h2>
-          <p className="text-[#99A1AF] text-[13px] mb-4">By {item.athlete || 'Athlete'}</p>
+          <p className="text-[#99A1AF] text-[13px] mb-4">By {item.athlete || item.athleteId || 'Athlete'}</p>
 
           {/* Certificate section */}
           <div className="bg-[#111116] rounded-[18px] border border-[rgba(255,255,255,0.06)] overflow-hidden mb-4">
@@ -116,7 +116,7 @@ function ItemDetail({ item, onBack, onStatusUpdate }: { item: any; onBack: () =>
         </div>
 
         {error && (
-          <div className="mb-4 bg-red-950/20 border border-red-500/30 rounded-xl p-3 flex items-start gap-2.5">
+          <div className="mb-4 bg-red-950/20 border border-red-500/30 rounded-xl p-3 flex items-start gap-2.5 mx-4">
             <AlertTriangle className="w-[16px] h-[16px] text-red-500 flex-shrink-0 mt-0.5" />
             <p className="text-red-400 text-[12px] font-medium leading-normal">{error}</p>
           </div>
