@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
     if (!dbUserId) {
       try {
-        const apiTarget = process.env.NEXT_PUBLIC_BACKEND_URL || "https://api.sportsfan360.com";
+        const apiTarget = process.env.NEXT_PUBLIC_BACKEND_URL || "https://sportsfan360.vercel.app";
         const signupRes = await fetch(`${apiTarget}/api/auth/google-signup`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

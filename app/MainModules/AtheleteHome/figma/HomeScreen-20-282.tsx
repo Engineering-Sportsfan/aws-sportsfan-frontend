@@ -1678,7 +1678,8 @@ function Container18() {
           sport: a.sport || '',
           likes: String(a.stats?.totalGold ?? 0) + ' Golds',
           comments: String(a.stats?.totalSilver ?? 0),
-          route: `/athlete/${a.slug}`,
+          // route: `/athlete/${a.slug}`,
+          route: `/MainModules/AtheleteProfile/${a.slug}`,
         }));
         setAthletes(mapped);
       })
@@ -1871,7 +1872,8 @@ function Container48() {
   const router = useRouter();
   return (
     <div
-      onClick={() => router.push("/articles/1")}
+      // onClick={() => router.push("/articles/1")}
+       onClick={() => router.push("/MainModules/AtheleteArticles/india-commonwealth-games-2026-athletics-squad")} 
       className="absolute h-[192px] left-0 overflow-clip rounded-[16px] top-0 w-[350px]"
       data-name="Container"
     >
@@ -1938,7 +1940,8 @@ function Container51() {
   const router = useRouter();
   return (
     <div
-      onClick={() => router.push("/MainModules/AtheleteArticles")}
+      // onClick={() => router.push("/MainModules/AtheleteArticles")}
+       onClick={() => router.push("/MainModules/AtheleteArticles/federation-cup-2026-gurindervir-tejaswin-national-records")}
       className="absolute border border-[rgba(255,255,255,0.1)] border-solid h-[131.5px] left-0 rounded-[16px] top-0 w-[167px]"
       style={{
         backgroundImage:
@@ -1996,7 +1999,8 @@ function Container53() {
   const router = useRouter();
   return (
     <div
-      onClick={() => router.push("/MainModules/AtheleteArticles")}
+      // onClick={() => router.push("/MainModules/AtheleteArticles")}
+       onClick={() => router.push("/MainModules/AtheleteArticles/javelin-duo-cwg-spots")} 
       className="absolute border border-[rgba(255,255,255,0.1)] border-solid h-[131.5px] left-[183px] rounded-[16px] top-0 w-[167px]"
       style={{
         backgroundImage:

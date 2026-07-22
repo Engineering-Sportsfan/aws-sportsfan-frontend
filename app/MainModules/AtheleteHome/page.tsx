@@ -17,7 +17,7 @@ export default function HomeScreenWrapper() {
   return (
     <div className="w-full h-full bg-[#0b0b0f] relative flex flex-col" style={{ height: '100%' }}>
       {/* Fixed top header */}
-      <div className="bg-[#0b0b0f] border-b border-[rgba(255,255,255,0.05)] flex items-center justify-between px-4 gap-2">
+      <div className="bg-[#0b0b0f] border-b border-[rgba(255,255,255,0.05)] flex items-center justify-between px-4 gap-2 w-full max-w-[390px] mx-auto">
         {/* Logo */}
         {/* <div className="flex items-center">
           <div className="relative w-[28px] h-[36px]">
@@ -63,7 +63,7 @@ export default function HomeScreenWrapper() {
 
       {/* Scrollable content area — hides original bottom nav bar from Figma */}
       <div
-        className="flex-1 overflow-y-auto no-scrollbar"
+        className="flex-1 overflow-y-auto no-scrollbar w-full max-w-[390px] mx-auto"
         style={{ paddingBottom: '8px' }}
         // onClick={(e) => {
         //   const target = e.target as HTMLElement;

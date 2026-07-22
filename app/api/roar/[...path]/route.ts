@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.NEXT_PUBLIC_ADMIN_URL ||
-  "https://api.sportsfan360.com";
+  "https://sportsfan360.vercel.app";
 
 async function proxyRoar(
   req: NextRequest,

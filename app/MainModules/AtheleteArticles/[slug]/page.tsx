@@ -84,7 +84,7 @@ const { slug = '' } = useParams<{ slug: string }>();
       <div className="bg-[#0b0b0f] h-full w-full flex justify-center">
         <div className="relative w-full max-w-[390px] h-full flex flex-col items-center justify-center px-8 text-center">
           <button
-            onClick={() => router.push("MainModules/AtheleteHome")}
+            onClick={() => router.push("/MainModules/AtheleteHome")}
             className="absolute top-3 left-3 w-[36px] h-[36px] rounded-full bg-[rgba(0,0,0,0.5)] border border-[rgba(255,255,255,0.15)] flex items-center justify-center"
           >
             <ChevronLeft size={18} color="white" />

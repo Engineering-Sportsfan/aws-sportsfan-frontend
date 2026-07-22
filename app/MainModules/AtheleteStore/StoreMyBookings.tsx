@@ -4,19 +4,27 @@ import { useState, useEffect } from 'react';
 import { storeService } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
 import QRCode from 'react-qr-code';
+import { useAuth } from '@/context/AuthContext';
 
 type Tab = 'upcoming' | 'completed' | 'cancelled';
 
 export default function StoreMyBookings() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || '';
+
   const [tab, setTab] = useState<Tab>('upcoming');
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedQR, setSelectedQR] = useState<any | null>(null);
 
   const fetchOrders = () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    storeService.getUserOrders('abhishekrt959_gmail_com')
+    storeService.getUserOrders(userId)
       .then((data) => {
         setOrders(data);
         setLoading(false);
@@ -29,12 +37,12 @@ export default function StoreMyBookings() {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+  }, [userId]);
 
   const handleCancel = async (bookingId: string) => {
     if (!window.confirm('Are you sure you want to cancel this booking?')) return;
     try {
-      const res = await storeService.cancelBooking(bookingId, 'abhishekrt959_gmail_com');
+      const res = await storeService.cancelBooking(bookingId, userId);
       if (res.success) {
         alert('Booking cancelled successfully! Your refund has been credited to your Wallet.');
         fetchOrders();

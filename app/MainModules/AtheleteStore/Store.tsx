@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react';
 import MaskGroup from '@/src/components/CommonComponent/MaskGroup/MaskGroup';
 import { storeService } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
+import { useAuth } from '@/context/AuthContext';
 
 export function SourcingModelBadge({ type }: { type: 'afi' | 'afi_affiliated' | 'independent' }) {
   if (type === 'afi' || type === 'afi_affiliated') {
@@ -92,6 +93,9 @@ function SectionHeader({ title, icon: Icon, color, onSeeAll }: { title: string; 
 
 export default function StoreScreen() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || '';
+
   const [locationState, setLocationState] = useState<'fetching' | 'saved'>('fetching');
   const [coins, setCoins] = useState<number>(250);
 
@@ -119,15 +123,17 @@ export default function StoreScreen() {
       setTrending(trendingList);
 
       // Fetch user coins, wishlist, recently viewed
-      const [coinsRes, wishlistRes, recentRes] = await Promise.all([
-        storeService.getCoinsBalance('abhishekrt959_gmail_com'),
-        storeService.getWishlist('abhishekrt959_gmail_com'),
-        storeService.getRecentlyViewed('abhishekrt959_gmail_com'),
-      ]);
+      if (userId) {
+        const [coinsRes, wishlistRes, recentRes] = await Promise.all([
+          storeService.getCoinsBalance(userId),
+          storeService.getWishlist(userId),
+          storeService.getRecentlyViewed(userId),
+        ]);
 
-      setCoins(coinsRes.balance);
-      setWishlist(wishlistRes);
-      setRecentlyViewed(recentRes);
+        setCoins(coinsRes.balance);
+        setWishlist(wishlistRes);
+        setRecentlyViewed(recentRes);
+      }
     } catch (err) {
       console.error('Error loading store data:', err);
     }
@@ -137,11 +143,13 @@ export default function StoreScreen() {
     const t = setTimeout(() => setLocationState('saved'), 1600);
     loadData();
     return () => clearTimeout(t);
-  }, []);
+  }, [userId]);
 
   const handleProductClick = async (productId: string, route: string) => {
     try {
-      await storeService.addRecentlyViewed('abhishekrt959_gmail_com', productId);
+      if (userId) {
+        await storeService.addRecentlyViewed(userId, productId);
+      }
     } catch (e) {
       console.error(e);
     }
@@ -150,11 +158,12 @@ export default function StoreScreen() {
 
   const handleWishlistToggle = async (productId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (!userId) return;
     const isWishlisted = wishlist.some(item => item.productId === productId || item.id === productId);
     const action = isWishlisted ? 'remove' : 'add';
     try {
-      await storeService.toggleWishlist('abhishekrt959_gmail_com', productId, action);
-      const updated = await storeService.getWishlist('abhishekrt959_gmail_com');
+      await storeService.toggleWishlist(userId, productId, action);
+      const updated = await storeService.getWishlist(userId);
       setWishlist(updated);
     } catch (err) {
       console.error(err);

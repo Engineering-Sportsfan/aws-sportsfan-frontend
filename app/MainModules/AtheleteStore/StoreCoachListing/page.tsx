@@ -1,6 +1,5 @@
 'use client';
 
-import { useNavigate } from 'react-router';
 import { ArrowLeft, Search, Star, Clock, Bookmark } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -189,7 +188,7 @@ export default function StoreCoachListing() {
                 <div
                   key={coach.id}
                   className="w-full bg-[#111116] rounded-[18px] border border-[rgba(255,255,255,0.07)] overflow-hidden text-left active:scale-[0.98] transition-transform cursor-pointer"
-                  onClick={() => router.push(`/store/coach/${coach.coachId || '1'}${selectedServiceType ? `?serviceType=${selectedServiceType}` : ''}`)}
+                  onClick={() => router.push(`/MainModules/AtheleteStore/StoreCoachProfile/${coach.coachId || '1'}${selectedServiceType ? `?serviceType=${selectedServiceType}` : ''}`)}
                 >
                   <div className="p-4">
                     <div className="flex items-start gap-3">
