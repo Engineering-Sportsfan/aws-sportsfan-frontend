@@ -15,6 +15,7 @@ function StorePaymentContent() {
   const id = params?.id;
   const searchParams = useSearchParams();
   const slotId = searchParams?.get('slotId') || undefined;
+  const variantId = searchParams?.get('variantId') || undefined;
   const priceParam = searchParams?.get('price');
   const pricePaise = priceParam ? parseInt(priceParam, 10) : 189900; // fallback to ₹1,899
 
@@ -123,6 +124,7 @@ function StorePaymentContent() {
       const res = await storeService.checkout({
         productId: (id as string) || 'coach-1',
         slotId: slotId,
+        variantId: variantId,
         userId: userId,
         paymentMethod: selected as any,
         pricePaise,

@@ -77,6 +77,7 @@ export interface Slot {
 export interface CheckoutPayload {
   productId: string;
   slotId?: string;
+  variantId?: string;
   userId: string;
   paymentMethod: 'upi' | 'gpay' | 'phonepe' | 'paytm' | 'card' | 'wallet';
   pricePaise: number;
@@ -147,7 +148,10 @@ export const storeService = {
     api.get<any[]>(`/store/products/${productId}/bids`),
 
   placeBid: (productId: string, amountPaise: number, userId: string) =>
-    api.post<any>(`/store/products/${productId}/bids`, { amountPaise, userId }),
+    api.post<any>(`/auctions/${productId}/bid`, { amountPaise, userId }),
+
+  toggleAutoBid: (productId: string, maxCeilingPaise: number, isActive: boolean, userId: string) =>
+    api.post<any>(`/auctions/${productId}/auto-bid`, { maxCeilingPaise, isActive, userId }),
 
   // User Orders
   getUserOrders: (userId: string) =>
@@ -174,6 +178,10 @@ export const storeService = {
   getSessionRequests: (userId: string) =>
     api.get<any[]>(`/store/users/${userId}/session-requests`),
 
+  // Library
+  getLibrary: (userId: string) =>
+    api.get<any[]>(`/store/users/${userId}/library`),
+
   // Wishlist (Phase 10)
   getWishlist: (userId: string) =>
     api.get<any[]>(`/store/users/${userId}/wishlist`),
@@ -188,19 +196,57 @@ export const storeService = {
   addRecentlyViewed: (userId: string, productId: string) =>
     api.post<any>(`/store/users/${userId}/recently-viewed`, { productId }),
 
-  // Membership (Phase 10)
-  getUserMembership: (userId: string) =>
-    api.get<any>(`/store/users/${userId}/membership`),
+  // Membership APIs
 
-  updateUserMembership: (userId: string, tier: string) =>
-    api.post<any>(`/store/users/${userId}/membership`, { tier }),
+  // Membership APIs
+
+  getMembershipPlans: () =>
+    api.get<any[]>("/store/membership-plans"),
+
+  getMyMembership: (userId: string) =>
+    api.get<{ hasMembership: boolean; membership: any; plan: any }>(
+      `/store/users/${userId}/membership`
+    ),
+
+  subscribeMembership: (
+    planId: string,
+    userId: string,
+    paymentMethod: string
+  ) =>
+    api.post<any>("/membership/subscribe", {
+      planId,
+      userId,
+      paymentMethod,
+    }),
+
+  pauseMembership: (userId: string) =>
+    api.post<any>("/membership/pause", {
+      userId,
+    }),
+
+  resumeMembership: (userId: string) =>
+    api.post<any>("/membership/resume", {
+      userId,
+    }),
+
+  cancelMembership: (userId: string) =>
+    api.post<any>("/membership/cancel", {
+      userId,
+    }),
 
   getBrandDeals: () =>
     api.get<any[]>('/store/brand-deals'),
 
-  getMembershipPlans: () =>
-    api.get<any[]>('/store/membership-plans'),
-
   validateJoinToken: (joinToken: string) =>
     api.get<{ success: boolean; meetingUrl: string; event: any }>(`/store/events/join/${joinToken}`),
+
+  getUserAuctions: (userId: string, type: 'current' | 'previous' | 'won') =>
+    api.get<any[]>(`/store/users/${userId}/auctions?type=${type}`),
+
+  // Athlete Store Listing APIs
+  purchaseAthleteListing: (athleteId: string, listingId: string) =>
+    api.post<any>(`/store/athletes/${athleteId}/listings/${listingId}/purchase`),
+
+  getAthleteBookings: (userId: string) =>
+    api.get<any[]>(`/store/users/${userId}/athlete-bookings`),
 };

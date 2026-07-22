@@ -4,6 +4,7 @@ import { ArrowLeft, CheckCircle, Clock, Shield, ShoppingCart, ChevronRight, Vide
 import { useState, useEffect } from 'react';
 import { storeService } from '@/services/store.service';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 
 type GovernanceStatus = 'approved' | 'pending' | 'independent';
@@ -34,7 +35,7 @@ const governanceBadge: Record<GovernanceStatus, { label: string; color: string; 
 
 function GovernanceTag({ status }: { status: GovernanceStatus }) {
   if (status === 'pending') return null;
-  const cfg = governanceBadge[status];
+  const cfg = governanceBadge[status] || governanceBadge['approved'];
   return (
     <div
       className="flex items-center gap-1.5 px-2.5 py-1 rounded-full"
@@ -122,9 +123,29 @@ function EarningsSplit() {
   );
 }
 
-function AthleteStorefront({ athlete, onBack }: { athlete: typeof athletes[0]; onBack: () => void }) {
-  const [added, setAdded] = useState<number[]>([]);
+function AthleteStorefront({ athlete, onBack }: { athlete: any; onBack: () => void }) {
+  const router = useRouter();
+  const [added, setAdded] = useState<string[]>([]);
   const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState<any | null>(null);
+  const [purchasingId, setPurchasingId] = useState<string | null>(null);
+
+  const handleBuyListing = async (listing: any) => {
+    setPurchasingId(listing.id);
+    try {
+      const res = await storeService.purchaseAthleteListing(athlete.id, listing.id);
+      if (res.success) {
+        // Route to payment page with amountPaise
+        router.push(`/MainModules/AtheleteStore/StorePayment/${athlete.id}?variantId=${listing.id}&price=${res.pricePaise}`);
+      } else {
+        alert(res.error || 'Failed to initiate purchase');
+      }
+    } catch (err: any) {
+      alert(err.message || 'Failed to initiate purchase');
+    } finally {
+      setPurchasingId(null);
+    }
+  };
 
   return (
     <div className="flex-1 overflow-y-auto pb-[70px] no-scrollbar">
@@ -137,8 +158,8 @@ function AthleteStorefront({ athlete, onBack }: { athlete: typeof athletes[0]; o
       <div className="px-4 -mt-4">
         {/* Governance strip */}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <GovernanceTag status={athlete.governance} />
-          {athlete.governance === 'approved' && (
+          <GovernanceTag status={athlete.governance_state || athlete.governance || 'approved'} />
+          {(athlete.governance_state === 'approved' || athlete.governance === 'approved') && (
             <span className="text-[10px] text-[#4a4a5a]">Content reviewed & cleared by AFI</span>
           )}
         </div>
@@ -148,19 +169,24 @@ function AthleteStorefront({ athlete, onBack }: { athlete: typeof athletes[0]; o
         <p className="text-[#a8a8b8] text-[12px] leading-relaxed mt-2">{athlete.bio}</p>
 
         {/* Earnings split */}
-        {athlete.governance === 'approved' && <EarningsSplit />}
+        {(athlete.governance_state === 'approved' || athlete.governance === 'approved') && <EarningsSplit />}
 
-        <p className="text-white text-[14px] font-bold mt-5 mb-3">Available from {athlete.name.split(' ')[0]}</p>
+        <p className="text-white text-[14px] font-bold mt-5 mb-3">Available from {(athlete.name || '').split(' ')[0]}</p>
         <div className="flex flex-col gap-3">
-          {athlete.listings.map((listing) => (
+          {(athlete.listings || []).map((listing: any) => (
             <div key={listing.id} className="bg-[#111116] rounded-[16px] border border-[rgba(255,255,255,0.07)] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    {typeIcons[listing.type]}
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    {typeIcons[listing.type] || <FileText className="w-[13px] h-[13px] text-[#c9115f]" />}
                     <span className="text-[10px] font-semibold text-[#99A1AF]">{listing.type}</span>
                     {listing.preview && (
-                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-[rgba(0,200,100,0.12)] text-[#00c864]">PREVIEW</span>
+                      <button
+                        onClick={() => setPreviewItem(listing)}
+                        className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[rgba(0,200,100,0.12)] text-[#00c864] border border-[rgba(0,200,100,0.25)] flex items-center gap-1"
+                      >
+                        PREVIEW
+                      </button>
                     )}
                   </div>
                   <p className="text-white text-[14px] font-semibold leading-snug">{listing.title}</p>
@@ -168,18 +194,12 @@ function AthleteStorefront({ athlete, onBack }: { athlete: typeof athletes[0]; o
                 <div className="flex flex-col items-end gap-2 flex-shrink-0">
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#c9115f] to-[#cd620e] text-[14px] font-bold">{listing.price}</span>
                   <button
-                    onClick={() => setAdded(prev => prev.includes(listing.id) ? prev : [...prev, listing.id])}
-                    className="text-[11px] font-bold px-3 py-1.5 rounded-full transition-all flex items-center gap-1"
-                    style={added.includes(listing.id) ? {
-                      background: 'rgba(0,200,100,0.12)',
-                      border: '1px solid rgba(0,200,100,0.3)',
-                      color: '#00c864',
-                    } : {
-                      background: 'linear-gradient(135deg,#c9115f,#cd620e)',
-                      color: 'white',
-                    }}
+                    onClick={() => handleBuyListing(listing)}
+                    disabled={purchasingId === listing.id}
+                    className="text-[11px] font-bold px-3.5 py-1.5 rounded-full transition-all flex items-center gap-1 text-white cursor-pointer"
+                    style={{ background: 'linear-gradient(135deg,#c9115f,#cd620e)' }}
                   >
-                    {added.includes(listing.id) ? <><CheckCircle className="w-[10px] h-[10px]" /> Added</> : <><ShoppingCart className="w-[10px] h-[10px]" /> Buy</>}
+                    <ShoppingCart className="w-[10px] h-[10px]" /> Buy Now
                   </button>
                 </div>
               </div>
@@ -197,7 +217,7 @@ function AthleteStorefront({ athlete, onBack }: { athlete: typeof athletes[0]; o
           <ChevronRight className="w-[14px] h-[14px] text-[#4a4a5a]" />
         </button>
 
-        {dashboardOpen && athlete.governance === 'approved' && (
+        {dashboardOpen && (athlete.governance_state === 'approved' || athlete.governance === 'approved') && (
           <div className="mt-3 rounded-[14px] p-4 border border-[rgba(255,255,255,0.06)]" style={{ background: '#111116' }}>
             <p className="text-white text-[13px] font-bold mb-3">Pending Listings</p>
             <div className="flex flex-col gap-2 mb-4">
@@ -214,24 +234,60 @@ function AthleteStorefront({ athlete, onBack }: { athlete: typeof athletes[0]; o
             <EarningsSplit />
           </div>
         )}
-
-        {dashboardOpen && athlete.governance === 'pending' && (
-          <div className="mt-3 rounded-[14px] p-4 border border-[rgba(205,98,14,0.2)]" style={{ background: 'rgba(205,98,14,0.06)' }}>
-            <p className="text-[#cd620e] text-[13px] font-semibold mb-1">Under AFI Review</p>
-            <p className="text-[#a8a8b8] text-[12px]">This storefront is pending federation approval. Listings are visible but purchases are held until clearance.</p>
-            <EarningsSplit />
-          </div>
-        )}
       </div>
+
+      {/* Preview Modal */}
+      {previewItem && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <div className="bg-[#111116] rounded-[20px] border border-[rgba(255,255,255,0.1)] p-5 w-full max-w-[340px] text-left">
+            <h3 className="text-white font-bold text-[16px] mb-1">Preview: {previewItem.title}</h3>
+            <p className="text-[#99A1AF] text-[12px] mb-4">Type: {previewItem.type}</p>
+            <div className="bg-[rgba(255,255,255,0.04)] rounded-[12px] p-4 mb-4 text-[#c8c8d0] text-[12px] leading-relaxed">
+              This is a sample preview snippet of "{previewItem.title}". Gain full access to all athlete materials and features upon purchase.
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPreviewItem(null)}
+                className="flex-1 py-2.5 rounded-full border border-[rgba(255,255,255,0.15)] text-[#99A1AF] text-[12px] font-semibold"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  const item = previewItem;
+                  setPreviewItem(null);
+                  handleBuyListing(item);
+                }}
+                className="flex-1 py-2.5 rounded-full text-white text-[12px] font-semibold"
+                style={{ background: 'linear-gradient(135deg,#c9115f,#cd620e)' }}
+              >
+                Buy {previewItem.price}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function StoreAthleteMarketplace() {
   const router = useRouter();
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || 'mock-user-123';
+
+  const [activeTab, setActiveTab] = useState<'all' | 'purchases'>('all');
+  const [purchaseSection, setPurchaseSection] = useState<'library' | 'bookings' | 'orders'>('library');
+
   const [selectedAthlete, setSelectedAthlete] = useState<any | null>(null);
   const [athletesList, setAthletesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Purchased items states
+  const [libraryItems, setLibraryItems] = useState<any[]>([]);
+  const [bookingItems, setBookingItems] = useState<any[]>([]);
+  const [orderItems, setOrderItems] = useState<any[]>([]);
+  const [purchasesLoading, setPurchasesLoading] = useState(false);
 
   useEffect(() => {
     storeService.getProducts('athletes')
@@ -245,27 +301,85 @@ export default function StoreAthleteMarketplace() {
       });
   }, []);
 
+  const loadMyPurchases = async () => {
+    if (!userId) return;
+    setPurchasesLoading(true);
+    try {
+      const [lib, bks, ords] = await Promise.all([
+        storeService.getLibrary(userId).catch(() => []),
+        storeService.getAthleteBookings(userId).catch(() => []),
+        storeService.getUserOrders(userId, 'athletes').catch(() => []),
+      ]);
+      setLibraryItems(lib || []);
+      setBookingItems(bks || []);
+      setOrderItems(ords || []);
+    } catch (err) {
+      console.error('Error loading my purchases:', err);
+    } finally {
+      setPurchasesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'purchases') {
+      loadMyPurchases();
+    }
+  }, [activeTab, userId]);
+
+  const isJoinWindow = (scheduledIso?: string) => {
+    if (!scheduledIso) return false;
+    const schedTime = new Date(scheduledIso).getTime();
+    const now = Date.now();
+    const diff = (schedTime - now) / (1000 * 60);
+    return diff <= 15 && diff >= -60; // 15 mins before up to 60 mins after
+  };
+
   return (
     <div className="bg-black w-full flex justify-center min-h-screen">
       <div className="w-full max-w-[390px] bg-[#0b0b0f] relative flex flex-col min-h-screen">
-        <div className="sticky top-0 z-50 bg-[#0b0b0f] border-b border-[rgba(255,255,255,0.05)] h-[56px] flex items-center px-4 gap-3">
-          <button
-            onClick={() => selectedAthlete ? setSelectedAthlete(null) : router.push('/MainModules/AtheleteStore')}
-            className="w-[36px] h-[36px] rounded-full bg-[rgba(255,255,255,0.06)] flex items-center justify-center"
-          >
-            <ArrowLeft className="w-[18px] h-[18px] text-white" />
-          </button>
-          <div>
-            <h1 className="text-white font-bold text-[17px]">{selectedAthlete ? selectedAthlete.name : 'Athletes'}</h1>
-            {!selectedAthlete && <p className="text-[#99A1AF] text-[11px]">Directly from the athletes you follow</p>}
+        {/* Header */}
+        <div className="sticky top-0 z-50 bg-[#0b0b0f] border-b border-[rgba(255,255,255,0.05)]">
+          <div className="h-[56px] flex items-center px-4 gap-3">
+            <button
+              onClick={() => selectedAthlete ? setSelectedAthlete(null) : router.push('/MainModules/AtheleteStore')}
+              className="w-[36px] h-[36px] rounded-full bg-[rgba(255,255,255,0.06)] flex items-center justify-center"
+            >
+              <ArrowLeft className="w-[18px] h-[18px] text-white" />
+            </button>
+            <div>
+              <h1 className="text-white font-bold text-[17px]">{selectedAthlete ? selectedAthlete.name : 'Athlete Store'}</h1>
+              {!selectedAthlete && <p className="text-[#99A1AF] text-[11px]">Directly from the athletes you follow</p>}
+            </div>
           </div>
+
+          {!selectedAthlete && (
+            <div className="flex px-4 pb-3 gap-2">
+              {(['all', 'purchases'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className="flex-1 py-2 rounded-full text-[12px] font-semibold capitalize border transition-all"
+                  style={activeTab === tab ? {
+                    background: 'linear-gradient(135deg,#c9115f,#cd620e)',
+                    border: '1px solid transparent',
+                    color: 'white',
+                  } : {
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#99A1AF',
+                  }}
+                >
+                  {tab === 'all' ? 'All Athletes' : 'My Purchases'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {selectedAthlete ? (
           <AthleteStorefront athlete={selectedAthlete} onBack={() => setSelectedAthlete(null)} />
-        ) : (
-          <div className="flex-1 overflow-y-auto pb-[70px] no-scrollbar px-4 pt-4">
-            {/* Info strip */}
+        ) : activeTab === 'all' ? (
+            <div className="flex-1 overflow-y-auto pb-[70px] no-scrollbar px-4 pt-4">
             <div className="bg-[rgba(201,17,95,0.06)] border border-[rgba(201,17,95,0.15)] rounded-[12px] px-3.5 py-3 mb-4">
               <p className="text-white text-[13px] font-semibold mb-1">AFI-Governed Marketplace</p>
               <p className="text-[#a8a8b8] text-[12px] leading-snug">All athlete listings require AFI approval. Revenue is split between the Platform, AFI, and the Athlete.</p>
@@ -305,6 +419,113 @@ export default function StoreAthleteMarketplace() {
               </div>
             )}
           </div>
+          ) : (
+            /* My Purchases Tab */
+            <div className="flex-1 overflow-y-auto pb-[70px] no-scrollbar px-4 pt-4">
+              {/* Sub-section tabs */}
+              <div className="flex gap-2 mb-4 bg-[rgba(255,255,255,0.03)] p-1 rounded-full border border-[rgba(255,255,255,0.06)]">
+                {(['library', 'bookings', 'orders'] as const).map(sec => (
+                  <button
+                    key={sec}
+                    onClick={() => setPurchaseSection(sec)}
+                    className="flex-1 py-1.5 rounded-full text-[11px] font-semibold capitalize transition-all"
+                    style={purchaseSection === sec ? {
+                      background: '#111116',
+                      color: 'white',
+                      border: '1px solid rgba(255,255,255,0.12)',
+                    } : {
+                      color: '#99A1AF',
+                    }}
+                  >
+                    {sec === 'library' ? 'Digital Library' : sec === 'bookings' ? 'Bookings' : 'Physical Orders'}
+                  </button>
+                ))}
+              </div>
+
+              {purchasesLoading ? (
+                <p className="text-center text-[#99A1AF] text-[12px] py-10">Loading your purchases...</p>
+              ) : purchaseSection === 'library' ? (
+                /* Library sub-section */
+                libraryItems.length === 0 ? (
+                  <p className="text-center text-[#99A1AF] text-[12px] py-10">No digital items in your library yet.</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {libraryItems.map((item, idx) => (
+                      <div key={item.id || idx} className="bg-[#111116] rounded-[16px] border border-[rgba(255,255,255,0.07)] p-4 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] font-semibold text-[#99A1AF] block mb-0.5">{item.type || 'Digital Content'}</span>
+                          <p className="text-white text-[14px] font-semibold">{item.title || item.name || 'Library Item'}</p>
+                        </div>
+                        <button className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-[rgba(201,17,95,0.15)] text-[#c9115f] border border-[rgba(201,17,95,0.3)]">
+                          Access
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )
+              ) : purchaseSection === 'bookings' ? (
+                /* Bookings sub-section */
+                bookingItems.length === 0 ? (
+                  <p className="text-center text-[#99A1AF] text-[12px] py-10">No scheduled bookings found.</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {bookingItems.map((item, idx) => {
+                      const canJoin = isJoinWindow(item.scheduledAt);
+                      return (
+                        <div key={item.id || idx} className="bg-[#111116] rounded-[16px] border border-[rgba(255,255,255,0.07)] p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[rgba(205,98,14,0.15)] text-[#cd620e] uppercase">
+                              {item.status || 'pending_scheduling'}
+                            </span>
+                            <span className="text-[#99A1AF] text-[11px]">{item.listingType}</span>
+                          </div>
+                          <p className="text-white text-[14px] font-semibold mb-1">{item.listingTitle}</p>
+                          <p className="text-[#99A1AF] text-[12px]">
+                            {item.scheduledAt ? new Date(item.scheduledAt).toLocaleString() : 'Scheduling pending with athlete'}
+                          </p>
+                          {item.meetingLink && (
+                            <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.06)]">
+                              {canJoin ? (
+                                <a
+                                  href={item.meetingLink}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-block w-full py-2 rounded-full text-center text-white text-[12px] font-bold"
+                                  style={{ background: 'linear-gradient(135deg,#00c864,#16a34a)' }}
+                                >
+                                  Join Meeting Now
+                                </a>
+                              ) : (
+                                <p className="text-[#4a4a5a] text-[11px] text-center">Join link available 15 min before scheduled time</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
+              ) : (
+                /* Orders sub-section */
+                orderItems.length === 0 ? (
+                  <p className="text-center text-[#99A1AF] text-[12px] py-10">No physical orders found.</p>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    {orderItems.map((item, idx) => (
+                      <div key={item.id || idx} className="bg-[#111116] rounded-[16px] border border-[rgba(255,255,255,0.07)] p-4">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-white text-[14px] font-semibold">{item.title}</p>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[rgba(0,200,100,0.12)] text-[#00c864]">
+                            {item.deliveryStatus || item.status || 'processing'}
+                          </span>
+                        </div>
+                        <p className="text-[#99A1AF] text-[12px]">{formatPrice(item.pricePaise || 0)}</p>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
         )}
       </div>
     </div>

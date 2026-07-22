@@ -677,6 +677,10 @@ const nextConfig = {
           source: "/api/v2/records/:path*",
           destination: `${apiTarget}/api/v2/records/:path*`,
         },
+        {
+          source: "/api/v2/auctions/:path*",
+          destination: `${apiTarget}/api/auctions/:path*`,
+        },
 
       ],
     };

@@ -61,70 +61,66 @@ function ItemDetail({ item, onBack, onStatusUpdate }: { item: any; onBack: () =>
   const isReserved = (item.status === 'reserved' || item.status === 'locked') && item.lockedBy !== userId;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 relative">
-      {/* Scrollable content with proper bottom padding */}
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-[100px]">
-        <div className="relative h-[260px] bg-[#1a1a1f]">
-          <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0f] to-transparent" />
+    <div className="flex-1 overflow-y-auto pb-[100px] no-scrollbar relative">
+      <div className="relative h-[260px] bg-[#1a1a1f]">
+        <img src={item.image} alt={item.title} className="w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0f] to-transparent" />
+      </div>
+
+      <div className="px-4 pt-4">
+        <div className="flex items-center gap-2 mb-2">
+          {item.governance_state === 'approved' && (
+            <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-[rgba(0,200,100,0.12)] border border-[rgba(0,200,100,0.25)] text-[#00c864]">
+              ✓ Certified Authentic
+            </span>
+          )}
+          {(item.status === 'reserved' || item.status === 'locked') && (
+            <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-400 flex items-center gap-1">
+              <Lock className="w-[10px] h-[10px]" /> Reserved
+            </span>
+          )}
         </div>
+        <h2 className="text-white text-[19px] font-bold leading-tight mb-1">{item.title}</h2>
+        <p className="text-[#99A1AF] text-[13px] mb-4">By {item.athlete || 'Athlete'}</p>
 
-        <div className="px-4 py-6 pt-4">
-          <div className="flex items-center gap-2 mb-2">
-            {item.governance_state === 'approved' && (
-              <span className="text-[10px] font-semibold px-2.5 py-0.5 rounded-full bg-[rgba(0,200,100,0.12)] border border-[rgba(0,200,100,0.25)] text-[#00c864]">
-                ✓ Certified Authentic
-              </span>
-            )}
-            {(item.status === 'reserved' || item.status === 'locked') && (
-              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-950/50 border border-amber-500/30 text-amber-400 flex items-center gap-1">
-                <Lock className="w-[10px] h-[10px]" /> Reserved
-              </span>
-            )}
-          </div>
-          <h2 className="text-white text-[19px] font-bold leading-tight mb-1">{item.title}</h2>
-          <p className="text-[#99A1AF] text-[13px] mb-4">By {item.athlete || item.athleteId || 'Athlete'}</p>
+        {/* Certificate section */}
+        <div className="bg-[#111116] rounded-[18px] border border-[rgba(255,255,255,0.06)] overflow-hidden mb-4">
+          <button
+            onClick={() => setCertExpanded(e => !e)}
+            className="w-full flex items-center justify-between p-4"
+          >
+            <div className="flex items-center gap-2.5">
+              <QrCode className="w-[16px] h-[16px] text-[#c9115f]" />
+              <span className="text-white text-[13px] font-bold">Certificate of Authenticity</span>
+            </div>
+            {certExpanded ? <ChevronUp className="w-[15px] h-[15px] text-[#99A1AF]" /> : <ChevronDown className="w-[15px] h-[15px] text-[#99A1AF]" />}
+          </button>
 
-          {/* Certificate section */}
-          <div className="bg-[#111116] rounded-[18px] border border-[rgba(255,255,255,0.06)] overflow-hidden mb-4">
-            <button
-              onClick={() => setCertExpanded(e => !e)}
-              className="w-full flex items-center justify-between p-4"
-            >
-              <div className="flex items-center gap-2.5">
-                <QrCode className="w-[16px] h-[16px] text-[#c9115f]" />
-                <span className="text-white text-[13px] font-bold">Certificate of Authenticity</span>
-              </div>
-              {certExpanded ? <ChevronUp className="w-[15px] h-[15px] text-[#99A1AF]" /> : <ChevronDown className="w-[15px] h-[15px] text-[#99A1AF]" />}
-            </button>
-
-            {certExpanded && (
-              <div className="px-4 pb-4 pt-1 border-t border-[rgba(255,255,255,0.04)]">
-                <div className="flex flex-col gap-2">
-                  <div className="flex justify-between">
-                    <span className="text-[#5a5a6a] text-[12px]">Serial Number</span>
-                    <span className="text-white text-[12px] font-mono">{item.serialNo || 'AS-BIB-NTAC23'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-[#5a5a6a] text-[12px]">Verified Owner</span>
-                    <span className="text-white text-[12px]">SportsFan Official Vault</span>
-                  </div>
+          {certExpanded && (
+            <div className="px-4 pb-4 pt-1 border-t border-[rgba(255,255,255,0.04)]">
+              <div className="flex flex-col gap-2">
+                <div className="flex justify-between">
+                  <span className="text-[#5a5a6a] text-[12px]">Serial Number</span>
+                  <span className="text-white text-[12px] font-mono">{item.serialNo || 'AS-BIB-NTAC23'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[#5a5a6a] text-[12px]">Verified Owner</span>
+                  <span className="text-white text-[12px]">SportsFan Official Vault</span>
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {error && (
-          <div className="mb-4 bg-red-950/20 border border-red-500/30 rounded-xl p-3 flex items-start gap-2.5 mx-4">
+          <div className="mb-4 bg-red-950/20 border border-red-500/30 rounded-xl p-3 flex items-start gap-2.5">
             <AlertTriangle className="w-[16px] h-[16px] text-red-500 flex-shrink-0 mt-0.5" />
             <p className="text-red-400 text-[12px] font-medium leading-normal">{error}</p>
           </div>
         )}
       </div>
 
-      {/* Fixed bottom bar with proper positioning */}
-      <div className="absolute bottom-0 left-0 right-0 px-4 py-6 pb-15 bg-[#0b0b0f] border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between z-10 safe-bottom">
+      <div className="absolute bottom-0 left-0 right-0 px-4 py-4 bg-[#0b0b0f] border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between z-10">
         <div>
           <p className="text-[#5a5a6a] text-[10px] uppercase font-bold">Price</p>
           <p className="text-white text-[20px] font-black">{formatPrice(item.pricePaise)}</p>

@@ -594,10 +594,10 @@ export default function StoreScreen() {
                             <SectionHeader title="Live Auctions" icon={Gavel} color="#ff4444" onSeeAll={() => router.push(resolveRoute('auctions'))} />
                             <div className="px-4 grid grid-cols-2 gap-2.5">
                                 {auctions.map((a) => (
-                                    <button
+                                    <div
                                         key={a.id}
                                         onClick={() => handleProductClick(a.id, resolveRoute('auctions'))}
-                                        className="rounded-[16px] overflow-hidden text-left active:scale-[0.97] transition-transform relative"
+                                        className="rounded-[16px] overflow-hidden text-left active:scale-[0.97] transition-transform relative cursor-pointer"
                                         style={{ background: '#0f0f14', border: '1px solid rgba(255,68,68,0.2)' }}
                                     >
                                         <button
@@ -621,7 +621,7 @@ export default function StoreScreen() {
                                                 <span className="text-[#ff6b6b] text-[9px] font-bold">Bid →</span>
                                             </div>
                                         </div>
-                                    </button>
+                                    </div>
                                 ))}
                             </div>
                         </div>
