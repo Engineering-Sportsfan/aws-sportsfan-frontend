@@ -1,10 +1,5 @@
 // src/components/NewROARComponent/mockRoom/useMockRoomFeed.ts
-//
-// Turns a room's RawMockEntry[] into renderable feed items, and persists
-// the CURRENT viewer's own reactions/comments to localStorage only.
-// Nothing here ever touches the network — by design, per-device only.
-// (Reload on the same device keeps your likes/comments; a different
-// device or a cleared localStorage starts back at the seed counts.)
+
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
