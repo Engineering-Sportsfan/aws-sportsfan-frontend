@@ -3319,7 +3319,7 @@
 
 
 
-
+// src\components\NewROARComponent\screens\DiscussionRoom.tsx
 
 
 import React from "react";
@@ -3363,6 +3363,7 @@ interface Props {
   onToast: (m: string) => void;
   roomId?: string;
   roomName?: string;
+  showBackButton?: boolean;
   onPostClick?: (post: any) => void;
   onCompose?: (type: string | null) => void;
   fanCount?: number;
@@ -3450,6 +3451,7 @@ interface MentionUser {
   name?: string;
   avatarUrl?: string;
   email?: string;
+  avatar?: string;
 }
 
 function useMentionAutocomplete(activeUsername?: string) {
@@ -3464,28 +3466,53 @@ function useMentionAutocomplete(activeUsername?: string) {
     return n.includes("_") || (u.email || "").split("@")[0].includes("_");
   };
 
+  // ✅ Helper to get avatar URL from user object
+  const getAvatarUrl = (user: any): string | undefined => {
+    // Check all possible avatar fields
+    return user.avatarUrl ||
+      user.avatar ||
+      user.profilePicture ||
+      user.profileImage ||
+      user.image ||
+      undefined;
+  };
+
   useEffect(() => {
-    axios.get("/api/users", { withCredentials: true, timeout: REQUEST_TIMEOUT_MS }).then(res => {
-      if (!res.data?.users) return;
-      const seen = new Set<string>();
-      setAllUsers(res.data.users
-        .filter((u: any) => {
-          const n = u.username || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim();
-          return n !== activeUsername && !hasUnderscore(u);
-        })
-        .map((u: any) => ({
-          userId: u.userId || u.id, username: u.username, firstName: u.firstName,
-          lastName: u.lastName, name: u.name, avatarUrl: u.avatarUrl || u.avatar, email: u.email,
-        }))
-        .filter((u: MentionUser) => {
-          const key = u.userId || u.username;
-          if (!key || seen.has(key)) return false;
-          const dn = u.username || u.name || `${u.firstName || ""}${u.lastName || ""}`.trim();
-          if (dn.includes("_")) return false;
-          seen.add(key); return true;
-        }));
-    }).catch(() => { });
+    axios.get("/api/users", { withCredentials: true, timeout: REQUEST_TIMEOUT_MS })
+      .then(res => {
+        if (!res.data?.users) return;
+        const seen = new Set<string>();
+        console.log("users data(avatars):", res.data.users)
+        setAllUsers(
+          res.data.users
+            .filter((u: any) => {
+              const n = u.username || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim();
+              return n !== activeUsername && !hasUnderscore(u);
+            })
+            .map((u: any) => ({
+              userId: u.userId || u.id,
+              username: u.username,
+              firstName: u.firstName,
+              lastName: u.lastName,
+              name: u.name,
+              avatarUrl: getAvatarUrl(u), // ✅ Use helper
+              email: u.email,
+            }))
+            .filter((u: MentionUser) => {
+              const key = u.userId || u.username;
+              if (!key || seen.has(key)) return false;
+              const dn = u.username || u.name || `${u.firstName || ""}${u.lastName || ""}`.trim();
+              if (dn.includes("_")) return false;
+              seen.add(key);
+              return true;
+            })
+        );
+      })
+      .catch(() => { });
   }, [activeUsername]);
+
+
+
 
   // Call this from the input's onChange
   const handleMentionInputChange = (value: string, cursorPos: number) => {
@@ -3578,6 +3605,8 @@ function MentionPopup({
     }}>
       {mentionUsers.map((user, idx) => {
         const dn = user.username || user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email?.split("@")[0] || "user";
+        const avatarUrl = currentAvatarLookup?.(user) || user.avatarUrl || user.avatar;
+
         return (
           <button
             key={user.userId}
@@ -3590,8 +3619,17 @@ function MentionPopup({
               background: idx === mentionIndex ? "rgba(233,30,140,0.15)" : "transparent",
             }}
           >
-            <div style={{ width: 20, height: 20, borderRadius: "50%", overflow: "hidden", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {user.avatarUrl ? <img src={user.avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 9, fontWeight: 800, color: "#fff" }}>{dn[0]?.toUpperCase()}</span>}
+            <div style={{
+              width: 24, height: 24, borderRadius: "50%", overflow: "hidden",
+              flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 10, fontWeight: 700, color: "#fff"
+            }}>
+              {avatarUrl ? (
+                <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <span>{dn[0]?.toUpperCase() || "?"}</span>
+              )}
             </div>
             <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{dn}</span>
           </button>
@@ -3618,6 +3656,41 @@ const commentAccentColor = (type: string) => {
   return "#e91e8c";
 };
 
+// function ActiveFansStack({
+//   fans, count, totalJoinCount, onClick,
+// }: {
+//   fans: { uid: string; username: string; avatarUrl?: string | null }[];
+//   count: number;
+//   totalJoinCount?: number;
+//   onClick: () => void;
+// }) {
+//   if (count === 0 && !totalJoinCount) return null;
+//   const formatCount = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
+//   return (
+//     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 0" }}>
+//       <button type="button" onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+//         <div style={{ display: "flex" }}>
+//           {fans.slice(0, 3).map((fan, i) => (
+//             <div key={fan.uid} style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid #0e0e14", overflow: "hidden", marginLeft: i === 0 ? 0 : -6, zIndex: 3 - i, background: "linear-gradient(135deg,#e91e8c,#ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+//               {fan.avatarUrl ? <img src={fan.avatarUrl} alt={fan.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 8, fontWeight: 800, color: "#fff" }}>{fan.username?.[0]?.toUpperCase() || "?"}</span>}
+//             </div>
+//           ))}
+//         </div>
+//         <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>
+//           <span style={{ color: "#fff", fontWeight: 700 }}>{formatCount(count)}</span> active now
+//         </span>
+//       </button>
+//       {totalJoinCount !== undefined && totalJoinCount > 0 && (
+//         <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>
+//           Total Joined <span style={{ color: "#fff", fontWeight: 700 }}>{formatCount(totalJoinCount)}</span>
+//         </span>
+//       )}
+//     </div>
+//   );
+// }
+
+
+
 function ActiveFansStack({
   fans, count, totalJoinCount, onClick,
 }: {
@@ -3629,27 +3702,25 @@ function ActiveFansStack({
   if (count === 0 && !totalJoinCount) return null;
   const formatCount = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "2px 0" }}>
-      <button type="button" onClick={onClick} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
-        <div style={{ display: "flex" }}>
-          {fans.slice(0, 3).map((fan, i) => (
-            <div key={fan.uid} style={{ width: 18, height: 18, borderRadius: "50%", border: "2px solid #0e0e14", overflow: "hidden", marginLeft: i === 0 ? 0 : -6, zIndex: 3 - i, background: "linear-gradient(135deg,#e91e8c,#ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-              {fan.avatarUrl ? <img src={fan.avatarUrl} alt={fan.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 8, fontWeight: 800, color: "#fff" }}>{fan.username?.[0]?.toUpperCase() || "?"}</span>}
-            </div>
-          ))}
-        </div>
-        <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>
-          <span style={{ color: "#fff", fontWeight: 700 }}>{formatCount(count)}</span> active now
-        </span>
-      </button>
-      {totalJoinCount !== undefined && totalJoinCount > 0 && (
-        <span style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.5)" }}>
-          Total Joined <span style={{ color: "#fff", fontWeight: 700 }}>{formatCount(totalJoinCount)}</span>
-        </span>
-      )}
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-0 bg-transparent border-none cursor-pointer py-0.5 px-0 hover:bg-white/5 transition-colors rounded flex-shrink-0"
+    >
+      <span className="text-[9px] font-semibold text-white/50 whitespace-nowrap">
+        Members{" "}
+        <span className="text-white font-bold">{formatCount(count)} active</span>
+        {totalJoinCount !== undefined && totalJoinCount > 0 && (
+          <>
+            {" / "}
+            <span className="text-white font-bold">{formatCount(totalJoinCount)}</span> total joined
+          </>
+        )}
+      </span>
+    </button>
   );
 }
+
 
 function mentionMatchesAuthor(mentionToken: string, authorUsername: string): boolean {
   const mention = mentionToken.toLowerCase().trim();
@@ -4182,6 +4253,131 @@ function TriviaCard({ post, onToast, onPostClick, roomId, onFanProfile }: {
 
 const abbrevOf = (name?: string) => (name || "").trim().slice(0, 2).toUpperCase() || "??";
 
+// function BattleSwipeCard({
+//   post, roomId, qIndex, playerA, playerB, initialVote, onToast,
+// }: {
+//   post: any; roomId?: string; qIndex: number;
+//   playerA: { name: string; team?: string; image?: string };
+//   playerB: { name: string; team?: string; image?: string };
+//   initialVote?: "playerA" | "playerB";
+//   onToast: (m: string) => void;
+// }) {
+//   const [votedSide, setVotedSide] = useState<"playerA" | "playerB" | undefined>(initialVote);
+//   const [candidateIdx, setCandidateIdx] = useState(0);
+//   const [dragX, setDragX] = useState(0);
+//   const [flash, setFlash] = useState<"green" | "red" | null>(null);
+//   const [submitting, setSubmitting] = useState(false);
+
+//   const candidate = candidateIdx === 0 ? playerA : playerB;
+//   const candidateSide: "playerA" | "playerB" = candidateIdx === 0 ? "playerA" : "playerB";
+
+//   const vibrate = (pattern: number | number[]) => {
+//     try {
+//       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+//         navigator.vibrate(pattern);
+//       }
+//     } catch { /* ignore */ }
+//   };
+
+//   const castVote = useCallback(async (side: "playerA" | "playerB") => {
+//     if (submitting || votedSide) return;
+//     setSubmitting(true);
+//     setFlash("green");
+//     setVotedSide(side);
+//     vibrate(30);
+//     const failsafe = setTimeout(() => setSubmitting(false), REQUEST_TIMEOUT_MS + 3000);
+//     try {
+//       await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/vote`, { vote: side, questionIndex: qIndex }, { timeout: REQUEST_TIMEOUT_MS });
+//     } catch (err: any) {
+//       if (err?.response?.status !== 409) {
+//         setVotedSide(undefined);
+//         onToast("Failed to submit vote");
+//       }
+//     } finally {
+//       clearTimeout(failsafe);
+//       setSubmitting(false);
+//     }
+//   }, [submitting, votedSide, roomId, post.id, qIndex, onToast]);
+
+//   const reject = useCallback(() => {
+//     setFlash("red");
+//     vibrate(20);
+//     setTimeout(() => {
+//       setFlash(null);
+//       setDragX(0);
+//       setCandidateIdx(i => (i === 0 ? 1 : 0));
+//     }, 180);
+//   }, []);
+
+//   const handleDragEnd = (_e: any, info: { offset: { x: number } }) => {
+//     if (info.offset.x > 90) {
+//       castVote(candidateSide);
+//     } else if (info.offset.x < -90) {
+//       reject();
+//     } else {
+//       setDragX(0);
+//     }
+//   };
+
+//   if (votedSide) {
+//     const winner = votedSide === "playerA" ? playerA : playerB;
+//     const loser = votedSide === "playerA" ? playerB : playerA;
+//     return (
+//       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 10, background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
+//         <CheckCircle2 size={12} color="#22c55e" style={{ flexShrink: 0 }} />
+//         <span style={{ fontSize: 10, color: "#e5e5f0" }}>
+//           You picked <strong style={{ color: "#4ade80" }}>{winner.name}</strong> over {loser.name}
+//         </span>
+//       </div>
+//     );
+//   }
+
+//   const overlayOpacity = Math.min(Math.abs(dragX) / 100, 0.4);
+//   const overlayColor = dragX > 0 ? "34,197,94" : "244,67,54";
+
+//   return (
+//     <div>
+//       <motion.div
+//         drag="x"
+//         dragConstraints={{ left: 0, right: 0 }}
+//         dragElastic={0.7}
+//         dragMomentum={false}
+//         onDrag={(_e, info) => setDragX(info.offset.x)}
+//         onDragEnd={handleDragEnd}
+//         animate={flash ? { x: flash === "green" ? 260 : -260, opacity: 0 } : { x: 0, opacity: 1 }}
+//         transition={{ duration: 0.22 }}
+//         whileTap={{ scale: 0.98 }}
+//         style={{
+//           position: "relative", borderRadius: 12, padding: "12px 10px", textAlign: "center",
+//           background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
+//           display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
+//           cursor: "grab",
+//           touchAction: "none",
+//           overflow: "hidden",
+//           WebkitUserSelect: "none",
+//           userSelect: "none",
+//         }}
+//       >
+//         <div style={{ position: "absolute", inset: 0, background: `rgba(${overlayColor},${overlayOpacity})`, pointerEvents: "none", transition: "background 0.05s" }} />
+//         {dragX > 30 && <span style={{ position: "absolute", top: 6, left: 8, fontSize: 9, fontWeight: 800, color: "#22c55e", border: "1.5px solid #22c55e", borderRadius: 4, padding: "1px 4px" }}>VOTE</span>}
+//         {dragX < -30 && <span style={{ position: "absolute", top: 6, right: 8, fontSize: 9, fontWeight: 800, color: "#f87171", border: "1.5px solid #f87171", borderRadius: 4, padding: "1px 4px" }}>SKIP</span>}
+//         {candidate.image
+//           ? <img src={candidate.image} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} draggable={false} />
+//           : <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{abbrevOf(candidate.team || candidate.name)}</span>}
+//         <p style={{ margin: "3px 0 0", fontSize: 11, fontWeight: 700, color: "#fff" }}>{candidate.name}</p>
+//         {candidate.team && <p style={{ margin: 0, fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{candidate.team}</p>}
+//       </motion.div>
+//       <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 6 }}>
+//         <button type="button" onClick={reject} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid rgba(244,67,54,0.4)", background: "rgba(244,67,54,0.1)", color: "#f87171", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>✕</button>
+//         <button type="button" onClick={() => castVote(candidateSide)} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid rgba(34,197,94,0.4)", background: "rgba(34,197,94,0.1)", color: "#4ade80", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>✓</button>
+//       </div>
+//       <p style={{ fontSize: 8, color: "var(--text-muted)", fontStyle: "italic", textAlign: "center", marginTop: 4 }}>
+//         Swipe right to vote {candidate.name} · swipe left to see {candidateIdx === 0 ? playerB.name : playerA.name}
+//       </p>
+//     </div>
+//   );
+// }
+
 function BattleSwipeCard({
   post, roomId, qIndex, playerA, playerB, initialVote, onToast,
 }: {
@@ -4196,9 +4392,22 @@ function BattleSwipeCard({
   const [dragX, setDragX] = useState(0);
   const [flash, setFlash] = useState<"green" | "red" | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showInstruction, setShowInstruction] = useState(true);
+  const [hasInteracted, setHasInteracted] = useState(false);
+
+  // Auto-hide instruction after interaction or 5 seconds
+  useEffect(() => {
+    if (hasInteracted) {
+      setShowInstruction(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowInstruction(false), 5000);
+    return () => clearTimeout(timer);
+  }, [hasInteracted]);
 
   const candidate = candidateIdx === 0 ? playerA : playerB;
   const candidateSide: "playerA" | "playerB" = candidateIdx === 0 ? "playerA" : "playerB";
+  const otherCandidate = candidateIdx === 0 ? playerB : playerA;
 
   const vibrate = (pattern: number | number[]) => {
     try {
@@ -4214,9 +4423,15 @@ function BattleSwipeCard({
     setFlash("green");
     setVotedSide(side);
     vibrate(30);
+    setHasInteracted(true);
+
     const failsafe = setTimeout(() => setSubmitting(false), REQUEST_TIMEOUT_MS + 3000);
     try {
-      await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/vote`, { vote: side, questionIndex: qIndex }, { timeout: REQUEST_TIMEOUT_MS });
+      await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/vote`, {
+        vote: side,
+        questionIndex: qIndex
+      }, { timeout: REQUEST_TIMEOUT_MS });
+      onToast(`You voted for ${side === "playerA" ? playerA.name : playerB.name}!`);
     } catch (err: any) {
       if (err?.response?.status !== 409) {
         setVotedSide(undefined);
@@ -4226,11 +4441,12 @@ function BattleSwipeCard({
       clearTimeout(failsafe);
       setSubmitting(false);
     }
-  }, [submitting, votedSide, roomId, post.id, qIndex, onToast]);
+  }, [submitting, votedSide, roomId, post.id, qIndex, playerA, playerB, onToast]);
 
   const reject = useCallback(() => {
     setFlash("red");
     vibrate(20);
+    setHasInteracted(true);
     setTimeout(() => {
       setFlash(null);
       setDragX(0);
@@ -4248,24 +4464,64 @@ function BattleSwipeCard({
     }
   };
 
+  // If voted, show confirmation
   if (votedSide) {
     const winner = votedSide === "playerA" ? playerA : playerB;
     const loser = votedSide === "playerA" ? playerB : playerA;
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 10, background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.25)" }}>
-        <CheckCircle2 size={12} color="#22c55e" style={{ flexShrink: 0 }} />
-        <span style={{ fontSize: 10, color: "#e5e5f0" }}>
-          You picked <strong style={{ color: "#4ade80" }}>{winner.name}</strong> over {loser.name}
+      <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
+        <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+        <span className="text-[10px] text-gray-200">
+          You picked <strong className="text-emerald-400">{winner.name}</strong> over {loser.name}
         </span>
       </div>
     );
   }
 
-  const overlayOpacity = Math.min(Math.abs(dragX) / 100, 0.4);
-  const overlayColor = dragX > 0 ? "34,197,94" : "244,67,54";
+  // Instruction banner - more prominent and clear
+  const showFullInstruction = showInstruction && !hasInteracted;
 
   return (
-    <div>
+    <div className="mt-1">
+      {/* Instruction Banner */}
+      {showFullInstruction && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="flex items-center justify-center gap-2 px-3 py-1.5 mb-2 rounded-lg bg-gradient-to-r from-rose-500/12 to-orange-500/8 border border-rose-500/20"
+        >
+          <span className="text-sm">👆</span>
+          <span className="text-[10px] text-white/70">
+            <strong className="text-white">Swipe right</strong> to vote for <strong className="text-rose-400">{candidate.name}</strong> ·
+            <strong className="text-white"> Swipe left</strong> to see the other option
+          </span>
+          <button
+            onClick={() => setShowInstruction(false)}
+            className="bg-transparent border-none text-white/30 cursor-pointer text-xs px-1"
+          >
+            ✕
+          </button>
+        </motion.div>
+      )}
+
+      {/* Progress Indicator - shows there are 2 options */}
+      <div className="flex justify-center items-center gap-1.5 mb-1.5">
+        {[0, 1].map((idx) => (
+          <div
+            key={idx}
+            className={`h-1 rounded-full transition-all duration-300 ${idx === candidateIdx
+              ? "w-5 bg-gradient-to-r from-rose-500 to-orange-500"
+              : "w-1.5 bg-white/20"
+              }`}
+          />
+        ))}
+        <span className="text-[8px] text-white/30 font-semibold ml-1">
+          {candidateIdx + 1} of 2
+        </span>
+      </div>
+
+      {/* Swipeable Card */}
       <motion.div
         drag="x"
         dragConstraints={{ left: 0, right: 0 }}
@@ -4276,33 +4532,83 @@ function BattleSwipeCard({
         animate={flash ? { x: flash === "green" ? 260 : -260, opacity: 0 } : { x: 0, opacity: 1 }}
         transition={{ duration: 0.22 }}
         whileTap={{ scale: 0.98 }}
-        style={{
-          position: "relative", borderRadius: 12, padding: "12px 10px", textAlign: "center",
-          background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)",
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-          cursor: "grab",
-          touchAction: "none",
-          overflow: "hidden",
-          WebkitUserSelect: "none",
-          userSelect: "none",
-        }}
+        className="relative rounded-xl p-3 text-center bg-white/5 border border-white/10 flex flex-col items-center gap-1 cursor-grab touch-none select-none overflow-hidden"
       >
-        <div style={{ position: "absolute", inset: 0, background: `rgba(${overlayColor},${overlayOpacity})`, pointerEvents: "none", transition: "background 0.05s" }} />
-        {dragX > 30 && <span style={{ position: "absolute", top: 6, left: 8, fontSize: 9, fontWeight: 800, color: "#22c55e", border: "1.5px solid #22c55e", borderRadius: 4, padding: "1px 4px" }}>VOTE</span>}
-        {dragX < -30 && <span style={{ position: "absolute", top: 6, right: 8, fontSize: 9, fontWeight: 800, color: "#f87171", border: "1.5px solid #f87171", borderRadius: 4, padding: "1px 4px" }}>SKIP</span>}
-        {candidate.image
-          ? <img src={candidate.image} alt="" style={{ width: 30, height: 30, borderRadius: "50%", objectFit: "cover" }} draggable={false} />
-          : <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 22, fontWeight: 900, color: "#fff", lineHeight: 1 }}>{abbrevOf(candidate.team || candidate.name)}</span>}
-        <p style={{ margin: "3px 0 0", fontSize: 11, fontWeight: 700, color: "#fff" }}>{candidate.name}</p>
-        {candidate.team && <p style={{ margin: 0, fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{candidate.team}</p>}
+        {/* Overlay for swipe feedback */}
+        <div
+          className="absolute inset-0 pointer-events-none transition-colors duration-75"
+          style={{
+            background: `rgba(${dragX > 0 ? '34,197,94' : '244,67,54'},${Math.min(Math.abs(dragX) / 100, 0.4)})`
+          }}
+        />
+
+        {/* Vote/Skip labels during drag */}
+        {Math.abs(dragX) > 20 && (
+          <div className={`absolute top-1.5 ${dragX > 0 ? 'left-2' : 'right-2'} text-[10px] font-extrabold rounded border-2 px-1.5 py-0.5 bg-black/60 z-10 ${dragX > 0 ? 'text-emerald-400 border-emerald-400' : 'text-red-400 border-red-400'
+            }`}>
+            {dragX > 0 ? "VOTE ✅" : "SKIP ➡️"}
+          </div>
+        )}
+
+        {/* Candidate Avatar/Image */}
+        {candidate.image ? (
+          <img
+            src={candidate.image}
+            alt={candidate.name}
+            className="w-10 h-10 rounded-full object-cover"
+            draggable={false}
+          />
+        ) : (
+          <span className="font-display text-2xl font-black text-white leading-none">
+            {abbrevOf(candidate.team || candidate.name)}
+          </span>
+        )}
+
+        {/* Candidate Name & Team */}
+        <p className="mt-0.5 text-xs font-bold text-white">
+          {candidate.name}
+        </p>
+        {candidate.team && (
+          <p className="text-[9px] text-white/40">
+            {candidate.team}
+          </p>
+        )}
+
+        {/* "VS Next" indicator - shows the other option exists */}
+        <div className="mt-1 flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
+          <span className="text-[8px] text-white/30">VS</span>
+          <span className="text-[8px] text-white/50">{otherCandidate.name}</span>
+          <span className="text-[7px] text-white/20">← swipe to see</span>
+        </div>
       </motion.div>
-      <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 6 }}>
-        <button type="button" onClick={reject} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid rgba(244,67,54,0.4)", background: "rgba(244,67,54,0.1)", color: "#f87171", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>✕</button>
-        <button type="button" onClick={() => castVote(candidateSide)} style={{ width: 26, height: 26, borderRadius: "50%", border: "1.5px solid rgba(34,197,94,0.4)", background: "rgba(34,197,94,0.1)", color: "#4ade80", fontSize: 12, fontWeight: 800, cursor: "pointer" }}>✓</button>
+
+      {/* Action Buttons */}
+      <div className="flex justify-center gap-4 mt-2">
+        <button
+          type="button"
+          onClick={reject}
+          className="flex items-center gap-1 px-3 py-1 rounded-full border border-red-400/40 bg-red-500/10 text-red-400 text-[10px] font-bold cursor-pointer transition-colors hover:bg-red-500/20"
+        >
+          <span className="text-xs">✕</span>
+          Skip
+        </button>
+
+        <button
+          type="button"
+          onClick={() => castVote(candidateSide)}
+          className="flex items-center gap-1 px-4 py-1 rounded-full border border-emerald-400/40 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold cursor-pointer transition-colors hover:bg-emerald-500/20"
+        >
+          <span className="text-xs">✓</span>
+          Vote for {candidate.name.split(" ")[0]}
+        </button>
       </div>
-      <p style={{ fontSize: 8, color: "var(--text-muted)", fontStyle: "italic", textAlign: "center", marginTop: 4 }}>
-        Swipe right to vote {candidate.name} · swipe left to see {candidateIdx === 0 ? playerB.name : playerA.name}
-      </p>
+
+      {/* Persistent hint for users who haven't interacted */}
+      {!hasInteracted && !showFullInstruction && (
+        <p className="text-[8px] text-white/25 italic text-center mt-1.5">
+          👆 Swipe or use buttons below to vote
+        </p>
+      )}
     </div>
   );
 }
@@ -4625,13 +4931,21 @@ function WaveCelebrationBurst({ onDone }: { onDone: () => void }) {
 
 export default function DiscussionRoom({
   roomSports,
-  onBack, onToast, roomId, roomName, onPostClick, onCompose,
+  onBack, onToast, roomId, roomName, onPostClick, onCompose, showBackButton = true,
   fanCount = 312, score, scoreSubtitle, currentAvatarUrl, currentUserId: propCurrentUserId, onRegisterRefresh, onRegisterReplyUpdate,
   onRegisterInjectPost, onRegisterOptimisticSwap,
   onFanProfile, watchAlongRoomId
 }: Props) {
   const router = useRouter();
   const phog = usePostHog();
+  const roomRootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+  console.log(
+    "[DollyDebug] watchAlongRoomId:", watchAlongRoomId,
+    "roomRootRef rect:", roomRootRef.current?.getBoundingClientRect()
+  );
+}, [watchAlongRoomId]);
+
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
@@ -4646,7 +4960,8 @@ export default function DiscussionRoom({
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>(currentAvatarUrl);
   const [selectedActionId, setSelectedActionId] = useState("post");
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const dollyActiveRoomIdRef = useRef<string | undefined>(roomId);
+  // const dollyActiveRoomIdRef = useRef<string | undefined>(roomId);
+  const dollyActiveSessionIdRef = useRef<string | undefined>(undefined);
   const dollyFetchTokenRef = useRef<symbol | null>(null);
   const [liveCount, setLiveCount] = useState<number>(fanCount ?? 0);
   const [totalJoinCount, setTotalJoinCount] = useState<number>(0);
@@ -4655,9 +4970,17 @@ export default function DiscussionRoom({
   const { userProfile } = useUserProfile();
   const [roomCounts, setRoomCounts] = useState({ post: 0, debate: 0, prediction: 0, trivia: 0, battle: 0 });
   const [activeFilter, setActiveFilter] = useState<"all" | "post" | "debate" | "prediction" | "trivia" | "battle">("all");
+  // const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
+  // const [dollyHistoryLoading, setDollyHistoryLoading] = useState(false);
+  // const [dollyActiveRoomId, setDollyActiveRoomId] = useState<string | undefined>(roomId);
+  // const [dollyActiveRoomName, setDollyActiveRoomName] = useState<string | undefined>(roomName);
+  // const [dollyRepliesLoading, setDollyRepliesLoading] = useState(false);
   const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
   const [dollyHistoryLoading, setDollyHistoryLoading] = useState(false);
-  const [dollyActiveRoomId, setDollyActiveRoomId] = useState<string | undefined>(roomId);
+  const [dollyHistoryLoadingMore, setDollyHistoryLoadingMore] = useState(false);
+  const dollyHistoryCursorRef = useRef<number | undefined>(undefined);
+  const dollyHistoryExhaustedRef = useRef(false);
+  const [dollyActiveSessionId, setDollyActiveSessionId] = useState<string | undefined>(undefined);
   const [dollyActiveRoomName, setDollyActiveRoomName] = useState<string | undefined>(roomName);
   const [dollyRepliesLoading, setDollyRepliesLoading] = useState(false);
   const [votersMsgId, setVotersMsgId] = useState<string | null>(null);
@@ -4694,6 +5017,7 @@ export default function DiscussionRoom({
     showNextJoinToast();
   }, [showNextJoinToast]);
 
+  
   const SOUND_FILES: Record<"join" | "comment" | "post", string> = {
     join: "/sounds/join.mp3",
     comment: "/sounds/comment.mp3",
@@ -4734,9 +5058,14 @@ export default function DiscussionRoom({
       return next;
     });
   }, []);
+
+  // useEffect(() => {
+  //   dollyActiveRoomIdRef.current = dollyActiveRoomId;
+  // }, [dollyActiveRoomId]);
+
   useEffect(() => {
-    dollyActiveRoomIdRef.current = dollyActiveRoomId;
-  }, [dollyActiveRoomId]);
+    dollyActiveSessionIdRef.current = dollyActiveSessionId;
+  }, [dollyActiveSessionId]);
 
   useEffect(() => {
     if (phog && roomId) {
@@ -4766,7 +5095,7 @@ export default function DiscussionRoom({
     return authorCandidates.some(id => currentUserIdCandidates.includes(id));
   };
 
- const detectNewJoiners = useCallback((fans: { uid: string; username: string }[]) => {
+  const detectNewJoiners = useCallback((fans: { uid: string; username: string }[]) => {
     if (!knownFanUidsRef.current) {
       knownFanUidsRef.current = new Set(fans.map(f => f.uid));
       return;
@@ -4848,6 +5177,7 @@ export default function DiscussionRoom({
   }, [roomId]);
 
 
+  
 
   const mapMessage = useCallback((m: any, existing?: any) => {
     const isPending = pendingReactRef.current[m.msgId];
@@ -4980,46 +5310,118 @@ export default function DiscussionRoom({
     </>
   );
 
+  // const loadDollyHistory = useCallback(async () => {
+  //   setDollyHistoryLoading(true);
+  //   try {
+  //     const res = await axios.get("/api/roar/dolly/rooms", { timeout: REQUEST_TIMEOUT_MS });
+  //     const rooms: any[] = res.data?.rooms ?? [];
+  //     const mapped: DollyHistorySession[] = rooms
+  //       .filter(r => r.roomId !== roomId)
+  //       .map(r => ({
+  //         roomId: r.roomId,
+  //         title: r.title,
+  //         subtitle: r.lastQuestion || "No questions yet",
+  //         dateLabel: new Date(r.lastAskedAt).toLocaleDateString([], { month: "short", day: "numeric" }),
+  //         sport: r.sport,
+  //       }));
+  //     setDollyHistory([
+  //       { roomId: roomId!, title: roomName || "This match", subtitle: "", dateLabel: "Today", isLive: true, sport: roomSports },
+  //       ...mapped,
+  //     ]);
+  //   } catch (err) {
+  //     console.error("[dolly] Failed to load room history:", err);
+  //     onToast?.("Couldn't load chat history — showing this match only");
+  //     setDollyHistory(roomId ? [{ roomId, title: roomName || "This match", subtitle: "", dateLabel: "Today", isLive: true, sport: roomSports }] : []);
+  //   } finally {
+  //     setDollyHistoryLoading(false);
+  //   }
+  // }, [roomId, roomName, roomSports]);
+
+
   const loadDollyHistory = useCallback(async () => {
+    if (!roomId) return;
     setDollyHistoryLoading(true);
+    dollyHistoryCursorRef.current = undefined;
+    dollyHistoryExhaustedRef.current = false;
     try {
-      const res = await axios.get("/api/roar/dolly/rooms", { timeout: REQUEST_TIMEOUT_MS });
-      const rooms: any[] = res.data?.rooms ?? [];
-      const mapped: DollyHistorySession[] = rooms
-        .filter(r => r.roomId !== roomId)
-        .map(r => ({
-          roomId: r.roomId,
-          title: r.title,
-          subtitle: r.lastQuestion || "No questions yet",
-          dateLabel: new Date(r.lastAskedAt).toLocaleDateString([], { month: "short", day: "numeric" }),
-          sport: r.sport,
-        }));
-      setDollyHistory([
-        { roomId: roomId!, title: roomName || "This match", subtitle: "", dateLabel: "Today", isLive: true, sport: roomSports },
-        ...mapped,
-      ]);
+      const res = await axios.get(`/api/roar/rooms/${roomId}/dolly/sessions`, { timeout: REQUEST_TIMEOUT_MS });
+      const sessions = res.data?.sessions ?? [];
+      setDollyHistory(sessions.map((s: any) => ({
+        sessionId: s.sessionId, roomId: roomId!, title: s.title, subtitle: "", dateLabel: s.dateLabel,
+      })));
+      dollyHistoryCursorRef.current = res.data?.nextBefore;
+      if (sessions.length === 0) dollyHistoryExhaustedRef.current = true;
     } catch (err) {
-      console.error("[dolly] Failed to load room history:", err);
-      onToast?.("Couldn't load chat history — showing this match only");
-      setDollyHistory(roomId ? [{ roomId, title: roomName || "This match", subtitle: "", dateLabel: "Today", isLive: true, sport: roomSports }] : []);
+      console.error("[dolly] Failed to load session history:", err);
+      onToast?.("Couldn't load chat history");
+      setDollyHistory([]);
     } finally {
       setDollyHistoryLoading(false);
     }
-  }, [roomId, roomName, roomSports]);
+  }, [roomId, onToast]);
+
+  const loadMoreDollyHistory = useCallback(async () => {
+    if (!roomId || dollyHistoryExhaustedRef.current || dollyHistoryLoadingMore) return;
+    setDollyHistoryLoadingMore(true);
+    try {
+      const before = dollyHistoryCursorRef.current;
+      const res = await axios.get(`/api/roar/rooms/${roomId}/dolly/sessions`, {
+        params: before ? { before } : undefined, timeout: REQUEST_TIMEOUT_MS,
+      });
+      const sessions = res.data?.sessions ?? [];
+      if (sessions.length === 0) { dollyHistoryExhaustedRef.current = true; }
+      else {
+        setDollyHistory(prev => [...prev, ...sessions.map((s: any) => ({
+          sessionId: s.sessionId, roomId: roomId!, title: s.title, subtitle: "", dateLabel: s.dateLabel,
+        }))]);
+        dollyHistoryCursorRef.current = res.data?.nextBefore;
+      }
+    } catch { /* leave as-is */ }
+    finally { setDollyHistoryLoadingMore(false); }
+  }, [roomId, dollyHistoryLoadingMore]);
+
+  const ensureDollySession = useCallback(async (): Promise<string | null> => {
+    if (dollyActiveSessionId) return dollyActiveSessionId;
+    if (!roomId) return null;
+    try {
+      const res = await axios.post(`/api/roar/rooms/${roomId}/dolly/sessions`, {}, { timeout: REQUEST_TIMEOUT_MS });
+      const newId = res.data?.sessionId;
+      if (newId) { setDollyActiveSessionId(newId); dollyActiveSessionIdRef.current = newId; }
+      return newId ?? null;
+    } catch { onToast("Failed to start conversation"); return null; }
+  }, [dollyActiveSessionId, roomId, onToast]);
 
   useEffect(() => {
     if (dollyOpen) loadDollyHistory();
   }, [roomId, dollyOpen, loadDollyHistory]);
 
+  // const handleSelectDollySession = useCallback(async (session: DollyHistorySession) => {
+  //   if (session.roomId === dollyActiveRoomId) return;
+  //   const requestId = Symbol();
+  //   dollyFetchTokenRef.current = requestId;
+  //   setDollyActiveRoomId(session.roomId);
+  //   setDollyActiveRoomName(session.title);
+  //   setDollyRepliesLoading(true);
+  //   try {
+  //     const res = await axios.get(`/api/roar/rooms/${session.roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS });
+  //     if (dollyFetchTokenRef.current !== requestId) return;
+  //     setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
+  //   } catch {
+  //     if (dollyFetchTokenRef.current === requestId) setDollyReplies([]);
+  //   } finally {
+  //     if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false);
+  //   }
+  // }, [dollyActiveRoomId]);
+
   const handleSelectDollySession = useCallback(async (session: DollyHistorySession) => {
-    if (session.roomId === dollyActiveRoomId) return;
+    if (session.sessionId === dollyActiveSessionId) return;
     const requestId = Symbol();
     dollyFetchTokenRef.current = requestId;
-    setDollyActiveRoomId(session.roomId);
-    setDollyActiveRoomName(session.title);
+    setDollyActiveSessionId(session.sessionId);
+    dollyActiveSessionIdRef.current = session.sessionId;
     setDollyRepliesLoading(true);
     try {
-      const res = await axios.get(`/api/roar/rooms/${session.roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS });
+      const res = await axios.get(`/api/roar/rooms/${roomId}/dolly/${session.sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
       if (dollyFetchTokenRef.current !== requestId) return;
       setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
     } catch {
@@ -5027,24 +5429,32 @@ export default function DiscussionRoom({
     } finally {
       if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false);
     }
-  }, [dollyActiveRoomId]);
+  }, [dollyActiveSessionId, roomId]);
+
+  // const handleNewDollyChat = useCallback(() => {
+  //   const requestId = Symbol();
+  //   dollyFetchTokenRef.current = requestId;
+  //   setDollyActiveRoomId(roomId);
+  //   setDollyActiveRoomName(roomName);
+  //   setDollyQuestion("");
+  //   if (!roomId) { setDollyReplies([]); return; }
+  //   setDollyRepliesLoading(true);
+  //   axios.get(`/api/roar/rooms/${roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS })
+  //     .then(res => {
+  //       if (dollyFetchTokenRef.current !== requestId) return;
+  //       setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
+  //     })
+  //     .catch(() => { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); })
+  //     .finally(() => { if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false); });
+  // }, [roomId, roomName]);
 
   const handleNewDollyChat = useCallback(() => {
-    const requestId = Symbol();
-    dollyFetchTokenRef.current = requestId;
-    setDollyActiveRoomId(roomId);
-    setDollyActiveRoomName(roomName);
+    dollyFetchTokenRef.current = Symbol();
     setDollyQuestion("");
-    if (!roomId) { setDollyReplies([]); return; }
-    setDollyRepliesLoading(true);
-    axios.get(`/api/roar/rooms/${roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS })
-      .then(res => {
-        if (dollyFetchTokenRef.current !== requestId) return;
-        setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
-      })
-      .catch(() => { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); })
-      .finally(() => { if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false); });
-  }, [roomId, roomName]);
+    setDollyReplies([]);
+    setDollyActiveSessionId(undefined);
+    dollyActiveSessionIdRef.current = undefined;
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -5143,20 +5553,50 @@ export default function DiscussionRoom({
     } catch { }
   }, [currentAvatarUrl, userProfile]);
 
+  // useEffect(() => {
+  //   if (!roomId) { setDollyReplies([]); setDollyLoaded(true); return; }
+  //   const requestId = Symbol();
+  //   dollyFetchTokenRef.current = requestId;
+  //   setDollyActiveRoomId(roomId);
+  //   setDollyActiveRoomName(roomName);
+  //   setDollyLoaded(false);
+  //   axios.get(`/api/roar/rooms/${roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS })
+  //     .then(res => {
+  //       if (dollyFetchTokenRef.current !== requestId) return;
+  //       setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
+  //     })
+  //     .catch(() => { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); })
+  //     .finally(() => { if (dollyFetchTokenRef.current === requestId) setDollyLoaded(true); });
+  // }, [roomId, roomName]);
+  const renameDollySession = useCallback(async (sessionId: string, newTitle: string) => {
+    if (!roomId) return;
+    setDollyHistory(prev => prev.map(s => s.sessionId === sessionId ? { ...s, title: newTitle } : s));
+    try {
+        await axios.patch(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { customTitle: newTitle }, { timeout: REQUEST_TIMEOUT_MS });
+    } catch {
+        onToast("Failed to rename conversation");
+        loadDollyHistory();
+    }
+}, [roomId, onToast, loadDollyHistory]);
+
+const deleteDollySession = useCallback(async (sessionId: string) => {
+    if (!roomId) return;
+    setDollyHistory(prev => prev.filter(s => s.sessionId !== sessionId));
+    if (dollyActiveSessionId === sessionId) handleNewDollyChat();
+    try {
+        await axios.delete(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
+    } catch {
+        onToast("Failed to delete conversation");
+        loadDollyHistory();
+    }
+}, [roomId, dollyActiveSessionId, handleNewDollyChat, onToast, loadDollyHistory]);
+
   useEffect(() => {
-    if (!roomId) { setDollyReplies([]); setDollyLoaded(true); return; }
-    const requestId = Symbol();
-    dollyFetchTokenRef.current = requestId;
-    setDollyActiveRoomId(roomId);
+    setDollyActiveSessionId(undefined);
+    dollyActiveSessionIdRef.current = undefined;
     setDollyActiveRoomName(roomName);
-    setDollyLoaded(false);
-    axios.get(`/api/roar/rooms/${roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS })
-      .then(res => {
-        if (dollyFetchTokenRef.current !== requestId) return;
-        setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
-      })
-      .catch(() => { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); })
-      .finally(() => { if (dollyFetchTokenRef.current === requestId) setDollyLoaded(true); });
+    setDollyReplies([]);
+    setDollyLoaded(true);
   }, [roomId, roomName]);
 
   const fetchMsgs = useCallback(async () => {
@@ -5197,21 +5637,21 @@ export default function DiscussionRoom({
     });
   }, [onRegisterReplyUpdate, playSound]);
   const injectPost = useCallback((post: any) => {
-  setPosts(p => [...p, post]);
-  playSound("post");
-  setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
-}, [playSound]);
+    setPosts(p => [...p, post]);
+    playSound("post");
+    setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+  }, [playSound]);
 
-const optimisticSwap = useCallback((tempId: string, realMsg?: any) => {
-  if (!realMsg) {
-    setPosts(p => p.filter(x => x.id !== tempId));
-    return;
-  }
-  setPosts(p => p.map(x => x.id === tempId ? { ...mapMessage(realMsg), timeAgo: "now" } : x));
-}, [mapMessage]);
+  const optimisticSwap = useCallback((tempId: string, realMsg?: any) => {
+    if (!realMsg) {
+      setPosts(p => p.filter(x => x.id !== tempId));
+      return;
+    }
+    setPosts(p => p.map(x => x.id === tempId ? { ...mapMessage(realMsg), timeAgo: "now" } : x));
+  }, [mapMessage]);
 
-useEffect(() => { onRegisterInjectPost?.(injectPost); }, [injectPost, onRegisterInjectPost]);
-useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap, onRegisterOptimisticSwap]);
+  useEffect(() => { onRegisterInjectPost?.(injectPost); }, [injectPost, onRegisterInjectPost]);
+  useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap, onRegisterOptimisticSwap]);
   useEffect(() => {
     latestCreatedAtRef.current = null;
     setPosts([]);
@@ -5225,12 +5665,12 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
     setTopReactionsMap({});
     setOpenInlinePostId(null);
     setActiveFilter("all");
-  //   knownFanUidsRef.current = null;
-  //   presenceRequestSeqRef.current = 0;
-  //   joinToastQueueRef.current = [];
-  //   setJoinToast(null);
-  // }, [roomId]);
-  knownFanUidsRef.current = null;
+    //   knownFanUidsRef.current = null;
+    //   presenceRequestSeqRef.current = 0;
+    //   joinToastQueueRef.current = [];
+    //   setJoinToast(null);
+    // }, [roomId]);
+    knownFanUidsRef.current = null;
     toastedUidsRef.current = new Set();
     presenceFetchInFlightRef.current = false;
     presenceRequestSeqRef.current = 0;
@@ -5487,28 +5927,58 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
     finally { clearTimeout(failsafe); sendingRef.current = false; setIsSending(false); }
   };
 
+  // const askDolly = async () => {
+  //   const q = dollyQuestion.trim();
+
+  //   const targetRoomId = dollyActiveRoomId ?? roomId;
+  //   if (!q || dollyAsking || !targetRoomId) return;
+  //   setDollyAsking(true);
+  //   const tempId = `temp-dolly-${Date.now()}`;
+  //   setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
+  //   setDollyQuestion("");
+  //   try {
+  //     // Dolly is an AI response and can legitimately take longer than a
+  //     // normal API call, so it gets a longer timeout than REQUEST_TIMEOUT_MS.
+  //     const res = await axios.post(`/api/roar/rooms/${targetRoomId}/dolly`, { question: q }, { timeout: 30000 });
+  //     if (res.data?.success) {
+  //       if (dollyActiveRoomIdRef.current === targetRoomId) {
+  //         setDollyReplies(prev => prev.map(d => d.id === tempId ? res.data.reply : d));
+  //       }
+  //     } else {
+  //       throw new Error("Dolly request failed");
+  //     }
+  //   } catch {
+  //     if (dollyActiveRoomIdRef.current === targetRoomId) {
+  //       setDollyReplies(prev => prev.map(d => d.id === tempId ? { ...d, answer: "Something went wrong — try again." } : d));
+  //     }
+  //   } finally {
+  //     setDollyAsking(false);
+  //   }
+  // };
+
+
   const askDolly = async () => {
     const q = dollyQuestion.trim();
-
-    const targetRoomId = dollyActiveRoomId ?? roomId;
-    if (!q || dollyAsking || !targetRoomId) return;
+    if (!q || dollyAsking || !roomId) return;
     setDollyAsking(true);
+    const sessionId = await ensureDollySession();
+    if (!sessionId) { setDollyAsking(false); return; }
     const tempId = `temp-dolly-${Date.now()}`;
     setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
     setDollyQuestion("");
     try {
       // Dolly is an AI response and can legitimately take longer than a
       // normal API call, so it gets a longer timeout than REQUEST_TIMEOUT_MS.
-      const res = await axios.post(`/api/roar/rooms/${targetRoomId}/dolly`, { question: q }, { timeout: 30000 });
+      const res = await axios.post(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { question: q }, { timeout: 30000 });
       if (res.data?.success) {
-        if (dollyActiveRoomIdRef.current === targetRoomId) {
+        if (dollyActiveSessionIdRef.current === sessionId) {
           setDollyReplies(prev => prev.map(d => d.id === tempId ? res.data.reply : d));
         }
       } else {
         throw new Error("Dolly request failed");
       }
     } catch {
-      if (dollyActiveRoomIdRef.current === targetRoomId) {
+      if (dollyActiveSessionIdRef.current === sessionId) {
         setDollyReplies(prev => prev.map(d => d.id === tempId ? { ...d, answer: "Something went wrong — try again." } : d));
       }
     } finally {
@@ -5782,7 +6252,7 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
     .sort((a, b) => a.sortKey - b.sortKey);
 
   return (
-    <div className="flex flex-col w-full bg-[#0e0e14]" style={{ height: "100%", overflow: "hidden" }}>
+    <div ref={roomRootRef} className="flex flex-col w-full bg-[#0e0e14] relative" style={{ height: "100%",}}>
       <svg width="0" height="0" style={{ position: "absolute" }}>
         <linearGradient id="dr-pink-orange-grad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#e91e8c" /><stop offset="100%" stopColor="#ff6b35" />
@@ -5834,41 +6304,50 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
         </>
       )}
 
-      {!watchAlongRoomId && (
+      {/* {!watchAlongRoomId && (
         <>
-          <div className="shrink-0 px-3 py-2 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
-            <div className="flex justify-between items-start gap-2">
+          <div className="shrink-0 px-3 py-1 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
+            <div className="flex justify-between items-center gap-2">
               <div className="flex items-center gap-2 min-w-0 flex-1">
-                <button type="button" onPointerDown={handleBack} onClick={handleBack} className="bg-transparent border-none cursor-pointer text-white flex items-center p-0 flex-shrink-0" style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
-                  <ChevronLeft size={22} />
-                </button>
-                <div className="text-left pt-0.5 min-w-0 flex-1">
-                  <p className="font-display text-lg tracking-[0.04em] m-0 leading-tight text-white font-extrabold uppercase truncate">{roomName || "WORLDCUP"}</p>
-                  <div className="flex items-center gap-1 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <span className="live-pulse w-1.5 h-1.5 rounded-full bg-[var(--live-green)] inline-block flex-shrink-0" />
-                      <span className="text-[8px] font-bold text-[var(--live-green)] flex-shrink-0">LIVE</span>
+                {showBackButton && (
+                  <button type="button" onPointerDown={handleBack} onClick={handleBack} className="bg-transparent border-none cursor-pointer text-white flex items-center p-0 flex-shrink-0" style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
+                    <ChevronLeft size={20} />
+                  </button>
+                )}
+                {showBackButton && (
+                  <div className="text-left pt-0 min-w-0 flex-1">
+                    <p className="font-display text-base tracking-[0.04em] m-0 leading-tight text-white font-extrabold uppercase truncate">{roomName || "WORLDCUP"}</p>
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <div className="flex items-center gap-1">
+                        <span className="live-pulse w-1 h-1 rounded-full bg-[var(--live-green)] inline-block flex-shrink-0" />
+                        <span className="text-[7px] font-bold text-[var(--live-green)] flex-shrink-0">LIVE</span>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-0.5 flex-shrink-0">
                 <button
                   type="button"
                   onClick={toggleSound}
-                  className="flex-shrink-0 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] rounded-[10px] p-1.5 cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center"
-                  style={{ width: "32px", height: "32px" }}
+                  className="flex-shrink-0 rounded-[8px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
+                  style={{ width: "28px", height: "28px" }}
                   title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
                 >
-                  {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                  {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
                 </button>
-                <button type="button" onClick={shareRoomLink} className="flex-shrink-0 bg-[rgba(255,255,255,0.06)] border border-[rgba(255,255,255,0.12)] rounded-[10px] p-1.5 cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center" style={{ width: "32px", height: "32px" }}>
-                  <Share2 size={14} />
+                <button
+                  type="button"
+                  onClick={shareRoomLink}
+                  className="flex-shrink-0 rounded-[8px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
+                  style={{ width: "28px", height: "28px" }}
+                >
+                  <Share2 size={13} />
                 </button>
                 {(score || scoreSubtitle) && (
                   <div className="text-right pr-0.5 flex-shrink-0">
-                    {score && <div className="font-display text-[22px] text-[var(--accent-yellow)] leading-none">{score}</div>}
-                    {scoreSubtitle && <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">{scoreSubtitle}</div>}
+                    {score && <div className="font-display text-[18px] text-[var(--accent-yellow)] leading-none">{score}</div>}
+                    {scoreSubtitle && <div className="text-[9px] text-[var(--text-secondary)] mt-0">{scoreSubtitle}</div>}
                   </div>
                 )}
               </div>
@@ -5884,7 +6363,83 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
             />
           </div>
         </>
-      )}
+      )} */}
+
+
+    {!watchAlongRoomId && (
+  <>
+    <div className="shrink-0 px-2 py-1 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
+      <div className="flex justify-between items-center gap-1">
+        {/* Left side */}
+        <div className="flex items-center gap-1 min-w-0 flex-1">
+          {showBackButton ? (
+            <>
+              <button type="button" onPointerDown={handleBack} onClick={handleBack} className="bg-transparent border-none cursor-pointer text-white flex items-center p-0 flex-shrink-0" style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
+                <ChevronLeft size={18} />
+              </button>
+              <div className="text-left pt-0 min-w-0">
+                <p className="font-display text-sm tracking-[0.04em] m-0 leading-tight text-white font-extrabold uppercase truncate">{roomName || "WORLDCUP"}</p>
+                <div className="flex items-center gap-1 flex-wrap">
+                  <div className="flex items-center gap-1">
+                    <span className="live-pulse w-1 h-1 rounded-full bg-[var(--live-green)] inline-block flex-shrink-0" />
+                    <span className="text-[7px] font-bold text-[var(--live-green)] flex-shrink-0">LIVE</span>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            // Pulse / Open Room: Members on the left instead of back button + name
+            <ActiveFansStack
+              fans={activeFans}
+              count={liveCount}
+              totalJoinCount={totalJoinCount}
+              onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
+            />
+          )}
+        </div>
+
+        {/* Right side: Sound + Share + Score (no ActiveFansStack here anymore) */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button
+            type="button"
+            onClick={toggleSound}
+            className="flex-shrink-0 rounded-[6px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
+            style={{ width: "26px", height: "26px" }}
+            title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
+          >
+            {soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+          </button>
+          <button
+            type="button"
+            onClick={shareRoomLink}
+            className="flex-shrink-0 rounded-[6px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
+            style={{ width: "26px", height: "26px" }}
+          >
+            <Share2 size={12} />
+          </button>
+          {(score || scoreSubtitle) && (
+            <div className="text-right pr-0 flex-shrink-0">
+              {score && <div className="font-display text-[16px] text-[var(--accent-yellow)] leading-none">{score}</div>}
+              {scoreSubtitle && <div className="text-[8px] text-[var(--text-secondary)] mt-0">{scoreSubtitle}</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+
+    {/* Second row: Members section, only for normal rooms (Pulse already shows it up top) */}
+    {showBackButton && (
+      <div className="shrink-0 px-3 py-0 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)]">
+        <ActiveFansStack
+          fans={activeFans}
+          count={liveCount}
+          totalJoinCount={totalJoinCount}
+          onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
+        />
+      </div>
+    )}
+  </>
+)}
 
       {pinnedPost && (
         <div
@@ -6470,7 +7025,7 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
               </div>
             )}
 
-            <div className="flex items-center w-full gap-0.5 pl-7 sm:pl-0">
+            <div className="flex items-center w-full gap-0.5 ml-1">
               <button type="button" onClick={() => triggerUpload("image")} disabled={uploading} className="bg-transparent border-none -ml-1.5 text-white/40 cursor-pointer flex items-center justify-center p-1 shrink-0">
                 <Image size={16} />
               </button>
@@ -6543,7 +7098,7 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
 
               <motion.button
                 whileTap={{ scale: 0.96 }} onClick={send} disabled={uploading || isSending || postCooldown > 0}
-                className="w-6 h-6 rounded-full border-none -mr-1.5 text-white text-base font-bold flex items-center justify-center cursor-pointer shrink-0 bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]"
+                className="w-6 h-6 rounded-full border-none -mr-1 text-white text-base font-bold flex items-center justify-center cursor-pointer shrink-0 bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]"
                 style={{ opacity: uploading ? 0.5 : 1 }}
               >
                 ↑
@@ -6572,25 +7127,50 @@ useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap
         prefetchedFans={activeFans}
         prefetchedCount={liveCount}
       />
+{/* 
+       <DollyPanel
+      isOpen={dollyOpen}
+      onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
+      onClose={() => setDollyOpen(false)}
+      activeRoomId={dollyActiveRoomId}
+      activeRoomName={dollyActiveRoomName}
+      question={dollyQuestion}
+      setQuestion={setDollyQuestion}
+      asking={dollyAsking}
+      onAsk={askDolly}
+      replies={dollyReplies}
+      loadingReplies={dollyRepliesLoading}
+      history={dollyHistory}
+      loadingHistory={dollyHistoryLoading}
+      onSelectHistorySession={handleSelectDollySession}
+      onNewChat={handleNewDollyChat}
+      constrainedToParent={!!watchAlongRoomId}
+      containerRef={roomRootRef}
+    /> */}
 
-      <DollyPanel
-        isOpen={dollyOpen}
-        onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
-        onClose={() => setDollyOpen(false)}
-        activeRoomId={dollyActiveRoomId}
-        activeRoomName={dollyActiveRoomName}
-        question={dollyQuestion}
-        setQuestion={setDollyQuestion}
-        asking={dollyAsking}
-        onAsk={askDolly}
-        replies={dollyReplies}
-        loadingReplies={dollyRepliesLoading}
-        history={dollyHistory}
-        loadingHistory={dollyHistoryLoading}
-        onSelectHistorySession={handleSelectDollySession}
-        onNewChat={handleNewDollyChat}
-        constrainedToParent={!!watchAlongRoomId}
-      />
+<DollyPanel
+      isOpen={dollyOpen}
+      onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
+      onClose={() => setDollyOpen(false)}
+      activeSessionId={dollyActiveSessionId}
+      activeRoomName={dollyActiveRoomName}
+      onRenameSession={renameDollySession}
+      onDeleteSession={deleteDollySession}
+      question={dollyQuestion}
+      setQuestion={setDollyQuestion}
+      asking={dollyAsking}
+      onAsk={askDolly}
+      replies={dollyReplies}
+      loadingReplies={dollyRepliesLoading}
+      history={dollyHistory}
+      loadingHistory={dollyHistoryLoading}
+      loadingMoreHistory={dollyHistoryLoadingMore}
+      onLoadMoreHistory={loadMoreDollyHistory}
+      onSelectHistorySession={handleSelectDollySession}
+      onNewChat={handleNewDollyChat}
+      constrainedToParent={!!watchAlongRoomId}
+      containerRef={roomRootRef}
+    />
 
       <AnimatePresence>
         {notifToast && (

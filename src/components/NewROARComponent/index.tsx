@@ -624,6 +624,7 @@ export default function ROARApp() {
   const roomReplyUpdateRef = useRef<((postId: string, count: number) => void) | null>(null);
   const roomInjectPostRef = useRef<((post: any) => void) | null>(null);
   const roomOptimisticSwapRef = useRef<((tempId: string, realMsg?: any) => void) | null>(null);
+  const [pulseChannelId, setPulseChannelId] = useState<string | null>(null);
   // const infinityFetchedRef = useRef(false);
 
   // ── Bootstrap 
@@ -697,6 +698,7 @@ export default function ROARApp() {
   const [overlay, setOverlay] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
+  const PULSE_ROOM_ID = "NMryj1w7t8mJpGzEvF9q";
 
   // ── Room URL / back-button handling ────────────────────────────────────
   const openRoom = useCallback((room: Room) => {
@@ -1026,7 +1028,47 @@ export default function ROARApp() {
       }
 
       const ROOM_NATIVE = ["post", "chat", "hot_take", "hottake", "prediction", "debate", "raw_reactions"];
-      const isRoomNative = overlay === "room" && selectedRoom?.roomId
+      // const isRoomNative = overlay === "room" && selectedRoom?.roomId
+      //   && ROOM_NATIVE.includes(postType) && !payload.quizQuestion;
+
+      // if (isRoomNative) {
+      //   const msgTypeMap: Record<string, string> = {
+      //     prediction: "prediction", hot_take: "hottake", hottake: "hottake",
+      //     debate: "debate", raw_reactions: "raw_reactions", post: "post", chat: "chat",
+      //   };
+      //   const mappedType = msgTypeMap[postType] || "post";
+
+      //   const tempId = `temp-${Date.now()}`;
+      //   const optimisticMsg: any = {
+      //     id: tempId, msgId: tempId,
+      //     fan: { username: currentUsername, authorUid: currentUserId, badge: userBadge, avatarUrl: currentAvatarUrl },
+      //     text: payload.text || "Shared media", fireCount: 0, heartCount: 0, mindblownCount: 0, goatCount: 0, clapCount: 0, nochanceCount: 0, userReaction: null, replyCount: 0, agreeCount: 0, disagreeCount: 0, userVote: null, sideA: payload.sideA || null, sideB: payload.sideB || null, timeAgo: "Sending...", createdAt: Date.now(), type: mappedType, mediaUrls: mediaUrls.length ? mediaUrls : undefined, quizQuestion: null, quizOptions: null, quizCorrectOption: null, quizUserAnswer: null, quizTimer: null, quizPoints: null, quizParticipants: 0, memGifUrl: payload.gifUrl || null, memTag: payload.sf360Tag || null, status: "sending", predictionOptions: payload.predictionOptions || null
+      //   };
+
+      //   roomInjectPostRef.current?.(optimisticMsg);
+
+      //   try {
+      //     const res = await axios.post(`/api/roar/rooms/${selectedRoom!.roomId}/messages`, {
+      //       text: payload.text, type: mappedType,
+      //       mediaUrls: mediaUrls.length ? mediaUrls : payload.mediaUrls, sideA: payload.sideA, sideB: payload.sideB, predictionOptions: payload.predictionOptions,
+      //       memGifUrl: payload.gifUrl ?? undefined, memTag: payload.sf360Tag ?? undefined,
+      //       ...(postType === "prediction" && { closesAt: payload.closesAt, closeAfterMinutes: payload.closeAfterMinutes }),
+      //     });
+      //     if (res.data?.success) {
+      //       roomOptimisticSwapRef.current?.(tempId, res.data.message);
+      //     } else {
+      //       roomOptimisticSwapRef.current?.(tempId, null);
+      //     }
+      //   } catch {
+      //     roomOptimisticSwapRef.current?.(tempId, null);
+      //   }
+      //   return;
+      // }
+
+      const isPulseTab = overlay === null && activeTab === "home";
+      const targetRoomId = overlay === "room" ? selectedRoom?.roomId : (isPulseTab ? PULSE_ROOM_ID : undefined);
+
+      const isRoomNative = !!targetRoomId
         && ROOM_NATIVE.includes(postType) && !payload.quizQuestion;
 
       if (isRoomNative) {
@@ -1035,21 +1077,27 @@ export default function ROARApp() {
           debate: "debate", raw_reactions: "raw_reactions", post: "post", chat: "chat",
         };
         const mappedType = msgTypeMap[postType] || "post";
-        
+
         const tempId = `temp-${Date.now()}`;
+        // ➕ ADD THIS — same pattern used in DiscussionRoom.send()
+        const clientMsgId = `${currentUserId || "anon"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+       const channelId = targetRoomId === PULSE_ROOM_ID ? (pulseChannelId ?? undefined) : undefined;
         const optimisticMsg: any = {
           id: tempId, msgId: tempId,
           fan: { username: currentUsername, authorUid: currentUserId, badge: userBadge, avatarUrl: currentAvatarUrl },
-          text: payload.text || "Shared media", fireCount: 0, heartCount: 0, mindblownCount: 0, goatCount: 0, clapCount: 0, nochanceCount: 0, userReaction: null, replyCount: 0, agreeCount: 0, disagreeCount: 0, userVote: null, sideA: payload.sideA || null, sideB: payload.sideB || null, timeAgo: "Sending...", createdAt: Date.now(), type: mappedType, mediaUrls: mediaUrls.length ? mediaUrls : undefined, quizQuestion: null, quizOptions: null, quizCorrectOption: null, quizUserAnswer: null, quizTimer: null, quizPoints: null, quizParticipants: 0, memGifUrl: payload.gifUrl || null, memTag: payload.sf360Tag || null, status: "sending", predictionOptions: payload.predictionOptions || null
+          text: payload.text || "Shared media", fireCount: 0, heartCount: 0, mindblownCount: 0, goatCount: 0, clapCount: 0, nochanceCount: 0, userReaction: null, replyCount: 0, agreeCount: 0, disagreeCount: 0, userVote: null, sideA: payload.sideA || null, sideB: payload.sideB || null, timeAgo: "Sending...", createdAt: Date.now(), type: mappedType, mediaUrls: mediaUrls.length ? mediaUrls : undefined, quizQuestion: null, quizOptions: null, quizCorrectOption: null, quizUserAnswer: null, quizTimer: null, quizPoints: null, quizParticipants: 0, memGifUrl: payload.gifUrl || null, memTag: payload.sf360Tag || null, status: "sending", predictionOptions: payload.predictionOptions || null,
+          channelId,
         };
-        
+
         roomInjectPostRef.current?.(optimisticMsg);
 
         try {
-          const res = await axios.post(`/api/roar/rooms/${selectedRoom!.roomId}/messages`, {
+          const res = await axios.post(`/api/roar/rooms/${targetRoomId}/messages`, {
             text: payload.text, type: mappedType,
             mediaUrls: mediaUrls.length ? mediaUrls : payload.mediaUrls, sideA: payload.sideA, sideB: payload.sideB, predictionOptions: payload.predictionOptions,
             memGifUrl: payload.gifUrl ?? undefined, memTag: payload.sf360Tag ?? undefined,
+            clientMsgId,
+            channelId,
             ...(postType === "prediction" && { closesAt: payload.closesAt, closeAfterMinutes: payload.closeAfterMinutes }),
           });
           if (res.data?.success) {
@@ -1166,7 +1214,7 @@ export default function ROARApp() {
       // Outer catch only for media upload failures
       showToast("Failed to upload media");
     }
-  }, [showToast, overlay, selectedRoom, currentUserId, currentUsername, currentAvatarUrl, userBadge]);
+  }, [showToast, overlay, selectedRoom, currentUserId, currentUsername, currentAvatarUrl, userBadge, pulseChannelId]);
 
   // const handleTab = (tab: string) => {
   //   setOverlay(null);
@@ -1303,7 +1351,7 @@ export default function ROARApp() {
                   <style dangerouslySetInnerHTML={{ __html: `#global-header-desktop,#global-header-tablet,#global-header-mobile{display:none!important}` }} />
                   <DiscussionRoom
                     roomId={selectedRoom?.roomId}
-                        roomSports={selectedRoom?.sport}
+                    roomSports={selectedRoom?.sport}
                     roomName={selectedRoom?.name}
                     fanCount={selectedRoom?.fanCount}
                     score={selectedRoom?.score}
@@ -1328,28 +1376,34 @@ export default function ROARApp() {
                 </motion.div>
               ) : (
                 <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
-                  {activeTab === "home" && (
+                  {/* {activeTab === "home" && (
                     <RoomsHome
                       rooms={rooms}
-                      // onJoinRoom={room => {
-                      //   if (room?.roomId === "sf360-infinity") {
-                      //     setOverlay("infinity");
-                      //   } else {
-                      //     if (room) setSelectedRoom(room);
-                      //     else if (rooms.length) setSelectedRoom(rooms[0]);
-                      //     setOverlay("room");
-                      //   }
-                      // }}
                       onJoinRoom={room => {
                         const target = room ?? (rooms.length ? rooms[0] : null);
                         if (target) openRoom(target);
                       }}
-                      // onJoinRoom={room => {
-                      //   if (room) setSelectedRoom(room);
-                      //   else if (rooms.length) setSelectedRoom(rooms[0]);
-                      //   setOverlay("room");
-                      // }}
                       onToast={showToast}
+                    />
+                  )} */}
+                  {activeTab === "home" && (
+                    <RoomsHome
+                      rooms={rooms}
+                      onJoinRoom={room => {
+                        const target = room ?? (rooms.length ? rooms[0] : null);
+                        if (target) openRoom(target);
+                      }}
+                      onToast={showToast}
+                      onPostClick={post => setSelectedPost(post)}
+                      onCompose={type => openCompose(type)}
+                      currentAvatarUrl={currentAvatarUrl}
+                      currentUserId={currentUserId}
+                      onFanProfile={handleFanProfileClick}
+                      onPulseChannelChange={setPulseChannelId}
+                      onRegisterRefresh={fn => { roomRefreshRef.current = fn; }}
+                      onRegisterReplyUpdate={fn => { roomReplyUpdateRef.current = fn; }}
+                      onRegisterInjectPost={fn => { roomInjectPostRef.current = fn; }}
+                      onRegisterOptimisticSwap={fn => { roomOptimisticSwapRef.current = fn; }}
                     />
                   )}
                   {activeTab === "profile" && (
@@ -1357,8 +1411,8 @@ export default function ROARApp() {
                   )}
                   {activeTab === "alerts" && (
                     <Notifications notifications={notifications} onMarkRead={id => markRoarRead(id)} onMarkAllRead={markAllRoarRead} onCompose={() => openCompose()}
-                    //  onJoinRoom={room => { if (room) setSelectedRoom(room); else if (rooms.length) setSelectedRoom(rooms[0]); setOverlay("room"); }}
-                    onJoinRoom={room => { const target = room ?? (rooms.length ? rooms[0] : null); if (target) openRoom(target); }}
+                      //  onJoinRoom={room => { if (room) setSelectedRoom(room); else if (rooms.length) setSelectedRoom(rooms[0]); setOverlay("room"); }}
+                      onJoinRoom={room => { const target = room ?? (rooms.length ? rooms[0] : null); if (target) openRoom(target); }}
                       onNavigateTab={handleTab} rooms={rooms} />
 
                   )}
