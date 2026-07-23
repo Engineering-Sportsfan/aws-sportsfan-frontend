@@ -74,8 +74,6 @@
 // }
 
 // // ── Memoized sub-components ───────────────────────────────────────────────────
-// // Wrapping these in memo means they only re-render when their own props change,
-// // not every time the parent Header re-renders (e.g. on searchQuery changes).
 
 // const BellButton = memo(function BellButton({
 //   unreadCount,
@@ -89,10 +87,11 @@
 //         <Bell size={15} className="text-pink-400" />
 //         {capped > 0 && (
 //           <span
-//             className={`absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-[#e91e8c] text-white font-bold leading-none border border-[#07070f] ${capped > 9
-//               ? "min-w-[18px] px-[3px] text-[9px] h-[18px]"
-//               : "w-4 h-4 text-[9px]"
-//               }`}
+//             className={`absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-[#e91e8c] text-white font-bold leading-none border border-[#07070f] ${
+//               capped > 9
+//                 ? "min-w-[18px] px-[3px] text-[9px] h-[18px]"
+//                 : "w-4 h-4 text-[9px]"
+//             }`}
 //           >
 //             {capped}
 //           </span>
@@ -114,10 +113,11 @@
 //         <MessageCircle size={15} className="text-pink-400" />
 //         {capped > 0 && (
 //           <span
-//             className={`absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-[#e91e8c] text-white font-bold leading-none border border-[#07070f] ${capped > 9
-//               ? "min-w-[18px] px-[3px] text-[9px] h-[18px]"
-//               : "w-4 h-4 text-[9px]"
-//               }`}
+//             className={`absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-[#e91e8c] text-white font-bold leading-none border border-[#07070f] ${
+//               capped > 9
+//                 ? "min-w-[18px] px-[3px] text-[9px] h-[18px]"
+//                 : "w-4 h-4 text-[9px]"
+//             }`}
 //           >
 //             {capped}
 //           </span>
@@ -127,22 +127,38 @@
 //   );
 // });
 
+// // ── Avatar with loading skeleton ──────────────────────────────────────────────
 // const Avatar = memo(function Avatar({
 //   src,
 //   name,
 //   size = 36,
 //   ring = false,
+//   loading = false,
 // }: {
 //   src?: string;
 //   name: string;
 //   size?: number;
 //   ring?: boolean;
+//   loading?: boolean;
 // }) {
+//   // Show skeleton while auth/profile is loading
+//   if (loading) {
+//     return (
+//       <div
+//         style={{ width: size, height: size }}
+//         className={`rounded-full flex-shrink-0 bg-white/10 animate-pulse ${
+//           ring ? "ring-2 ring-pink-500/40" : ""
+//         }`}
+//       />
+//     );
+//   }
+
 //   return (
 //     <div
 //       style={{ width: size, height: size }}
-//       className={`rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-pink-500 to-orange-500 ${ring ? "ring-2 ring-pink-500/40" : ""
-//         }`}
+//       className={`rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-pink-500 to-orange-500 ${
+//         ring ? "ring-2 ring-pink-500/40" : ""
+//       }`}
 //     >
 //       {src ? (
 //         <img src={src} alt={name} className="w-full h-full object-cover" />
@@ -159,8 +175,6 @@
 // });
 
 // // ── Ask AI button ─────────────────────────────────────────────────────────────
-// // Only active (clickable) when search shows "no results found".
-// // Otherwise rendered as a disabled, greyed-out button.
 // const AskAIButton = memo(function AskAIButton({
 //   active,
 //   href,
@@ -203,8 +217,7 @@
 //   );
 // });
 
-// // ── Points pill 
-// // Isolated so only it re-renders when points change, not the whole header.
+// // ── Points pill ───────────────────────────────────────────────────────────────
 // const PointsPill = memo(function PointsPill({
 //   points,
 //   loading,
@@ -214,7 +227,6 @@
 //   loading: boolean;
 //   small?: boolean;
 // }) {
-//   // Memoized formatting — only recalculates when `points` changes
 //   const formatted = useMemo(() => {
 //     if (points == null) return "0";
 //     if (points >= 1000) return (points / 1000).toFixed(1) + "k";
@@ -222,7 +234,6 @@
 //   }, [points]);
 
 //   if (small) {
-//     // Mobile compact version
 //     return (
 //       <button className="flex flex-col items-center group">
 //         <div className="w-9 h-9 flex flex-col items-center justify-center bg-[#111] border border-white/10 rounded-full group-hover:bg-white/5 transition-colors gap-0.5">
@@ -246,7 +257,6 @@
 //         className="text-pink-500 fill-pink-500 shrink-0"
 //       />
 //       {loading ? (
-//         // Skeleton shimmer while loading — avoids layout shift
 //         <div className="w-8 h-3.5 bg-white/10 rounded-full animate-pulse" />
 //       ) : (
 //         <span
@@ -269,18 +279,32 @@
 //     clearSearch,
 //     navigateToResult,
 //   } = useGlobalSearch();
-//   const { userProfile } = useUserProfile();
 
-
+//   const { userProfile, loading: profileLoading } = useUserProfile();
 //   const { currentUserPoints, loading: pointsLoading } = useLeaderboard();
 //   const { user, getUserDisplayName, loading: authLoading } = useAuth();
 //   const { chats } = useChats();
 
-//   // Memoized so it doesn't recalculate on every render
+//   // ── Combined loading state ─────────────────────────────────────────────────
+//   // Points and avatar should show skeleton until BOTH auth AND their own
+//   // context have resolved. This prevents the "0 points / no avatar on first
+//   // load" flash that happens when auth resolves before leaderboard/profile.
+//   const isPointsReady = !pointsLoading && !authLoading;
+//   const isProfileReady = !profileLoading && !authLoading;
+
+//   // ── Avatar source ─────────────────────────────────────────────────────────
+//   // Only read avatarUrl after profile has loaded to avoid showing initials
+//   // briefly while the real image is still being fetched.
+//   const avatarSrc = useMemo(() => {
+//     if (!isProfileReady) return "";
+//     return userProfile?.avatarUrl || userProfile?.avatar || "";
+//   }, [isProfileReady, userProfile?.avatarUrl, userProfile?.avatar]);
+
 //   const totalUnreadChats = useMemo(
 //     () => chats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0),
 //     [chats]
 //   );
+
 //   const { roarUnreadCount } = useRoarNotifications();
 //   const [mainUnreadCount, setMainUnreadCount] = useState(0);
 
@@ -288,9 +312,10 @@
 //     if (!user?.email) return;
 //     const fetchMainUnread = async () => {
 //       try {
-//         const res = await axios.get<{ success: boolean; unreadCount: number }>("/api/notifications", {
-//           params: { email: user.email, countOnly: true },
-//         });
+//         const res = await axios.get<{ success: boolean; unreadCount: number }>(
+//           "/api/notifications",
+//           { params: { email: user.email, countOnly: true } }
+//         );
 //         if (res.data?.success) {
 //           setMainUnreadCount(res.data.unreadCount || 0);
 //         }
@@ -307,10 +332,6 @@
 
 //   const [showDropdown, setShowDropdown] = useState(false);
 //   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-
-//   // Tracks whether a search has actually completed for the current query.
-//   // Prevents the Ask AI button activating during the debounce window
-//   // (when searchResults is still empty from before).
 //   const [searchCompleted, setSearchCompleted] = useState(false);
 
 //   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -321,28 +342,22 @@
 //   const profileDropdownRef = useRef<HTMLDivElement>(null);
 //   const mobileProfileDropdownRef = useRef<HTMLDivElement>(null);
 
-//   // Debounced search — 400 ms, performSearch excluded from deps (stable useCallback)
+//   // Debounced search
 //   useEffect(() => {
 //     if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-
-//     // Any new query invalidates the previous completed state
 //     setSearchCompleted(false);
-
 //     if (!searchQuery.trim()) {
 //       setShowDropdown(false);
 //       return;
 //     }
-
 //     searchTimeoutRef.current = setTimeout(() => {
 //       performSearch(searchQuery);
 //     }, 400);
-
 //     return () => {
 //       if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
 //     };
-//   }, [searchQuery]); // ← searchQuery only; performSearch is stable
+//   }, [searchQuery]);
 
-//   // Show dropdown when results arrive + mark search as completed
 //   useEffect(() => {
 //     if (searchQuery.trim() && !isSearching) {
 //       setShowDropdown(true);
@@ -350,7 +365,6 @@
 //     }
 //   }, [searchQuery, searchResults, isSearching]);
 
-//   // Ask AI is active ONLY when a completed search found nothing
 //   const noResultsFound = useMemo(
 //     () =>
 //       searchQuery.trim().length > 0 &&
@@ -360,7 +374,6 @@
 //     [searchQuery, isSearching, searchCompleted, searchResults]
 //   );
 
-//   // Close on outside click
 //   useEffect(() => {
 //     const handleClickOutside = (e: MouseEvent) => {
 //       const target = e.target as Node;
@@ -396,7 +409,6 @@
 //     setTimeout(() => handleClear(), 50);
 //   }, [handleClear]);
 
-//   // Stable display name — avoids recomputing on unrelated re-renders
 //   const displayName = useMemo(
 //     () => (authLoading ? "" : getUserDisplayName()),
 //     [authLoading, getUserDisplayName]
@@ -411,13 +423,13 @@
 //     () =>
 //       searchQuery.trim()
 //         ? `/MainModules/AskAI?q=${encodeURIComponent(
-//           searchQuery.trim().slice(0, 100)
-//         )}`
+//             searchQuery.trim().slice(0, 100)
+//           )}`
 //         : "/MainModules/AskAI",
 //     [searchQuery]
 //   );
 
-//   // ── Search results list 
+//   // ── Search results list ────────────────────────────────────────────────────
 //   const ResultsList = useCallback(
 //     () => (
 //       <>
@@ -444,7 +456,6 @@
 //                   }}
 //                   className="w-full text-left p-3 hover:bg-white/5 transition-colors flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer"
 //                 >
-//                   {/* Avatar */}
 //                   <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
 //                     {result.type === "player" || result.type === "user" ? (
 //                       result.image ? (
@@ -455,10 +466,11 @@
 //                         />
 //                       ) : (
 //                         <div
-//                           className={`w-full h-full flex items-center justify-center text-white font-bold bg-gradient-to-br ${womenMeta
-//                             ? `${womenMeta.avatarFrom} ${womenMeta.avatarTo}`
-//                             : "from-pink-500 to-orange-500"
-//                             }`}
+//                           className={`w-full h-full flex items-center justify-center text-white font-bold bg-gradient-to-br ${
+//                             womenMeta
+//                               ? `${womenMeta.avatarFrom} ${womenMeta.avatarTo}`
+//                               : "from-pink-500 to-orange-500"
+//                           }`}
 //                         >
 //                           {result.name.charAt(0)}
 //                         </div>
@@ -476,7 +488,6 @@
 //                     )}
 //                   </div>
 
-//                   {/* Name + badges */}
 //                   <div className="flex-1 min-w-0">
 //                     <div className="flex items-center gap-1.5 flex-wrap">
 //                       <p className="text-white font-medium text-sm truncate">
@@ -485,10 +496,11 @@
 
 //                       {result.type === "player" && result.jerseyNumber && (
 //                         <span
-//                           className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${womenMeta
-//                             ? `${womenMeta.jerseyBg} ${womenMeta.jerseyText}`
-//                             : "bg-pink-500/20 text-pink-400"
-//                             }`}
+//                           className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+//                             womenMeta
+//                               ? `${womenMeta.jerseyBg} ${womenMeta.jerseyText}`
+//                               : "bg-pink-500/20 text-pink-400"
+//                           }`}
 //                         >
 //                           #{result.jerseyNumber}
 //                         </span>
@@ -503,20 +515,21 @@
 //                       )}
 
 //                       <span
-//                         className={`text-xs font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${result.type === "user"
-//                           ? "bg-blue-500/20 text-blue-400"
-//                           : result.type === "player"
+//                         className={`text-xs font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+//                           result.type === "user"
+//                             ? "bg-blue-500/20 text-blue-400"
+//                             : result.type === "player"
 //                             ? womenMeta
 //                               ? `${womenMeta.jerseyBg} ${womenMeta.jerseyText}`
 //                               : "bg-pink-500/10 text-gray-400"
 //                             : "bg-purple-500/10 text-gray-400"
-//                           }`}
+//                         }`}
 //                       >
 //                         {result.type === "user"
 //                           ? "User"
 //                           : result.type === "player"
-//                             ? "Player"
-//                             : "Team"}
+//                           ? "Player"
+//                           : "Team"}
 //                       </span>
 //                     </div>
 
@@ -558,7 +571,7 @@
 //     ]
 //   );
 
-//   // ── Profile menu ──────────────────────────────────────────────────────────
+//   // ── Profile menu ───────────────────────────────────────────────────────────
 //   const ProfileMenu = useCallback(
 //     ({ onClose }: { onClose: () => void }) => (
 //       <div className="py-1.5">
@@ -571,7 +584,9 @@
 //             size={16}
 //             className="text-gray-400 group-hover:text-pink-400 transition-colors"
 //           />
-//           <span className="text-white group-hover:text-pink-400 text-sm font-medium">Profile</span>
+//           <span className="text-white group-hover:text-pink-400 text-sm font-medium">
+//             Profile
+//           </span>
 //         </Link>
 //         <div className="h-px bg-white/5 mx-4" />
 //         <Link
@@ -605,7 +620,10 @@
 //   return (
 //     <>
 //       {/* ── DESKTOP (1280px+) ─────────────────────────────────────────────── */}
-//       <header id="global-header-desktop" className="hidden xl:flex w-full items-center gap-4 px-6 py-3 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-[100]">
+//       <header
+//         id="global-header-desktop"
+//         className="hidden xl:flex w-full items-center gap-4 px-6 py-3 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-[100]"
+//       >
 //         <div className="relative flex-1 max-w-2xl" ref={dropdownRef}>
 //           <div className="flex items-center bg-[#111] border border-white/10 rounded-full overflow-hidden pr-1">
 //             <Search size={16} className="text-gray-500 ml-4 shrink-0" />
@@ -641,47 +659,44 @@
 //               <ResultsList />
 //             </div>
 //           )}
-
 //         </div>
-//         {showDropdown && (
-//           <div className="absolute top-full left-0 right-0 mt-2 bg-[#111] border border-pink-500/20 rounded-2xl shadow-2xl z-50 max-h-[400px] overflow-y-auto">
-//             <ResultsList />
-//           </div>
-//         )}
-
-
 
 //         <div className="flex items-center gap-3 ml-auto">
-//           {/* <button className="flex items-center gap-2 bg-transparent hover:bg-pink-500/10 border border-pink-500 text-pink-400 text-sm font-medium px-5 py-2.5 rounded-full transition-colors">
-//             <SlidersHorizontal size={15} />
-//             Preferences
-//           </button> */}
 //           <ChatButton unreadCount={totalUnreadChats} />
-//           {/* PointsPill only re-renders when points/loading changes */}
-//           <PointsPill points={currentUserPoints} loading={pointsLoading} />
+//           {/* Only shows real points after both auth + leaderboard have resolved */}
+//           <PointsPill
+//             points={currentUserPoints}
+//             loading={!isPointsReady}
+//           />
 //           <BellButton unreadCount={totalUnreadNotifications} />
 //           <div className="relative" ref={profileDropdownRef}>
 //             <button
 //               onClick={() => setShowProfileDropdown((v) => !v)}
 //               className="flex items-center gap-2 bg-[#111] border border-white/10 rounded-full pl-1 pr-3 py-1 hover:bg-white/5 transition-colors hover:cursor-pointer"
 //             >
-//               {/* <Avatar src="" name={displayName} size={34} ring /> */}
+//               {/* Shows skeleton while auth/profile loads, then real avatar */}
 //               <Avatar
-//                 src={userProfile?.avatarUrl || userProfile?.avatar || ""}
-//                 name={displayName}
+//                 src={avatarSrc}
+//                 name={displayName || "U"}
 //                 size={34}
 //                 ring
+//                 loading={!isProfileReady}
 //               />
 //               <div className="flex flex-col items-start leading-tight">
-//                 <span className="text-white font-medium text-sm">
-//                   {authLoading ? "Loading..." : displayName}
-//                 </span>
+//                 {authLoading ? (
+//                   <div className="w-20 h-3 bg-white/10 rounded-full animate-pulse" />
+//                 ) : (
+//                   <span className="text-white font-medium text-sm">
+//                     {displayName}
+//                   </span>
+//                 )}
 //                 <span className="text-pink-400 text-xs">{userRole}</span>
 //               </div>
 //               <ChevronDown
 //                 size={14}
-//                 className={`text-gray-400 ml-1 transition-transform duration-200 ${showProfileDropdown ? "rotate-180" : ""
-//                   }`}
+//                 className={`text-gray-400 ml-1 transition-transform duration-200 ${
+//                   showProfileDropdown ? "rotate-180" : ""
+//                 }`}
 //               />
 //             </button>
 //             {showProfileDropdown && (
@@ -694,7 +709,10 @@
 //       </header>
 
 //       {/* ── TABLET (768px – 1279px) ───────────────────────────────────────── */}
-//       <header id="global-header-tablet" className="hidden md:flex xl:hidden w-full items-center gap-3 px-4 py-2 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100">
+//       <header
+//         id="global-header-tablet"
+//         className="hidden md:flex xl:hidden w-full items-center gap-3 px-4 py-2 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100"
+//       >
 //         <Link href="/MainModules/ROAR" className="flex-shrink-0">
 //           <Image
 //             src="/images/Logo.png"
@@ -743,25 +761,25 @@
 //           )}
 //         </div>
 
-//         {/* <button className="flex items-center gap-2 border border-pink-500 text-pink-400 text-xs font-medium px-4 py-2 rounded-full hover:bg-pink-500/10 transition-colors whitespace-nowrap">
-//           <SlidersHorizontal size={13} />
-//           Preferences
-//         </button> */}
 //         <ChatButton unreadCount={totalUnreadChats} />
 //         {/* Tablet compact points pill */}
-//         <PointsPill points={currentUserPoints} loading={pointsLoading} small />
+//         <PointsPill
+//           points={currentUserPoints}
+//           loading={!isPointsReady}
+//           small
+//         />
 //         <BellButton unreadCount={totalUnreadNotifications} />
 //         <div className="relative" ref={profileDropdownRef}>
 //           <button
 //             onClick={() => setShowProfileDropdown((v) => !v)}
 //             className="flex items-center gap-1.5 bg-[#111] border border-white/10 rounded-full pl-1 pr-2 py-1 hover:bg-white/5 transition-colors"
 //           >
-//             {/* <Avatar src="" name={displayName} size={30} ring /> */}
 //             <Avatar
-//               src={userProfile?.avatarUrl || userProfile?.avatar || ""}
-//               name={displayName}
+//               src={avatarSrc}
+//               name={displayName || "U"}
 //               size={34}
 //               ring
+//               loading={!isProfileReady}
 //             />
 //             <ChevronDown size={12} className="text-gray-400" />
 //           </button>
@@ -829,23 +847,23 @@
 //         </div>
 
 //         <div className="flex items-center justify-between pb-2.5 px-2 w-full">
-//           <button className="flex flex-col items-center group">
-//             {/* <div className="w-9 h-9 flex items-center justify-center border border-pink-500 bg-pink-500/10 rounded-full group-hover:bg-pink-500/20 transition-colors">
-//               <SlidersHorizontal size={15} className="text-pink-400" />
-//             </div> */}
-//           </button>
+//           <button className="flex flex-col items-center group" />
 //           <ChatButton unreadCount={totalUnreadChats} />
 //           {/* Mobile compact points pill */}
-//           <PointsPill points={currentUserPoints} loading={pointsLoading} small />
+//           <PointsPill
+//             points={currentUserPoints}
+//             loading={!isPointsReady}
+//             small
+//           />
 //           <BellButton unreadCount={totalUnreadNotifications} />
 //           <div className="relative" ref={mobileProfileDropdownRef}>
 //             <button onClick={() => setShowProfileDropdown((v) => !v)}>
-//               {/* <Avatar src="" name={displayName} size={36} ring /> */}
 //               <Avatar
-//                 src={userProfile?.avatarUrl || userProfile?.avatar || ""}
-//                 name={displayName}
+//                 src={avatarSrc}
+//                 name={displayName || "U"}
 //                 size={34}
 //                 ring
+//                 loading={!isProfileReady}
 //               />
 //             </button>
 //             {showProfileDropdown && (
@@ -857,12 +875,13 @@
 //         </div>
 //       </header>
 
-//       <div className="h-[104px] md:hidden roar-header-spacer" aria-hidden="true" />
+//       <div
+//         className="h-[104px] md:hidden roar-header-spacer"
+//         aria-hidden="true"
+//       />
 //     </>
 //   );
 // }
-
-
 
 
 
@@ -952,15 +971,14 @@ const BellButton = memo(function BellButton({
   const capped = Math.min(unreadCount, 99);
   return (
     <Link href="/MainModules/Notifications">
-      <div className="relative w-9 h-9 flex items-center justify-center bg-[#111] border border-white/10 rounded-full hover:bg-pink-500/10 transition-colors">
-        <Bell size={15} className="text-pink-400" />
+      <div className="relative w-8 h-8 flex items-center justify-center bg-[#111] border border-white/10 rounded-full hover:bg-pink-500/10 transition-colors">
+        <Bell size={14} className="text-pink-400" />
         {capped > 0 && (
           <span
-            className={`absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-[#e91e8c] text-white font-bold leading-none border border-[#07070f] ${
-              capped > 9
-                ? "min-w-[18px] px-[3px] text-[9px] h-[18px]"
-                : "w-4 h-4 text-[9px]"
-            }`}
+            className={`absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-[#e91e8c] text-white font-bold leading-none border border-[#07070f] ${capped > 9
+                ? "min-w-[16px] px-[2px] text-[8px] h-[16px]"
+                : "w-3.5 h-3.5 text-[8px]"
+              }`}
           >
             {capped}
           </span>
@@ -978,15 +996,14 @@ const ChatButton = memo(function ChatButton({
   const capped = Math.min(unreadCount, 99);
   return (
     <Link href="/MainModules/Chat">
-      <div className="relative w-9 h-9 flex items-center justify-center bg-[#111] border border-white/10 rounded-full hover:bg-pink-500/10 transition-colors">
-        <MessageCircle size={15} className="text-pink-400" />
+      <div className="relative w-8 h-8 flex items-center justify-center bg-[#111] border border-white/10 rounded-full hover:bg-pink-500/10 transition-colors">
+        <MessageCircle size={14} className="text-pink-400" />
         {capped > 0 && (
           <span
-            className={`absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-[#e91e8c] text-white font-bold leading-none border border-[#07070f] ${
-              capped > 9
-                ? "min-w-[18px] px-[3px] text-[9px] h-[18px]"
-                : "w-4 h-4 text-[9px]"
-            }`}
+            className={`absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-[#e91e8c] text-white font-bold leading-none border border-[#07070f] ${capped > 9
+                ? "min-w-[16px] px-[2px] text-[8px] h-[16px]"
+                : "w-3.5 h-3.5 text-[8px]"
+              }`}
           >
             {capped}
           </span>
@@ -1000,7 +1017,7 @@ const ChatButton = memo(function ChatButton({
 const Avatar = memo(function Avatar({
   src,
   name,
-  size = 36,
+  size = 32,
   ring = false,
   loading = false,
 }: {
@@ -1015,9 +1032,8 @@ const Avatar = memo(function Avatar({
     return (
       <div
         style={{ width: size, height: size }}
-        className={`rounded-full flex-shrink-0 bg-white/10 animate-pulse ${
-          ring ? "ring-2 ring-pink-500/40" : ""
-        }`}
+        className={`rounded-full flex-shrink-0 bg-white/10 animate-pulse ${ring ? "ring-2 ring-pink-500/40" : ""
+          }`}
       />
     );
   }
@@ -1025,9 +1041,8 @@ const Avatar = memo(function Avatar({
   return (
     <div
       style={{ width: size, height: size }}
-      className={`rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-pink-500 to-orange-500 ${
-        ring ? "ring-2 ring-pink-500/40" : ""
-      }`}
+      className={`rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-pink-500 to-orange-500 ${ring ? "ring-2 ring-pink-500/40" : ""
+        }`}
     >
       {src ? (
         <img src={src} alt={name} className="w-full h-full object-cover" />
@@ -1057,9 +1072,9 @@ const AskAIButton = memo(function AskAIButton({
 }) {
   const sizeClasses =
     size === "sm"
-      ? "text-xs px-3 py-1.5 gap-1"
-      : "text-sm px-4 py-2 gap-1.5";
-  const iconSize = size === "sm" ? 11 : 14;
+      ? "text-[10px] px-2 py-1 gap-1"
+      : "text-xs px-3 py-1.5 gap-1";
+  const iconSize = size === "sm" ? 10 : 13;
 
   if (!active) {
     return (
@@ -1104,13 +1119,13 @@ const PointsPill = memo(function PointsPill({
 
   if (small) {
     return (
-      <button className="flex flex-col items-center group">
-        <div className="w-9 h-9 flex flex-col items-center justify-center bg-[#111] border border-white/10 rounded-full group-hover:bg-white/5 transition-colors gap-0.5">
-          <Star size={10} className="text-pink-500 fill-pink-500" />
+      <button className="flex flex-col items-center group shrink-0">
+        <div className="w-8 h-8 flex flex-col items-center justify-center bg-[#111] border border-white/10 rounded-full group-hover:bg-white/5 transition-colors gap-0">
+          <Star size={9} className="text-pink-500 fill-pink-500" />
           {loading ? (
-            <div className="w-3 h-1.5 bg-white/10 rounded-full animate-pulse" />
+            <div className="w-3 h-1 bg-white/10 rounded-full animate-pulse" />
           ) : (
-            <span className="text-[9px] text-gray-400 font-medium leading-none">
+            <span className="text-[8px] text-gray-400 font-medium leading-none">
               {formatted}
             </span>
           )}
@@ -1120,17 +1135,15 @@ const PointsPill = memo(function PointsPill({
   }
 
   return (
-    <div className="flex items-center gap-2 bg-[#111] border border-white/10 rounded-full px-3 py-2">
+    <div className="flex items-center gap-1.5 bg-[#111] border border-white/10 rounded-full px-2.5 py-1.5">
       <Star
-        size={small ? 14 : 16}
+        size={14}
         className="text-pink-500 fill-pink-500 shrink-0"
       />
       {loading ? (
-        <div className="w-8 h-3.5 bg-white/10 rounded-full animate-pulse" />
+        <div className="w-8 h-3 bg-white/10 rounded-full animate-pulse" />
       ) : (
-        <span
-          className={`text-white font-semibold ${small ? "text-xs" : "text-sm"}`}
-        >
+        <span className="text-white font-semibold text-xs">
           {formatted}
         </span>
       )}
@@ -1155,15 +1168,10 @@ export default function Header() {
   const { chats } = useChats();
 
   // ── Combined loading state ─────────────────────────────────────────────────
-  // Points and avatar should show skeleton until BOTH auth AND their own
-  // context have resolved. This prevents the "0 points / no avatar on first
-  // load" flash that happens when auth resolves before leaderboard/profile.
   const isPointsReady = !pointsLoading && !authLoading;
   const isProfileReady = !profileLoading && !authLoading;
 
   // ── Avatar source ─────────────────────────────────────────────────────────
-  // Only read avatarUrl after profile has loaded to avoid showing initials
-  // briefly while the real image is still being fetched.
   const avatarSrc = useMemo(() => {
     if (!isProfileReady) return "";
     return userProfile?.avatarUrl || userProfile?.avatar || "";
@@ -1292,8 +1300,8 @@ export default function Header() {
     () =>
       searchQuery.trim()
         ? `/MainModules/AskAI?q=${encodeURIComponent(
-            searchQuery.trim().slice(0, 100)
-          )}`
+          searchQuery.trim().slice(0, 100)
+        )}`
         : "/MainModules/AskAI",
     [searchQuery]
   );
@@ -1303,9 +1311,9 @@ export default function Header() {
     () => (
       <>
         {isSearching ? (
-          <div className="p-4 text-center text-gray-400">
-            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-pink-500 mx-auto" />
-            <p className="text-sm mt-2">Searching…</p>
+          <div className="p-3 text-center text-gray-400">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-pink-500 mx-auto" />
+            <p className="text-xs mt-1.5">Searching…</p>
           </div>
         ) : searchResults.length > 0 ? (
           <div>
@@ -1323,9 +1331,9 @@ export default function Header() {
                     setShowDropdown(false);
                     navigateToResult(result);
                   }}
-                  className="w-full text-left p-3 hover:bg-white/5 transition-colors flex items-center gap-3 border-b border-white/5 last:border-0 cursor-pointer"
+                  className="w-full text-left p-2.5 hover:bg-white/5 transition-colors flex items-center gap-2.5 border-b border-white/5 last:border-0 cursor-pointer"
                 >
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
+                  <div className="w-8 h-8 rounded-full overflow-hidden bg-gray-800 flex-shrink-0">
                     {result.type === "player" || result.type === "user" ? (
                       result.image ? (
                         <img
@@ -1335,11 +1343,10 @@ export default function Header() {
                         />
                       ) : (
                         <div
-                          className={`w-full h-full flex items-center justify-center text-white font-bold bg-gradient-to-br ${
-                            womenMeta
+                          className={`w-full h-full flex items-center justify-center text-white font-bold text-xs bg-gradient-to-br ${womenMeta
                               ? `${womenMeta.avatarFrom} ${womenMeta.avatarTo}`
                               : "from-pink-500 to-orange-500"
-                          }`}
+                            }`}
                         >
                           {result.name.charAt(0)}
                         </div>
@@ -1351,25 +1358,24 @@ export default function Header() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                      <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs">
                         {result.name.charAt(0)}
                       </div>
                     )}
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-white font-medium text-sm truncate">
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <p className="text-white font-medium text-xs truncate">
                         {result.name}
                       </p>
 
                       {result.type === "player" && result.jerseyNumber && (
                         <span
-                          className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                            womenMeta
+                          className={`text-[9px] px-1 py-0.5 rounded-full flex-shrink-0 ${womenMeta
                               ? `${womenMeta.jerseyBg} ${womenMeta.jerseyText}`
                               : "bg-pink-500/20 text-pink-400"
-                          }`}
+                            }`}
                         >
                           #{result.jerseyNumber}
                         </span>
@@ -1377,34 +1383,33 @@ export default function Header() {
 
                       {womenMeta && (
                         <span
-                          className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${womenMeta.badgeBg} ${womenMeta.badgeText} tracking-wide`}
+                          className={`text-[8px] font-bold uppercase px-1 py-0.5 rounded-full flex-shrink-0 ${womenMeta.badgeBg} ${womenMeta.badgeText} tracking-wide`}
                         >
                           {womenMeta.label}
                         </span>
                       )}
 
                       <span
-                        className={`text-xs font-semibold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-                          result.type === "user"
+                        className={`text-[9px] font-semibold uppercase px-1 py-0.5 rounded-full flex-shrink-0 ${result.type === "user"
                             ? "bg-blue-500/20 text-blue-400"
                             : result.type === "player"
-                            ? womenMeta
-                              ? `${womenMeta.jerseyBg} ${womenMeta.jerseyText}`
-                              : "bg-pink-500/10 text-gray-400"
-                            : "bg-purple-500/10 text-gray-400"
-                        }`}
+                              ? womenMeta
+                                ? `${womenMeta.jerseyBg} ${womenMeta.jerseyText}`
+                                : "bg-pink-500/10 text-gray-400"
+                              : "bg-purple-500/10 text-gray-400"
+                          }`}
                       >
                         {result.type === "user"
                           ? "User"
                           : result.type === "player"
-                          ? "Player"
-                          : "Team"}
+                            ? "Player"
+                            : "Team"}
                       </span>
                     </div>
 
                     {womenMeta && (
                       <p
-                        className="text-[10px] mt-0.5 leading-none"
+                        className="text-[9px] mt-0.5 leading-none"
                         style={{ color: "rgba(165,243,252,0.6)" }}
                       >
                         {womenMeta.sublabel}
@@ -1416,13 +1421,13 @@ export default function Header() {
             })}
           </div>
         ) : searchQuery.trim() ? (
-          <div className="p-4 text-center text-gray-400">
-            <p className="text-sm">
+          <div className="p-3 text-center text-gray-400">
+            <p className="text-xs">
               No results found for &apos;{searchQuery}&apos;
             </p>
             <Link href={askAIHref} onClick={handleAskAIClick}>
-              <span className="inline-flex items-center gap-1 mt-2 text-pink-500 text-sm font-medium hover:underline cursor-pointer">
-                <Sparkles size={13} />
+              <span className="inline-flex items-center gap-1 mt-1.5 text-pink-500 text-xs font-medium hover:underline cursor-pointer">
+                <Sparkles size={12} />
                 Try exploring in Ask AI
               </span>
             </Link>
@@ -1443,41 +1448,41 @@ export default function Header() {
   // ── Profile menu ───────────────────────────────────────────────────────────
   const ProfileMenu = useCallback(
     ({ onClose }: { onClose: () => void }) => (
-      <div className="py-1.5">
+      <div className="py-1">
         <Link
           href="/MainModules/Profile"
           onClick={onClose}
-          className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group"
+          className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-white/5 transition-colors group"
         >
           <User
-            size={16}
+            size={14}
             className="text-gray-400 group-hover:text-pink-400 transition-colors"
           />
-          <span className="text-white group-hover:text-pink-400 text-sm font-medium">
+          <span className="text-white group-hover:text-pink-400 text-xs font-medium">
             Profile
           </span>
         </Link>
-        <div className="h-px bg-white/5 mx-4" />
+        <div className="h-px bg-white/5 mx-3.5" />
         <Link
           href="/MainModules/RoarPreference"
           onClick={onClose}
-          className="flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors group"
+          className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-white/5 transition-colors group"
         >
           <div className="relative">
-            <SlidersHorizontal size={16} className="text-pink-400" />
-            <span className="absolute -top-2 -right-3 text-[8px] font-bold bg-pink-500 text-white px-1 rounded-full">
+            <SlidersHorizontal size={14} className="text-pink-400" />
+            <span className="absolute -top-1.5 -right-2 text-[7px] font-bold bg-pink-500 text-white px-1 rounded-full">
               REC
             </span>
           </div>
-          <span className="text-pink-400 text-sm font-medium">Preferences</span>
+          <span className="text-pink-400 text-xs font-medium">Preferences</span>
         </Link>
-        <div className="h-px bg-white/5 mx-4" />
-        <LogoutButton className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 hover:cursor-pointer transition-colors group">
+        <div className="h-px bg-white/5 mx-3.5" />
+        <LogoutButton className="w-full flex items-center gap-2.5 px-3.5 py-2 hover:bg-white/5 hover:cursor-pointer transition-colors group">
           <LogOut
-            size={16}
+            size={14}
             className="text-gray-400 group-hover:text-pink-400 transition-colors"
           />
-          <span className="text-white group-hover:text-pink-400 text-sm font-medium transition-colors">
+          <span className="text-white group-hover:text-pink-400 text-xs font-medium transition-colors">
             Logout
           </span>
         </LogoutButton>
@@ -1491,11 +1496,11 @@ export default function Header() {
       {/* ── DESKTOP (1280px+) ─────────────────────────────────────────────── */}
       <header
         id="global-header-desktop"
-        className="hidden xl:flex w-full items-center gap-4 px-6 py-3 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-[100]"
+        className="hidden xl:flex w-full items-center gap-3 px-4 py-2 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-[100]"
       >
         <div className="relative flex-1 max-w-2xl" ref={dropdownRef}>
           <div className="flex items-center bg-[#111] border border-white/10 rounded-full overflow-hidden pr-1">
-            <Search size={16} className="text-gray-500 ml-4 shrink-0" />
+            <Search size={14} className="text-gray-500 ml-3 shrink-0" />
             <input
               ref={inputRef}
               type="text"
@@ -1507,106 +1512,7 @@ export default function Header() {
                   setShowDropdown(true);
               }}
               placeholder="Search players, teams, jersey numbers..."
-              className="bg-transparent outline-none text-sm flex-1 text-white placeholder:text-gray-500 px-3 py-2.5"
-            />
-            {searchQuery && (
-              <button onClick={handleClear} className="mr-1">
-                <X
-                  size={14}
-                  className="text-gray-500 hover:text-white transition-colors"
-                />
-              </button>
-            )}
-            <AskAIButton
-              active={noResultsFound}
-              href={askAIHref}
-              onClick={handleAskAIClick}
-            />
-          </div>
-          {showDropdown && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-[#111] border border-pink-500/20 rounded-2xl shadow-2xl z-[9999] max-h-[400px] overflow-y-auto">
-              <ResultsList />
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3 ml-auto">
-          <ChatButton unreadCount={totalUnreadChats} />
-          {/* Only shows real points after both auth + leaderboard have resolved */}
-          <PointsPill
-            points={currentUserPoints}
-            loading={!isPointsReady}
-          />
-          <BellButton unreadCount={totalUnreadNotifications} />
-          <div className="relative" ref={profileDropdownRef}>
-            <button
-              onClick={() => setShowProfileDropdown((v) => !v)}
-              className="flex items-center gap-2 bg-[#111] border border-white/10 rounded-full pl-1 pr-3 py-1 hover:bg-white/5 transition-colors hover:cursor-pointer"
-            >
-              {/* Shows skeleton while auth/profile loads, then real avatar */}
-              <Avatar
-                src={avatarSrc}
-                name={displayName || "U"}
-                size={34}
-                ring
-                loading={!isProfileReady}
-              />
-              <div className="flex flex-col items-start leading-tight">
-                {authLoading ? (
-                  <div className="w-20 h-3 bg-white/10 rounded-full animate-pulse" />
-                ) : (
-                  <span className="text-white font-medium text-sm">
-                    {displayName}
-                  </span>
-                )}
-                <span className="text-pink-400 text-xs">{userRole}</span>
-              </div>
-              <ChevronDown
-                size={14}
-                className={`text-gray-400 ml-1 transition-transform duration-200 ${
-                  showProfileDropdown ? "rotate-180" : ""
-                }`}
-              />
-            </button>
-            {showProfileDropdown && (
-              <div className="absolute right-0 top-full mt-3 w-56 bg-[#111] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-[9999]">
-                <ProfileMenu onClose={() => setShowProfileDropdown(false)} />
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* ── TABLET (768px – 1279px) ───────────────────────────────────────── */}
-      <header
-        id="global-header-tablet"
-        className="hidden md:flex xl:hidden w-full items-center gap-3 px-4 py-2 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100"
-      >
-        <Link href="/MainModules/ROAR" className="flex-shrink-0">
-          <Image
-            src="/images/Logo.png"
-            alt="SportsFan360 logo"
-            width={32}
-            height={36}
-            className="shrink-0"
-          />
-        </Link>
-
-        <div className="relative flex-1" ref={dropdownRef}>
-          <div className="flex items-center bg-[#111] border border-white/10 rounded-full overflow-hidden pr-1">
-            <Search size={15} className="text-gray-500 ml-3 shrink-0" />
-            <input
-              ref={inputRef}
-              type="text"
-              maxLength={100}
-              value={searchQuery}
-              onChange={handleInputChange}
-              onFocus={() => {
-                if (searchQuery.trim() && searchResults.length > 0)
-                  setShowDropdown(true);
-              }}
-              placeholder="Search players, teams..."
-              className="bg-transparent outline-none text-sm flex-1 text-white placeholder:text-gray-500 px-3 py-2"
+              className="bg-transparent outline-none text-xs flex-1 text-white placeholder:text-gray-500 px-2.5 py-2"
             />
             {searchQuery && (
               <button onClick={handleClear} className="mr-1">
@@ -1620,18 +1526,113 @@ export default function Header() {
               active={noResultsFound}
               href={askAIHref}
               onClick={handleAskAIClick}
+            />
+          </div>
+          {showDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#111] border border-pink-500/20 rounded-xl shadow-2xl z-[9999] max-h-[400px] overflow-y-auto">
+              <ResultsList />
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <ChatButton unreadCount={totalUnreadChats} />
+          <PointsPill
+            points={currentUserPoints}
+            loading={!isPointsReady}
+          />
+          <BellButton unreadCount={totalUnreadNotifications} />
+          <div className="relative" ref={profileDropdownRef}>
+            <button
+              onClick={() => setShowProfileDropdown((v) => !v)}
+              className="flex items-center gap-1.5 bg-[#111] border border-white/10 rounded-full pl-1 pr-2.5 py-0.5 hover:bg-white/5 transition-colors hover:cursor-pointer"
+            >
+              <Avatar
+                src={avatarSrc}
+                name={displayName || "U"}
+                size={30}
+                ring
+                loading={!isProfileReady}
+              />
+              <div className="flex flex-col items-start leading-tight">
+                {authLoading ? (
+                  <div className="w-14 h-2.5 bg-white/10 rounded-full animate-pulse" />
+                ) : (
+                  <span className="text-white font-medium text-xs">
+                    {displayName}
+                  </span>
+                )}
+                <span className="text-pink-400 text-[10px]">{userRole}</span>
+              </div>
+              <ChevronDown
+                size={12}
+                className={`text-gray-400 ml-0.5 transition-transform duration-200 ${showProfileDropdown ? "rotate-180" : ""
+                  }`}
+              />
+            </button>
+            {showProfileDropdown && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-[#111] border border-white/10 rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-[9999]">
+                <ProfileMenu onClose={() => setShowProfileDropdown(false)} />
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ── TABLET (768px – 1279px) ───────────────────────────────────────── */}
+      <header
+        id="global-header-tablet"
+        className="hidden md:flex xl:hidden w-full items-center gap-2 px-3 py-1.5 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100"
+      >
+        <Link href="/MainModules/ROAR" className="flex-shrink-0">
+          <Image
+            src="/images/Logo.png"
+            alt="SportsFan360 logo"
+            width={28}
+            height={32}
+            className="shrink-0"
+          />
+        </Link>
+
+        <div className="relative flex-1" ref={dropdownRef}>
+          <div className="flex items-center bg-[#111] border border-white/10 rounded-full overflow-hidden pr-1">
+            <Search size={13} className="text-gray-500 ml-2.5 shrink-0" />
+            <input
+              ref={inputRef}
+              type="text"
+              maxLength={100}
+              value={searchQuery}
+              onChange={handleInputChange}
+              onFocus={() => {
+                if (searchQuery.trim() && searchResults.length > 0)
+                  setShowDropdown(true);
+              }}
+              placeholder="Search players, teams..."
+              className="bg-transparent outline-none text-xs flex-1 text-white placeholder:text-gray-500 px-2.5 py-1.5"
+            />
+            {searchQuery && (
+              <button onClick={handleClear} className="mr-1">
+                <X
+                  size={12}
+                  className="text-gray-500 hover:text-white transition-colors"
+                />
+              </button>
+            )}
+            <AskAIButton
+              active={noResultsFound}
+              href={askAIHref}
+              onClick={handleAskAIClick}
               size="sm"
             />
           </div>
           {showDropdown && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-[#111] border border-pink-500/20 rounded-2xl shadow-2xl z-[9999] max-h-[400px] overflow-y-auto">
+            <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#111] border border-pink-500/20 rounded-xl shadow-2xl z-[9999] max-h-[400px] overflow-y-auto">
               <ResultsList />
             </div>
           )}
         </div>
 
         <ChatButton unreadCount={totalUnreadChats} />
-        {/* Tablet compact points pill */}
         <PointsPill
           points={currentUserPoints}
           loading={!isPointsReady}
@@ -1641,19 +1642,19 @@ export default function Header() {
         <div className="relative" ref={profileDropdownRef}>
           <button
             onClick={() => setShowProfileDropdown((v) => !v)}
-            className="flex items-center gap-1.5 bg-[#111] border border-white/10 rounded-full pl-1 pr-2 py-1 hover:bg-white/5 transition-colors"
+            className="flex items-center gap-1 bg-[#111] border border-white/10 rounded-full pl-1 pr-2 py-0.5 hover:bg-white/5 transition-colors"
           >
             <Avatar
               src={avatarSrc}
               name={displayName || "U"}
-              size={34}
+              size={30}
               ring
               loading={!isProfileReady}
             />
-            <ChevronDown size={12} className="text-gray-400" />
+            <ChevronDown size={11} className="text-gray-400" />
           </button>
           {showProfileDropdown && (
-            <div className="absolute right-0 top-full mt-3 w-52 bg-[#111] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-[9999]">
+            <div className="absolute right-0 top-full mt-2 w-48 bg-[#111] border border-white/10 rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-[9999]">
               <ProfileMenu onClose={() => setShowProfileDropdown(false)} />
             </div>
           )}
@@ -1666,19 +1667,50 @@ export default function Header() {
         className="flex md:hidden flex-col bg-[#0a0a0a] border-b border-white/5"
         style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100 }}
       >
-        <div className="flex items-center gap-2 px-3 pt-2.5 pb-2 w-full">
-          <Link href="/MainModules/ROAR" className="flex-shrink-0">
+        {/* Row 1: Logo + text on the left, notifications + avatar on the right */}
+        <div className="flex items-center justify-between gap-1.5 px-2.5 pt-2 pb-1.5 w-full">
+          <Link
+            href="/MainModules/ROAR"
+            className="flex items-center gap-1.5 flex-shrink-0 min-w-0"
+          >
             <Image
               src="/images/Logo.png"
               alt="SportsFan360 logo"
-              width={32}
-              height={36}
+              width={24}
+              height={28}
+              className="shrink-0"
             />
+            <span className="text-white font-extrabold tracking-wide text-xs truncate">
+              SPORTSFAN360
+            </span>
           </Link>
 
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <BellButton unreadCount={totalUnreadNotifications} />
+            <div className="relative" ref={mobileProfileDropdownRef}>
+              <button onClick={() => setShowProfileDropdown((v) => !v)}>
+                <Avatar
+                  src={avatarSrc}
+                  name={displayName || "U"}
+                  size={30}
+                  ring
+                  loading={!isProfileReady}
+                />
+              </button>
+              {showProfileDropdown && (
+                <div className="absolute right-0 top-full mt-1.5 w-44 bg-[#111] border border-white/10 rounded-xl shadow-2xl shadow-black/60 overflow-hidden z-[9999]">
+                  <ProfileMenu onClose={() => setShowProfileDropdown(false)} />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Row 2: Search bar + points icon */}
+        <div className="flex items-center gap-1.5 px-2.5 pb-2 w-full">
           <div className="relative flex-1 min-w-0" ref={mobileDropdownRef}>
-            <div className="flex items-center bg-[#111] border border-white/10 rounded-full overflow-hidden pr-1">
-              <Search size={14} className="text-gray-500 ml-3 shrink-0" />
+            <div className="flex items-center bg-[#111] border border-white/10 rounded-full overflow-hidden pr-0.5">
+              <Search size={12} className="text-gray-500 ml-2.5 shrink-0" />
               <input
                 ref={mobileInputRef}
                 type="text"
@@ -1690,12 +1722,12 @@ export default function Header() {
                     setShowDropdown(true);
                 }}
                 placeholder="Search players, teams..."
-                className="bg-transparent outline-none text-sm flex-1 min-w-0 text-white placeholder:text-gray-500 px-2 py-2"
+                className="bg-transparent outline-none text-xs flex-1 min-w-0 text-white placeholder:text-gray-500 placeholder:text-[10px] px-2 py-1.5"
               />
               {searchQuery && (
-                <button onClick={handleClear} className="shrink-0 mr-1">
+                <button onClick={handleClear} className="shrink-0 mr-0.5">
                   <X
-                    size={13}
+                    size={11}
                     className="text-gray-500 hover:text-white transition-colors"
                   />
                 </button>
@@ -1708,44 +1740,23 @@ export default function Header() {
               />
             </div>
             {showDropdown && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-[#111] border border-pink-500/20 rounded-2xl shadow-2xl z-[9999] max-h-[60vh] overflow-y-auto">
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#111] border border-pink-500/20 rounded-xl shadow-2xl z-[9999] max-h-[60vh] overflow-y-auto">
                 <ResultsList />
               </div>
             )}
           </div>
-        </div>
 
-        <div className="flex items-center justify-between pb-2.5 px-2 w-full">
-          <button className="flex flex-col items-center group" />
-          <ChatButton unreadCount={totalUnreadChats} />
-          {/* Mobile compact points pill */}
+          {/* Points icon */}
           <PointsPill
             points={currentUserPoints}
             loading={!isPointsReady}
             small
           />
-          <BellButton unreadCount={totalUnreadNotifications} />
-          <div className="relative" ref={mobileProfileDropdownRef}>
-            <button onClick={() => setShowProfileDropdown((v) => !v)}>
-              <Avatar
-                src={avatarSrc}
-                name={displayName || "U"}
-                size={34}
-                ring
-                loading={!isProfileReady}
-              />
-            </button>
-            {showProfileDropdown && (
-              <div className="absolute right-0 top-full mt-2 w-48 bg-[#111] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden z-[9999]">
-                <ProfileMenu onClose={() => setShowProfileDropdown(false)} />
-              </div>
-            )}
-          </div>
         </div>
       </header>
 
       <div
-        className="h-[104px] md:hidden roar-header-spacer"
+        className="h-[98px] md:hidden roar-header-spacer"
         aria-hidden="true"
       />
     </>

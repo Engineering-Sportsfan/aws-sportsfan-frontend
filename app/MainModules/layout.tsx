@@ -1,3 +1,5 @@
+// app/MainModules/layout.tsx
+
 "use client";
 
 import Header from "@/src/components/HomeComponents/Header";
@@ -142,7 +144,7 @@ function UserSidebar() {
   // const isMatchIntelligence = user?.email?.endsWith("@sportsfan360.com");
 
   const sidebarItems: SidebarItem[] = [
-    // { name: "Feed", icon: "/images/feed.png", href: "/MainModules/HomePage" },
+    { name: "Home", icon: "/images/feed.png", href: "/MainModules/HomePage" },
 
     // { name: "Fantasy", icon: "/images/battle.png", href: "/MainModules/Fantasy" },
     {
@@ -163,7 +165,7 @@ function UserSidebar() {
     //   href: "/MainModules/Store" 
     // },
     {
-      name: "Ask AI",
+      name: "Ask Dolly",
       icon: <Sparkles className="w-5 h-5 text-gradient" />,
       href: "/MainModules/AskAI"
     },
