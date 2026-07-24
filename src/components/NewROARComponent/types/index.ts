@@ -58,6 +58,7 @@ export interface Room {
   score?: string;
   scoreSubtitle?: string;
   watchAlongRoomId?: string;
+  botConfig?: Record<string, { team: string | null; role: string } | false>;
 }
 
 export interface Notification {

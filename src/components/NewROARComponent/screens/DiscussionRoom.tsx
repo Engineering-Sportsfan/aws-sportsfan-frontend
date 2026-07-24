@@ -3376,6 +3376,7 @@ interface Props {
   onFanProfile?: (fan: any) => void;
   watchAlongRoomId?: string;
   roomSports?: string;
+  roomBotConfig?: Record<string, { team: string | null; role: string } | false>;
   onRegisterInjectPost?: (fn: (post: any) => void) => void;
   onRegisterOptimisticSwap?: (fn: (tempId: string, realMsg?: any) => void) => void;
 }
@@ -4934,17 +4935,36 @@ export default function DiscussionRoom({
   onBack, onToast, roomId, roomName, onPostClick, onCompose, showBackButton = true,
   fanCount = 312, score, scoreSubtitle, currentAvatarUrl, currentUserId: propCurrentUserId, onRegisterRefresh, onRegisterReplyUpdate,
   onRegisterInjectPost, onRegisterOptimisticSwap,
-  onFanProfile, watchAlongRoomId
+  onFanProfile, watchAlongRoomId, roomBotConfig   
 }: Props) {
   const router = useRouter();
   const phog = usePostHog();
   const roomRootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-  console.log(
-    "[DollyDebug] watchAlongRoomId:", watchAlongRoomId,
-    "roomRootRef rect:", roomRootRef.current?.getBoundingClientRect()
-  );
-}, [watchAlongRoomId]);
+    console.log(
+      "[DollyDebug] watchAlongRoomId:", watchAlongRoomId,
+      "roomRootRef rect:", roomRootRef.current?.getBoundingClientRect()
+    );
+  }, [watchAlongRoomId]);
+
+  const [botDefs, setBotDefs] = useState<{ id: string; name: string; role: string }[]>([]);
+
+  useEffect(() => {
+    axios.get("/api/roar/bots", { timeout: REQUEST_TIMEOUT_MS })
+      .then(res => { if (res.data?.success) setBotDefs(res.data.bots ?? []); })
+      .catch(() => { });
+  }, []);
+
+  const activeRoomBots = React.useMemo(() => {
+    if (!roomBotConfig) return [];
+    return Object.entries(roomBotConfig)
+      .filter(([, v]) => v !== false)
+      .map(([botId, v]) => {
+        const def = botDefs.find(b => b.id === botId);
+        const cfg = v as { team: string | null; role: string };
+        return { id: botId, name: def?.name ?? botId, team: cfg.team };
+      });
+  }, [roomBotConfig, botDefs]);
 
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -5017,7 +5037,7 @@ export default function DiscussionRoom({
     showNextJoinToast();
   }, [showNextJoinToast]);
 
-  
+
   const SOUND_FILES: Record<"join" | "comment" | "post", string> = {
     join: "/sounds/join.mp3",
     comment: "/sounds/comment.mp3",
@@ -5177,7 +5197,7 @@ export default function DiscussionRoom({
   }, [roomId]);
 
 
-  
+
 
   const mapMessage = useCallback((m: any, existing?: any) => {
     const isPending = pendingReactRef.current[m.msgId];
@@ -5572,24 +5592,24 @@ export default function DiscussionRoom({
     if (!roomId) return;
     setDollyHistory(prev => prev.map(s => s.sessionId === sessionId ? { ...s, title: newTitle } : s));
     try {
-        await axios.patch(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { customTitle: newTitle }, { timeout: REQUEST_TIMEOUT_MS });
+      await axios.patch(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { customTitle: newTitle }, { timeout: REQUEST_TIMEOUT_MS });
     } catch {
-        onToast("Failed to rename conversation");
-        loadDollyHistory();
+      onToast("Failed to rename conversation");
+      loadDollyHistory();
     }
-}, [roomId, onToast, loadDollyHistory]);
+  }, [roomId, onToast, loadDollyHistory]);
 
-const deleteDollySession = useCallback(async (sessionId: string) => {
+  const deleteDollySession = useCallback(async (sessionId: string) => {
     if (!roomId) return;
     setDollyHistory(prev => prev.filter(s => s.sessionId !== sessionId));
     if (dollyActiveSessionId === sessionId) handleNewDollyChat();
     try {
-        await axios.delete(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
+      await axios.delete(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
     } catch {
-        onToast("Failed to delete conversation");
-        loadDollyHistory();
+      onToast("Failed to delete conversation");
+      loadDollyHistory();
     }
-}, [roomId, dollyActiveSessionId, handleNewDollyChat, onToast, loadDollyHistory]);
+  }, [roomId, dollyActiveSessionId, handleNewDollyChat, onToast, loadDollyHistory]);
 
   useEffect(() => {
     setDollyActiveSessionId(undefined);
@@ -5734,27 +5754,50 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
 
   const lastNotifCheckRef = useRef<number>(Date.now());
   const seenNotifIdsRef = useRef<Set<string>>(new Set());
+  const lastKnownUnreadCountRef = useRef<number>(0);
+
+  const checkNotifs = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      // Cheap first: just get the unread count, don't pull full docs every time.
+      const countRes = await axios.get("/api/notifications", {
+        params: { uid: userProfile?.actualUserId, email: userProfile?.email, countOnly: "true" },
+        timeout: REQUEST_TIMEOUT_MS,
+      });
+      const unreadCount = countRes.data?.unreadCount ?? 0;
+      if (unreadCount <= lastKnownUnreadCountRef.current) {
+        lastKnownUnreadCountRef.current = unreadCount;
+        return; // nothing new, skip the expensive full fetch
+      }
+      lastKnownUnreadCountRef.current = unreadCount;
+
+      const res = await axios.get("/api/notifications", {
+        params: { uid: userProfile?.actualUserId, email: userProfile?.email },
+        timeout: REQUEST_TIMEOUT_MS,
+      });
+      const notifs: any[] = res.data?.notifications ?? [];
+      const fresh = notifs.filter(n => n.roomId === roomId && !n.isRead && !seenNotifIdsRef.current.has(n.id) && (n.createdAt ?? 0) > lastNotifCheckRef.current);
+      if (fresh.length > 0) {
+        fresh.forEach(n => seenNotifIdsRef.current.add(n.id));
+        const latest = fresh[fresh.length - 1];
+        const type = latest.type === "roar_post_comment" ? "comment" : "like";
+        setNotifToast({ message: latest.message ?? (type === "comment" ? "Someone commented on your post" : "Someone reacted to your post"), type });
+        if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current);
+        notifToastTimerRef.current = setTimeout(() => setNotifToast(null), 60000);
+      }
+    } catch { }
+  }, [roomId, userProfile?.actualUserId, userProfile?.email]);
+
   useEffect(() => {
     if (!roomId) return;
-    const checkNotifs = async () => {
-      try {
-        const res = await axios.get("/api/notifications", { params: { uid: userProfile?.actualUserId, email: userProfile?.email }, timeout: REQUEST_TIMEOUT_MS });
-        const notifs: any[] = res.data?.notifications ?? [];
-        const fresh = notifs.filter(n => n.roomId === roomId && !n.isRead && !seenNotifIdsRef.current.has(n.id) && (n.createdAt ?? 0) > lastNotifCheckRef.current);
-        if (fresh.length > 0) {
-          fresh.forEach(n => seenNotifIdsRef.current.add(n.id));
-          const latest = fresh[fresh.length - 1];
-          const type = latest.type === "roar_post_comment" ? "comment" : "like";
-          setNotifToast({ message: latest.message ?? (type === "comment" ? "Someone commented on your post" : "Someone reacted to your post"), type });
-          if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current);
-          notifToastTimerRef.current = setTimeout(() => setNotifToast(null), 60000);
-        }
-      } catch { }
-    };
     lastNotifCheckRef.current = Date.now();
-    const interval = setInterval(checkNotifs, 60000);
-    return () => { clearInterval(interval); if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current); };
-  }, [roomId, userProfile?.actualUserId, userProfile?.email]);
+    seenNotifIdsRef.current = new Set();
+    lastKnownUnreadCountRef.current = 0;
+    return () => { if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current); };
+  }, [roomId]);
+
+  // Only polls while the tab is visible — same pattern as fetchMsgs/fetchReactionUpdates below.
+  useVisibilityInterval(checkNotifs, 60000);
 
   useEffect(() => {
     if (!loading && listRef.current)
@@ -6252,7 +6295,7 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
     .sort((a, b) => a.sortKey - b.sortKey);
 
   return (
-    <div ref={roomRootRef} className="flex flex-col w-full bg-[#0e0e14] relative" style={{ height: "100%",}}>
+    <div ref={roomRootRef} className="flex flex-col w-full bg-[#0e0e14] relative" style={{ height: "100%", }}>
       <svg width="0" height="0" style={{ position: "absolute" }}>
         <linearGradient id="dr-pink-orange-grad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#e91e8c" /><stop offset="100%" stopColor="#ff6b35" />
@@ -6366,80 +6409,94 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
       )} */}
 
 
-    {!watchAlongRoomId && (
-  <>
-    <div className="shrink-0 px-2 py-1 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
-      <div className="flex justify-between items-center gap-1">
-        {/* Left side */}
-        <div className="flex items-center gap-1 min-w-0 flex-1">
-          {showBackButton ? (
-            <>
-              <button type="button" onPointerDown={handleBack} onClick={handleBack} className="bg-transparent border-none cursor-pointer text-white flex items-center p-0 flex-shrink-0" style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
-                <ChevronLeft size={18} />
-              </button>
-              <div className="text-left pt-0 min-w-0">
-                <p className="font-display text-sm tracking-[0.04em] m-0 leading-tight text-white font-extrabold uppercase truncate">{roomName || "WORLDCUP"}</p>
-                <div className="flex items-center gap-1 flex-wrap">
-                  <div className="flex items-center gap-1">
-                    <span className="live-pulse w-1 h-1 rounded-full bg-[var(--live-green)] inline-block flex-shrink-0" />
-                    <span className="text-[7px] font-bold text-[var(--live-green)] flex-shrink-0">LIVE</span>
-                  </div>
-                </div>
+      {!watchAlongRoomId && (
+        <>
+          <div className="shrink-0 px-2 py-1 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
+            <div className="flex justify-between items-center gap-1">
+              {/* Left side */}
+              <div className="flex items-center gap-1 min-w-0 flex-1">
+                {showBackButton ? (
+                  <>
+                    <button type="button" onPointerDown={handleBack} onClick={handleBack} className="bg-transparent border-none cursor-pointer text-white flex items-center p-0 flex-shrink-0" style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
+                      <ChevronLeft size={18} />
+                    </button>
+                    <div className="text-left pt-0 min-w-0">
+                      <p className="font-display text-sm tracking-[0.04em] m-0 leading-tight text-white font-extrabold uppercase truncate">{roomName || "WORLDCUP"}</p>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <div className="flex items-center gap-1">
+                          <span className="live-pulse w-1 h-1 rounded-full bg-[var(--live-green)] inline-block flex-shrink-0" />
+                          <span className="text-[7px] font-bold text-[var(--live-green)] flex-shrink-0">LIVE</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  // Pulse / Open Room: Members on the left instead of back button + name
+                  <ActiveFansStack
+                    fans={activeFans}
+                    count={liveCount}
+                    totalJoinCount={totalJoinCount}
+                    onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
+                  />
+                )}
               </div>
-            </>
-          ) : (
-            // Pulse / Open Room: Members on the left instead of back button + name
-            <ActiveFansStack
-              fans={activeFans}
-              count={liveCount}
-              totalJoinCount={totalJoinCount}
-              onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
-            />
-          )}
-        </div>
 
-        {/* Right side: Sound + Share + Score (no ActiveFansStack here anymore) */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <button
-            type="button"
-            onClick={toggleSound}
-            className="flex-shrink-0 rounded-[6px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
-            style={{ width: "26px", height: "26px" }}
-            title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
-          >
-            {soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
-          </button>
-          <button
-            type="button"
-            onClick={shareRoomLink}
-            className="flex-shrink-0 rounded-[6px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
-            style={{ width: "26px", height: "26px" }}
-          >
-            <Share2 size={12} />
-          </button>
-          {(score || scoreSubtitle) && (
-            <div className="text-right pr-0 flex-shrink-0">
-              {score && <div className="font-display text-[16px] text-[var(--accent-yellow)] leading-none">{score}</div>}
-              {scoreSubtitle && <div className="text-[8px] text-[var(--text-secondary)] mt-0">{scoreSubtitle}</div>}
+              {activeRoomBots.length > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1 flex-wrap">
+                  {activeRoomBots.map(b => (
+                    <span
+                      key={b.id}
+                      className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(233,30,140,0.12)", color: "#e91e8c", border: "1px solid rgba(233,30,140,0.3)" }}
+                    >
+                      🤖 {b.name}{b.team ? ` · ${b.team}` : ""}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Right side: Sound + Share + Score (no ActiveFansStack here anymore) */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={toggleSound}
+                  className="flex-shrink-0 rounded-[6px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
+                  style={{ width: "26px", height: "26px" }}
+                  title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
+                >
+                  {soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+                </button>
+                <button
+                  type="button"
+                  onClick={shareRoomLink}
+                  className="flex-shrink-0 rounded-[6px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
+                  style={{ width: "26px", height: "26px" }}
+                >
+                  <Share2 size={12} />
+                </button>
+                {(score || scoreSubtitle) && (
+                  <div className="text-right pr-0 flex-shrink-0">
+                    {score && <div className="font-display text-[16px] text-[var(--accent-yellow)] leading-none">{score}</div>}
+                    {scoreSubtitle && <div className="text-[8px] text-[var(--text-secondary)] mt-0">{scoreSubtitle}</div>}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Second row: Members section, only for normal rooms (Pulse already shows it up top) */}
+          {showBackButton && (
+            <div className="shrink-0 px-3 py-0 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)]">
+              <ActiveFansStack
+                fans={activeFans}
+                count={liveCount}
+                totalJoinCount={totalJoinCount}
+                onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
+              />
             </div>
           )}
-        </div>
-      </div>
-    </div>
-
-    {/* Second row: Members section, only for normal rooms (Pulse already shows it up top) */}
-    {showBackButton && (
-      <div className="shrink-0 px-3 py-0 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)]">
-        <ActiveFansStack
-          fans={activeFans}
-          count={liveCount}
-          totalJoinCount={totalJoinCount}
-          onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
-        />
-      </div>
-    )}
-  </>
-)}
+        </>
+      )}
 
       {pinnedPost && (
         <div
@@ -7127,7 +7184,7 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
         prefetchedFans={activeFans}
         prefetchedCount={liveCount}
       />
-{/* 
+      {/* 
        <DollyPanel
       isOpen={dollyOpen}
       onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
@@ -7148,29 +7205,29 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
       containerRef={roomRootRef}
     /> */}
 
-<DollyPanel
-      isOpen={dollyOpen}
-      onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
-      onClose={() => setDollyOpen(false)}
-      activeSessionId={dollyActiveSessionId}
-      activeRoomName={dollyActiveRoomName}
-      onRenameSession={renameDollySession}
-      onDeleteSession={deleteDollySession}
-      question={dollyQuestion}
-      setQuestion={setDollyQuestion}
-      asking={dollyAsking}
-      onAsk={askDolly}
-      replies={dollyReplies}
-      loadingReplies={dollyRepliesLoading}
-      history={dollyHistory}
-      loadingHistory={dollyHistoryLoading}
-      loadingMoreHistory={dollyHistoryLoadingMore}
-      onLoadMoreHistory={loadMoreDollyHistory}
-      onSelectHistorySession={handleSelectDollySession}
-      onNewChat={handleNewDollyChat}
-      constrainedToParent={!!watchAlongRoomId}
-      containerRef={roomRootRef}
-    />
+      <DollyPanel
+        isOpen={dollyOpen}
+        onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
+        onClose={() => setDollyOpen(false)}
+        activeSessionId={dollyActiveSessionId}
+        activeRoomName={dollyActiveRoomName}
+        onRenameSession={renameDollySession}
+        onDeleteSession={deleteDollySession}
+        question={dollyQuestion}
+        setQuestion={setDollyQuestion}
+        asking={dollyAsking}
+        onAsk={askDolly}
+        replies={dollyReplies}
+        loadingReplies={dollyRepliesLoading}
+        history={dollyHistory}
+        loadingHistory={dollyHistoryLoading}
+        loadingMoreHistory={dollyHistoryLoadingMore}
+        onLoadMoreHistory={loadMoreDollyHistory}
+        onSelectHistorySession={handleSelectDollySession}
+        onNewChat={handleNewDollyChat}
+        constrainedToParent={!!watchAlongRoomId}
+        containerRef={roomRootRef}
+      />
 
       <AnimatePresence>
         {notifToast && (

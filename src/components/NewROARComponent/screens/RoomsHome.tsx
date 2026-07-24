@@ -1049,6 +1049,7 @@ import MockPlayDiscussionRoom from "../mockRoom/MockPlayDiscussionRoom";
 import { isMockRoomId, canViewMockRooms, listMockRoomsForDisplay } from "../mockRoom/mockRoomAccess";
 import CreateRoomWizard from "./CreateRoomWizard";
 import { Plus } from "lucide-react";
+import MatchRoomRecap from "../components/MatchRoomRecap";
 
 const SPORT_GRADIENT: Record<string, string> = {
   cricket: "linear-gradient(135deg,#7c3aed,#4f46e5)",
@@ -1063,7 +1064,7 @@ const SPORT_IMAGE: Record<string, string> = {
 };
 
 const INFINITY_ROOM_ID = "vZFu6xEApNRd1aUbDuHW";
-const VISIBLE_ROOM_IDS = ["3XRaFu2Dueyhnamou0Ie", ]; //oC7GcrqeG6Ita6twcqG6
+const VISIBLE_ROOM_IDS = ["3XRaFu2Dueyhnamou0Ie",]; //oC7GcrqeG6Ita6twcqG6
 const SHARE_CARD_BG = "/images/roomprofilecard.png";
 
 // The always-on aggregated feed room shown under the "Roar Pulse" tab.
@@ -1170,6 +1171,109 @@ function generateRoomShareCard(
 
     canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
   });
+}
+
+function generateRecapShareCard(
+  bgImg: HTMLImageElement,
+  room: Room,
+  recapData: any,
+  counts: RoomCounts
+): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 1340;
+    canvas.height = 752;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return resolve(null);
+
+    try {
+      ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+    } catch (e) {
+      console.error("[RoomsHome] Recap canvas draw failed:", e);
+      return resolve(null);
+    }
+
+    ctx.font = "bold 46px Arial";
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+    ctx.fillText(`${room.name} — Recap`, canvas.width / 2, 200);
+
+    if (recapData?.timing?.date) {
+      ctx.font = "28px Arial";
+      ctx.fillStyle = "rgba(255,255,255,0.65)";
+      ctx.fillText(String(recapData.timing.date), canvas.width / 2, 245);
+    }
+
+    if (recapData?.mvp?.username) {
+      ctx.font = "bold 30px Arial";
+      ctx.fillStyle = "#F2B705";
+      ctx.fillText("⭐ MVP", canvas.width / 2, 330);
+
+      ctx.font = "bold 44px Arial";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(recapData.mvp.username, canvas.width / 2, 385);
+
+      if (recapData.mvp.points !== undefined) {
+        ctx.font = "26px Arial";
+        ctx.fillStyle = "rgba(255,255,255,0.6)";
+        ctx.fillText(`${recapData.mvp.points} pts`, canvas.width / 2, 420);
+      }
+    }
+
+    const pollWinner = recapData?.predictionPoll?.options?.length
+      ? [...recapData.predictionPoll.options].sort((a: any, b: any) => b.percent - a.percent)[0]
+      : null;
+    if (pollWinner) {
+      ctx.font = "bold 24px Arial";
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillText("🔮 TOP CALL", canvas.width / 2, 470);
+
+      ctx.font = "bold 34px Arial";
+      ctx.fillStyle = "#ffffff";
+      ctx.fillText(`${pollWinner.label} — ${pollWinner.percent}%`, canvas.width / 2, 505);
+    }
+
+    const stats = [
+      { label: "POSTS", value: counts.post, x: 200 },
+      { label: "DEBATES", value: counts.debate, x: 460 },
+      { label: "PREDICTIONS", value: counts.prediction, x: 740 },
+      { label: "CONTRIBUTORS", value: recapData?.topContributors?.length ?? 0, x: 1080 },
+    ];
+
+    stats.forEach(({ label, value, x }) => {
+      const y = 610;
+      ctx.font = "bold 56px Arial";
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.fillText(String(value), x, y);
+
+      ctx.font = "bold 26px Arial";
+      ctx.fillStyle = "rgba(255,255,255,0.55)";
+      ctx.fillText(label, x, y + 40);
+    });
+
+    canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
+  });
+}
+
+function buildRecapShareText(room: Room, recapData: any, shareUrl: string) {
+  const lines = [`🏆 ${room.name} — Match Recap`, ""];
+
+  if (recapData?.mvp?.username) {
+    lines.push(`⭐ MVP: ${recapData.mvp.username}`);
+  }
+  const pollWinner = recapData?.predictionPoll?.options?.length
+    ? [...recapData.predictionPoll.options].sort((a: any, b: any) => b.percent - a.percent)[0]
+    : null;
+  if (pollWinner) {
+    lines.push(`🔮 Top call: ${pollWinner.label} (${pollWinner.percent}%)`);
+  }
+  if (recapData?.topContributors?.length) {
+    lines.push(`🥇 Top fan: ${recapData.topContributors[0]?.username ?? "—"}`);
+  }
+
+  lines.push("", `Catch the full recap 👉 ${shareUrl}`, "#StartRoaring #Sportsfan360");
+  return lines.join("\n");
 }
 
 function StackedAvatars({
@@ -1371,6 +1475,7 @@ function RoomCard({
   onToast,
   presence,
   onShare,
+  onRecap,
   sharingRoomId,
   counts,
   isMock,
@@ -1378,6 +1483,7 @@ function RoomCard({
   room: Room;
   index: number;
   onJoin: (r: Room) => void;
+  onRecap: (room: Room) => void;
   onToast: (m: string) => void;
   presence?: { fanCount: number; fans: ActiveFan[]; totalJoinCount?: number };
   onShare: (room: Room) => void;
@@ -1465,14 +1571,26 @@ function RoomCard({
             disabled={sharingRoomId === room.roomId}
             className="flex-[0.42] py-2.5 rounded-full border border-white/15 bg-[#1a1a1e] text-white/85 text-[12px] font-bold flex items-center justify-center gap-1.5 hover:border-white/30 transition-colors duration-150 disabled:opacity-50"
           >
-            {sharingRoomId === room.roomId ? (
+            {/* {sharingRoomId === room.roomId ? (
               <div className="w-3 h-3 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
             ) : (
               <BarChart3 size={13} />
-            )}
+            )} */}
             Share Stats
           </motion.button>
         )}
+
+        <motion.button
+          whileTap={{ scale: 0.96 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRecap(room);
+          }}
+          className="flex-[0.42] py-2.5 rounded-full border border-white/15 bg-[#1a1a1e] text-white/85 text-[12px] font-bold flex items-center justify-center gap-1.5 hover:border-white/30 transition-colors duration-150"
+        >
+          {/* <BarChart3 size={13} /> */}
+          Recap
+        </motion.button>
 
         <motion.button
           whileTap={{ scale: 0.96 }}
@@ -1523,7 +1641,9 @@ export default function RoomsHome({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<"pulse" | "rooms">("pulse");
   const [showCreateRoom, setShowCreateRoom] = useState(false);
-
+  const [recapRoom, setRecapRoom] = useState<Room | null>(null);
+  const [recapData, setRecapData] = useState<any>(null);
+  const [recapLoading, setRecapLoading] = useState(false);
   // Internal-only demo rooms (mockRoom/) — never hit the DB, gated by
   // currentUserId containing "sportsfan". Opened in a local full-screen
   // overlay rather than routed through onJoinRoom/DiscussionRoom, since
@@ -1537,7 +1657,11 @@ export default function RoomsHome({
   const [presenceByRoom, setPresenceByRoom] = useState<PresenceByRoom>({});
   const [countsByRoom, setCountsByRoom] = useState<Record<string, RoomCounts>>({});
 
+  // const [shareRoom, setShareRoom] = useState<Room | null>(null);
+  // const [shareCounts, setShareCounts] = useState<RoomCounts | null>(null);
+
   const [shareRoom, setShareRoom] = useState<Room | null>(null);
+  const [shareKind, setShareKind] = useState<"stats" | "recap">("stats");
   const [shareCounts, setShareCounts] = useState<RoomCounts | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -1553,6 +1677,20 @@ export default function RoomsHome({
   const [nativeShareBusy, setNativeShareBusy] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
+
+  const openRecap = async (room: Room) => {
+    setRecapRoom(room);
+    setRecapData(null);
+    setRecapLoading(true);
+    try {
+      const res = await axios.get(`/api/roar/rooms/${room.roomId}/recap`);
+      setRecapData(res.data.hasData ? res.data : null);
+    } catch {
+      setRecapData(null);
+    } finally {
+      setRecapLoading(false);
+    }
+  };
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -1713,11 +1851,19 @@ export default function RoomsHome({
     onJoinRoom(room);
   };
 
+  // const handleShare = async (room: Room) => {
+  //   const requestId = Symbol();
+  //   shareRequestTokenRef.current = requestId;
+
+  //   setShareRoom(room);
+  //   setShareCounts(null);
+
   const handleShare = async (room: Room) => {
     const requestId = Symbol();
     shareRequestTokenRef.current = requestId;
 
     setShareRoom(room);
+    setShareKind("stats");
     setShareCounts(null);
     setCopied(false);
     setCardBlob(null);
@@ -1761,6 +1907,54 @@ export default function RoomsHome({
     }
   };
 
+  const handleShareRecap = async (room: Room, recapDataForShare: any) => {
+    const requestId = Symbol();
+    shareRequestTokenRef.current = requestId;
+
+    setShareRoom(room);
+    setShareKind("recap");
+    setShareCounts(countsByRoom[room.roomId] ?? EMPTY_COUNTS);
+    setCopied(false);
+    setCardBlob(null);
+    setCardFailed(false);
+    if (cardPreviewUrl) { URL.revokeObjectURL(cardPreviewUrl); setCardPreviewUrl(null); }
+
+    setShareLoading(false);
+    setSharingRoomId(room.roomId);
+    setCardGenerating(true);
+
+    try {
+      const bgImg = await loadBgImage().catch(() => null);
+      if (shareRequestTokenRef.current !== requestId) return;
+
+      if (!bgImg) {
+        setCardFailed(true);
+        setCardGenerating(false);
+        return;
+      }
+
+      const blob = await generateRecapShareCard(
+        bgImg,
+        room,
+        recapDataForShare,
+        countsByRoom[room.roomId] ?? EMPTY_COUNTS
+      );
+      if (shareRequestTokenRef.current !== requestId) return;
+
+      if (blob) {
+        setCardBlob(blob);
+        setCardPreviewUrl(URL.createObjectURL(blob));
+      } else {
+        setCardFailed(true);
+      }
+    } finally {
+      if (shareRequestTokenRef.current === requestId) {
+        setCardGenerating(false);
+        setSharingRoomId(null);
+      }
+    }
+  };
+
   const closeShare = () => {
     shareRequestTokenRef.current = null;
     setShareRoom(null);
@@ -1773,8 +1967,16 @@ export default function RoomsHome({
     if (cardPreviewUrl) { URL.revokeObjectURL(cardPreviewUrl); setCardPreviewUrl(null); }
   };
 
+  // const shareUrl = shareRoom ? buildRoomShareUrl(shareRoom) : "";
+  // const shareText = shareRoom && shareCounts ? buildRoomShareText(shareRoom, shareCounts, shareUrl) : "";
+
   const shareUrl = shareRoom ? buildRoomShareUrl(shareRoom) : "";
-  const shareText = shareRoom && shareCounts ? buildRoomShareText(shareRoom, shareCounts, shareUrl) : "";
+  const shareText =
+    shareRoom && shareCounts
+      ? shareKind === "recap"
+        ? buildRecapShareText(shareRoom, recapData, shareUrl)
+        : buildRoomShareText(shareRoom, shareCounts, shareUrl)
+      : "";
 
   const handleNativeImageShare = async () => {
     if (!shareRoom || !cardBlob) return;
@@ -2057,6 +2259,7 @@ export default function RoomsHome({
                 room={room}
                 index={i}
                 onJoin={handleJoin}
+                onRecap={openRecap}
                 onToast={onToast}
                 presence={presenceByRoom[room.roomId]}
                 onShare={handleShare}
@@ -2176,6 +2379,93 @@ export default function RoomsHome({
                   ✓ Copied!
                 </motion.p>
               )}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+
+      <AnimatePresence>
+        {recapRoom && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setRecapRoom(null)}
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 200,
+                background: "rgba(0,0,0,0.75)",
+                backdropFilter: "blur(4px)",
+              }}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              transition={{ type: "spring", damping: 28, stiffness: 320 }}
+              onClick={(e) => e.stopPropagation()}
+              className="fixed z-[210] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[691px] max-h-[85vh] overflow-y-auto"
+            >
+              {/* <MatchRoomRecap
+                stats={{
+                  users: presenceByRoom[recapRoom.roomId]?.totalJoinCount ?? 0,
+                  posts: countsByRoom[recapRoom.roomId]?.post ?? 0,
+                  predictions: countsByRoom[recapRoom.roomId]?.prediction ?? 0,
+                  debates: countsByRoom[recapRoom.roomId]?.debate ?? 0,
+                }}
+              /> */}
+              <MatchRoomRecap
+                roomStart={recapData?.timing?.roomStart}
+                roomEnd={recapData?.timing?.roomEnd}
+                date={recapData?.timing?.date}
+                duration={recapData?.timing?.duration}
+                topPost={recapData ? (recapData.topPost ?? null) : undefined}
+                topDebate={recapData ? (recapData.topDebate ? { author: recapData.topDebate.author, quote: recapData.topDebate.quote, likes: recapData.topDebate.agrees } : null) : undefined}
+                topPrediction={recapData ? (recapData.topPrediction ?? null) : undefined}
+                predictionPoll={recapData ? (recapData.predictionPoll ?? null) : undefined}
+                topContributors={recapData?.topContributors}
+                mvp={recapData ? (recapData.mvp ?? null) : undefined}
+                stats={{
+                  users: presenceByRoom[recapRoom.roomId]?.totalJoinCount ?? 0,
+                  posts: countsByRoom[recapRoom.roomId]?.post ?? 0,
+                  predictions: countsByRoom[recapRoom.roomId]?.prediction ?? 0,
+                  debates: countsByRoom[recapRoom.roomId]?.debate ?? 0,
+                }}
+              />
+              {/* <button
+                type="button"
+                onClick={() => setRecapRoom(null)}
+                className="mt-3 w-full py-2 rounded-full bg-white/[0.04] border border-white/[0.06] text-white/40 text-[11px] font-medium"
+              >
+                Close
+              </button> */}
+              <div className="mt-3 mb-5 flex gap-2">
+                <motion.button
+                  whileTap={{ scale: 0.97 }}
+                  type="button"
+                  onClick={() => {
+                    const room = recapRoom;
+                    const dataSnapshot = recapData;
+                    setRecapRoom(null);
+                    if (room) handleShareRecap(room, dataSnapshot);
+                  }}
+                  className="flex-1 py-2 rounded-full text-white text-[11px] font-bold flex items-center justify-center gap-1.5"
+                  style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
+                >
+                  <Share2 size={12} />
+                  Share Recap
+                </motion.button>
+                <button
+                  type="button"
+                  onClick={() => setRecapRoom(null)}
+                  className="flex-1 py-2 rounded-full bg-white/[0.04] border border-white/[0.06] text-white/40 text-[11px] font-medium"
+                >
+                  Close
+                </button>
+              </div>
             </motion.div>
           </>
         )}

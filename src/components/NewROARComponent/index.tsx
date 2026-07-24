@@ -612,6 +612,7 @@ import { useRoarNotifications } from "@/context/RoarNotificationsContext";
 import { RoarProfileProvider, useRoarProfileContext } from "@/context/RoarProfileContext";
 import RoomPostDetailsOverlay from "./components/RoomPostDetailsOverlay";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 
 
 export default function ROARApp() {
@@ -619,6 +620,7 @@ export default function ROARApp() {
   const containerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
+   const { authReady } = useAuth();
   const [likingPosts, setLikingPosts] = useState<Set<string>>(new Set());
   const roomRefreshRef = useRef<(() => void) | null>(null);
   const roomReplyUpdateRef = useRef<((postId: string, count: number) => void) | null>(null);
@@ -638,8 +640,12 @@ export default function ROARApp() {
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState<string | undefined>();
   const pathname = typeof window !== "undefined" ? window.location.pathname : "/MainModules/ROAR";
 
-  useEffect(() => {
+useEffect(() => {
     setMounted(true);
+  }, []);
+
+  useEffect(() => {
+     if (!authReady) return;
     const checkProfile = async () => {
       try {
         const res = await axios.get("/api/roar/profile");
@@ -650,13 +656,28 @@ export default function ROARApp() {
           setCurrentUsername(u.username || "RoarUser");
           setCurrentUserId(u.actualUserId);
           setCurrentAvatarUrl(u.avatarUrl || undefined);
+
+          // Explicitly check the onboardingCompleted flag rather than
+          // inferring it from whether a profile doc exists — an existing
+          // user's profile can exist while onboardingCompleted is still
+          // false/undefined (e.g. it predates this field).
+          let completed = false;
           try {
-            localStorage.setItem("roar_v2_complete", "1");
-            localStorage.setItem("roar_badge", u.badge || "RISING_FAN");
-            localStorage.setItem("roar_username", u.username || "RoarUser");
-            if (u.avatarUrl) localStorage.setItem("roar_avatar_url", u.avatarUrl);
-          } catch { }
-          setOnboarded(true);
+            const ob = await axios.get("/api/roar/onboarding");
+            completed = Boolean(ob.data?.onboardingCompleted);
+          } catch (obErr) {
+            console.error("Failed to check onboarding status:", obErr);
+          }
+
+          if (completed) {
+            try {
+              localStorage.setItem("roar_v2_complete", "1");
+              localStorage.setItem("roar_badge", u.badge || "RISING_FAN");
+              localStorage.setItem("roar_username", u.username || "RoarUser");
+              if (u.avatarUrl) localStorage.setItem("roar_avatar_url", u.avatarUrl);
+            } catch { }
+          }
+          setOnboarded(completed);
           setChecking(false);
         } else {
           setOnboarded(false);
@@ -680,7 +701,7 @@ export default function ROARApp() {
       }
     };
     checkProfile();
-  }, []);
+  }, [authReady]);
 
   useEffect(() => {
     if (phog) {
@@ -1081,7 +1102,7 @@ export default function ROARApp() {
         const tempId = `temp-${Date.now()}`;
         // ➕ ADD THIS — same pattern used in DiscussionRoom.send()
         const clientMsgId = `${currentUserId || "anon"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-       const channelId = targetRoomId === PULSE_ROOM_ID ? (pulseChannelId ?? undefined) : undefined;
+        const channelId = targetRoomId === PULSE_ROOM_ID ? (pulseChannelId ?? undefined) : undefined;
         const optimisticMsg: any = {
           id: tempId, msgId: tempId,
           fan: { username: currentUsername, authorUid: currentUserId, badge: userBadge, avatarUrl: currentAvatarUrl },
@@ -1357,6 +1378,7 @@ export default function ROARApp() {
                     score={selectedRoom?.score}
                     scoreSubtitle={selectedRoom?.scoreSubtitle}
                     watchAlongRoomId={selectedRoom?.watchAlongRoomId}
+                    roomBotConfig={selectedRoom?.botConfig}
                     // onBack={() => { setOverlay(null); setActiveTab("home"); }}
                     onBack={() => {
                       if (window.history.state?.roarRoom) window.history.back();
