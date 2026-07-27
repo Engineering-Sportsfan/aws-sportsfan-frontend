@@ -873,35 +873,35 @@ export default function OpenRoomDiscussionRoom({
     }, []);
 
     const renameDollySession = useCallback(async (sessionId: string, newTitle: string) => {
-    if (!roomId) return;
-    setDollyHistory(prev => prev.map(s => s.sessionId === sessionId ? { ...s, title: newTitle } : s));
-    try {
-        await axios.patch(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { customTitle: newTitle }, { timeout: REQUEST_TIMEOUT_MS });
-    } catch {
-        onToast("Failed to rename conversation");
-        loadDollyHistory();
-    }
-}, [roomId, onToast, loadDollyHistory]);
+        if (!roomId) return;
+        setDollyHistory(prev => prev.map(s => s.sessionId === sessionId ? { ...s, title: newTitle } : s));
+        try {
+            await axios.patch(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { customTitle: newTitle }, { timeout: REQUEST_TIMEOUT_MS });
+        } catch {
+            onToast("Failed to rename conversation");
+            loadDollyHistory();
+        }
+    }, [roomId, onToast, loadDollyHistory]);
 
-const handleNewDollyChat = useCallback(() => {
-    dollyFetchTokenRef.current = Symbol();
-    setDollyQuestion("");
-    setDollyReplies([]);
-    setDollyActiveSessionId(undefined);
-    dollyActiveSessionIdRef.current = undefined;
-}, []);
+    const handleNewDollyChat = useCallback(() => {
+        dollyFetchTokenRef.current = Symbol();
+        setDollyQuestion("");
+        setDollyReplies([]);
+        setDollyActiveSessionId(undefined);
+        dollyActiveSessionIdRef.current = undefined;
+    }, []);
 
-const deleteDollySession = useCallback(async (sessionId: string) => {
-    if (!roomId) return;
-    setDollyHistory(prev => prev.filter(s => s.sessionId !== sessionId));
-    if (dollyActiveSessionId === sessionId) handleNewDollyChat();
-    try {
-        await axios.delete(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
-    } catch {
-        onToast("Failed to delete conversation");
-        loadDollyHistory();
-    }
-}, [roomId, dollyActiveSessionId, handleNewDollyChat, onToast, loadDollyHistory]);
+    const deleteDollySession = useCallback(async (sessionId: string) => {
+        if (!roomId) return;
+        setDollyHistory(prev => prev.filter(s => s.sessionId !== sessionId));
+        if (dollyActiveSessionId === sessionId) handleNewDollyChat();
+        try {
+            await axios.delete(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
+        } catch {
+            onToast("Failed to delete conversation");
+            loadDollyHistory();
+        }
+    }, [roomId, dollyActiveSessionId, handleNewDollyChat, onToast, loadDollyHistory]);
 
     const handleBack = (e: React.PointerEvent | React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onBack(); };
 
@@ -1444,6 +1444,48 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
                                 <p className="leading-snug text-white" style={{ fontSize: 10 }}>{p.text}</p>
 
 
+                                {/* {p.type === "prediction" && (() => {
+                                    const predictionOptions = Array.isArray(p.predictionOptions) && p.predictionOptions.length >= 2
+                                        ? p.predictionOptions : [p.sideA || "Option 1", p.sideB || "Option 2"];
+                                    const optionCounts = p.predictionOptionCounts ?? {};
+                                    const total = (p.agreeCount ?? 0) + (p.disagreeCount ?? 0) +
+                                        Object.values(optionCounts).reduce((s: number, c: unknown) => s + (Number(c) || 0), 0);
+                                    const pct = (c: number) => total > 0 ? Math.round((c / total) * 100) : 0;
+                                    const closed = Boolean(p.resolvedAt || p.closedAt || (p.closesAt && p.closesAt <= Date.now()));
+                                    const hasVoted = p.userVote === "agree" || p.userVote === "disagree" ||
+                                        (typeof p.userVote === "string" && p.userVote.startsWith("option_"));
+
+                                    return (
+                                        <div style={{ marginTop: 6 }}>
+                                            <div style={{ display: "flex", gap: 6, marginBottom: 3 }}>
+                                                {predictionOptions.slice(0, 2).map((label: string, i: number) => {
+                                                    const voteVal = i === 0 ? "agree" : "disagree";
+                                                    const active = p.userVote === voteVal;
+                                                    const count = i === 0 ? (p.agreeCount ?? 0) : (p.disagreeCount ?? 0);
+                                                    return (
+                                                        <button key={label} disabled={hasVoted || closed}
+                                                            onClick={(e) => { e.stopPropagation(); if (!hasVoted && !closed) handleVote(p.id, voteVal); }}
+                                                            style={{
+                                                                flex: 1, padding: 6, fontSize: 10, fontWeight: 700, borderRadius: 0,
+                                                                border: `2px solid ${active ? "#ff6b35" : "#8b8b8b"}`,
+                                                                background: active ? "rgba(255,107,53,0.24)" : "rgba(255,255,255,0.02)",
+                                                                color: active ? "#fff" : "#d1d1d1", cursor: hasVoted || closed ? "default" : "pointer",
+                                                                opacity: hasVoted && !active ? 0.4 : 1
+                                                            }}>
+                                                            {label} <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 6 }}>{pct(count)}%</span>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {closed && p.resolvedAt && p.correctVote && (
+                                                <p style={{ fontSize: 10, color: "#22c55e", fontWeight: 800 }}>
+                                                    Correct answer: {p.correctVote === "agree" ? predictionOptions[0] : p.correctVote === "disagree" ? predictionOptions[1] : p.correctVote}
+                                                </p>
+                                            )}
+                                        </div>
+                                    );
+                                })()} */}
+
                                 {p.type === "prediction" && (() => {
                                     const predictionOptions = Array.isArray(p.predictionOptions) && p.predictionOptions.length >= 2
                                         ? p.predictionOptions : [p.sideA || "Option 1", p.sideB || "Option 2"];
@@ -1472,11 +1514,29 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
                                                                 color: active ? "#fff" : "#d1d1d1", cursor: hasVoted || closed ? "default" : "pointer",
                                                                 opacity: hasVoted && !active ? 0.4 : 1
                                                             }}>
-                                                            {label} <span style={{ fontSize: 9, fontWeight: 800, marginLeft:6 }}>{pct(count)}%</span>
+                                                            {label} <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 6 }}>{pct(count)}%</span>
                                                         </button>
                                                     );
                                                 })}
                                             </div>
+                                            {total > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); setVotersMsgId(p.id); setVotersMode("prediction"); }}
+                                                    style={{
+                                                        display: "flex", alignItems: "center", gap: 4,
+                                                        width: "100%", marginTop: 1, marginBottom: 4,
+                                                        padding: "4px 8px", borderRadius: 6,
+                                                        background: "rgba(255,107,53,0.08)",
+                                                        border: "1px solid rgba(255,107,53,0.22)",
+                                                        cursor: "pointer", color: "#ff8a5c",
+                                                        fontSize: 9, fontWeight: 700,
+                                                    }}
+                                                >
+                                                    <Users size={10} />
+                                                    <span>View Votes</span>
+                                                </button>
+                                            )}
                                             {closed && p.resolvedAt && p.correctVote && (
                                                 <p style={{ fontSize: 10, color: "#22c55e", fontWeight: 800 }}>
                                                     Correct answer: {p.correctVote === "agree" ? predictionOptions[0] : p.correctVote === "disagree" ? predictionOptions[1] : p.correctVote}
@@ -1485,6 +1545,36 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
                                         </div>
                                     );
                                 })()}
+
+                                {/* {p.type === "debate" && (() => {
+                                    const liveTotal = (p.agreeCount ?? 0) + (p.disagreeCount ?? 0);
+                                    const agrPct = liveTotal > 0 ? Math.round(((p.agreeCount ?? 0) / liveTotal) * 100) : 50;
+                                    const hasVoted = p.userVote === "agree" || p.userVote === "disagree";
+                                    const sideA = p.sideA || "Side A", sideB = p.sideB || "Side B";
+                                    return (
+                                        <div style={{ marginTop: 6 }}>
+                                            <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                                                {[{ label: sideA, val: "agree" }, { label: sideB, val: "disagree" }].map(({ label, val }) => {
+                                                    const active = p.userVote === val;
+                                                    return (
+                                                        <button key={val} disabled={hasVoted}
+                                                            onClick={(e) => { e.stopPropagation(); if (!hasVoted) handleVote(p.id, val); }}
+                                                            style={{
+                                                                flex: 1, padding: 6, fontSize: 10, fontWeight: 700, borderRadius: 0,
+                                                                border: `2px solid ${active ? "#e91e8c" : "#8b8b8b"}`,
+                                                                background: active ? "#e91e8c" : "rgba(255,255,255,0.02)",
+                                                                color: active ? "#fff" : "#d1d1d1", cursor: hasVoted ? "default" : "pointer",
+                                                                opacity: hasVoted && !active ? 0.4 : 1
+                                                            }}>
+                                                            {active ? "✓ " : ""}{label}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                            <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{agrPct}% / {100 - agrPct}% · {liveTotal} votes</div>
+                                        </div>
+                                    );
+                                })()} */}
 
                                 {p.type === "debate" && (() => {
                                     const liveTotal = (p.agreeCount ?? 0) + (p.disagreeCount ?? 0);
@@ -1511,6 +1601,24 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
                                                     );
                                                 })}
                                             </div>
+                                            {liveTotal > 0 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => { e.stopPropagation(); setVotersMsgId(p.id); setVotersMode("debate"); }}
+                                                    style={{
+                                                        display: "flex", alignItems: "center", gap: 4,
+                                                        width: "100%", marginBottom: 4,
+                                                        padding: "4px 8px", borderRadius: 6,
+                                                        background: "rgba(233,30,140,0.07)",
+                                                        border: "1px solid rgba(233,30,140,0.22)",
+                                                        cursor: "pointer", color: "var(--accent-magenta, #e91e8c)",
+                                                        fontSize: 9, fontWeight: 700,
+                                                    }}
+                                                >
+                                                    <Users size={10} />
+                                                    <span>View Votes</span>
+                                                </button>
+                                            )}
                                             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{agrPct}% / {100 - agrPct}% · {liveTotal} votes</div>
                                         </div>
                                     );
@@ -1643,7 +1751,7 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
                             </div>
                         )}
 
-                        <div className="flex items-center w-full gap-0.5 ml-1">
+                        <div className="flex items-center w-full gap-0.5 -mb-1">
                             <button type="button" onClick={() => triggerUpload("image")} disabled={uploading} className="bg-transparent border-none -ml-1.5 text-white/40 cursor-pointer flex items-center justify-center p-1 shrink-0">
                                 {/* <Image size={16} /> */}
                                 <img src="/images/gallerybg.png" alt="gallery" className="w-5 h-5 object-cover" />
@@ -1865,7 +1973,7 @@ const deleteDollySession = useCallback(async (sessionId: string) => {
                 //     setDollyActiveSessionId(undefined);
                 //     dollyActiveSessionIdRef.current = undefined;
                 // }}
-                
+
                 constrainedToParent={false}
             />
 

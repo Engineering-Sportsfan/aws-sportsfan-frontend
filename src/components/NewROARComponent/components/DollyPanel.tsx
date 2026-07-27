@@ -749,7 +749,7 @@ export default function DollyPanel({
                                             </div>
                                             <div className="flex items-center gap-1 mt-0.5">
                                                 <Lock size={10} className="text-white/40" />
-                                                <span className="text-[10.5px] text-white/40">Private · only you see this</span>
+                                                <span className="text-[10.5px] text-white/40">Private</span>
                                             </div>
                                         </div>
                                         <button

@@ -8,6 +8,11 @@
 // import type { Room } from "../types";
 // import DiscussionRoom from "./DiscussionRoom";
 // import OpenRoomDiscussionRoom from "./OpenRoomDiscussionRoom";
+// import MockPlayDiscussionRoom from "../mockRoom/MockPlayDiscussionRoom";
+// import { isMockRoomId, canViewMockRooms, listMockRoomsForDisplay } from "../mockRoom/mockRoomAccess";
+// import CreateRoomWizard from "./CreateRoomWizard";
+// import { Plus } from "lucide-react";
+// import MatchRoomRecap from "../components/MatchRoomRecap";
 
 // const SPORT_GRADIENT: Record<string, string> = {
 //   cricket: "linear-gradient(135deg,#7c3aed,#4f46e5)",
@@ -22,7 +27,7 @@
 // };
 
 // const INFINITY_ROOM_ID = "vZFu6xEApNRd1aUbDuHW";
-// const VISIBLE_ROOM_IDS = ["3XRaFu2Dueyhnamou0Ie"];
+// const VISIBLE_ROOM_IDS = ["3XRaFu2Dueyhnamou0Ie", "BYrWzF3CjS93eLJwBjtF"]; //oC7GcrqeG6Ita6twcqG6
 // const SHARE_CARD_BG = "/images/roomprofilecard.png";
 
 // // The always-on aggregated feed room shown under the "Roar Pulse" tab.
@@ -129,6 +134,109 @@
 
 //     canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
 //   });
+// }
+
+// function generateRecapShareCard(
+//   bgImg: HTMLImageElement,
+//   room: Room,
+//   recapData: any,
+//   counts: RoomCounts
+// ): Promise<Blob | null> {
+//   return new Promise((resolve) => {
+//     const canvas = document.createElement("canvas");
+//     canvas.width = 1340;
+//     canvas.height = 752;
+//     const ctx = canvas.getContext("2d");
+//     if (!ctx) return resolve(null);
+
+//     try {
+//       ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+//     } catch (e) {
+//       console.error("[RoomsHome] Recap canvas draw failed:", e);
+//       return resolve(null);
+//     }
+
+//     ctx.font = "bold 46px Arial";
+//     ctx.fillStyle = "#ffffff";
+//     ctx.textAlign = "center";
+//     ctx.fillText(`${room.name} — Recap`, canvas.width / 2, 200);
+
+//     if (recapData?.timing?.date) {
+//       ctx.font = "28px Arial";
+//       ctx.fillStyle = "rgba(255,255,255,0.65)";
+//       ctx.fillText(String(recapData.timing.date), canvas.width / 2, 245);
+//     }
+
+//     if (recapData?.mvp?.username) {
+//       ctx.font = "bold 30px Arial";
+//       ctx.fillStyle = "#F2B705";
+//       ctx.fillText("⭐ MVP", canvas.width / 2, 330);
+
+//       ctx.font = "bold 44px Arial";
+//       ctx.fillStyle = "#ffffff";
+//       ctx.fillText(recapData.mvp.username, canvas.width / 2, 385);
+
+//       if (recapData.mvp.points !== undefined) {
+//         ctx.font = "26px Arial";
+//         ctx.fillStyle = "rgba(255,255,255,0.6)";
+//         ctx.fillText(`${recapData.mvp.points} pts`, canvas.width / 2, 420);
+//       }
+//     }
+
+//     const pollWinner = recapData?.predictionPoll?.options?.length
+//       ? [...recapData.predictionPoll.options].sort((a: any, b: any) => b.percent - a.percent)[0]
+//       : null;
+//     if (pollWinner) {
+//       ctx.font = "bold 24px Arial";
+//       ctx.fillStyle = "rgba(255,255,255,0.55)";
+//       ctx.fillText("🔮 TOP CALL", canvas.width / 2, 470);
+
+//       ctx.font = "bold 34px Arial";
+//       ctx.fillStyle = "#ffffff";
+//       ctx.fillText(`${pollWinner.label} — ${pollWinner.percent}%`, canvas.width / 2, 505);
+//     }
+
+//     const stats = [
+//       { label: "POSTS", value: counts.post, x: 200 },
+//       { label: "DEBATES", value: counts.debate, x: 460 },
+//       { label: "PREDICTIONS", value: counts.prediction, x: 740 },
+//       { label: "CONTRIBUTORS", value: recapData?.topContributors?.length ?? 0, x: 1080 },
+//     ];
+
+//     stats.forEach(({ label, value, x }) => {
+//       const y = 610;
+//       ctx.font = "bold 56px Arial";
+//       ctx.fillStyle = "#ffffff";
+//       ctx.textAlign = "center";
+//       ctx.fillText(String(value), x, y);
+
+//       ctx.font = "bold 26px Arial";
+//       ctx.fillStyle = "rgba(255,255,255,0.55)";
+//       ctx.fillText(label, x, y + 40);
+//     });
+
+//     canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
+//   });
+// }
+
+// function buildRecapShareText(room: Room, recapData: any, shareUrl: string) {
+//   const lines = [`🏆 ${room.name} — Match Recap`, ""];
+
+//   if (recapData?.mvp?.username) {
+//     lines.push(`⭐ MVP: ${recapData.mvp.username}`);
+//   }
+//   const pollWinner = recapData?.predictionPoll?.options?.length
+//     ? [...recapData.predictionPoll.options].sort((a: any, b: any) => b.percent - a.percent)[0]
+//     : null;
+//   if (pollWinner) {
+//     lines.push(`🔮 Top call: ${pollWinner.label} (${pollWinner.percent}%)`);
+//   }
+//   if (recapData?.topContributors?.length) {
+//     lines.push(`🥇 Top fan: ${recapData.topContributors[0]?.username ?? "—"}`);
+//   }
+
+//   lines.push("", `Catch the full recap 👉 ${shareUrl}`, "#StartRoaring #Sportsfan360");
+//   return lines.join("\n");
 // }
 
 // function StackedAvatars({
@@ -246,10 +354,34 @@
 //             textShadow: "0 1px 6px rgba(0,0,0,0.5)",
 //           }}
 //         >
-//           ★ ROAR ROOM ★
+//           {/* ★ ROAR ROOM ★ */}
 //         </span>
 //       </div>
 //     </div>
+//   );
+// }
+
+// function StartRoomBanner({ onClick }: { onClick: () => void }) {
+//   return (
+//     <button
+//       type="button"
+//       onClick={onClick}
+//       className="w-full mb-4 rounded-2xl border border-white/[0.08] bg-gradient-to-r from-[#1a0f1a] to-[#1a120a] px-4 py-3.5 flex items-center justify-between gap-3 text-left cursor-pointer"
+//     >
+//       <div className="min-w-0">
+//         <p className="text-white text-[14px] font-extrabold leading-tight">Start your own room</p>
+//         <p className="text-white/40 text-[11px] font-medium mt-0.5 truncate">
+//           Cricket, Football, Tennis &amp; more
+//         </p>
+//       </div>
+//       <span
+//         className="shrink-0 flex items-center gap-1 rounded-full text-white text-[12px] font-bold px-4 py-2.5"
+//         style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
+//       >
+//         <Plus size={13} />
+//         Create Room
+//       </span>
+//     </button>
 //   );
 // }
 
@@ -306,17 +438,21 @@
 //   onToast,
 //   presence,
 //   onShare,
+//   onRecap,
 //   sharingRoomId,
 //   counts,
+//   isMock,
 // }: {
 //   room: Room;
 //   index: number;
 //   onJoin: (r: Room) => void;
+//   onRecap: (room: Room) => void;
 //   onToast: (m: string) => void;
 //   presence?: { fanCount: number; fans: ActiveFan[]; totalJoinCount?: number };
 //   onShare: (room: Room) => void;
 //   sharingRoomId?: string | null;
 //   counts?: RoomCounts;
+//   isMock?: boolean;
 // }) {
 //   const isFuture =
 //     room.scheduledStartTime !== undefined &&
@@ -351,8 +487,13 @@
 
 //         <div className="flex-1 min-w-0">
 //           {sport !== "default" && !isInfinityRoom && (
-//             <div className="mb-1">
+//             <div className="mb-1 flex items-center gap-1.5">
 //               <SportBadge sport={sport} />
+//               {isMock && (
+//                 <span className="text-[7px] font-bold uppercase tracking-wider px-1 py-1 rounded-full inline-block bg-[#F2B705]/20 text-[#F2B705]">
+//                   Internal
+//                 </span>
+//               )}
 //             </div>
 //           )}
 
@@ -364,36 +505,54 @@
 //             {room.description ?? "Roar conversations"}
 //           </p>
 
-//           <StackedAvatars
-//             fans={liveFans}
-//             count={liveFanCount}
-//             loaded={presenceLoaded}
-//             totalJoinCount={totalJoinCount}
-//           />
+//           {!isMock && (
+//             <StackedAvatars
+//               fans={liveFans}
+//               count={liveFanCount}
+//               loaded={presenceLoaded}
+//               totalJoinCount={totalJoinCount}
+//             />
+//           )}
 //         </div>
 //       </div>
 
-//       <div className="mt-3">
-//         <RoomStatsRow counts={counts} />
-//       </div>
+//       {!isMock && (
+//         <div className="mt-3">
+//           <RoomStatsRow counts={counts} />
+//         </div>
+//       )}
 
 //       <div className="flex items-center gap-2 mt-3">
+//         {!isMock && (
+//           <motion.button
+//             whileTap={{ scale: 0.96 }}
+//             onClick={(e) => {
+//               e.stopPropagation();
+//               if (sharingRoomId === room.roomId) return;
+//               onShare(room);
+//             }}
+//             disabled={sharingRoomId === room.roomId}
+//             className="flex-[0.42] py-2.5 rounded-full border border-white/15 bg-[#1a1a1e] text-white/85 text-[12px] font-bold flex items-center justify-center gap-1.5 hover:border-white/30 transition-colors duration-150 disabled:opacity-50"
+//           >
+//             {/* {sharingRoomId === room.roomId ? (
+//               <div className="w-3 h-3 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
+//             ) : (
+//               <BarChart3 size={13} />
+//             )} */}
+//             Share Stats
+//           </motion.button>
+//         )}
+
 //         <motion.button
 //           whileTap={{ scale: 0.96 }}
 //           onClick={(e) => {
 //             e.stopPropagation();
-//             if (sharingRoomId === room.roomId) return;
-//             onShare(room);
+//             onRecap(room);
 //           }}
-//           disabled={sharingRoomId === room.roomId}
-//           className="flex-[0.42] py-2.5 rounded-full border border-white/15 bg-[#1a1a1e] text-white/85 text-[12px] font-bold flex items-center justify-center gap-1.5 hover:border-white/30 transition-colors duration-150 disabled:opacity-50"
+//           className="flex-[0.42] py-2.5 rounded-full border border-white/15 bg-[#1a1a1e] text-white/85 text-[12px] font-bold flex items-center justify-center gap-1.5 hover:border-white/30 transition-colors duration-150"
 //         >
-//           {sharingRoomId === room.roomId ? (
-//             <div className="w-3 h-3 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" />
-//           ) : (
-//             <BarChart3 size={13} />
-//           )}
-//           Share Stats
+//           {/* <BarChart3 size={13} /> */}
+//           Recap
 //         </motion.button>
 
 //         <motion.button
@@ -404,7 +563,8 @@
 //             onJoin(room);
 //           }}
 //           className={[
-//             "flex-[0.58] py-2.5 rounded-full text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors duration-150 text-white",
+//             isMock ? "flex-1" : "flex-[0.58]",
+//             "py-2.5 rounded-full text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors duration-150 text-white",
 //             isFuture ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
 //           ].join(" ")}
 //           style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
@@ -443,6 +603,16 @@
 // }: Props) {
 //   const scrollRef = useRef<HTMLDivElement>(null);
 //   const [activeTab, setActiveTab] = useState<"pulse" | "rooms">("pulse");
+//   const [showCreateRoom, setShowCreateRoom] = useState(false);
+//   const [recapRoom, setRecapRoom] = useState<Room | null>(null);
+//   const [recapData, setRecapData] = useState<any>(null);
+//   const [recapLoading, setRecapLoading] = useState(false);
+//   // Internal-only demo rooms (mockRoom/) — never hit the DB, gated by
+//   // currentUserId containing "sportsfan". Opened in a local full-screen
+//   // overlay rather than routed through onJoinRoom/DiscussionRoom, since
+//   // they aren't real backend rooms.
+//   const [activeMockRoomId, setActiveMockRoomId] = useState<string | null>(null);
+//   const canSeeMockRooms = canViewMockRooms([currentUserId]);
 
 //   type PresenceByRoom = {
 //     [roomId: string]: { fanCount: number; fans: ActiveFan[]; totalJoinCount?: number };
@@ -450,7 +620,11 @@
 //   const [presenceByRoom, setPresenceByRoom] = useState<PresenceByRoom>({});
 //   const [countsByRoom, setCountsByRoom] = useState<Record<string, RoomCounts>>({});
 
+//   // const [shareRoom, setShareRoom] = useState<Room | null>(null);
+//   // const [shareCounts, setShareCounts] = useState<RoomCounts | null>(null);
+
 //   const [shareRoom, setShareRoom] = useState<Room | null>(null);
+//   const [shareKind, setShareKind] = useState<"stats" | "recap">("stats");
 //   const [shareCounts, setShareCounts] = useState<RoomCounts | null>(null);
 //   const [shareLoading, setShareLoading] = useState(false);
 //   const [copied, setCopied] = useState(false);
@@ -466,6 +640,20 @@
 //   const [nativeShareBusy, setNativeShareBusy] = useState(false);
 
 //   const [isMobile, setIsMobile] = useState(false);
+
+//   const openRecap = async (room: Room) => {
+//     setRecapRoom(room);
+//     setRecapData(null);
+//     setRecapLoading(true);
+//     try {
+//       const res = await axios.get(`/api/roar/rooms/${room.roomId}/recap`);
+//       setRecapData(res.data.hasData ? res.data : null);
+//     } catch {
+//       setRecapData(null);
+//     } finally {
+//       setRecapLoading(false);
+//     }
+//   };
 
 //   useEffect(() => {
 //     const check = () => setIsMobile(window.innerWidth < 768);
@@ -494,10 +682,25 @@
 //     return bgLoadPromiseRef.current;
 //   };
 
-//   const allRooms = rooms.filter((r) => VISIBLE_ROOM_IDS.includes(r.roomId));
+//   const dbRooms = rooms.filter((r) => VISIBLE_ROOM_IDS.includes(r.roomId));
+
+//   // Synthetic Room entries for the two mock rooms, only ever present for
+//   // gated accounts. isMockRoomId()/getMockRoomDefinition() in the join
+//   // handler is what actually decides how they render — this array is
+//   // display-only.
+//   const mockRoomsAsRoomCards: Room[] = canSeeMockRooms
+//     ? listMockRoomsForDisplay().map((meta) => ({
+//       roomId: meta.roomId,
+//       name: meta.title,
+//       description: meta.subtitle,
+//       sport: meta.roomSports,
+//     })) as Room[]
+//     : [];
+
+//   const allRooms = [...dbRooms, ...mockRoomsAsRoomCards];
 
 //   useEffect(() => {
-//     const roomIds = allRooms.map((r) => r.roomId);
+//     const roomIds = dbRooms.map((r) => r.roomId);
 //     if (roomIds.length === 0) return;
 
 //     let cancelled = false;
@@ -566,13 +769,13 @@
 //   };
 
 //   useEffect(() => {
-//     const roomIds = allRooms.map((r) => r.roomId);
+//     const roomIds = dbRooms.map((r) => r.roomId);
 //     if (roomIds.length === 0) return;
 
 //     let cancelled = false;
 //     const fetchAllCounts = async () => {
 //       const results = await Promise.all(
-//         allRooms.map(async (room) => {
+//         dbRooms.map(async (room) => {
 //           const counts = await fetchRoomCounts(room);
 //           return [room.roomId, counts] as const;
 //         })
@@ -602,11 +805,28 @@
 //     URL.revokeObjectURL(url);
 //   };
 
+//   const handleJoin = (room: Room) => {
+//     if (isMockRoomId(room.roomId)) {
+//       if (!canSeeMockRooms) return; // defense in depth — card shouldn't even be visible
+//       setActiveMockRoomId(room.roomId);
+//       return;
+//     }
+//     onJoinRoom(room);
+//   };
+
+//   // const handleShare = async (room: Room) => {
+//   //   const requestId = Symbol();
+//   //   shareRequestTokenRef.current = requestId;
+
+//   //   setShareRoom(room);
+//   //   setShareCounts(null);
+
 //   const handleShare = async (room: Room) => {
 //     const requestId = Symbol();
 //     shareRequestTokenRef.current = requestId;
 
 //     setShareRoom(room);
+//     setShareKind("stats");
 //     setShareCounts(null);
 //     setCopied(false);
 //     setCardBlob(null);
@@ -650,6 +870,54 @@
 //     }
 //   };
 
+//   const handleShareRecap = async (room: Room, recapDataForShare: any) => {
+//     const requestId = Symbol();
+//     shareRequestTokenRef.current = requestId;
+
+//     setShareRoom(room);
+//     setShareKind("recap");
+//     setShareCounts(countsByRoom[room.roomId] ?? EMPTY_COUNTS);
+//     setCopied(false);
+//     setCardBlob(null);
+//     setCardFailed(false);
+//     if (cardPreviewUrl) { URL.revokeObjectURL(cardPreviewUrl); setCardPreviewUrl(null); }
+
+//     setShareLoading(false);
+//     setSharingRoomId(room.roomId);
+//     setCardGenerating(true);
+
+//     try {
+//       const bgImg = await loadBgImage().catch(() => null);
+//       if (shareRequestTokenRef.current !== requestId) return;
+
+//       if (!bgImg) {
+//         setCardFailed(true);
+//         setCardGenerating(false);
+//         return;
+//       }
+
+//       const blob = await generateRecapShareCard(
+//         bgImg,
+//         room,
+//         recapDataForShare,
+//         countsByRoom[room.roomId] ?? EMPTY_COUNTS
+//       );
+//       if (shareRequestTokenRef.current !== requestId) return;
+
+//       if (blob) {
+//         setCardBlob(blob);
+//         setCardPreviewUrl(URL.createObjectURL(blob));
+//       } else {
+//         setCardFailed(true);
+//       }
+//     } finally {
+//       if (shareRequestTokenRef.current === requestId) {
+//         setCardGenerating(false);
+//         setSharingRoomId(null);
+//       }
+//     }
+//   };
+
 //   const closeShare = () => {
 //     shareRequestTokenRef.current = null;
 //     setShareRoom(null);
@@ -662,8 +930,16 @@
 //     if (cardPreviewUrl) { URL.revokeObjectURL(cardPreviewUrl); setCardPreviewUrl(null); }
 //   };
 
+//   // const shareUrl = shareRoom ? buildRoomShareUrl(shareRoom) : "";
+//   // const shareText = shareRoom && shareCounts ? buildRoomShareText(shareRoom, shareCounts, shareUrl) : "";
+
 //   const shareUrl = shareRoom ? buildRoomShareUrl(shareRoom) : "";
-//   const shareText = shareRoom && shareCounts ? buildRoomShareText(shareRoom, shareCounts, shareUrl) : "";
+//   const shareText =
+//     shareRoom && shareCounts
+//       ? shareKind === "recap"
+//         ? buildRecapShareText(shareRoom, recapData, shareUrl)
+//         : buildRoomShareText(shareRoom, shareCounts, shareUrl)
+//       : "";
 
 //   const handleNativeImageShare = async () => {
 //     if (!shareRoom || !cardBlob) return;
@@ -774,6 +1050,42 @@
 
 //   const myRoomsBadgeCount = allRooms.length;
 
+//   // Mock room overlay takes over the whole RoomsHome surface — it's a
+//   // self-contained static room, not part of the tab/list chrome below.
+//   if (showCreateRoom) {
+//     return (
+//       <CreateRoomWizard
+//         onCancel={() => setShowCreateRoom(false)}
+//         onToast={onToast}
+//         onCreated={(room) => {
+//           setShowCreateRoom(false);
+//           onToast(`${room.name} created!`);
+//           // Jump straight into the new room. onJoinRoom expects a full Room —
+//           // this is enough of one for DiscussionRoom to open with.
+//           onJoinRoom({ roomId: room.roomId, name: room.name, description: room.description, sport: room.sport } as Room);
+//         }}
+//       />
+//     );
+//   }
+
+//   if (activeMockRoomId) {
+//     return (
+//       <div
+//         style={{
+//           position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+//           display: "flex", flexDirection: "column", overflow: "hidden",
+//         }}
+//       >
+//         <MockPlayDiscussionRoom
+//           roomId={activeMockRoomId}
+//           onBack={() => setActiveMockRoomId(null)}
+//           currentUsername={currentUserId ?? "You"}
+//           currentAvatarUrl={currentAvatarUrl}
+//         />
+//       </div>
+//     );
+//   }
+
 //   return (
 //     <div
 //       style={{
@@ -874,7 +1186,7 @@
 //             onRegisterReplyUpdate={onRegisterReplyUpdate}
 //             onRegisterInjectPost={onRegisterInjectPost}
 //             onRegisterOptimisticSwap={onRegisterOptimisticSwap}
-//              onChannelChange={onPulseChannelChange}
+//             onChannelChange={onPulseChannelChange}
 //           />
 //         </div>
 //       ) : (
@@ -901,17 +1213,22 @@
 //               paddingLeft: 16, paddingRight: 16, paddingBottom: 32,
 //             }}
 //           >
+
+//             <StartRoomBanner onClick={() => setShowCreateRoom(true)} />
+
 //             {allRooms.map((room, i) => (
 //               <RoomCard
 //                 key={room.roomId}
 //                 room={room}
 //                 index={i}
-//                 onJoin={onJoinRoom}
+//                 onJoin={handleJoin}
+//                 onRecap={openRecap}
 //                 onToast={onToast}
 //                 presence={presenceByRoom[room.roomId]}
 //                 onShare={handleShare}
 //                 sharingRoomId={sharingRoomId}
 //                 counts={countsByRoom[room.roomId]}
+//                 isMock={isMockRoomId(room.roomId)}
 //               />
 //             ))}
 //             <div style={{ height: 86 }} />
@@ -1029,9 +1346,98 @@
 //           </>
 //         )}
 //       </AnimatePresence>
+
+
+//       <AnimatePresence>
+//         {recapRoom && (
+//           <>
+//             <motion.div
+//               initial={{ opacity: 0 }}
+//               animate={{ opacity: 1 }}
+//               exit={{ opacity: 0 }}
+//               onClick={() => setRecapRoom(null)}
+//               style={{
+//                 position: "fixed",
+//                 inset: 0,
+//                 zIndex: 200,
+//                 background: "rgba(0,0,0,0.75)",
+//                 backdropFilter: "blur(4px)",
+//               }}
+//             />
+//             <motion.div
+//               initial={{ opacity: 0, y: 20, scale: 0.95 }}
+//               animate={{ opacity: 1, y: 0, scale: 1 }}
+//               exit={{ opacity: 0, y: 20, scale: 0.95 }}
+//               transition={{ type: "spring", damping: 28, stiffness: 320 }}
+//               onClick={(e) => e.stopPropagation()}
+//               className="fixed z-[210] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[691px] max-h-[85vh] overflow-y-auto"
+//             >
+//               {/* <MatchRoomRecap
+//                 stats={{
+//                   users: presenceByRoom[recapRoom.roomId]?.totalJoinCount ?? 0,
+//                   posts: countsByRoom[recapRoom.roomId]?.post ?? 0,
+//                   predictions: countsByRoom[recapRoom.roomId]?.prediction ?? 0,
+//                   debates: countsByRoom[recapRoom.roomId]?.debate ?? 0,
+//                 }}
+//               /> */}
+//               <MatchRoomRecap
+//                 roomStart={recapData?.timing?.roomStart}
+//                 roomEnd={recapData?.timing?.roomEnd}
+//                 date={recapData?.timing?.date}
+//                 duration={recapData?.timing?.duration}
+//                 topPost={recapData ? (recapData.topPost ?? null) : undefined}
+//                 topDebate={recapData ? (recapData.topDebate ? { author: recapData.topDebate.author, quote: recapData.topDebate.quote, likes: recapData.topDebate.agrees } : null) : undefined}
+//                 topPrediction={recapData ? (recapData.topPrediction ?? null) : undefined}
+//                 predictionPoll={recapData ? (recapData.predictionPoll ?? null) : undefined}
+//                 topContributors={recapData?.topContributors}
+//                 mvp={recapData ? (recapData.mvp ?? null) : undefined}
+//                 stats={{
+//                   users: presenceByRoom[recapRoom.roomId]?.totalJoinCount ?? 0,
+//                   posts: countsByRoom[recapRoom.roomId]?.post ?? 0,
+//                   predictions: countsByRoom[recapRoom.roomId]?.prediction ?? 0,
+//                   debates: countsByRoom[recapRoom.roomId]?.debate ?? 0,
+//                 }}
+//               />
+//               {/* <button
+//                 type="button"
+//                 onClick={() => setRecapRoom(null)}
+//                 className="mt-3 w-full py-2 rounded-full bg-white/[0.04] border border-white/[0.06] text-white/40 text-[11px] font-medium"
+//               >
+//                 Close
+//               </button> */}
+//               <div className="mt-3 mb-5 flex gap-2">
+//                 <motion.button
+//                   whileTap={{ scale: 0.97 }}
+//                   type="button"
+//                   onClick={() => {
+//                     const room = recapRoom;
+//                     const dataSnapshot = recapData;
+//                     setRecapRoom(null);
+//                     if (room) handleShareRecap(room, dataSnapshot);
+//                   }}
+//                   className="flex-1 py-2 rounded-full text-white text-[11px] font-bold flex items-center justify-center gap-1.5"
+//                   style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
+//                 >
+//                   <Share2 size={12} />
+//                   Share Recap
+//                 </motion.button>
+//                 <button
+//                   type="button"
+//                   onClick={() => setRecapRoom(null)}
+//                   className="flex-1 py-2 rounded-full bg-white/[0.04] border border-white/[0.06] text-white/40 text-[11px] font-medium"
+//                 >
+//                   Close
+//                 </button>
+//               </div>
+//             </motion.div>
+//           </>
+//         )}
+//       </AnimatePresence>
 //     </div>
 //   );
 // }
+
+
 
 
 
@@ -1050,6 +1456,7 @@ import { isMockRoomId, canViewMockRooms, listMockRoomsForDisplay } from "../mock
 import CreateRoomWizard from "./CreateRoomWizard";
 import { Plus } from "lucide-react";
 import MatchRoomRecap from "../components/MatchRoomRecap";
+import { useSearchParams } from "next/navigation";
 
 const SPORT_GRADIENT: Record<string, string> = {
   cricket: "linear-gradient(135deg,#7c3aed,#4f46e5)",
@@ -1064,7 +1471,7 @@ const SPORT_IMAGE: Record<string, string> = {
 };
 
 const INFINITY_ROOM_ID = "vZFu6xEApNRd1aUbDuHW";
-const VISIBLE_ROOM_IDS = ["3XRaFu2Dueyhnamou0Ie",]; //oC7GcrqeG6Ita6twcqG6
+const VISIBLE_ROOM_IDS = ["3XRaFu2Dueyhnamou0Ie", "BYrWzF3CjS93eLJwBjtF"]; //oC7GcrqeG6Ita6twcqG6
 const SHARE_CARD_BG = "/images/roomprofilecard.png";
 
 // The always-on aggregated feed room shown under the "Roar Pulse" tab.
@@ -1359,7 +1766,15 @@ function StackedAvatars({
   );
 }
 
-function RoomThumbnail({ room, isInfinityRoom }: { room: Room; isInfinityRoom?: boolean }) {
+function RoomThumbnail({
+  room,
+  isInfinityRoom,
+  isEnded,
+}: {
+  room: Room;
+  isInfinityRoom?: boolean;
+  isEnded?: boolean;
+}) {
   const sport = (room.sport ?? "default").toLowerCase();
   const gradient = SPORT_GRADIENT[sport] ?? SPORT_GRADIENT.default;
   const imgSrc = isInfinityRoom
@@ -1368,8 +1783,11 @@ function RoomThumbnail({ room, isInfinityRoom }: { room: Room; isInfinityRoom?: 
 
   return (
     <div
-      className="w-[110px] h-[110px] min-w-[110px] rounded-xl relative overflow-hidden shrink-0"
-      style={{ background: gradient }}
+      className={[
+        "w-[110px] h-[110px] min-w-[110px] rounded-xl relative overflow-hidden shrink-0",
+        isEnded ? "grayscale opacity-60" : "",
+      ].join(" ")}
+      style={{ background: isEnded ? "#2a2a30" : gradient }}
     >
       <img
         src={imgSrc}
@@ -1478,6 +1896,7 @@ function RoomCard({
   onRecap,
   sharingRoomId,
   counts,
+  matchEndAt,
   isMock,
 }: {
   room: Room;
@@ -1489,11 +1908,25 @@ function RoomCard({
   onShare: (room: Room) => void;
   sharingRoomId?: string | null;
   counts?: RoomCounts;
+  matchEndAt?: number | null;
   isMock?: boolean;
 }) {
   const isFuture =
     room.scheduledStartTime !== undefined &&
     room.scheduledStartTime > Date.now();
+
+  // A room is "ended" once the match's end time has passed. matchEndAt is
+  // fetched from the same post payload PredictionsLivePanel reads
+  // matchStartAt from, so it only becomes available once that data loads —
+  // until then the room is never treated as ended.
+  const [nowMs, setNowMs] = useState(Date.now());
+  useEffect(() => {
+    if (!matchEndAt) return; // nothing to tick towards
+    const iv = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(iv);
+  }, [matchEndAt]);
+
+  const isEnded = matchEndAt !== undefined && matchEndAt !== null && matchEndAt < nowMs;
 
   const sport = (room.sport ?? "default").toLowerCase();
   const presenceLoaded = presence !== undefined;
@@ -1516,11 +1949,16 @@ function RoomCard({
       initial={{ opacity: 0, y: 14 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.07 }}
-      className="mb-4 rounded-2xl border border-white/[0.08] bg-[#121218] overflow-hidden cursor-pointer hover:border-white/[0.14] transition-colors duration-150 p-3.5"
+      className={[
+        "mb-4 rounded-2xl border overflow-hidden cursor-pointer transition-colors duration-150 p-3.5",
+        isEnded
+          ? "border-white/[0.05] bg-[#1c1c22] grayscale opacity-60"
+          : "border-white/[0.08] bg-[#121218] hover:border-white/[0.14]",
+      ].join(" ")}
       onClick={handleCardClick}
     >
       <div className="flex gap-3 items-start">
-        <RoomThumbnail room={room} isInfinityRoom={isInfinityRoom} />
+        <RoomThumbnail room={room} isInfinityRoom={isInfinityRoom} isEnded={isEnded} />
 
         <div className="flex-1 min-w-0">
           {sport !== "default" && !isInfinityRoom && (
@@ -1529,6 +1967,11 @@ function RoomCard({
               {isMock && (
                 <span className="text-[7px] font-bold uppercase tracking-wider px-1 py-1 rounded-full inline-block bg-[#F2B705]/20 text-[#F2B705]">
                   Internal
+                </span>
+              )}
+              {isEnded && (
+                <span className="text-[7px] font-bold uppercase tracking-wider px-1 py-1 rounded-full inline-block bg-white/10 text-white/50">
+                  Ended
                 </span>
               )}
             </div>
@@ -1601,12 +2044,17 @@ function RoomCard({
           }}
           className={[
             isMock ? "flex-1" : "flex-[0.58]",
-            "py-2.5 rounded-full text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors duration-150 text-white",
+            "py-2.5 rounded-full text-[12px] font-bold flex items-center justify-center gap-1.5 transition-colors duration-150",
+            isEnded ? "text-white/70" : "text-white",
             isFuture ? "opacity-40 cursor-not-allowed" : "cursor-pointer",
           ].join(" ")}
-          style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
+          style={{
+            background: isEnded
+              ? "rgba(255,255,255,0.08)"
+              : "linear-gradient(135deg,#E91E8C,#FF6B35)",
+          }}
         >
-          {isFuture ? "Coming Soon" : "Join Room"}
+          {isFuture ? "Coming Soon" : isEnded ? "View Room" : "Join Room"}
           {!isFuture && <ArrowRight size={13} />}
         </motion.button>
       </div>
@@ -1644,6 +2092,7 @@ export default function RoomsHome({
   const [recapRoom, setRecapRoom] = useState<Room | null>(null);
   const [recapData, setRecapData] = useState<any>(null);
   const [recapLoading, setRecapLoading] = useState(false);
+  const searchParams = useSearchParams();
   // Internal-only demo rooms (mockRoom/) — never hit the DB, gated by
   // currentUserId containing "sportsfan". Opened in a local full-screen
   // overlay rather than routed through onJoinRoom/DiscussionRoom, since
@@ -1656,6 +2105,10 @@ export default function RoomsHome({
   };
   const [presenceByRoom, setPresenceByRoom] = useState<PresenceByRoom>({});
   const [countsByRoom, setCountsByRoom] = useState<Record<string, RoomCounts>>({});
+  // matchEndAt per room, read off the same /messages payload PredictionsLivePanel
+  // uses (post.matchEndAt, mirroring post.matchStartAt). null/undefined = unknown,
+  // in which case the room is never treated as "ended".
+  const [matchEndByRoom, setMatchEndByRoom] = useState<Record<string, number | null>>({});
 
   // const [shareRoom, setShareRoom] = useState<Room | null>(null);
   // const [shareCounts, setShareCounts] = useState<RoomCounts | null>(null);
@@ -1813,14 +2266,36 @@ export default function RoomsHome({
     const fetchAllCounts = async () => {
       const results = await Promise.all(
         dbRooms.map(async (room) => {
-          const counts = await fetchRoomCounts(room);
-          return [room.roomId, counts] as const;
+          try {
+            // limit:1 is enough for counts (an aggregate field on the response),
+            // but matchEndAt lives on the predictions_live message specifically —
+            // same one PredictionsLivePanel reads matchStartAt from — so we need
+            // enough messages back to actually find it.
+            const res = await axios.get(`/api/roar/rooms/${room.roomId}/messages`, {
+              params: { limit: 50 },
+            });
+            const counts: RoomCounts = res.data?.counts ?? EMPTY_COUNTS;
+            const messages: any[] = res.data?.messages ?? [];
+            const predictionsLiveMsgs = messages
+              .filter((m) => m.type === "predictions_live" && m.matchEndAt != null)
+              .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+            const matchEndAt: number | null = predictionsLiveMsgs[0]?.matchEndAt ?? null;
+            return [room.roomId, counts, matchEndAt] as const;
+          } catch (e) {
+            console.error("Failed to fetch room stats:", e);
+            return [room.roomId, EMPTY_COUNTS, null] as const;
+          }
         })
       );
       if (cancelled) return;
       setCountsByRoom((prev) => {
         const next = { ...prev };
         results.forEach(([roomId, counts]) => { next[roomId] = counts; });
+        return next;
+      });
+      setMatchEndByRoom((prev) => {
+        const next = { ...prev };
+        results.forEach(([roomId, , matchEndAt]) => { next[roomId] = matchEndAt; });
         return next;
       });
     };
@@ -1850,6 +2325,21 @@ export default function RoomsHome({
     }
     onJoinRoom(room);
   };
+
+  useEffect(() => {
+    const roomIdFromEmail = searchParams.get("room");
+    const wantsRecap = searchParams.get("recap") === "1";
+    if (!roomIdFromEmail || !wantsRecap) return;
+
+    const targetRoom = rooms.find(r => r.roomId === roomIdFromEmail); 
+    if (targetRoom) {
+      openRecap(targetRoom);
+    } else {
+      axios.get(`/api/roar/rooms/${roomIdFromEmail}`)
+        .then(res => { if (res.data?.room) openRecap(res.data.room); })
+        .catch(() => onToast("Couldn't load that room's recap"));
+    }
+  }, [searchParams, rooms]);
 
   // const handleShare = async (room: Room) => {
   //   const requestId = Symbol();
@@ -2265,6 +2755,7 @@ export default function RoomsHome({
                 onShare={handleShare}
                 sharingRoomId={sharingRoomId}
                 counts={countsByRoom[room.roomId]}
+                matchEndAt={matchEndByRoom[room.roomId]}
                 isMock={isMockRoomId(room.roomId)}
               />
             ))}
