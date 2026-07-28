@@ -1471,7 +1471,7 @@ const SPORT_IMAGE: Record<string, string> = {
 };
 
 const INFINITY_ROOM_ID = "vZFu6xEApNRd1aUbDuHW";
-const VISIBLE_ROOM_IDS = ["3XRaFu2Dueyhnamou0Ie", "BYrWzF3CjS93eLJwBjtF"]; //oC7GcrqeG6Ita6twcqG6
+const VISIBLE_ROOM_IDS = ["3XRaFu2Dueyhnamou0Ie", "BYrWzF3CjS93eLJwBjtF",]; //oC7GcrqeG6Ita6twcqG6
 const SHARE_CARD_BG = "/images/roomprofilecard.png";
 
 // The always-on aggregated feed room shown under the "Roar Pulse" tab.
@@ -2267,12 +2267,8 @@ export default function RoomsHome({
       const results = await Promise.all(
         dbRooms.map(async (room) => {
           try {
-            // limit:1 is enough for counts (an aggregate field on the response),
-            // but matchEndAt lives on the predictions_live message specifically —
-            // same one PredictionsLivePanel reads matchStartAt from — so we need
-            // enough messages back to actually find it.
             const res = await axios.get(`/api/roar/rooms/${room.roomId}/messages`, {
-              params: { limit: 50 },
+              params: { limit: 500 },
             });
             const counts: RoomCounts = res.data?.counts ?? EMPTY_COUNTS;
             const messages: any[] = res.data?.messages ?? [];
@@ -2287,6 +2283,7 @@ export default function RoomsHome({
           }
         })
       );
+
       if (cancelled) return;
       setCountsByRoom((prev) => {
         const next = { ...prev };
@@ -2331,7 +2328,7 @@ export default function RoomsHome({
     const wantsRecap = searchParams.get("recap") === "1";
     if (!roomIdFromEmail || !wantsRecap) return;
 
-    const targetRoom = rooms.find(r => r.roomId === roomIdFromEmail); 
+    const targetRoom = rooms.find(r => r.roomId === roomIdFromEmail);
     if (targetRoom) {
       openRecap(targetRoom);
     } else {

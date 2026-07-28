@@ -56,26 +56,26 @@ import DollyPanel, { type DollyHistorySession } from "@/src/components/NewROARCo
 export default function HomePage() {
   const router = useRouter();
   const REQUEST_TIMEOUT_MS = 12000;
-const DOLLY_ROOM_ID = "NMryj1w7t8mJpGzEvF9q"; // same "Open Room" used as openRoomId below
+  const DOLLY_ROOM_ID = "NMryj1w7t8mJpGzEvF9q"; // same "Open Room" used as openRoomId below
 
-const [dollyOpen, setDollyOpen] = useState(false);
-const [dollyQuestion, setDollyQuestion] = useState("");
-const [dollyAsking, setDollyAsking] = useState(false);
-const [dollyReplies, setDollyReplies] = useState<{ id: string; question: string; answer: string; createdAt: number }[]>([]);
-const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
-const [dollyHistoryLoading, setDollyHistoryLoading] = useState(false);
-const [dollyHistoryLoadingMore, setDollyHistoryLoadingMore] = useState(false);
-const dollyHistoryCursorRef = useRef<number | undefined>(undefined);
-const dollyHistoryExhaustedRef = useRef(false);
-const [dollyActiveSessionId, setDollyActiveSessionId] = useState<string | undefined>(undefined);
-const dollyActiveSessionIdRef = useRef<string | undefined>(undefined);
-const [dollyRepliesLoading, setDollyRepliesLoading] = useState(false);
-const dollyFetchTokenRef = useRef<symbol | null>(null);
+  const [dollyOpen, setDollyOpen] = useState(false);
+  const [dollyQuestion, setDollyQuestion] = useState("");
+  const [dollyAsking, setDollyAsking] = useState(false);
+  const [dollyReplies, setDollyReplies] = useState<{ id: string; question: string; answer: string; createdAt: number }[]>([]);
+  const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
+  const [dollyHistoryLoading, setDollyHistoryLoading] = useState(false);
+  const [dollyHistoryLoadingMore, setDollyHistoryLoadingMore] = useState(false);
+  const dollyHistoryCursorRef = useRef<number | undefined>(undefined);
+  const dollyHistoryExhaustedRef = useRef(false);
+  const [dollyActiveSessionId, setDollyActiveSessionId] = useState<string | undefined>(undefined);
+  const dollyActiveSessionIdRef = useRef<string | undefined>(undefined);
+  const [dollyRepliesLoading, setDollyRepliesLoading] = useState(false);
+  const dollyFetchTokenRef = useRef<symbol | null>(null);
 
-useEffect(() => {
-  dollyActiveSessionIdRef.current = dollyActiveSessionId;
-}, [dollyActiveSessionId]);
-  
+  useEffect(() => {
+    dollyActiveSessionIdRef.current = dollyActiveSessionId;
+  }, [dollyActiveSessionId]);
+
 
   // TODO: replace with real API data (e.g. from your existing
   // presence-preview / rooms endpoints, same as RoomsHome.tsx)
@@ -159,83 +159,83 @@ useEffect(() => {
   };
 
   const loadDollyHistory = async () => {
-  setDollyHistoryLoading(true);
-  dollyHistoryCursorRef.current = undefined;
-  dollyHistoryExhaustedRef.current = false;
-  try {
-    const res = await axios.get(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/sessions`, { timeout: REQUEST_TIMEOUT_MS });
-    const sessions = res.data?.sessions ?? [];
-    setDollyHistory(sessions.map((s: any) => ({
-      sessionId: s.sessionId, roomId: DOLLY_ROOM_ID, title: s.title, subtitle: "", dateLabel: s.dateLabel,
-    })));
-    dollyHistoryCursorRef.current = res.data?.nextBefore;
-    if (sessions.length === 0) dollyHistoryExhaustedRef.current = true;
-  } catch {
-    setDollyHistory([]);
-  } finally {
-    setDollyHistoryLoading(false);
-  }
-};
-
-const loadMoreDollyHistory = async () => {
-  if (dollyHistoryExhaustedRef.current || dollyHistoryLoadingMore) return;
-  setDollyHistoryLoadingMore(true);
-  try {
-    const before = dollyHistoryCursorRef.current;
-    const res = await axios.get(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/sessions`, {
-      params: before ? { before } : undefined, timeout: REQUEST_TIMEOUT_MS,
-    });
-    const sessions = res.data?.sessions ?? [];
-    if (sessions.length === 0) {
-      dollyHistoryExhaustedRef.current = true;
-    } else {
-      setDollyHistory(prev => [...prev, ...sessions.map((s: any) => ({
+    setDollyHistoryLoading(true);
+    dollyHistoryCursorRef.current = undefined;
+    dollyHistoryExhaustedRef.current = false;
+    try {
+      const res = await axios.get(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/sessions`, { timeout: REQUEST_TIMEOUT_MS });
+      const sessions = res.data?.sessions ?? [];
+      setDollyHistory(sessions.map((s: any) => ({
         sessionId: s.sessionId, roomId: DOLLY_ROOM_ID, title: s.title, subtitle: "", dateLabel: s.dateLabel,
-      }))]);
+      })));
       dollyHistoryCursorRef.current = res.data?.nextBefore;
+      if (sessions.length === 0) dollyHistoryExhaustedRef.current = true;
+    } catch {
+      setDollyHistory([]);
+    } finally {
+      setDollyHistoryLoading(false);
     }
-  } catch { /* leave as-is */ }
-  finally { setDollyHistoryLoadingMore(false); }
-};
+  };
 
-const ensureDollySession = async (): Promise<string | null> => {
-  if (dollyActiveSessionId) return dollyActiveSessionId;
-  try {
-    const res = await axios.post(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/sessions`, {}, { timeout: REQUEST_TIMEOUT_MS });
-    const newId = res.data?.sessionId;
-    if (newId) { setDollyActiveSessionId(newId); dollyActiveSessionIdRef.current = newId; }
-    return newId ?? null;
-  } catch {
-    return null;
-  }
-};
+  const loadMoreDollyHistory = async () => {
+    if (dollyHistoryExhaustedRef.current || dollyHistoryLoadingMore) return;
+    setDollyHistoryLoadingMore(true);
+    try {
+      const before = dollyHistoryCursorRef.current;
+      const res = await axios.get(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/sessions`, {
+        params: before ? { before } : undefined, timeout: REQUEST_TIMEOUT_MS,
+      });
+      const sessions = res.data?.sessions ?? [];
+      if (sessions.length === 0) {
+        dollyHistoryExhaustedRef.current = true;
+      } else {
+        setDollyHistory(prev => [...prev, ...sessions.map((s: any) => ({
+          sessionId: s.sessionId, roomId: DOLLY_ROOM_ID, title: s.title, subtitle: "", dateLabel: s.dateLabel,
+        }))]);
+        dollyHistoryCursorRef.current = res.data?.nextBefore;
+      }
+    } catch { /* leave as-is */ }
+    finally { setDollyHistoryLoadingMore(false); }
+  };
 
-const handleNewDollyChat = () => {
-  dollyFetchTokenRef.current = Symbol();
-  setDollyQuestion("");
-  setDollyReplies([]);
-  setDollyActiveSessionId(undefined);
-  dollyActiveSessionIdRef.current = undefined;
-};
+  const ensureDollySession = async (): Promise<string | null> => {
+    if (dollyActiveSessionId) return dollyActiveSessionId;
+    try {
+      const res = await axios.post(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/sessions`, {}, { timeout: REQUEST_TIMEOUT_MS });
+      const newId = res.data?.sessionId;
+      if (newId) { setDollyActiveSessionId(newId); dollyActiveSessionIdRef.current = newId; }
+      return newId ?? null;
+    } catch {
+      return null;
+    }
+  };
 
-const renameDollySession = async (sessionId: string, newTitle: string) => {
-  setDollyHistory(prev => prev.map(s => s.sessionId === sessionId ? { ...s, title: newTitle } : s));
-  try {
-    await axios.patch(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${sessionId}`, { customTitle: newTitle }, { timeout: REQUEST_TIMEOUT_MS });
-  } catch {
-    loadDollyHistory();
-  }
-};
+  const handleNewDollyChat = () => {
+    dollyFetchTokenRef.current = Symbol();
+    setDollyQuestion("");
+    setDollyReplies([]);
+    setDollyActiveSessionId(undefined);
+    dollyActiveSessionIdRef.current = undefined;
+  };
 
-const deleteDollySession = async (sessionId: string) => {
-  setDollyHistory(prev => prev.filter(s => s.sessionId !== sessionId));
-  if (dollyActiveSessionId === sessionId) handleNewDollyChat();
-  try {
-    await axios.delete(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
-  } catch {
-    loadDollyHistory();
-  }
-};
+  const renameDollySession = async (sessionId: string, newTitle: string) => {
+    setDollyHistory(prev => prev.map(s => s.sessionId === sessionId ? { ...s, title: newTitle } : s));
+    try {
+      await axios.patch(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${sessionId}`, { customTitle: newTitle }, { timeout: REQUEST_TIMEOUT_MS });
+    } catch {
+      loadDollyHistory();
+    }
+  };
+
+  const deleteDollySession = async (sessionId: string) => {
+    setDollyHistory(prev => prev.filter(s => s.sessionId !== sessionId));
+    if (dollyActiveSessionId === sessionId) handleNewDollyChat();
+    try {
+      await axios.delete(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
+    } catch {
+      loadDollyHistory();
+    }
+  };
 
   return (
     <div className="flex flex-col w-full min-h-screen">
@@ -259,73 +259,78 @@ const deleteDollySession = async (sessionId: string) => {
 
         <HeroCarousel cards={heroCards} />
 
-        <MyRoomsList
+        {/* <MyRoomsList
           rooms={rooms}
           presenceByRoom={presenceByRoom}
           countsByRoom={countsByRoom}
           openRoomId="NMryj1w7t8mJpGzEvF9q"
           onSeeAll={() => router.push("/MainModules/ROAR")}
           onEnter={(room) => router.push(`/MainModules/ROAR?room=${room.roomId}`)}
+        /> */}
+        <MyRoomsList
+          openRoomId="NMryj1w7t8mJpGzEvF9q"
+          onSeeAll={() => router.push("/MainModules/ROAR")}
+          onEnter={(room) => router.push(`/MainModules/ROAR?room=${room.roomId}`)}
         />
 
-<DollyPanel
-  isOpen={dollyOpen}
-  onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
-  onClose={() => setDollyOpen(false)}
-  activeSessionId={dollyActiveSessionId}
-  onNewChat={handleNewDollyChat}
-  question={dollyQuestion}
-  setQuestion={setDollyQuestion}
-  onRenameSession={renameDollySession}
-  onDeleteSession={deleteDollySession}
-  asking={dollyAsking}
-  onAsk={async () => {
-    const q = dollyQuestion.trim();
-    if (!q || dollyAsking) return;
-    setDollyAsking(true);
-    const sessionId = await ensureDollySession();
-    if (!sessionId) { setDollyAsking(false); return; }
-    const tempId = `temp-dolly-${Date.now()}`;
-    setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
-    setDollyQuestion("");
-    try {
-      const res = await axios.post(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${sessionId}`, { question: q }, { timeout: 30000 });
-      if (res.data?.success && dollyActiveSessionIdRef.current === sessionId) {
-        setDollyReplies(prev => prev.map(d => d.id === tempId ? res.data.reply : d));
-      }
-    } catch {
-      if (dollyActiveSessionIdRef.current === sessionId) {
-        setDollyReplies(prev => prev.map(d => d.id === tempId ? { ...d, answer: "Something went wrong — try again." } : d));
-      }
-    } finally { setDollyAsking(false); }
-  }}
-  replies={dollyReplies}
-  loadingReplies={dollyRepliesLoading}
-  history={dollyHistory}
-  loadingHistory={dollyHistoryLoading}
-  loadingMoreHistory={dollyHistoryLoadingMore}
-  onLoadMoreHistory={loadMoreDollyHistory}
-  onSelectHistorySession={async (session) => {
-    if (session.sessionId === dollyActiveSessionId) return;
-    const requestId = Symbol();
-    dollyFetchTokenRef.current = requestId;
-    setDollyActiveSessionId(session.sessionId);
-    dollyActiveSessionIdRef.current = session.sessionId;
-    setDollyRepliesLoading(true);
-    try {
-      const res = await axios.get(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${session.sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
-      if (dollyFetchTokenRef.current !== requestId) return;
-      setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
-    } catch {
-      if (dollyFetchTokenRef.current === requestId) setDollyReplies([]);
-    } finally {
-      if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false);
-    }
-  }}
-  roomKind="lobby"
-  constrainedToParent={false}
-/>
-        
+        <DollyPanel
+          isOpen={dollyOpen}
+          onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
+          onClose={() => setDollyOpen(false)}
+          activeSessionId={dollyActiveSessionId}
+          onNewChat={handleNewDollyChat}
+          question={dollyQuestion}
+          setQuestion={setDollyQuestion}
+          onRenameSession={renameDollySession}
+          onDeleteSession={deleteDollySession}
+          asking={dollyAsking}
+          onAsk={async () => {
+            const q = dollyQuestion.trim();
+            if (!q || dollyAsking) return;
+            setDollyAsking(true);
+            const sessionId = await ensureDollySession();
+            if (!sessionId) { setDollyAsking(false); return; }
+            const tempId = `temp-dolly-${Date.now()}`;
+            setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
+            setDollyQuestion("");
+            try {
+              const res = await axios.post(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${sessionId}`, { question: q }, { timeout: 30000 });
+              if (res.data?.success && dollyActiveSessionIdRef.current === sessionId) {
+                setDollyReplies(prev => prev.map(d => d.id === tempId ? res.data.reply : d));
+              }
+            } catch {
+              if (dollyActiveSessionIdRef.current === sessionId) {
+                setDollyReplies(prev => prev.map(d => d.id === tempId ? { ...d, answer: "Something went wrong — try again." } : d));
+              }
+            } finally { setDollyAsking(false); }
+          }}
+          replies={dollyReplies}
+          loadingReplies={dollyRepliesLoading}
+          history={dollyHistory}
+          loadingHistory={dollyHistoryLoading}
+          loadingMoreHistory={dollyHistoryLoadingMore}
+          onLoadMoreHistory={loadMoreDollyHistory}
+          onSelectHistorySession={async (session) => {
+            if (session.sessionId === dollyActiveSessionId) return;
+            const requestId = Symbol();
+            dollyFetchTokenRef.current = requestId;
+            setDollyActiveSessionId(session.sessionId);
+            dollyActiveSessionIdRef.current = session.sessionId;
+            setDollyRepliesLoading(true);
+            try {
+              const res = await axios.get(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${session.sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
+              if (dollyFetchTokenRef.current !== requestId) return;
+              setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
+            } catch {
+              if (dollyFetchTokenRef.current === requestId) setDollyReplies([]);
+            } finally {
+              if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false);
+            }
+          }}
+          roomKind="lobby"
+          constrainedToParent={false}
+        />
+
         <StoreFeedSection />
       </div>
     </div>
