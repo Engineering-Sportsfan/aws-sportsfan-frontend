@@ -4140,13 +4140,46 @@ function QuizCard({ post, onToast, onPostClick, roomId, onFanProfile }: { post: 
   );
 }
 
+const BOT_AVATAR_MAP: Record<string, string> = {
+  dolly: "/images/dolly.png",
+  radha: "/images/radha.png",
+  krishna: "/images/krishna.png",
+};
+
+function getBotAvatarUrl(name?: string): string {
+  const key = (name || "").trim().toLowerCase();
+  return BOT_AVATAR_MAP[key] ?? BOT_AVATAR_MAP.dolly;
+}
+
+
+function getKnownBotAvatarUrl(name?: string): string | undefined {
+  const key = (name || "").trim().toLowerCase();
+  return BOT_AVATAR_MAP[key];
+}
+// function DollyCardHeader({ post, typeLabel, typeColor, typeIcon }: {
+//   post: any; typeLabel: string; typeColor: string; typeIcon: React.ReactNode;
+// }) {
+//   return (
+//     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+//       <img src="/images/dollyavatar.png" alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+//       <span style={{ fontWeight: 700, fontSize: 10, color: "#fff" }}>Dolly</span>
+//       <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)" }}>{post.timeAgo}</span>
+//       <span className={`text-[7px] font-extrabold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1`} style={{ background: `${typeColor}22`, color: typeColor, border: `1px solid ${typeColor}40` }}>
+//         {typeIcon} {typeLabel}
+//       </span>
+//     </div>
+//   );
+// }
+
+
 function DollyCardHeader({ post, typeLabel, typeColor, typeIcon }: {
   post: any; typeLabel: string; typeColor: string; typeIcon: React.ReactNode;
 }) {
+  const botName = post.botName || post.authorUsername || "Dolly";
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-      <img src="/images/dollyavatar.png" alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
-      <span style={{ fontWeight: 700, fontSize: 10, color: "#fff" }}>Dolly</span>
+      <img src={getBotAvatarUrl(botName)} alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+      <span style={{ fontWeight: 700, fontSize: 10, color: "#fff" }}>{botName}</span>
       <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)" }}>{post.timeAgo}</span>
       <span className={`text-[7px] font-extrabold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1`} style={{ background: `${typeColor}22`, color: typeColor, border: `1px solid ${typeColor}40` }}>
         {typeIcon} {typeLabel}
@@ -5205,7 +5238,14 @@ export default function DiscussionRoom({
     const isPending = pendingReactRef.current[m.msgId];
     return {
       id: m.msgId, authorUid: m.authorUid, authorEmail: m.authorEmail,
-      fan: { username: displayUsername(m.authorUsername), authorUid: m.authorUid, badge: m.authorBadge, avatarUrl: m.authorUid === currentUserId ? (userAvatarUrl || m.authorAvatarUrl || m.avatarUrl) : (m.authorAvatarUrl || m.avatarUrl) },
+      fan: { username: displayUsername(m.authorUsername), authorUid: m.authorUid, badge: m.authorBadge, 
+        // avatarUrl: m.authorUid === currentUserId ? (userAvatarUrl || m.authorAvatarUrl || m.avatarUrl) : (m.authorAvatarUrl || m.avatarUrl) },
+        avatarUrl:
+    getKnownBotAvatarUrl(m.authorUsername) ??
+    (m.authorUid === currentUserId
+      ? (userAvatarUrl || m.authorAvatarUrl || m.avatarUrl)
+      : (m.authorAvatarUrl || m.avatarUrl))},
+      
       text: m.text,
       fireCount: m.fireCount ?? 0, heartCount: m.heartCount ?? 0, mindblownCount: m.mindblownCount ?? 0,
       goatCount: m.goatCount ?? 0, clapCount: m.clapCount ?? 0, nochanceCount: m.noChanceCount ?? 0,
@@ -6446,7 +6486,7 @@ export default function DiscussionRoom({
                 )}
               </div>
 
-              {activeRoomBots.length > 0 && (
+              {/* {activeRoomBots.length > 0 && (
                 <div className="flex items-center gap-1.5 px-3 py-1 flex-wrap">
                   {activeRoomBots.map(b => (
                     <span
@@ -6455,6 +6495,25 @@ export default function DiscussionRoom({
                       style={{ background: "rgba(233,30,140,0.12)", color: "#e91e8c", border: "1px solid rgba(233,30,140,0.3)" }}
                     >
                       🤖 {b.name}{b.team ? ` · ${b.team}` : ""}
+                    </span>
+                  ))}
+                </div>
+              )} */}
+
+              {activeRoomBots.length > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1 flex-wrap">
+                  {activeRoomBots.map(b => (
+                    <span
+                      key={b.id}
+                      className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: "rgba(233,30,140,0.12)", color: "#e91e8c", border: "1px solid rgba(233,30,140,0.3)" }}
+                    >
+                      <img
+                        src={getBotAvatarUrl(b.name)}
+                        alt=""
+                        style={{ width: 12, height: 12, borderRadius: "50%", objectFit: "cover" }}
+                      />
+                      {b.name}{b.team ? ` · ${b.team}` : ""}
                     </span>
                   ))}
                 </div>
