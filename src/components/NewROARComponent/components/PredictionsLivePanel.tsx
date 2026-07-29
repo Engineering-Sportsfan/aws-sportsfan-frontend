@@ -623,6 +623,7 @@ interface PredictionsLivePanelProps {
   topReactionsMap: Record<string, string[]>;
   topReactionsCache: React.MutableRefObject<Record<string, string[]>>;
   fetchTopReactions: (msgId: string) => void;
+   matchEndAt?: number;
 }
 
 export default function PredictionsLivePanel({
@@ -630,11 +631,12 @@ export default function PredictionsLivePanel({
   openInlinePostId, setOpenInlinePostId,
   currentAvatarUrl, handleReact, localReactions, pendingReactRef,
   onPostClick, onFanProfile, setReactionsMsgId,
-  topReactionsMap, topReactionsCache, fetchTopReactions,
+  topReactionsMap, topReactionsCache, fetchTopReactions, matchEndAt,
 }: PredictionsLivePanelProps) {
   const latestPost = posts[0];
   const matchTitle: string = latestPost?.matchTitle ?? "LIVE";
   const matchStartAt: number | null = latestPost?.matchStartAt ?? null;
+  
 
 
   const flatQuestions: FlatQuestion[] = posts.flatMap((p, _pi) => {
@@ -706,6 +708,7 @@ if (computeAllVotedFromPersisted(posts, flatQuestions)) return false;
   //   const id = setInterval(() => setNowMs(Date.now()), 1000);
   //   return () => clearInterval(id);
   // }, []);
+const isMatchEnded = Boolean(matchEndAt && matchEndAt <= nowMs);
 
 
   const isQuestionExpired = (fq: FlatQuestion) =>
@@ -770,14 +773,14 @@ if (computeAllVotedFromPersisted(posts, flatQuestions)) return false;
     // Voting completion always wins — never force this panel open, whether
     // pre-match or post-match, once the fan has answered everything.
     if (allVoted) return;
-
-    if (!userToggledRef.current && matchStartAt) {
+  if (isMatchEnded) return;
+   if (!userToggledRef.current && matchStartAt) {
       const shouldBeExpanded = now < matchStartAt;
       setExpanded(prev => (prev !== shouldBeExpanded ? shouldBeExpanded : prev));
     }
   }, 1000);
   return () => clearInterval(id);
-}, [matchStartAt, allVoted]);
+}, [matchStartAt, allVoted, isMatchEnded]);
 
   // If server-side userPredictionVotes arrives/updates after the initial
   // render (e.g. the backend fix propagates via a later poll), fold it in —

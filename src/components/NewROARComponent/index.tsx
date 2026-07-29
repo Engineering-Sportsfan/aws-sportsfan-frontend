@@ -613,6 +613,7 @@ import { RoarProfileProvider, useRoarProfileContext } from "@/context/RoarProfil
 import RoomPostDetailsOverlay from "./components/RoomPostDetailsOverlay";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import MatchRoomRecap from "./components/MatchRoomRecap";
 
 
 export default function ROARApp() {
@@ -720,6 +721,23 @@ useEffect(() => {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
   const PULSE_ROOM_ID = "NMryj1w7t8mJpGzEvF9q";
+  const [recapRoom, setRecapRoom] = useState<Room | null>(null);
+const [recapData, setRecapData] = useState<any>(null);
+const [recapLoading, setRecapLoading] = useState(false);
+
+const openRecapForRoom = useCallback(async (room: Room) => {
+  setRecapRoom(room);
+  setRecapData(null);
+  setRecapLoading(true);
+  try {
+    const res = await axios.get(`/api/roar/rooms/${room.roomId}/recap`);
+    setRecapData(res.data.hasData ? res.data : null);
+  } catch {
+    setRecapData(null);
+  } finally {
+    setRecapLoading(false);
+  }
+}, []);
 
   // ── Room URL / back-button handling ────────────────────────────────────
   const openRoom = useCallback((room: Room) => {
@@ -1394,6 +1412,7 @@ useEffect(() => {
                     onRegisterInjectPost={fn => { roomInjectPostRef.current = fn; }}
                     onRegisterOptimisticSwap={fn => { roomOptimisticSwapRef.current = fn; }}
                     onFanProfile={handleFanProfileClick}
+                    onRecap={() => selectedRoom && openRecapForRoom(selectedRoom)}
                   />
                 </motion.div>
               ) : (
@@ -1472,6 +1491,49 @@ useEffect(() => {
       {onboarded && (
         <CreateFlashQuizModal open={quizOpen} onClose={() => setQuizOpen(false)} onPost={handlePost} />
       )}
+      {onboarded && recapRoom && (
+  <AnimatePresence>
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={() => setRecapRoom(null)}
+      style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(4px)" }}
+    />
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
+      transition={{ type: "spring", damping: 28, stiffness: 320 }}
+      onClick={(e) => e.stopPropagation()}
+      className="fixed z-[210] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[92vw] max-w-[691px] max-h-[85vh] overflow-y-auto"
+    >
+      <MatchRoomRecap
+        roomStart={recapData?.timing?.roomStart}
+        roomEnd={recapData?.timing?.roomEnd}
+        date={recapData?.timing?.date}
+        duration={recapData?.timing?.duration}
+        topPost={recapData ? (recapData.topPost ?? null) : undefined}
+        topDebate={recapData ? (recapData.topDebate ? { author: recapData.topDebate.author, quote: recapData.topDebate.quote, likes: recapData.topDebate.agrees } : null) : undefined}
+        topPrediction={recapData ? (recapData.topPrediction ?? null) : undefined}
+        predictionPoll={recapData ? (recapData.predictionPoll ?? null) : undefined}
+        topContributors={recapData?.topContributors}
+        mvp={recapData ? (recapData.mvp ?? null) : undefined}
+        stats={{
+          users: 0,
+          posts: 0,
+          predictions: 0,
+          debates: 0,
+        }}
+      />
+      <div className="mt-3 mb-5 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setRecapRoom(null)}
+          className="flex-1 py-2 rounded-full bg-white/[0.04] border border-white/[0.06] text-white/40 text-[11px] font-medium"
+        >
+          Close
+        </button>
+      </div>
+    </motion.div>
+  </AnimatePresence>
+)}
 
     </div>
   );

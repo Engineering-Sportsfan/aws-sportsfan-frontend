@@ -3346,6 +3346,7 @@ import PredictionsLivePanel from "../components/PredictionsLivePanel";
 import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
 import VotersDialog from "../components/VotersDialog";
 
+
 // Fail fast instead of hanging forever on flaky connections. Without this,
 // a request that never resolves (weak signal, backgrounded app, etc.) leaves
 // the corresponding "in flight" lock (sendingRef / pendingReactRef /
@@ -3379,6 +3380,7 @@ interface Props {
   roomBotConfig?: Record<string, { team: string | null; role: string } | false>;
   onRegisterInjectPost?: (fn: (post: any) => void) => void;
   onRegisterOptimisticSwap?: (fn: (tempId: string, realMsg?: any) => void) => void;
+  onRecap?: () => void;
 }
 
 const QUICK_REACT_OPTS = [
@@ -4935,7 +4937,7 @@ export default function DiscussionRoom({
   onBack, onToast, roomId, roomName, onPostClick, onCompose, showBackButton = true,
   fanCount = 312, score, scoreSubtitle, currentAvatarUrl, currentUserId: propCurrentUserId, onRegisterRefresh, onRegisterReplyUpdate,
   onRegisterInjectPost, onRegisterOptimisticSwap,
-  onFanProfile, watchAlongRoomId, roomBotConfig   
+  onFanProfile, watchAlongRoomId, roomBotConfig, onRecap
 }: Props) {
   const router = useRouter();
   const phog = usePostHog();
@@ -5939,7 +5941,7 @@ export default function DiscussionRoom({
   };
 
   const send = async () => {
-    if (!roomId) return;
+    if (!roomId || isMatchEnded) return;
     if (postCooldown > 0) return;
     const text = input.trim();
     if (!text && !attachedUrl) return;
@@ -6030,7 +6032,7 @@ export default function DiscussionRoom({
   };
 
   const handleQuickReactPost = async (opt: typeof QUICK_REACT_OPTS[0]) => {
-    if (!roomId) return;
+    if (!roomId || isMatchEnded) return;
     setShowQuickCompose(false);
     const memTag = opt.id.replace("qr_", "");
 
@@ -6286,6 +6288,9 @@ export default function DiscussionRoom({
       .filter((p) => p.type === "predictions_live")
       .sort((a, b) => b.createdAt - a.createdAt);
 
+  const matchEndAt: number | null = predictionsLivePosts.find(p => p.matchEndAt != null)?.matchEndAt ?? null;
+  const isMatchEnded = Boolean(matchEndAt && matchEndAt <= Date.now());
+
   type FeedItem =
     | { kind: "post"; data: any; sortKey: number }
     | { kind: "dolly"; data: typeof dollyReplies[0]; sortKey: number };
@@ -6457,6 +6462,16 @@ export default function DiscussionRoom({
 
               {/* Right side: Sound + Share + Score (no ActiveFansStack here anymore) */}
               <div className="flex items-center gap-1 flex-shrink-0">
+                {isMatchEnded && onRecap && (
+                  <button
+                    type="button"
+                    onClick={onRecap}
+                    className="flex-shrink-0 rounded-full px-2.5 h-[26px] flex items-center gap-1 text-[10px] font-bold cursor-pointer"
+                    style={{ background: "rgba(233,30,140,0.15)", border: "1px solid rgba(233,30,140,0.4)", color: "#e91e8c" }}
+                  >
+                    Recap Room
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={toggleSound}
@@ -6483,6 +6498,8 @@ export default function DiscussionRoom({
               </div>
             </div>
           </div>
+
+
 
           {/* Second row: Members section, only for normal rooms (Pulse already shows it up top) */}
           {showBackButton && (
@@ -6555,6 +6572,7 @@ export default function DiscussionRoom({
           topReactionsMap={topReactionsMap}
           topReactionsCache={topReactionsCache}
           fetchTopReactions={fetchTopReactions}
+          matchEndAt={matchEndAt ?? undefined}
         />
       )}
       <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0">
@@ -7083,13 +7101,14 @@ export default function DiscussionRoom({
             )}
 
             <div className="flex items-center w-full gap-0.5 ml-1">
-              <button type="button" onClick={() => triggerUpload("image")} disabled={uploading} className="bg-transparent border-none -ml-1.5 text-white/40 cursor-pointer flex items-center justify-center p-1 shrink-0">
+              <button type="button" onClick={() => triggerUpload("image")} disabled={uploading || isMatchEnded} className="bg-transparent border-none -ml-1.5 text-white/40 cursor-pointer flex items-center justify-center p-1 shrink-0">
                 <Image size={16} />
               </button>
 
               <button
                 type="button"
-                onClick={() => { setShowQuickCompose(prev => !prev); setShowEmojiPicker(false); }}
+                // onClick={() => { setShowQuickCompose(prev => !prev); setShowEmojiPicker(false); }}
+                onClick={() => { if (isMatchEnded) return; setShowQuickCompose(prev => !prev); setShowEmojiPicker(false); }}
                 className="bg-transparent border-none cursor-pointer flex items-center justify-center p-1 shrink-0"
                 style={{
                   color: showQuickCompose ? "#e91e8c" : "rgba(255,255,255,0.4)",
@@ -7125,12 +7144,12 @@ export default function DiscussionRoom({
                     onSelect={(u) => mention.insertMention(u, input, setInput, mainInputRef)}
                   />
                 )}
-                {input === "" && !uploading && postCooldown === 0 && (
+                {input === "" && !uploading && postCooldown === 0 && !isMatchEnded && (
                   <div className="absolute left-2.5 top-0 bottom-0 flex items-center pointer-events-none">
                     <span className="text-xs font-medium truncate" style={{ color: MODE_COLOR["post"] || "var(--text-secondary)" }}>{PLACEHOLDER["post"]}</span>
                   </div>
                 )}
-                <input
+                {/* <input
                   ref={mainInputRef}
                   type="text"
                   disabled={uploading || postCooldown > 0}
@@ -7150,11 +7169,37 @@ export default function DiscussionRoom({
                   placeholder={postCooldown > 0 ? `Wait ${postCooldown}s before posting …` : ""}
                   className="w-full h-8 rounded-[16px] bg-[var(--bg-secondary)] border border-[var(--border)] pl-2.5 pr-2.5 text-white text-xs outline-none"
                   style={{ opacity: postCooldown > 0 ? 0.5 : 1 }}
+                /> */}
+
+                <input
+                  ref={mainInputRef}
+                  type="text"
+                  disabled={uploading || postCooldown > 0 || isMatchEnded}
+                  value={input}
+                  onChange={e => {
+                    if (isMatchEnded) return;
+                    const value = e.target.value;
+                    setInput(value);
+                    mention.handleMentionInputChange(value, e.target.selectionStart || value.length);
+                  }}
+                  onKeyDown={e => {
+                    if (isMatchEnded) return;
+                    if (mention.handleMentionKeyDown(e, input, setInput, mainInputRef)) return;
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
+                  placeholder={isMatchEnded ? "Match ended —posting is closed" : postCooldown > 0 ? `Wait ${postCooldown}s before posting …` : ""}
+                  className="w-full h-8 rounded-[16px] bg-[var(--bg-secondary)] border border-[var(--border)] pl-2.5 pr-2.5 text-white text-xs outline-none"
+                  style={{ opacity: (postCooldown > 0 || isMatchEnded) ? 0.5 : 1 }}
                 />
               </div>
 
+              {/* <motion.button
+                whileTap={{ scale: 0.96 }} onClick={send} disabled={uploading || isSending || postCooldown > 0} */}
               <motion.button
-                whileTap={{ scale: 0.96 }} onClick={send} disabled={uploading || isSending || postCooldown > 0}
+                whileTap={{ scale: 0.96 }} onClick={send} disabled={uploading || isSending || postCooldown > 0 || isMatchEnded}
                 className="w-6 h-6 rounded-full border-none -mr-1 text-white text-base font-bold flex items-center justify-center cursor-pointer shrink-0 bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]"
                 style={{ opacity: uploading ? 0.5 : 1 }}
               >
