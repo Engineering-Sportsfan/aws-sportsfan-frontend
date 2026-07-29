@@ -10,7 +10,7 @@ import { UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import SportsFan360Footer from "@/src/components/footer-component/Footer";
 import { useAuth } from "@/context/AuthContext";
 import GlobalActionBar from "@/src/components/GlobalActionBar";
@@ -248,6 +248,29 @@ export default function MainModulesLayout({
   const [loading, setLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false); 
+  const bottomNavRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+  const el = bottomNavRef.current;
+  if (!el) return;
+
+  const setVar = () => {
+    const height = el.getBoundingClientRect().height;
+    document.documentElement.style.setProperty("--roar-bottom-nav-height", `${height}px`);
+  };
+
+  setVar();
+  const ro = new ResizeObserver(setVar);
+  ro.observe(el);
+  window.addEventListener("resize", setVar);
+  window.addEventListener("orientationchange", setVar);
+
+  return () => {
+    ro.disconnect();
+    window.removeEventListener("resize", setVar);
+    window.removeEventListener("orientationchange", setVar);
+  };
+}, []);
 
   useEffect(() => {
     async function fetchCurrentUser() {

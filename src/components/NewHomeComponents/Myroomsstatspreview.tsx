@@ -239,10 +239,6 @@ const SPORT_ICON_BG: Record<string, string> = {
   default: "linear-gradient(135deg,#7c3aed,#4f46e5)",
 };
 
-// Same visible room set RoomsHome.tsx uses. Hoist to a shared constants
-// file both screens import from if this drifts out of sync again.
-const DEFAULT_ROOM_IDS = ["3XRaFu2Dueyhnamou0Ie", "BYrWzF3CjS93eLJwBjtF"];
-
 function formatCount(n: number) {
   if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
   return `${n}`;
@@ -254,8 +250,8 @@ function formatCount(n: number) {
 //
 // Rooms are fetched via GET /api/roar/rooms (the same list endpoint
 // ROARApp.tsx's fetchRooms() uses to populate the `rooms` prop RoomsHome.tsx
-// receives), then filtered down to roomIds — NOT via GET /api/roar/rooms/{id}
-// per room, which currently 405s on this code path.
+// receives) — no static room-id allowlist anymore, all rooms returned by
+// that endpoint are shown.
 //
 // status:
 //   "loading" — first fetch in flight, nothing to show yet
@@ -263,33 +259,41 @@ function formatCount(n: number) {
 //               a legitimate empty result, so the UI can tell them apart
 //   "empty"   — fetch succeeded but resolved zero rooms
 //   "ready"   — fetch succeeded with at least one room
-function useRoomsPreviewData(roomIds: string[]) {
+function useRoomsPreviewData() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [presenceByRoom, setPresenceByRoom] = useState<Record<string, PresenceInfo>>({});
   const [countsByRoom, setCountsByRoom] = useState<Record<string, RoomCounts>>({});
   const [status, setStatus] = useState<"loading" | "error" | "empty" | "ready">("loading");
 
-  const key = roomIds.join(",");
-
   useEffect(() => {
-    if (roomIds.length === 0) {
-      setStatus("empty");
-      return;
-    }
     let cancelled = false;
     setStatus((prev) => (prev === "ready" ? prev : "loading"));
 
     const fetchAll = async () => {
       try {
-        const [allRoomsRes, presenceRes, countsResults] = await Promise.all([
-          axios.get(`/api/roar/rooms?t=${Date.now()}`).catch((err) => {
-            console.warn(
-              "[Myroomsstatspreview] GET /api/roar/rooms failed:",
-              err?.response?.status,
-              err?.response?.data ?? err?.message
-            );
-            return null;
-          }),
+        const allRoomsRes = await axios.get(`/api/roar/rooms?t=${Date.now()}`).catch((err) => {
+          console.warn(
+            "[Myroomsstatspreview] GET /api/roar/rooms failed:",
+            err?.response?.status,
+            err?.response?.data ?? err?.message
+          );
+          return null;
+        });
+
+        if (cancelled) return;
+
+        const fetchedRooms: Room[] = allRoomsRes?.data?.success ? allRoomsRes.data.rooms ?? [] : [];
+        const roomIds = fetchedRooms.map((r) => r.roomId);
+        setRooms(fetchedRooms);
+
+        if (roomIds.length === 0) {
+          setPresenceByRoom({});
+          setCountsByRoom({});
+          setStatus("empty");
+          return;
+        }
+
+        const [presenceRes, countsResults] = await Promise.all([
           axios.post("/api/roar/rooms/presence-preview", { roomIds }).catch((err) => {
             console.warn(
               "[Myroomsstatspreview] presence-preview failed:",
@@ -317,10 +321,6 @@ function useRoomsPreviewData(roomIds: string[]) {
 
         if (cancelled) return;
 
-        const allRooms: Room[] = allRoomsRes?.data?.success ? allRoomsRes.data.rooms ?? [] : [];
-        const fetchedRooms = allRooms.filter((r) => roomIds.includes(r.roomId));
-        setRooms(fetchedRooms);
-
         if (presenceRes?.data?.success) {
           setPresenceByRoom(presenceRes.data.rooms);
         }
@@ -343,8 +343,7 @@ function useRoomsPreviewData(roomIds: string[]) {
       if (!document.hidden) fetchAll();
     }, 30_000);
     return () => { cancelled = true; clearInterval(iv); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, []);
 
   return { rooms, presenceByRoom, countsByRoom, status };
 }
@@ -382,17 +381,15 @@ function MyRoomsEmptyState({ isError }: { isError: boolean }) {
  * renders explicit loading/empty/error states instead of rendering nothing.
  */
 export function MyRoomsList({
-  roomIds = DEFAULT_ROOM_IDS,
   openRoomId,
   onSeeAll,
   onEnter,
 }: {
-  roomIds?: string[];
   openRoomId: string;
   onSeeAll: () => void;
   onEnter: (room: Room) => void;
 }) {
-  const { rooms, presenceByRoom, countsByRoom, status } = useRoomsPreviewData(roomIds);
+  const { rooms, presenceByRoom, countsByRoom, status } = useRoomsPreviewData();
   const visibleRooms = rooms.filter((r) => r.roomId !== openRoomId);
 
   return (
@@ -505,13 +502,11 @@ export function MyRoomsList({
  * MyRoomsList uses, instead of taking hardcoded numbers as props.
  */
 export function RoarPulseLiveBar({
-  roomIds = DEFAULT_ROOM_IDS,
   onOpen,
 }: {
-  roomIds?: string[];
   onOpen: () => void;
 }) {
-  const { rooms, presenceByRoom, countsByRoom, status } = useRoomsPreviewData(roomIds);
+  const { rooms, presenceByRoom, countsByRoom, status } = useRoomsPreviewData();
   const loaded = status === "ready" || status === "empty";
 
   const stats = useMemo(() => {
