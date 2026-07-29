@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
   Search,
   Bell,
@@ -11,6 +11,7 @@ import {
   BarChart3,
   Play,
   Heart,
+  ChevronLeft,
   ChevronRight,
   MoreVertical,
   Volume2,
@@ -46,6 +47,19 @@ export default function AthleteProfile() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [cheerCount, setCheerCount] = useState(12400);
   const [isCheered, setIsCheered] = useState(false);
+
+  // Carousel refs
+  const hubScrollRef = useRef<HTMLDivElement>(null);
+  const medalScrollRef = useRef<HTMLDivElement>(null);
+
+  const scroll = useCallback((ref: React.RefObject<HTMLDivElement | null>, direction: "left" | "right") => {
+    if (!ref.current) return;
+    const scrollAmount = 200;
+    ref.current.scrollBy({
+      left: direction === "left" ? -scrollAmount : scrollAmount,
+      behavior: "smooth",
+    });
+  }, []);
 
   const handleCheer = () => {
     if (isCheered) {
@@ -379,42 +393,65 @@ export default function AthleteProfile() {
               </div>
             </div>
 
-            {/* Scrollable grid or horizontal list */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {[
-                { title: "VOD & Interviews", badge: "128", icon: "📹", color: "from-pink-500/10 to-red-500/10" },
-                { title: "AMS Sessions", badge: "36", icon: "🎙️", color: "from-purple-500/10 to-indigo-500/10" },
-                { title: "Bookings", badge: "24", icon: "📅", color: "from-blue-500/10 to-cyan-500/10" },
-                { title: "Store", badge: "158", icon: "🛍️", color: "from-emerald-500/10 to-teal-500/10" },
-                { title: "Auctions", badge: "82", icon: "🔨", color: "from-amber-500/10 to-orange-500/10" },
-              ].map((item, idx) => (
-             <div
-  key={idx}
-  className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.color} border border-white/10 p-5 h-[120px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 hover:border-[#FF0055]/40`}
->
-  {/* Background glow */}
-  <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10 blur-2xl group-hover:bg-[#FF0055]/20 transition-all duration-300" />
+            {/* Scrollable carousel on mobile, grid on sm+ */}
+            <div className="relative">
+              {/* Left arrow – mobile only */}
+              <button
+                onClick={() => scroll(hubScrollRef, "left")}
+                className="sm:hidden absolute -left-2 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:bg-[#FF0055]/80 transition-colors"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
 
-  {/* Badge */}
-  <span className="absolute top-3 right-3 min-w-6 h-6 px-2 flex items-center justify-center rounded-full bg-[#FF0055] text-[10px] font-semibold text-white shadow-lg">
-    {item.badge}
-  </span>
+              {/* Right arrow – mobile only */}
+              <button
+                onClick={() => scroll(hubScrollRef, "right")}
+                className="sm:hidden absolute -right-2 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:bg-[#FF0055]/80 transition-colors"
+                aria-label="Scroll right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
 
-  <div className="relative flex h-full flex-col justify-between">
-    {/* Icon */}
-    <div className="flex mb-4 p-8 h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-3xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
-      {item.icon}
-    </div>
+              <div
+                ref={hubScrollRef}
+                className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide sm:grid sm:grid-cols-3 sm:overflow-visible"
+              >
+                {[
+                  { title: "VOD & Interviews", badge: "128", icon: "📹", color: "from-pink-500/10 to-red-500/10" },
+                  { title: "AMS Sessions", badge: "36", icon: "🎙️", color: "from-purple-500/10 to-indigo-500/10" },
+                  { title: "Bookings", badge: "24", icon: "📅", color: "from-blue-500/10 to-cyan-500/10" },
+                  { title: "Store", badge: "158", icon: "🛍️", color: "from-emerald-500/10 to-teal-500/10" },
+                  { title: "Auctions", badge: "82", icon: "🔨", color: "from-amber-500/10 to-orange-500/10" },
+                ].map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.color} border border-white/10 p-5 h-[120px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 hover:border-[#FF0055]/40 snap-start min-w-[160px] shrink-0 sm:min-w-0 sm:shrink`}
+                  >
+                    {/* Background glow */}
+                    <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10 blur-2xl group-hover:bg-[#FF0055]/20 transition-all duration-300" />
 
-    {/* Title */}
-    <div>
-      <h4 className="text-sm font-semibold text-white leading-snug transition-colors duration-300 group-hover:text-[#FF0055]">
-        {item.title}
-      </h4>
-    </div>
-  </div>
-</div>
-              ))}
+                    {/* Badge */}
+                    <span className="absolute top-3 right-3 min-w-6 h-6 px-2 flex items-center justify-center rounded-full bg-[#FF0055] text-[10px] font-semibold text-white shadow-lg">
+                      {item.badge}
+                    </span>
+
+                    <div className="relative flex h-full flex-col justify-between">
+                      {/* Icon */}
+                      <div className="flex mb-4 p-8 h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-3xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+                        {item.icon}
+                      </div>
+
+                      {/* Title */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-white leading-snug transition-colors duration-300 group-hover:text-[#FF0055]">
+                          {item.title}
+                        </h4>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -645,26 +682,49 @@ export default function AthleteProfile() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-            {[
-              { title: "Olympics Gold", year: "2021", icon: "🥇", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
-              { title: "Olympics Silver", year: "2024", icon: "🥈", color: "from-slate-300/20 to-zinc-400/20", text: "text-slate-300" },
-              { title: "World Champ Gold", year: "2023", icon: "🏆", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
-              { title: "Asian Games Gold", year: "2018", icon: "🥇", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
-              { title: "CWG Gold", year: "2022", icon: "🥇", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
-              { title: "Diamond League Winner", year: "2022", icon: "💎", color: "from-cyan-400/20 to-blue-500/20", text: "text-cyan-400" },
-            ].map((medal, idx) => (
-              <div
-                key={idx}
-                className={`flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-br ${medal.color} border border-white/5 text-center`}
-              >
-                <span className="text-2xl mb-1.5">{medal.icon}</span>
-                <span className={`block text-[10px] font-extrabold ${medal.text} leading-tight h-8 flex items-center justify-center`}>
-                  {medal.title}
-                </span>
-                <span className="block text-[10px] text-gray-400 font-bold mt-1">{medal.year}</span>
-              </div>
-            ))}
+          <div className="relative">
+            {/* Left arrow – mobile only */}
+            <button
+              onClick={() => scroll(medalScrollRef, "left")}
+              className="sm:hidden absolute -left-2 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:bg-[#FF0055]/80 transition-colors"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            {/* Right arrow – mobile only */}
+            <button
+              onClick={() => scroll(medalScrollRef, "right")}
+              className="sm:hidden absolute -right-2 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:bg-[#FF0055]/80 transition-colors"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+
+            <div
+              ref={medalScrollRef}
+              className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide sm:grid sm:grid-cols-3 md:grid-cols-6 sm:overflow-visible"
+            >
+              {[
+                { title: "Olympics Gold", year: "2021", icon: "🥇", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
+                { title: "Olympics Silver", year: "2024", icon: "🥈", color: "from-slate-300/20 to-zinc-400/20", text: "text-slate-300" },
+                { title: "World Champ Gold", year: "2023", icon: "🏆", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
+                { title: "Asian Games Gold", year: "2018", icon: "🥇", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
+                { title: "CWG Gold", year: "2022", icon: "🥇", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
+                { title: "Diamond League Winner", year: "2022", icon: "💎", color: "from-cyan-400/20 to-blue-500/20", text: "text-cyan-400" },
+              ].map((medal, idx) => (
+                <div
+                  key={idx}
+                  className={`flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-br ${medal.color} border border-white/5 text-center snap-start min-w-[120px] shrink-0 sm:min-w-0 sm:shrink`}
+                >
+                  <span className="text-2xl mb-1.5">{medal.icon}</span>
+                  <span className={`block text-[10px] font-extrabold ${medal.text} leading-tight h-8 flex items-center justify-center`}>
+                    {medal.title}
+                  </span>
+                  <span className="block text-[10px] text-gray-400 font-bold mt-1">{medal.year}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
