@@ -4521,7 +4521,9 @@ function WaveInlineContent({
   const lo = localReactions[post.id];
   const joinedCount = lo !== undefined ? lo.heartCount : (post.heartCount ?? 0);
   const joined = (lo !== undefined ? lo.reaction : post.userReaction) != null;
-  const required = Math.max(6, Math.ceil((liveCount || 3) * 0.6));
+  // const required = Math.max(6, Math.ceil((liveCount || 3) * 0.6));
+  const half = Math.max(1, Math.ceil((liveCount || 2) / 2));
+const required = Math.max(1, Math.ceil((liveCount || 2) / half));
   const pct = Math.min(100, Math.round((joinedCount / required) * 100));
 
   const [hasFired, setHasFired] = useState(joinedCount >= required);

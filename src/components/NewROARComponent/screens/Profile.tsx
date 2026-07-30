@@ -1545,6 +1545,18 @@ export default function Profile({
   const [activityUserId, setActivityUserId] = useState<string | null>(null);
   const activityIdsRef = useRef<Set<string>>(new Set());
 
+  const BOT_USERNAMES = ["Dolly", "Radha", "Krishna"];
+  const BOT_BIOS: Record<string, string> = {
+    Dolly: "SportsFan360's AI companion — answers your questions and keeps the room buzzing.",
+    Radha: "SportsFan360 bot bringing hot takes, banter, and match-day energy to every room.",
+    Krishna: "SportsFan360 bot here to spark debates and keep the predictions coming.",
+  };
+  const BOT_AVATARS: Record<string, string> = {
+   Dolly: "/images/dolly.png",
+  Radha: "/images/radha.png",
+  Krishna: "/images/krishna.png",
+  };
+
   // Room name lookup: roomId -> { name, icon } (from /api/roar/rooms), used to label
   // activity cards with the actual room name instead of falling back to "General Room".
   const [roomsById, setRoomsById] = useState<Record<string, { name: string; icon?: string }>>({});
@@ -1802,6 +1814,8 @@ export default function Profile({
 
 
   const user = profileMetadata.user ?? CURRENT_USER;
+  const isBotProfile = BOT_USERNAMES.includes(user?.username);
+  const displayAvatar = selectedAvatar ?? (isBotProfile ? BOT_AVATARS[user.username] : null);
   const rival = profileMetadata.rival ?? RIVAL;
 
   const badgesToDisplay = user?.badges?.length ? user.badges : BADGES_LIST;
@@ -1938,7 +1952,7 @@ export default function Profile({
     setCoverPhoto(null);
   };
 
-  // ── WhatsApp / native image share ───────────────────────────────────────────
+  // ── WhatsApp / native image share 
   const handleWhatsAppShare = async () => {
     if (sharingImage) return;
     setSharingImage(true);
@@ -2015,6 +2029,18 @@ export default function Profile({
   // ── Render
   return (
     <div className="screen-scroll">
+      <style>{`
+  .profile-avatar-fill, .profile-avatar-fill > * {
+    width: 100% !important;
+    height: 100% !important;
+  }
+  .profile-avatar-fill img, .profile-avatar-fill svg {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    border-radius: 50%;
+  }
+`}</style>
 
       {/* ── Top header bar ── */}
       <div style={{
@@ -2080,9 +2106,16 @@ export default function Profile({
           <div style={{ position: "relative", width: 84, height: 84 }}>
             <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
             <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
-            <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
+            {/* <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
               {selectedAvatar ? (
                 <img src={selectedAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <AvatarWithBadge username={user.username ?? CURRENT_USER.username} badge={userBadge} size="lg" />
+              )}
+            </div> */}
+            <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
+              {displayAvatar ? (
+                <img src={displayAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
                 <AvatarWithBadge username={user.username ?? CURRENT_USER.username} badge={userBadge} size="lg" />
               )}
@@ -2124,241 +2157,382 @@ export default function Profile({
         </div>
       </div>
 
-      {/* ── Stats row ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, padding: "22px 14px 0" }}>
-        {[
-          { value: statPosts, label: "Posts", accent: true },
-          { value: statDebates, label: "Debates", accent: true },
-          { value: statPredictions, label: "Predictions", accent: true },
-          { value: user.accuracy !== undefined && user.accuracy !== null ? `${user.accuracy}%` : "N/A", label: "Accuracy", accent: true },
-        ].map(({ value, label, accent }) => (
-          <div
-            key={label}
-            className="glass-card"
-            style={{
-              display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-              padding: "10px 4px", minHeight: 66, textAlign: "center",
-              background: "rgba(18,18,26,0.7)",
-              border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: 14,
-              position: "relative", overflow: "visible",
-            }}
-          >
-            {accent && (() => {
-              const tooltipText =
-                label === "Posts"
-                  ? "Count of all debates, predictions, and posts you've created."
-                  : label === "Predictions"
-                    ? "Count all predictions you've participated in."
-                    : label === "Debates"
-                      ? "Count all debates you've participated in."
-                      : "Your accuracy rate across resolved predictions and debates.";
-
-              const isLeftmost = label === "Posts";
-
-              return (
-                <div
-                  style={{ position: "absolute", top: 6, right: 6 }}
-                  onMouseEnter={(e) => {
-                    const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
-                    if (tip) tip.style.display = "block";
-                  }}
-                  onMouseLeave={(e) => {
-                    const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
-                    if (tip) tip.style.display = "none";
-                  }}
-                  onTouchStart={(e) => {
-                    const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
-                    if (tip) tip.style.display = tip.style.display === "block" ? "none" : "block";
-                  }}
-                >
-                  <div style={{
-                    width: 18, height: 18, borderRadius: "50%",
-                    background: "var(--accent-magenta)",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 10, fontWeight: 900, color: "#fff",
-                    cursor: "pointer",
-                  }}>i</div>
-
-                  <div className="stat-tip" style={{
-                    display: "none",
-                    position: "absolute",
-                    bottom: 24,
-                    left: isLeftmost ? 0 : "auto",
-                    right: isLeftmost ? "auto" : 0,
-                    width: 170,
-                    maxWidth: "calc(100vw - 32px)",
-                    background: "rgba(20,20,30,0.97)",
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    borderRadius: 10,
-                    padding: "8px 10px",
-                    fontSize: 11,
-                    color: "rgba(255,255,255,0.82)",
-                    lineHeight: 1.5,
-                    zIndex: 9999,
-                    pointerEvents: "none",
-                    whiteSpace: "normal",
-                    boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-                  }}>{tooltipText}</div>
-                </div>
-              );
-            })()}
-            <span className="font-display" style={{ fontSize: 22, color: "#fff", lineHeight: 1, fontWeight: 800 }}>{value}</span>
-            <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 5 }}>{label}</span>
-          </div>
-        ))}
-      </div>
-
-      {/* ── ROAR Points bar ── */}
-      <div style={{ padding: "18px 14px 0" }}>
-        <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Roar Points</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{repScore} points</span>
-          </div>
-          <div style={{ height: 10, background: "rgba(255,255,255,0.08)", borderRadius: 5, overflow: "hidden" }}>
-            <div style={{ height: "100%", width: `${repPct}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 5, transition: "width 1s ease" }} />
-          </div>
+      {isBotProfile ? (
+        <div style={{ padding: "20px 20px 60px" }}>
+          <p style={{
+            fontSize: 13,
+            color: "rgba(255,255,255,0.6)",
+            lineHeight: 1.6,
+            margin: 0,
+            textAlign: "left",
+          }}>
+            {BOT_BIOS[user.username] ?? "SportsFan360 bot — automated fan companion for this room."}
+          </p>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* ── Stats row ── */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, padding: "22px 14px 0" }}>
+            {[
+              { value: statPosts, label: "Posts", accent: true },
+              { value: statDebates, label: "Debates", accent: true },
+              { value: statPredictions, label: "Predictions", accent: true },
+              { value: user.accuracy !== undefined && user.accuracy !== null ? `${user.accuracy}%` : "N/A", label: "Accuracy", accent: true },
+            ].map(({ value, label, accent }) => (
+              <div
+                key={label}
+                className="glass-card"
+                style={{
+                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+                  padding: "10px 4px", minHeight: 66, textAlign: "center",
+                  background: "rgba(18,18,26,0.7)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 14,
+                  position: "relative", overflow: "visible",
+                }}
+              >
+                {accent && (() => {
+                  const tooltipText =
+                    label === "Posts"
+                      ? "Count of all debates, predictions, and posts you've created."
+                      : label === "Predictions"
+                        ? "Count all predictions you've participated in."
+                        : label === "Debates"
+                          ? "Count all debates you've participated in."
+                          : "Your accuracy rate across resolved predictions and debates.";
 
-      {/* ── Global Reputation ── */}
-      {globalTier && (
-        <div style={{ padding: "18px 14px 8px" }}>
-          <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
-                {globalTier.label} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>· Tier {globalTier.tierLevel}/7</span>
-              </span>
-              {globalTier.tier !== "GOAT" && (
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{globalTierProgress}% to next</span>
-              )}
-            </div>
-            <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${globalTierProgress}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 4, transition: "width 1s ease" }} />
-            </div>
+                  const isLeftmost = label === "Posts";
+
+                  return (
+                    <div
+                      style={{ position: "absolute", top: 6, right: 6 }}
+                      onMouseEnter={(e) => {
+                        const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
+                        if (tip) tip.style.display = "block";
+                      }}
+                      onMouseLeave={(e) => {
+                        const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
+                        if (tip) tip.style.display = "none";
+                      }}
+                      onTouchStart={(e) => {
+                        const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
+                        if (tip) tip.style.display = tip.style.display === "block" ? "none" : "block";
+                      }}
+                    >
+                      <div style={{
+                        width: 18, height: 18, borderRadius: "50%",
+                        background: "var(--accent-magenta)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 10, fontWeight: 900, color: "#fff",
+                        cursor: "pointer",
+                      }}>i</div>
+
+                      <div className="stat-tip" style={{
+                        display: "none",
+                        position: "absolute",
+                        bottom: 24,
+                        left: isLeftmost ? 0 : "auto",
+                        right: isLeftmost ? "auto" : 0,
+                        width: 170,
+                        maxWidth: "calc(100vw - 32px)",
+                        background: "rgba(20,20,30,0.97)",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 10,
+                        padding: "8px 10px",
+                        fontSize: 11,
+                        color: "rgba(255,255,255,0.82)",
+                        lineHeight: 1.5,
+                        zIndex: 9999,
+                        pointerEvents: "none",
+                        whiteSpace: "normal",
+                        boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+                      }}>{tooltipText}</div>
+                    </div>
+                  );
+                })()}
+                <span className="font-display" style={{ fontSize: 22, color: "#fff", lineHeight: 1, fontWeight: 800 }}>{value}</span>
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 5 }}>{label}</span>
+              </div>
+            ))}
           </div>
-        </div>
+        </>
       )}
 
-      {/* ── Roar Journey ── */}
-      <RoarJourneySection
-        predictions={actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0}
-        debates={actCounts.ROAR_DEBATE_PARTICIPATE ?? 0}
-        posts={statPosts}
-        // badgeSrcs={[
-        //   FIRST_ROAR_BADGE_SRC,
-        //   ...(user.badges ?? [])
-        //     .filter((b: any) => b.unlocked && b.imageUrl)
-        //     .slice(0, 3)
-        //     .map((b: any) => toBadgeImageSrc(b.imageUrl)),
-        // ]}
-        badgeSrcs={[
-          ...featureBadges
-            .filter((fb) => fb.level > 0)
-            .map((fb) => fb.icons?.[Math.max(0, fb.level - 1)])
-            .filter(Boolean),
-          ...specialBadges
-            .filter((b) => b.unlocked && b.imageUrl)
-            .map((b: any) => toBadgeImageSrc(b.imageUrl)),
-        ]}
-        onToast={onToast}
-      />
+      {!isBotProfile && (
+        <>
+          {/* ── ROAR Points bar ── */}
+          <div style={{ padding: "18px 14px 0" }}>
+            <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Roar Points</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{repScore} points</span>
+              </div>
+              <div style={{ height: 10, background: "rgba(255,255,255,0.08)", borderRadius: 5, overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${repPct}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 5, transition: "width 1s ease" }} />
+              </div>
+            </div>
+          </div>
 
-      {/* ── Main section tabs: Overview / Badges / Activity ── */}
-      <div style={{ padding: "18px 14px 0" }}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-          {(["overview", "badges", "activity"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveMainTab(tab)}
-              style={{
-                flex: 1,
-                padding: "9px 0",
-                borderRadius: 20,
-                border: "none",
-                cursor: "pointer",
-                fontSize: 13,
-                fontWeight: 700,
-                background: activeMainTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
-                color: activeMainTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
-                transition: "all 0.18s",
-              }}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── OVERVIEW TAB: badges won summary ── */}
-      {activeMainTab === "overview" && (
-        <div style={{ padding: "0 14px 8px" }}>
-          {(() => {
-            const wonFeatureBadges = featureBadges.filter((fb) => fb.level > 0);
-            const wonSpecialBadges = specialBadges.filter((b) => b.unlocked);
-            const totalWon = wonFeatureBadges.length + wonSpecialBadges.length;
-
-            if (totalWon === 0) {
-              return (
-                <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
-                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>
-                    {isOtherProfile ? "No badges won yet." : "No badges won yet — get posting, predicting, and debating!"}
-                  </p>
-                </div>
-              );
-            }
-
-            return (
-              <>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-                    {isOtherProfile ? "Badges Won" : "Your Badges Won"}
+          {/* ── Global Reputation ── */}
+          {globalTier && (
+            <div style={{ padding: "18px 14px 8px" }}>
+              <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
+                    {globalTier.label} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>· Tier {globalTier.tierLevel}/7</span>
                   </span>
-                  <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{totalWon} total</span>
+                  {globalTier.tier !== "GOAT" && (
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{globalTierProgress}% to next</span>
+                  )}
+                </div>
+                <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${globalTierProgress}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 4, transition: "width 1s ease" }} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Roar Journey ── */}
+          <RoarJourneySection
+            predictions={actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0}
+            debates={actCounts.ROAR_DEBATE_PARTICIPATE ?? 0}
+            posts={statPosts}
+            // badgeSrcs={[
+            //   FIRST_ROAR_BADGE_SRC,
+            //   ...(user.badges ?? [])
+            //     .filter((b: any) => b.unlocked && b.imageUrl)
+            //     .slice(0, 3)
+            //     .map((b: any) => toBadgeImageSrc(b.imageUrl)),
+            // ]}
+            badgeSrcs={[
+              ...featureBadges
+                .filter((fb) => fb.level > 0)
+                .map((fb) => fb.icons?.[Math.max(0, fb.level - 1)])
+                .filter(Boolean),
+              ...specialBadges
+                .filter((b) => b.unlocked && b.imageUrl)
+                .map((b: any) => toBadgeImageSrc(b.imageUrl)),
+            ]}
+            onToast={onToast}
+          />
+
+          {/* ── Main section tabs: Overview / Badges / Activity ── */}
+          <div style={{ padding: "18px 14px 0" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {(["overview", "badges", "activity"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveMainTab(tab)}
+                  style={{
+                    flex: 1,
+                    padding: "9px 0",
+                    borderRadius: 20,
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    background: activeMainTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
+                    color: activeMainTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
+                    transition: "all 0.18s",
+                  }}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* ── OVERVIEW TAB: badges won summary ── */}
+          {activeMainTab === "overview" && (
+            <div style={{ padding: "0 14px 8px" }}>
+              {(() => {
+                const wonFeatureBadges = featureBadges.filter((fb) => fb.level > 0);
+                const wonSpecialBadges = specialBadges.filter((b) => b.unlocked);
+                const totalWon = wonFeatureBadges.length + wonSpecialBadges.length;
+
+                if (totalWon === 0) {
+                  return (
+                    <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+                      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>
+                        {isOtherProfile ? "No badges won yet." : "No badges won yet — get posting, predicting, and debating!"}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+                        {isOtherProfile ? "Badges Won" : "Your Badges Won"}
+                      </span>
+                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{totalWon} total</span>
+                    </div>
+
+                    {wonFeatureBadges.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: wonSpecialBadges.length > 0 ? 16 : 0 }}>
+                        {wonFeatureBadges.map((fb) => (
+                          <button
+                            key={fb.feature}
+                            onClick={() => setBadgeModal({
+                              id: fb.feature,
+                              badgeId: fb.feature,
+                              unlocked: fb.level > 0,
+                              progress: fb.progress,
+                              _feature: fb,
+                            })}
+                            style={{
+                              display: "flex", flexDirection: "column", alignItems: "center",
+                              width: 76, background: "none", border: "none", cursor: "pointer", padding: 0,
+                            }}
+                          >
+                            <div style={{
+                              width: 56, height: 56, borderRadius: "50%",
+                              background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
+                              border: "2px solid rgba(233,30,140,0.5)",
+                              display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+                            }}>
+                              {fb.icons?.[Math.max(0, fb.level - 1)] ? (
+                                <img src={fb.icons[Math.max(0, fb.level - 1)]} alt={fb.feature} style={{ width: "70%", height: "70%", objectFit: "contain" }} />
+                              ) : (
+                                <span style={{ fontSize: 20 }}>🏅</span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: 10, color: "#fff", fontWeight: 600, marginTop: 6, textAlign: "center", textTransform: "capitalize" }}>
+                              {fb.feature.replace(/([A-Z])/g, " $1")}
+                            </span>
+                            <span style={{ fontSize: 9, color: "var(--accent-magenta)", fontWeight: 700 }}>L{fb.level}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {wonSpecialBadges.length > 0 && (
+                      <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
+                        {wonSpecialBadges.map((b) => (
+                          <div key={b.id} style={{
+                            flexShrink: 0, padding: "8px 14px", borderRadius: 20,
+                            background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
+                            border: "1px solid rgba(255,215,0,0.35)",
+                            fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
+                          }}>
+                            🏆 {b.name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* ── BADGES TAB: full feature mastery + special badges ── */}
+          {activeMainTab === "badges" && (
+            <>
+              <div style={{ padding: "0 0 0" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 14 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+                    {isOtherProfile ? "Badges" : "Your Badges"}
+                  </span>
                 </div>
 
-                {wonFeatureBadges.length > 0 && (
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: wonSpecialBadges.length > 0 ? 16 : 0 }}>
-                    {wonFeatureBadges.map((fb) => (
-                      <button
-                        key={fb.feature}
-                        onClick={() => setBadgeModal({
-                          id: fb.feature,
-                          badgeId: fb.feature,
-                          unlocked: fb.level > 0,
-                          progress: fb.progress,
-                          _feature: fb,
-                        })}
-                        style={{
-                          display: "flex", flexDirection: "column", alignItems: "center",
-                          width: 76, background: "none", border: "none", cursor: "pointer", padding: 0,
-                        }}
-                      >
-                        <div style={{
-                          width: 56, height: 56, borderRadius: "50%",
-                          background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
-                          border: "2px solid rgba(233,30,140,0.5)",
-                          display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
-                        }}>
-                          {fb.icons?.[Math.max(0, fb.level - 1)] ? (
-                            <img src={fb.icons[Math.max(0, fb.level - 1)]} alt={fb.feature} style={{ width: "70%", height: "70%", objectFit: "contain" }} />
-                          ) : (
-                            <span style={{ fontSize: 20 }}>🏅</span>
-                          )}
-                        </div>
-                        <span style={{ fontSize: 10, color: "#fff", fontWeight: 600, marginTop: 6, textAlign: "center", textTransform: "capitalize" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 18, padding: "0 14px" }}>
+                  {featureBadges.map((fb) => (
+                    <div key={fb.feature}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: fb.level > 0 ? "#fff" : "rgba(255,255,255,0.45)", textTransform: "capitalize" }}>
                           {fb.feature.replace(/([A-Z])/g, " $1")}
                         </span>
-                        <span style={{ fontSize: 9, color: "var(--accent-magenta)", fontWeight: 700 }}>L{fb.level}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                        <span style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700 }}>
+                          {fb.level > 0 ? `${fb.label} · L${fb.level}/5` : "Locked"}
+                        </span>
+                      </div>
 
-                {wonSpecialBadges.length > 0 && (
-                  <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
-                    {wonSpecialBadges.map((b) => (
+                      <div style={{ display: "flex", gap: 6 }}>
+                        {[1, 2, 3, 4, 5].map((lvl) => {
+                          const achieved = lvl <= fb.level;
+                          const isCurrentTarget = lvl === fb.level + 1;
+                          return (
+                            <button
+                              key={lvl}
+                              onClick={() => setBadgeModal({
+                                id: fb.feature,
+                                badgeId: fb.feature,
+                                unlocked: fb.level > 0,
+                                progress: fb.progress,
+                                _feature: fb,
+                              })}
+                              style={{
+                                flex: "1 1 0",
+                                minWidth: 0,
+                                background: "none",
+                                border: "none",
+                                padding: 0,
+                                cursor: "pointer",
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                              }}
+                            >
+                              <div style={{
+                                width: "100%",
+                                aspectRatio: "1 / 1",
+                                maxWidth: 56,
+                                borderRadius: "50%",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                overflow: "hidden",
+                                fontSize: 20,
+                                background: achieved
+                                  ? "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))"
+                                  : "rgba(255,255,255,0.05)",
+                                border: achieved
+                                  ? "2px solid rgba(233,30,140,0.5)"
+                                  : isCurrentTarget
+                                    ? "2px dashed rgba(255,255,255,0.25)"
+                                    : "2px solid rgba(255,255,255,0.08)",
+                                filter: achieved ? "none" : "grayscale(1) opacity(0.5)",
+                              }}>
+                                {fb.icons?.[lvl - 1] ? (
+                                  <img
+                                    src={fb.icons[lvl - 1]}
+                                    alt={`${fb.feature} L${lvl}`}
+                                    style={{ width: "70%", height: "70%", objectFit: "contain" }}
+                                    onError={(e) => {
+                                      const target = e.currentTarget;
+                                      target.style.display = "none";
+                                      const parent = target.parentElement;
+                                      if (parent && !parent.querySelector(".pip-fallback")) {
+                                        const span = document.createElement("span");
+                                        span.className = "pip-fallback";
+                                        span.textContent = achieved || isCurrentTarget ? "🏅" : "🔒";
+                                        parent.appendChild(span);
+                                      }
+                                    }}
+                                  />
+                                ) : (
+                                  <span>{achieved || isCurrentTarget ? "🏅" : "🔒"}</span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: 8, color: achieved ? "#fff" : "rgba(255,255,255,0.35)", marginTop: 3 }}>
+                                L{lvl}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {specialBadges.filter((b) => b.unlocked).length > 0 && (
+                <div style={{ padding: "18px 0 0" }}>
+                  <div style={{ padding: "0 14px", marginBottom: 12 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Special Achievements</span>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
+                    {specialBadges.filter((b) => b.unlocked).map((b) => (
                       <div key={b.id} style={{
                         flexShrink: 0, padding: "8px 14px", borderRadius: 20,
                         background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
@@ -2369,353 +2543,233 @@ export default function Profile({
                       </div>
                     ))}
                   </div>
-                )}
-              </>
-            );
-          })()}
-        </div>
-      )}
+                </div>
+              )}
+            </>
+          )}
 
-      {/* ── BADGES TAB: full feature mastery + special badges ── */}
-      {activeMainTab === "badges" && (
-        <>
-          <div style={{ padding: "0 0 0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 14 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-                {isOtherProfile ? "Badges" : "Your Badges"}
-              </span>
-            </div>
+          {/* ── ACTIVITY TAB (tabbed all/posts/predictions/debates) ── */}
+          {activeMainTab === "activity" && (!isOtherProfile || user.showActivity !== false) && (
+            <div style={{ padding: "0 14px 0" }}>
+              <div style={{ display: "flex", gap: 8, marginTop: 0, marginBottom: 14 }}>
+                {(["all", "posts", "predictions", "debates"] as const).map((tab) => (
+                  <button key={tab} onClick={() => setActiveActivityTab(tab)}
+                    style={{ padding: "4px 10px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 600, background: activeActivityTab === tab ? "#fff" : "rgba(255,255,255,0.08)", color: activeActivityTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)", transition: "all 0.18s" }}>
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 18, padding: "0 14px" }}>
-              {featureBadges.map((fb) => (
-                <div key={fb.feature}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: fb.level > 0 ? "#fff" : "rgba(255,255,255,0.45)", textTransform: "capitalize" }}>
-                      {fb.feature.replace(/([A-Z])/g, " $1")}
-                    </span>
-                    <span style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700 }}>
-                      {fb.level > 0 ? `${fb.label} · L${fb.level}/5` : "Locked"}
-                    </span>
-                  </div>
+              {/* ── All tab ── */}
+              {activeActivityTab === "all" && (() => {
+                if (isLoadingActivities) {
+                  return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
+                }
+                const allActivities = sourceActivities
+                  .filter((a: any) =>
+                    ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION", "ROAR_DEBATE_PARTICIPATE", "ROAR_PREDICTION_PARTICIPATE"].includes(a.type)
+                    && a.type !== "ROAR_PREDICTION_LIVE"
+                    && a.metadata?.predictionType !== "live"
+                  )
+                  .slice()
+                  .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
 
-                  <div style={{ display: "flex", gap: 6 }}>
-                    {[1, 2, 3, 4, 5].map((lvl) => {
-                      const achieved = lvl <= fb.level;
-                      const isCurrentTarget = lvl === fb.level + 1;
+                if (allActivities.length === 0) {
+                  return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No activity yet.</p>;
+                }
+
+                // const typeLabel = (type: string) => {
+                //   if (type === "ROAR_PREDICTION" || type === "ROAR_PREDICTION_PARTICIPATE") return { label: "PREDICTION", color: "#F59E0B" };
+                //   if (type === "ROAR_DEBATE" || type === "ROAR_DEBATE_PARTICIPATE") return { label: "DEBATE", color: "#A78BFA" };
+                //   return { label: "POST", color: "#F59E0B" };
+                // };
+
+                const typeLabel = (type: string): { label: string; color: string } => {
+                  const map: Record<string, { label: string; color: string }> = {
+                    ROAR_POST: { label: "ROAR_POST", color: "#F59E0B" },
+                    ROAR_HOT_TAKE: { label: "ROAR_HOT_TAKE", color: "#F59E0B" },
+                    ROAR_RAW_REACTIONS: { label: "ROAR_RAW_REACTIONS", color: "#F59E0B" },
+                    ROAR_MEMORY: { label: "ROAR_MEMORY", color: "#F59E0B" },
+                    ROAR_QUIZ: { label: "ROAR_QUIZ", color: "#F59E0B" },
+                    ROAR_DEBATE: { label: "ROAR_DEBATE", color: "#A78BFA" },
+                    ROAR_DEBATE_PARTICIPATE: { label: "ROAR_DEBATE_PARTICIPATE", color: "#6EE7B7" },
+                    ROAR_PREDICTION: { label: "ROAR_PREDICTION", color: "#F59E0B" },
+                    ROAR_PREDICTION_PARTICIPATE: { label: "ROAR_PREDICTION_PARTICIPATE", color: "#6EE7B7" },
+                  };
+                  return map[type] ?? { label: type, color: "#9CA3AF" };
+                };
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {allActivities.map((a: any) => {
+                      const { label, color } = typeLabel(a.type);
+                      const roomName = getRoomName(a.roomId, a.metadata?.roomName || a.roomName || a.metadata?.roomTitle);
+                      const text = (a.metadata?.statement || a.label || "Activity").trim();
                       return (
-                        <button
-                          key={lvl}
-                          onClick={() => setBadgeModal({
-                            id: fb.feature,
-                            badgeId: fb.feature,
-                            unlocked: fb.level > 0,
-                            progress: fb.progress,
-                            _feature: fb,
-                          })}
-                          style={{
-                            flex: "1 1 0",
-                            minWidth: 0,
-                            background: "none",
-                            border: "none",
-                            padding: 0,
-                            cursor: "pointer",
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                          }}
-                        >
-                          <div style={{
-                            width: "100%",
-                            aspectRatio: "1 / 1",
-                            maxWidth: 56,
-                            borderRadius: "50%",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            overflow: "hidden",
-                            fontSize: 20,
-                            background: achieved
-                              ? "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))"
-                              : "rgba(255,255,255,0.05)",
-                            border: achieved
-                              ? "2px solid rgba(233,30,140,0.5)"
-                              : isCurrentTarget
-                                ? "2px dashed rgba(255,255,255,0.25)"
-                                : "2px solid rgba(255,255,255,0.08)",
-                            filter: achieved ? "none" : "grayscale(1) opacity(0.5)",
-                          }}>
-                            {fb.icons?.[lvl - 1] ? (
-                              <img
-                                src={fb.icons[lvl - 1]}
-                                alt={`${fb.feature} L${lvl}`}
-                                style={{ width: "70%", height: "70%", objectFit: "contain" }}
-                                onError={(e) => {
-                                  const target = e.currentTarget;
-                                  target.style.display = "none";
-                                  const parent = target.parentElement;
-                                  if (parent && !parent.querySelector(".pip-fallback")) {
-                                    const span = document.createElement("span");
-                                    span.className = "pip-fallback";
-                                    span.textContent = achieved || isCurrentTarget ? "🏅" : "🔒";
-                                    parent.appendChild(span);
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <span>{achieved || isCurrentTarget ? "🏅" : "🔒"}</span>
-                            )}
+                        <div key={a.id ?? `${a.type}-${a.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color, background: `${color}18`, padding: "2px 7px", borderRadius: 4 }}>
+                              {label}
+                            </span>
                           </div>
-                          <span style={{ fontSize: 8, color: achieved ? "#fff" : "rgba(255,255,255,0.35)", marginTop: 3 }}>
-                            L{lvl}
+                          <div style={{ marginBottom: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                              Room : {roomName.toUpperCase()}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+                            {truncateText(text)}
+                          </p>
+                          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                            {formatActivityTimestamp(a.createdAt)}
                           </span>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                );
+              })()}
 
-          {specialBadges.filter((b) => b.unlocked).length > 0 && (
-            <div style={{ padding: "18px 0 0" }}>
-              <div style={{ padding: "0 14px", marginBottom: 12 }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Special Achievements</span>
-              </div>
-              <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
-                {specialBadges.filter((b) => b.unlocked).map((b) => (
-                  <div key={b.id} style={{
-                    flexShrink: 0, padding: "8px 14px", borderRadius: 20,
-                    background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
-                    border: "1px solid rgba(255,215,0,0.35)",
-                    fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
-                  }}>
-                    🏆 {b.name}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ── ACTIVITY TAB (tabbed all/posts/predictions/debates) ── */}
-      {activeMainTab === "activity" && (!isOtherProfile || user.showActivity !== false) && (
-        <div style={{ padding: "0 14px 0" }}>
-          <div style={{ display: "flex", gap: 8, marginTop: 0, marginBottom: 14 }}>
-            {(["all", "posts", "predictions", "debates"] as const).map((tab) => (
-              <button key={tab} onClick={() => setActiveActivityTab(tab)}
-                style={{ padding: "4px 10px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 600, background: activeActivityTab === tab ? "#fff" : "rgba(255,255,255,0.08)", color: activeActivityTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)", transition: "all 0.18s" }}>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          {/* ── All tab ── */}
-          {activeActivityTab === "all" && (() => {
-            if (isLoadingActivities) {
-              return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
-            }
-            const allActivities = sourceActivities
-              .filter((a: any) =>
-                ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION", "ROAR_DEBATE_PARTICIPATE", "ROAR_PREDICTION_PARTICIPATE"].includes(a.type)
-                && a.type !== "ROAR_PREDICTION_LIVE"
-                && a.metadata?.predictionType !== "live"
-              )
-              .slice()
-              .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
-
-            if (allActivities.length === 0) {
-              return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No activity yet.</p>;
-            }
-
-            // const typeLabel = (type: string) => {
-            //   if (type === "ROAR_PREDICTION" || type === "ROAR_PREDICTION_PARTICIPATE") return { label: "PREDICTION", color: "#F59E0B" };
-            //   if (type === "ROAR_DEBATE" || type === "ROAR_DEBATE_PARTICIPATE") return { label: "DEBATE", color: "#A78BFA" };
-            //   return { label: "POST", color: "#F59E0B" };
-            // };
-
-            const typeLabel = (type: string): { label: string; color: string } => {
-              const map: Record<string, { label: string; color: string }> = {
-                ROAR_POST: { label: "ROAR_POST", color: "#F59E0B" },
-                ROAR_HOT_TAKE: { label: "ROAR_HOT_TAKE", color: "#F59E0B" },
-                ROAR_RAW_REACTIONS: { label: "ROAR_RAW_REACTIONS", color: "#F59E0B" },
-                ROAR_MEMORY: { label: "ROAR_MEMORY", color: "#F59E0B" },
-                ROAR_QUIZ: { label: "ROAR_QUIZ", color: "#F59E0B" },
-                ROAR_DEBATE: { label: "ROAR_DEBATE", color: "#A78BFA" },
-                ROAR_DEBATE_PARTICIPATE: { label: "ROAR_DEBATE_PARTICIPATE", color: "#6EE7B7" },
-                ROAR_PREDICTION: { label: "ROAR_PREDICTION", color: "#F59E0B" },
-                ROAR_PREDICTION_PARTICIPATE: { label: "ROAR_PREDICTION_PARTICIPATE", color: "#6EE7B7" },
-              };
-              return map[type] ?? { label: type, color: "#9CA3AF" };
-            };
-
-            return (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {allActivities.map((a: any) => {
-                  const { label, color } = typeLabel(a.type);
-                  const roomName = getRoomName(a.roomId, a.metadata?.roomName || a.roomName || a.metadata?.roomTitle);
-                  const text = (a.metadata?.statement || a.label || "Activity").trim();
-                  return (
-                    <div key={a.id ?? `${a.type}-${a.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color, background: `${color}18`, padding: "2px 7px", borderRadius: 4 }}>
-                          {label}
-                        </span>
-                      </div>
-                      <div style={{ marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                          Room : {roomName.toUpperCase()}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-                        {truncateText(text)}
-                      </p>
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                        {formatActivityTimestamp(a.createdAt)}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-
-          {/* ── Posts tab ── */}
-          {activeActivityTab === "posts" && (() => {
-            const postActivities = sourceActivities.filter((a: any) =>
-              ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
-              && a.type !== "ROAR_PREDICTION_LIVE"
-              && a.metadata?.predictionType !== "live"
-            );
-            if (isLoadingActivities) {
-              return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
-            }
-            if (postActivities.length === 0) {
-              return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No posts yet.</p>;
-            }
-            return (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {postActivities
-                  .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
-                  .map((p: any) => (
-                    <div key={p.id ?? `${p.type}-${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                          Room : {getRoomName(p.roomId, p.metadata?.roomName || p.roomName || p.metadata?.sport).toUpperCase()}
-                        </span>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
-                          {p.type === "ROAR_PREDICTION" ? "PREDICTION" : p.type === "ROAR_DEBATE" ? "DEBATE" : "POST"}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-                        {truncateText(p.metadata?.statement || p.label || "Post")}
-                      </p>
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                        {formatActivityTimestamp(p.createdAt)}
-                      </span>
-                    </div>
-                  ))}
-              </div>
-            );
-          })()}
-
-          {/* ── Predictions tab ── */}
-          {activeActivityTab === "predictions" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {isLoadingActivities ? (
-                <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading predictions...</p>
-              ) : filteredPreds.length === 0 ? (
-                <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No predictions yet.</p>
-              ) : filteredPreds.map((p: any) => {
-                const isCorrect = p.status === "CORRECT" || p.status === "settled_correct";
-                const isWrong = p.status === "WRONG" || p.status === "settled_wrong";
-                const status = isCorrect ? "CORRECT" : isWrong ? "WRONG" : "PENDING";
-                const statusColor = isCorrect ? "#22C55E" : isWrong ? "#EF4444" : "#F59E0B";
+              {/* ── Posts tab ── */}
+              {activeActivityTab === "posts" && (() => {
+                const postActivities = sourceActivities.filter((a: any) =>
+                  ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
+                  && a.type !== "ROAR_PREDICTION_LIVE"
+                  && a.metadata?.predictionType !== "live"
+                );
+                if (isLoadingActivities) {
+                  return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
+                }
+                if (postActivities.length === 0) {
+                  return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No posts yet.</p>;
+                }
                 return (
-                  <div key={p.id ?? `${p.postId}-${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                        Room : {getRoomName(p.roomId, p.roomName) || p.matchId || "GENERAL"}
-                      </span>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: statusColor, background: `${statusColor}18`, padding: "2px 7px", borderRadius: 4 }}>{status}</span>
-                    </div>
-                    <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>{truncateText(p.text ?? p.label)}</p>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                        {formatActivityTimestamp(p.createdAt)}
-                      </span>
-
-                    </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {postActivities
+                      .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+                      .map((p: any) => (
+                        <div key={p.id ?? `${p.type}-${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                              Room : {getRoomName(p.roomId, p.metadata?.roomName || p.roomName || p.metadata?.sport).toUpperCase()}
+                            </span>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
+                              {p.type === "ROAR_PREDICTION" ? "PREDICTION" : p.type === "ROAR_DEBATE" ? "DEBATE" : "POST"}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+                            {truncateText(p.metadata?.statement || p.label || "Post")}
+                          </p>
+                          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                            {formatActivityTimestamp(p.createdAt)}
+                          </span>
+                        </div>
+                      ))}
                   </div>
                 );
-              })}
+              })()}
+
+              {/* ── Predictions tab ── */}
+              {activeActivityTab === "predictions" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {isLoadingActivities ? (
+                    <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading predictions...</p>
+                  ) : filteredPreds.length === 0 ? (
+                    <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No predictions yet.</p>
+                  ) : filteredPreds.map((p: any) => {
+                    const isCorrect = p.status === "CORRECT" || p.status === "settled_correct";
+                    const isWrong = p.status === "WRONG" || p.status === "settled_wrong";
+                    const status = isCorrect ? "CORRECT" : isWrong ? "WRONG" : "PENDING";
+                    const statusColor = isCorrect ? "#22C55E" : isWrong ? "#EF4444" : "#F59E0B";
+                    return (
+                      <div key={p.id ?? `${p.postId}-${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                            Room : {getRoomName(p.roomId, p.roomName) || p.matchId || "GENERAL"}
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: statusColor, background: `${statusColor}18`, padding: "2px 7px", borderRadius: 4 }}>{status}</span>
+                        </div>
+                        <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>{truncateText(p.text ?? p.label)}</p>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                            {formatActivityTimestamp(p.createdAt)}
+                          </span>
+
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* ── Debates tab ── */}
+              {activeActivityTab === "debates" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 80 }}>
+                  {isLoadingActivities ? (
+                    <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading debates...</p>
+                  ) : debateActivities.length === 0 ? (
+                    <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No debates yet.</p>
+                  ) : debateActivities
+                    .slice()
+                    .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+                    .map((debate: any) => (
+                      <div key={debate.id ?? `${debate.type}-${debate.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                            Room : {getRoomName(debate.roomId, debate.metadata?.roomName || debate.roomName || debate.metadata?.sport || debate.sport).toUpperCase()}
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: "#A78BFA", background: "rgba(167,139,250,0.12)", padding: "2px 7px", borderRadius: 4 }}>DEBATE</span>
+                        </div>
+                        <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+                          {truncateText((debate.metadata?.statement || debate.text || debate.label || "Debate").trim())}
+                        </p>
+                        {(debate.metadata?.sideA || debate.sideA) && (debate.metadata?.sideB || debate.sideB) && (
+                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
+                            <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideA ?? debate.sideA}</strong>
+                            {" vs "}
+                            <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideB ?? debate.sideB}</strong>
+                          </p>
+                        )}
+                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                          {formatActivityTimestamp(debate.createdAt)}
+                        </span>
+                      </div>
+                    ))
+                  }
+                </div>
+              )}
+
+              {/* ── Load more (shared across all / posts / predictions / debates) ── */}
+              {!isLoadingActivities && activityHasMore && (
+                <div style={{ display: "flex", justifyContent: "center", padding: "4px 0 24px" }}>
+                  <button
+                    onClick={handleLoadMoreActivities}
+                    disabled={loadingMoreActivities}
+                    style={{
+                      padding: "9px 22px",
+                      borderRadius: 20,
+                      border: "1px solid rgba(255,255,255,0.15)",
+                      background: "rgba(255,255,255,0.06)",
+                      color: "rgba(255,255,255,0.75)",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: loadingMoreActivities ? "default" : "pointer",
+                      opacity: loadingMoreActivities ? 0.6 : 1,
+                    }}
+                  >
+                    {loadingMoreActivities ? "Loading..." : "Load more (older activity)"}
+                  </button>
+                </div>
+              )}
+              {!isLoadingActivities && !activityHasMore && sourceActivities.length > 0 && (
+                <p style={{ textAlign: "center", padding: "4px 0 24px", color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
+                  You're all caught up — no earlier activity.
+                </p>
+              )}
             </div>
           )}
 
-          {/* ── Debates tab ── */}
-          {activeActivityTab === "debates" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 80 }}>
-              {isLoadingActivities ? (
-                <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading debates...</p>
-              ) : debateActivities.length === 0 ? (
-                <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No debates yet.</p>
-              ) : debateActivities
-                .slice()
-                .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
-                .map((debate: any) => (
-                  <div key={debate.id ?? `${debate.type}-${debate.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                        Room : {getRoomName(debate.roomId, debate.metadata?.roomName || debate.roomName || debate.metadata?.sport || debate.sport).toUpperCase()}
-                      </span>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: "#A78BFA", background: "rgba(167,139,250,0.12)", padding: "2px 7px", borderRadius: 4 }}>DEBATE</span>
-                    </div>
-                    <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-                      {truncateText((debate.metadata?.statement || debate.text || debate.label || "Debate").trim())}
-                    </p>
-                    {(debate.metadata?.sideA || debate.sideA) && (debate.metadata?.sideB || debate.sideB) && (
-                      <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
-                        <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideA ?? debate.sideA}</strong>
-                        {" vs "}
-                        <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideB ?? debate.sideB}</strong>
-                      </p>
-                    )}
-                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                      {formatActivityTimestamp(debate.createdAt)}
-                    </span>
-                  </div>
-                ))
-              }
-            </div>
-          )}
-
-          {/* ── Load more (shared across all / posts / predictions / debates) ── */}
-          {!isLoadingActivities && activityHasMore && (
-            <div style={{ display: "flex", justifyContent: "center", padding: "4px 0 24px" }}>
-              <button
-                onClick={handleLoadMoreActivities}
-                disabled={loadingMoreActivities}
-                style={{
-                  padding: "9px 22px",
-                  borderRadius: 20,
-                  border: "1px solid rgba(255,255,255,0.15)",
-                  background: "rgba(255,255,255,0.06)",
-                  color: "rgba(255,255,255,0.75)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                  cursor: loadingMoreActivities ? "default" : "pointer",
-                  opacity: loadingMoreActivities ? 0.6 : 1,
-                }}
-              >
-                {loadingMoreActivities ? "Loading..." : "Load more (older activity)"}
-              </button>
-            </div>
-          )}
-          {!isLoadingActivities && !activityHasMore && sourceActivities.length > 0 && (
-            <p style={{ textAlign: "center", padding: "4px 0 24px", color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
-              You're all caught up — no earlier activity.
-            </p>
-          )}
-        </div>
+        </>
       )}
 
       {/* ── Modals ── */}
