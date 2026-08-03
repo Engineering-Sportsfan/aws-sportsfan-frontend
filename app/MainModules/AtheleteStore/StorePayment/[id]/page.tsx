@@ -8,6 +8,8 @@ import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
 import { formatPrice } from '@/utils/formatters';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/services/api';
+import Script from 'next/script';
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 
 function StorePaymentContent() {
   const router = useRouter();
@@ -118,30 +120,28 @@ function StorePaymentContent() {
     return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
+  const { startPayment, loading } = useRazorpayCheckout();
+
   const handlePay = async () => {
     setProcessing(true);
-    try {
-      const res = await storeService.checkout({
-        productId: (id as string) || 'coach-1',
-        slotId: slotId,
-        variantId: variantId,
-        userId: userId,
-        paymentMethod: selected as any,
-        pricePaise,
-        idempotencyKey,
-      });
-
-      if (res.success) {
+    startPayment({
+      productId: (id as string) || 'coach-1',
+      slotId: slotId,
+      variantId: variantId,
+      userId: userId,
+      pricePaise,
+      idempotencyKey,
+      paymentMethod: selected as any,
+      onSuccess: (orderId) => {
         setCheckoutSuccess(true);
-        router.push(`/MainModules/AtheleteStore/StoreBookingSuccess/${res.orderId}`);
-      } else {
-        alert('Payment failed');
+        router.push(`/MainModules/AtheleteStore/StoreBookingSuccess/${orderId}`);
+        setProcessing(false);
+      },
+      onError: (errorMsg) => {
+        alert(errorMsg);
         setProcessing(false);
       }
-    } catch (err: any) {
-      alert(err.message || 'Payment execution failed');
-      setProcessing(false);
-    }
+    });
   };
 
   const paymentMethods = [
@@ -161,6 +161,7 @@ function StorePaymentContent() {
 
   return (
     <div className="bg-black w-full flex justify-center min-h-screen">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <div className="w-full max-w-[390px] bg-[#0b0b0f] relative flex flex-col h-[100dvh] overflow-hidden">
         {/* Header */}
         <div className="sticky top-0 z-50 bg-[#0b0b0f] border-b border-[rgba(255,255,255,0.05)] h-[56px] flex items-center px-4 gap-3">
@@ -251,10 +252,10 @@ function StorePaymentContent() {
         <div className="absolute bottom-[60px] lg:bottom-0 left-0 right-0 bg-[#0b0b0f] border-t border-[rgba(255,255,255,0.07)] px-4 py-3">
           <button
             onClick={handlePay}
-            disabled={processing}
+            disabled={processing || loading}
             className="w-full bg-gradient-to-r from-[#c9115f] to-[#cd620e] rounded-full py-3.5 text-white text-[15px] font-bold shadow-[0_0_20px_rgba(201,17,95,0.5)] flex items-center justify-center gap-2 disabled:opacity-80"
           >
-            {processing ? (
+            {processing || loading ? (
               <>
                 <div className="w-[16px] h-[16px] rounded-full border-2 border-white border-t-transparent animate-spin" />
                 Processing...

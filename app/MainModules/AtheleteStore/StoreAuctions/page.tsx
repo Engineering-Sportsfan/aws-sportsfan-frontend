@@ -7,6 +7,8 @@ import { storeService } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import Script from 'next/script';
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 
 type GovernanceStatus = 'approved' | 'pending';
 
@@ -137,26 +139,27 @@ function AuctionDetail({ auctionId, dbId, title, description, image, reservePric
     }
   };
 
+  const { startPayment, loading } = useRazorpayCheckout();
+
   const handleCompletePayment = async () => {
     setInlineError(null);
     setIsPaying(true);
-    try {
-      const res = await storeService.checkout({
-        productId: dbId,
-        userId,
-        paymentMethod: 'wallet',
-        pricePaise: currentBidPaise,
-        idempotencyKey: `complete-payment-${dbId}`,
-      });
-      if (res.success) {
+    startPayment({
+      productId: dbId,
+      userId,
+      pricePaise: currentBidPaise,
+      idempotencyKey: `complete-payment-${dbId}-${Date.now()}`,
+      paymentMethod: 'upi',
+      onSuccess: (orderId) => {
         setPaymentCompleted(true);
         loadAuctionData();
+        setIsPaying(false);
+      },
+      onError: (errorMsg) => {
+        setInlineError(errorMsg);
+        setIsPaying(false);
       }
-    } catch (err: any) {
-      setInlineError(err.message || 'Failed to complete payment.');
-    } finally {
-      setIsPaying(false);
-    }
+    });
   };
 
   useEffect(() => {
@@ -292,6 +295,7 @@ function AuctionDetail({ auctionId, dbId, title, description, image, reservePric
 
   return (
     <div className="flex-1 overflow-y-auto pb-[130px] no-scrollbar">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <div className="relative h-[220px]">
         <img src={image} alt={title} className="w-full h-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#0b0b0f] to-transparent" />

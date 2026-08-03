@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -9,6 +11,8 @@ import {
 import { storeService } from '@/services/store.service';
 import { asianGamesEvents } from './Store';
 import { useAuth } from '@/context/AuthContext';
+import Script from 'next/script';
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Video,
@@ -221,29 +225,27 @@ function BookingModal({ event, onClose, onSuccess }: { event: any; onClose: () =
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'wallet'>('upi');
 
+  const { startPayment, loading: isPaymentLoading } = useRazorpayCheckout();
+
   const handlePayment = async () => {
     setLoading(true);
-    try {
-      const payload = {
-        productId: event.id,
-        userId: userId || 'anonymous',
-        paymentMethod,
-        pricePaise: Math.round(totalAmount * 100),
-        idempotencyKey: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2),
-      };
-      const res = await storeService.checkout(payload);
-      if (res && res.success) {
+    const key = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+    startPayment({
+      productId: event.id,
+      userId: userId || 'anonymous',
+      pricePaise: Math.round(totalAmount * 100),
+      idempotencyKey: `idemp-event-${event.id}-${Date.now()}-${key}`,
+      paymentMethod,
+      onSuccess: () => {
         setStep(2);
         if (onSuccess) onSuccess();
-      } else {
-        alert('Booking failed');
+        setLoading(false);
+      },
+      onError: (errorMsg) => {
+        alert(errorMsg);
+        setLoading(false);
       }
-    } catch (err: any) {
-      console.error(err);
-      alert(err.response?.data?.message || err.message || 'Failed to complete booking');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const Icon = typeof event.icon === 'string' ? (ICON_MAP[event.icon] || Trophy) : (event.icon || Trophy);
@@ -471,8 +473,10 @@ function BookingModal({ event, onClose, onSuccess }: { event: any; onClose: () =
 
   // Step 1 — payment
   if (step === 1) {
+    const showLoader = loading || isPaymentLoading;
     return (
       <div className="fixed inset-0 z-[300] flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.85)' }}>
+        <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
         <div className="w-full max-w-[390px] max-h-[85vh] rounded-t-[28px] overflow-y-auto no-scrollbar" style={{ background: '#0b0b0f', border: '1px solid rgba(201,17,95,0.3)' }}>
           <div className="p-5">
             <div className="flex items-center justify-between mb-4">
@@ -505,7 +509,7 @@ function BookingModal({ event, onClose, onSuccess }: { event: any; onClose: () =
                       ? 'text-white border-2 border-[#c9115f]' 
                       : 'text-[#9a9aab] bg-white/5 border border-white/10'
                   }`}
-                  disabled={loading}
+                  disabled={showLoader}
                 >
                   {m.name}
                 </button>
@@ -513,12 +517,12 @@ function BookingModal({ event, onClose, onSuccess }: { event: any; onClose: () =
             </div>
             <button
               onClick={handlePayment}
-              disabled={loading}
+              disabled={showLoader}
               className="w-full py-3.5 rounded-[16px] text-white text-[14px] font-black flex items-center justify-center gap-2 active:scale-[0.98] transition-transform disabled:opacity-55"
               style={{ background: `linear-gradient(135deg, ${event.color || '#0ea5e9'}, #cd620e)`, boxShadow: `0 6px 20px ${event.color || '#0ea5e9'}45` }}
             >
               <Shield className="w-[14px] h-[14px]" />
-              {loading ? 'Processing Payment...' : `Pay ₹${totalAmount.toLocaleString('en-IN')} Securely`}
+              {showLoader ? 'Processing Payment...' : `Pay ₹${totalAmount.toLocaleString('en-IN')} Securely`}
             </button>
             <p className="text-[#3a3a4a] text-[9px] text-center mt-2">Payment held in escrow until event date is confirmed</p>
           </div>

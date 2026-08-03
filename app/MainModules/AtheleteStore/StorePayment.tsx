@@ -1,3 +1,5 @@
+"use client";
+
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, Shield, ChevronRight, Check } from 'lucide-react';
 import { useState, useEffect } from 'react';
@@ -5,6 +7,8 @@ import { storeService } from '@/services/store.service';
 import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
 import { formatPrice } from '@/utils/formatters';
 import { useAuth } from '@/context/AuthContext';
+import Script from 'next/script';
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 
 export default function StorePayment() {
   const navigate = useNavigate();
@@ -30,28 +34,26 @@ export default function StorePayment() {
       .catch((err) => console.error('Error fetching wallet balance:', err));
   }, [userId]);
 
-  const handlePay = async () => {
-    setProcessing(true);
-    try {
-      const res = await storeService.checkout({
-        productId: id || 'coach-1',
-        slotId: slotId,
-        userId: userId || 'anonymous',
-        paymentMethod: selected as any,
-        pricePaise,
-        idempotencyKey,
-      });
+  const variantId = searchParams.get('variantId') || undefined;
 
-      if (res.success) {
-        navigate(`/store/booking-success/${res.orderId}`);
-      } else {
-        alert('Payment failed');
-        setProcessing(false);
+  const { startPayment, loading } = useRazorpayCheckout();
+
+  const handlePay = async () => {
+    startPayment({
+      productId: id || 'coach-1',
+      slotId,
+      variantId,
+      userId: userId || 'anonymous',
+      pricePaise,
+      idempotencyKey,
+      paymentMethod: selected as any,
+      onSuccess: (orderId) => {
+        navigate(`/store/booking-success/${orderId}`);
+      },
+      onError: (errorMsg) => {
+        alert(errorMsg);
       }
-    } catch (err: any) {
-      alert(err.message || 'Payment execution failed');
-      setProcessing(false);
-    }
+    });
   };
 
   const paymentMethods = [
@@ -71,6 +73,7 @@ export default function StorePayment() {
 
   return (
     <div className="bg-black w-full flex justify-center min-h-screen">
+      <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
       <div className="w-full max-w-[390px] bg-[#0b0b0f] relative flex flex-col min-h-screen">
         {/* Header */}
         <div className="sticky top-0 z-50 bg-[#0b0b0f] border-b border-[rgba(255,255,255,0.05)] h-[56px] flex items-center px-4 gap-3">
@@ -149,10 +152,10 @@ export default function StorePayment() {
         <div className="absolute bottom-0 left-0 right-0 bg-[#0b0b0f] border-t border-[rgba(255,255,255,0.07)] px-4 py-3">
           <button
             onClick={handlePay}
-            disabled={processing}
+            disabled={processing || loading}
             className="w-full bg-gradient-to-r from-[#c9115f] to-[#cd620e] rounded-full py-3.5 text-white text-[15px] font-bold shadow-[0_0_20px_rgba(201,17,95,0.5)] flex items-center justify-center gap-2 disabled:opacity-80"
           >
-            {processing ? (
+            {processing || loading ? (
               <>
                 <div className="w-[16px] h-[16px] rounded-full border-2 border-white border-t-transparent animate-spin" />
                 Processing...

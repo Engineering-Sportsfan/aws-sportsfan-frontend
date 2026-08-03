@@ -9,6 +9,8 @@ import { useState, useEffect } from 'react';
 import { storeService } from '@/services/store.service';
 import QRCode from 'react-qr-code';
 import { useAuth } from '@/context/AuthContext';
+import Script from 'next/script';
+import { useRazorpayCheckout } from '@/hooks/useRazorpayCheckout';
 
 type BookingStep = 'detail' | 'payment' | 'confirmed';
 
@@ -23,6 +25,8 @@ function ExperienceDetail({ exp, onClose }: { exp: any; onClose: () => void }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [realOrderId, setRealOrderId] = useState<string | null>(null);
   
+  const { startPayment, loading } = useRazorpayCheckout();
+
   const rawPrice = exp.price || '';
   const parsedPrice = typeof rawPrice === 'string'
     ? (parseInt(rawPrice.replace(/[₹,]/g, ''), 10) || 0)
@@ -32,28 +36,23 @@ function ExperienceDetail({ exp, onClose }: { exp: any; onClose: () => void }) {
 
   const handlePay = async () => {
     setIsSubmitting(true);
-    try {
-      const pricePaise = exp.priceInPaise ? exp.priceInPaise * seats : total * 100;
-      const payload = {
-        productId: exp.id,
-        userId: userId || 'anonymous',
-        paymentMethod: payMethod === 'card' ? ('card' as const) : ('upi' as const),
-        pricePaise,
-        idempotencyKey: `idemp-exp-${exp.id}-${Date.now()}-${Math.random()}`,
-      };
-      const res = await storeService.checkout(payload);
-      if (res.success && res.orderId) {
-        setRealOrderId(res.orderId);
+    const pricePaise = exp.priceInPaise ? exp.priceInPaise * seats : total * 100;
+    startPayment({
+      productId: exp.id,
+      userId: userId || 'anonymous',
+      pricePaise,
+      idempotencyKey: `idemp-exp-${exp.id}-${Date.now()}-${Math.random()}`,
+      paymentMethod: payMethod as any,
+      onSuccess: (orderId) => {
+        setRealOrderId(orderId);
         setStep('confirmed');
-      } else {
-        alert('Payment failed, please try again.');
+        setIsSubmitting(false);
+      },
+      onError: (errorMsg) => {
+        alert(errorMsg);
+        setIsSubmitting(false);
       }
-    } catch (err: any) {
-      console.error(err);
-      alert(err.message || 'Payment failed.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    });
   };
 
   const [passData, setPassData] = useState<any>(null);
@@ -67,8 +66,10 @@ function ExperienceDetail({ exp, onClose }: { exp: any; onClose: () => void }) {
   }, [step, realOrderId]);
 
   if (step === 'payment') {
+    const showLoader = isSubmitting || loading;
     return (
       <div className="flex-1 overflow-y-auto pb-[100px] no-scrollbar px-4 pt-4">
+        <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
         {/* Summary card */}
         <div className="bg-[#111116] rounded-[18px] border border-[rgba(255,255,255,0.08)] overflow-hidden mb-4">
           <div className="relative h-[100px]">
@@ -134,16 +135,16 @@ function ExperienceDetail({ exp, onClose }: { exp: any; onClose: () => void }) {
         <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[390px] px-4 pb-15 pt-3 bg-gradient-to-t from-[#0b0b0f] z-50">
           <button
             onClick={handlePay}
-            disabled={isSubmitting}
+            disabled={showLoader}
             className="w-full rounded-full py-4 text-white text-[16px] font-black flex items-center justify-center gap-2"
             style={{ 
               background: 'linear-gradient(135deg,#c9115f,#cd620e)', 
               boxShadow: '0 0 24px rgba(201,17,95,0.5)',
-              opacity: isSubmitting ? 0.7 : 1
+              opacity: showLoader ? 0.7 : 1
             }}
           >
-            <Zap className={`w-[16px] h-[16px] ${isSubmitting ? 'animate-bounce' : ''}`} /> 
-            {isSubmitting ? 'Processing Payment...' : `Pay ₹${total.toLocaleString('en-IN')}`}
+            <Zap className={`w-[16px] h-[16px] ${showLoader ? 'animate-bounce' : ''}`} /> 
+            {showLoader ? 'Processing Payment...' : `Pay ₹${total.toLocaleString('en-IN')}`}
           </button>
         </div>
       </div>

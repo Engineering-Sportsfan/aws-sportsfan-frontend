@@ -131,6 +131,12 @@ export const storeService = {
   checkout: (payload: CheckoutPayload) =>
     api.post<{ orderId: string; success: boolean }>("/store/checkout", payload),
 
+  createRazorpayOrder: (payload: { productId: string; slotId?: string; variantId?: string; userId: string; idempotencyKey: string; pricePaise?: number }) =>
+    api.post<{ razorpayOrderId?: string; amount?: number; currency?: string; success?: boolean; orderId?: string }>("/store/payments/razorpay/createOrder", payload),
+
+  verifyRazorpayPayment: (payload: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string; checkoutPayload: CheckoutPayload }) =>
+    api.post<{ orderId: string; success: boolean }>("/store/payments/razorpay/verify", payload),
+
   //  Add getEventPass method
   getEventPass: (orderId: string, userId?: string) => {
     // If api.get() already adds /api/v2, use just the relative path
