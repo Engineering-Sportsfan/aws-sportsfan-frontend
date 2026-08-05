@@ -1,7 +1,10 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import {
+  Search,
+  Bell,
+  Menu,
   Award,
   Share2,
   Users,
@@ -28,13 +31,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import {
-  getAthleteProfile,
-  type AthleteProfile as AthleteProfileData,
-} from "@/services/newAthlete.service";
 
-// Fallback trend data shown when API data has no performanceTrend
-const FALLBACK_TREND = [
+// Data for performance trend
+const trendData = [
   { year: "2021", distance: 87.58 },
   { year: "2022", distance: 88.13 },
   { year: "2023", distance: 88.17 },
@@ -43,36 +42,16 @@ const FALLBACK_TREND = [
   { year: "2026", distance: 88.94 },
 ];
 
-interface Props {
-  athleteId?: string;
-}
-
-export default function AthleteProfile({ athleteId }: Props) {
+export default function AthleteProfile() {
   const [activeTab, setActiveTab] = useState<"drops" | "posts">("drops");
   const [isFollowing, setIsFollowing] = useState(false);
-  const [cheerCount, setCheerCount] = useState(0);
+  const [cheerCount, setCheerCount] = useState(12400);
   const [isCheered, setIsCheered] = useState(false);
-  const [athlete, setAthlete] = useState<AthleteProfileData | null>(null);
-  const [loading, setLoading] = useState(!!athleteId);
-  const [error, setError] = useState<string | null>(null);
 
   // Carousel refs
   const hubScrollRef = useRef<HTMLDivElement>(null);
   const medalScrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!athleteId) return;
-    setLoading(true);
-    setError(null);
-    getAthleteProfile(athleteId)
-      .then((data) => {
-        setAthlete(data);
-        setCheerCount(data.fanImpactScore ?? 0);
-      })
-      .catch((err: Error) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [athleteId]);
-  console.log("athleteData:", athlete);
   const scroll = useCallback((ref: React.RefObject<HTMLDivElement | null>, direction: "left" | "right") => {
     if (!ref.current) return;
     const scrollAmount = 200;
@@ -91,159 +70,6 @@ export default function AthleteProfile({ athleteId }: Props) {
     setIsCheered(!isCheered);
   };
 
-  // ── Loading state ────────────────────────────────────────────────────────
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#08080c] flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-14 w-14 border-b-2 border-[#FF0055] mx-auto mb-4" />
-          <p className="text-gray-400 text-sm font-medium">Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Error state ──────────────────────────────────────────────────────────
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#08080c] flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <span className="text-4xl">⚠️</span>
-          <p className="text-red-400 font-bold">{error}</p>
-          <p className="text-gray-500 text-xs">Could not load athlete profile.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Map actual DynamoDB nested paths to display values ───────────────────
-  // Data shape: { coreInfo:{}, performance:{medalCabinet,stats,primaryEvent}, analytics:{} }
-
-  const core = (athlete as any)?.coreInfo ?? {};
-  const perf = (athlete as any)?.performance ?? {};
-  const perfStats = perf?.stats ?? {};
-  const analyticsData = (athlete as any)?.analytics ?? {};
-
-  // Core identity
-  const name = core.name ?? (athlete as any)?.name ?? "Athlete Profile";
-  const sport = perf.primaryEvent ?? analyticsData.sport ?? (athlete as any)?.sport ?? "";
-  const country = core.country ?? (athlete as any)?.country ?? "";
-  const profileImage = core.profileImage
-    ?? (athlete as any)?.profileImage
-    ?? "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=250";
-  const coverImage = core.coverImage ?? (athlete as any)?.coverImage;
-  const isVerified = core.isVerified ?? (athlete as any)?.isVerified ?? true; // athletes are verified by default
-  const worldRank = perfStats.worldRank ?? (athlete as any)?.worldRank;
-  const fanCount = (athlete as any)?.fanCount ?? "–";
-  const fanImpactScore = (athlete as any)?.fanImpactScore ?? 0;
-  const fanImpactChange = (athlete as any)?.fanImpactChange ?? 0;
-
-  // Age from dob
-  const dobAge = (() => {
-    const dob = core.dob ?? (athlete as any)?.dob;
-    if (!dob) return null;
-    const diff = Date.now() - new Date(dob).getTime();
-    return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
-  })();
-
-  // Quick Facts
-  const quickFacts = [
-    {
-      label: "Age",
-      val: dobAge ? `${dobAge} yrs` : (core.age ? `${core.age}` : "–"),
-      icon: <User className="w-4 h-4 text-pink-400" />,
-    },
-    {
-      label: "Height",
-      val: core.heightCm ? `${core.heightCm} cm` : (core.height ?? "–"),
-      icon: <TrendingUp className="w-4 h-4 text-orange-400" />,
-    },
-    {
-      label: "Weight",
-      val: core.weightKg ? `${core.weightKg} kg` : (core.weight ?? "–"),
-      icon: <Zap className="w-4 h-4 text-yellow-400" />,
-    },
-    {
-      label: "Birthplace",
-      val: core.birthplace ?? (athlete as any)?.birthplace ?? "–",
-      icon: <MapPin className="w-4 h-4 text-emerald-400" />,
-    },
-    {
-      label: "Active Since",
-      val: core.yearsActiveSince ? `${core.yearsActiveSince}` : (core.hand ?? "–"),
-      icon: <Calendar className="w-4 h-4 text-cyan-400" />,
-    },
-    {
-      label: "Coach",
-      val: core.coachName ?? core.coach ?? (athlete as any)?.coach ?? "–",
-      icon: <Award className="w-4 h-4 text-[#FFD700]" />,
-    },
-  ];
-
-  // Medal cabinet from performance.medalCabinet[]{category, medal, event}
-  const medalIconMap: Record<string, string> = {
-    GOLD: "🥇", SILVER: "🥈", BRONZE: "🥉",
-    gold: "🥇", silver: "🥈", bronze: "🥉",
-  };
-  const medalColorMap: Record<string, { color: string; text: string }> = {
-    GOLD: { color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
-    SILVER: { color: "from-slate-300/20 to-zinc-400/20", text: "text-slate-300" },
-    BRONZE: { color: "from-amber-700/20 to-orange-800/20", text: "text-amber-600" },
-    gold: { color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
-    silver: { color: "from-slate-300/20 to-zinc-400/20", text: "text-slate-300" },
-    bronze: { color: "from-amber-700/20 to-orange-800/20", text: "text-amber-600" },
-  };
-  const rawMedalCabinet: Array<{ category: string; medal: string; event?: string; year?: string }> =
-    perf.medalCabinet ?? (athlete as any)?.medals ?? [];
-  const medals = rawMedalCabinet.map((m) => ({
-    title: m.category ?? "",
-    year: m.year ?? "",
-    icon: medalIconMap[m.medal] ?? "🏅",
-    color: (medalColorMap[m.medal] ?? medalColorMap["GOLD"]).color,
-    text: (medalColorMap[m.medal] ?? medalColorMap["GOLD"]).text,
-  }));
-
-  // Achievements from medal cabinet (unique category + medal combos)
-  const achievements: string[] = rawMedalCabinet
-    .filter((m) => m.medal === "GOLD" || m.medal === "gold")
-    .slice(0, 4)
-    .map((m) => m.category ?? "");
-
-  // Performance trend — use analytics.seasonalData if available, else fallback
-  const rawSeasonalData: Array<{ year: string; value: number }> =
-    analyticsData.seasonalData ?? (athlete as any)?.performanceTrend ?? [];
-  const trendData = rawSeasonalData.length > 0
-    ? rawSeasonalData.map((d) => ({ year: String(d.year), distance: d.value }))
-    : FALLBACK_TREND;
-
-  // Season stats
-  const currentSeason = perf.currentSeason ?? null;
-  const season = currentSeason
-    ? {
-      events: currentSeason.events ?? "–",
-      gold: currentSeason.gold ?? "–",
-      silver: currentSeason.silver ?? "–",
-      bronze: currentSeason.bronze ?? "–",
-      seasonBest: currentSeason.seasonBest ?? perfStats.seasonBest ?? "–",
-      averageThrow: currentSeason.averageThrow ?? "–",
-      currentStreak: currentSeason.currentStreak ?? "–",
-    }
-    : {
-      events: "–", gold: "–", silver: "–", bronze: "–",
-      seasonBest: perfStats.seasonBest ?? analyticsData.heroStat ?? "–",
-      averageThrow: perfStats.personalBest ?? analyticsData.afterCoach ?? "–",
-      currentStreak: "–",
-    };
-
-  // Athlete hub config
-  const hubItems = [
-    { title: "VOD & Interviews", badge: `${(athlete as any)?.vodCount ?? 0}`, icon: "📹", color: "from-pink-500/10 to-red-500/10" },
-    { title: "AMS Sessions", badge: `${(athlete as any)?.amsCount ?? 0}`, icon: "🎙️", color: "from-purple-500/10 to-indigo-500/10" },
-    { title: "Bookings", badge: `${(athlete as any)?.bookingCount ?? 0}`, icon: "📅", color: "from-blue-500/10 to-cyan-500/10" },
-    { title: "Store", badge: `${(athlete as any)?.storeCount ?? 0}`, icon: "🛍️", color: "from-emerald-500/10 to-teal-500/10" },
-    { title: "Auctions", badge: `${(athlete as any)?.auctionCount ?? 0}`, icon: "🔨", color: "from-amber-500/10 to-orange-500/10" },
-  ];
-
   return (
     <div className="min-h-screen bg-[#08080c] text-white font-sans overflow-y-auto no-scrollbar pb-10">
       {/* Hide scrollbar CSS */}
@@ -261,13 +87,11 @@ export default function AthleteProfile({ athleteId }: Props) {
 
       {/* Hero Header Area */}
       <div className="relative w-full h-[320px] md:h-[400px] overflow-hidden">
-        {/* Cover Image */}
+        {/* Cover Javelin Throw Image / Gradient */}
         <div
           className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-60"
           style={{
-            backgroundImage: coverImage
-              ? `linear-gradient(to bottom, rgba(8,8,12,0.4), #08080c), url('${coverImage}')`
-              : `linear-gradient(to bottom, rgba(8,8,12,0.4), #08080c), url('/images/stadium-bg.jpg')`,
+            backgroundImage: `linear-gradient(to bottom, rgba(8, 8, 12, 0.4), #08080c), url('/images/stadium-bg.jpg')`,
           }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#08080c] via-transparent to-black/50" />
@@ -293,8 +117,8 @@ export default function AthleteProfile({ athleteId }: Props) {
               <div className="w-[100px] h-[100px] md:w-[130px] md:h-[130px] rounded-full p-[3px] bg-gradient-to-r from-[#FF7A00] to-[#FF0055] shadow-lg shadow-[#FF7A00]/20">
                 <div className="w-full h-full rounded-full overflow-hidden bg-slate-800">
                   <img
-                    src={profileImage}
-                    alt={name}
+                    src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=250"
+                    alt="Neeraj Chopra"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -318,34 +142,37 @@ export default function AthleteProfile({ athleteId }: Props) {
                 </span>
               </div>
               <h1 className="text-2xl md:text-4xl font-extrabold flex items-center gap-2 tracking-tight">
-                {name}
-                {isVerified && (
-                  <span className="w-5 h-5 bg-[#FF0055] rounded-full inline-flex items-center justify-center text-[10px] text-white">
-                    ✓
-                  </span>
-                )}
+                Neeraj Chopra
+                <span className="w-5 h-5 bg-[#FF0055] rounded-full inline-flex items-center justify-center text-[10px] text-white">
+                  ✓
+                </span>
               </h1>
-              {(country || sport) && (
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs text-gray-300 font-medium">
-                    {[country, sport].filter(Boolean).join(" • ")}
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="inline-block w-5 h-3.5 bg-amber-600 rounded-sm overflow-hidden relative shadow-sm">
+                  {/* Flag Representation (India) */}
+                  <div className="h-1/3 bg-[#FF9933]" />
+                  <div className="h-1/3 bg-white flex items-center justify-center">
+                    <div className="w-1 h-1 bg-[#000080] rounded-full" />
+                  </div>
+                  <div className="h-1/3 bg-[#138808]" />
+                </span>
+                <span className="text-xs text-gray-300 font-medium">
+                  India • Javelin Throw
+                </span>
+              </div>
 
               {/* Achievements Badges */}
               <div className="flex flex-wrap items-center gap-3 mt-3">
-                {worldRank != null && (
-                  <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/5">
-                    <span className="text-[10px] text-orange-400 font-semibold">World Rank</span>
-                    <span className="text-[11px] text-white font-bold">#{worldRank}</span>
-                  </div>
-                )}
-                {achievements.slice(0, 2).map((ach, i) => (
-                  <div key={i} className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/5">
-                    <span className="text-[10px] text-yellow-400 font-semibold">🏆 {ach}</span>
-                  </div>
-                ))}
+                <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/5">
+                  <span className="text-[10px] text-orange-400 font-semibold">World Rank</span>
+                  <span className="text-[11px] text-white font-bold">#2</span>
+                </div>
+                <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/5">
+                  <span className="text-[10px] text-yellow-400 font-semibold">🏆 Olympic Champion</span>
+                </div>
+                <div className="flex items-center gap-1 bg-black/40 backdrop-blur-md rounded-full px-2.5 py-1 border border-white/5">
+                  <span className="text-[10px] text-yellow-400 font-semibold">🏆 World Champion</span>
+                </div>
               </div>
             </div>
           </div>
@@ -353,7 +180,7 @@ export default function AthleteProfile({ athleteId }: Props) {
           {/* Social Stats & Buttons */}
           <div className="flex flex-col items-start md:items-end gap-3 shrink-0">
             <div className="text-left md:text-right">
-              <span className="block text-2xl font-black text-white leading-none">{fanCount}</span>
+              <span className="block text-2xl font-black text-white leading-none">4.8M</span>
               <span className="text-[11px] text-gray-400 font-medium">Fans</span>
             </div>
             <div className="flex items-center gap-2.5">
@@ -417,7 +244,7 @@ export default function AthleteProfile({ athleteId }: Props) {
                 <span className="text-[10px] uppercase font-extrabold tracking-wider text-pink-400">Welcome Message!</span>
               </div>
               <h2 className="text-xl md:text-2xl font-black leading-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-gray-400">
-                {athlete?.welcomeMessage ?? `A special video message from ${name} to the fans!`}
+                A special video message from Neeraj to his fans!
               </h2>
               <button className="flex items-center gap-2 bg-gradient-to-r from-[#FF0055] to-[#FF4500] px-5 py-2.5 rounded-full font-bold text-xs shadow-lg active:scale-95 transition-all w-max">
                 <Play className="w-3.5 h-3.5 fill-current" />
@@ -428,8 +255,8 @@ export default function AthleteProfile({ athleteId }: Props) {
             {/* Video Thumbnail */}
             <div className="lg:col-span-8 relative rounded-2xl overflow-hidden aspect-video group cursor-pointer border border-white/10 shadow-2xl">
               <img
-                src={athlete?.welcomeVideoThumbnail ?? "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=600"}
-                alt={`${name} Fan Message`}
+                src="https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=600"
+                alt="Neeraj Chopra Fan Message"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
               <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -438,13 +265,11 @@ export default function AthleteProfile({ athleteId }: Props) {
                 </div>
               </div>
 
-              {/* Quote Overlay */}
-              {athlete?.welcomeVideoQuote && (
-                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-xs text-white/90 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/5">
-                  <span className="font-semibold italic">"{athlete.welcomeVideoQuote}"</span>
-                  <span className="text-[10px] text-gray-400">- {name.split(" ")[0]}</span>
-                </div>
-              )}
+              {/* Handwriting Overlay */}
+              <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-xs text-white/90 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/5">
+                <span className="font-semibold italic">"Always believe. Keep aiming higher. Jai Hind!"</span>
+                <span className="text-[10px] text-gray-400">- Neeraj</span>
+              </div>
 
               {/* Micro stats */}
               <div className="absolute top-4 right-4 flex items-center gap-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full text-[10px] font-semibold border border-white/5">
@@ -458,11 +283,11 @@ export default function AthleteProfile({ athleteId }: Props) {
 
         {/* Neeraj's Corner & Athlete Hub Section */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Athlete's Corner */}
+          {/* Neeraj's Corner */}
           <div className="lg:col-span-6 bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">{name.split(" ")[0]}'s Corner</h3>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">Neeraj's Corner</h3>
                 <button className="text-xs text-gray-400 hover:text-white flex items-center gap-0.5 font-semibold">
                   View All <ChevronRight className="w-3.5 h-3.5" />
                 </button>
@@ -592,7 +417,13 @@ export default function AthleteProfile({ athleteId }: Props) {
                 ref={hubScrollRef}
                 className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide sm:grid sm:grid-cols-3 sm:overflow-visible"
               >
-                {hubItems.map((item, idx) => (
+                {[
+                  { title: "VOD & Interviews", badge: "128", icon: "📹", color: "from-pink-500/10 to-red-500/10" },
+                  { title: "AMS Sessions", badge: "36", icon: "🎙️", color: "from-purple-500/10 to-indigo-500/10" },
+                  { title: "Bookings", badge: "24", icon: "📅", color: "from-blue-500/10 to-cyan-500/10" },
+                  { title: "Store", badge: "158", icon: "🛍️", color: "from-emerald-500/10 to-teal-500/10" },
+                  { title: "Auctions", badge: "82", icon: "🔨", color: "from-amber-500/10 to-orange-500/10" },
+                ].map((item, idx) => (
                   <div
                     key={idx}
                     className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.color} border border-white/10 p-5 h-[120px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 hover:border-[#FF0055]/40 snap-start min-w-[160px] shrink-0 sm:min-w-0 sm:shrink`}
@@ -605,21 +436,19 @@ export default function AthleteProfile({ athleteId }: Props) {
                       {item.badge}
                     </span>
 
-                    <div className="relative flex h-full flex-col justify-between overflow-visible">
-                      {/* Icon Wrapper - Uses flex layout instead of padding to keep the 12x12 proportions perfect */}
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-3xl backdrop-blur-sm transition-transform duration-300 group-hover:scale-110">
+                    <div className="relative flex h-full flex-col justify-between">
+                      {/* Icon */}
+                      <div className="flex mb-4 p-8 h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-3xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
                         {item.icon}
                       </div>
 
-                      {/* Text Content Area */}
-                      <div className="mt-4 flex flex-col gap-1">
-                        <h4 className="text-sm font-semibold leading-snug text-white transition-colors duration-300 group-hover:text-[#FF0055]">
+                      {/* Title */}
+                      <div>
+                        <h4 className="text-sm font-semibold text-white leading-snug transition-colors duration-300 group-hover:text-[#FF0055]">
                           {item.title}
                         </h4>
-                        {/* Optional description can safely go here later without breaking layout */}
                       </div>
                     </div>
-
                   </div>
                 ))}
               </div>
@@ -637,7 +466,14 @@ export default function AthleteProfile({ athleteId }: Props) {
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-              {quickFacts.map((fact, idx) => (
+              {[
+                { label: "Age", val: "28", icon: <User className="w-4 h-4 text-pink-400" /> },
+                { label: "Height", val: "1.86 m", icon: <TrendingUp className="w-4 h-4 text-orange-400" /> },
+                { label: "Weight", val: "86 kg", icon: <Zap className="w-4 h-4 text-yellow-400" /> },
+                { label: "Birthplace", val: "Khandra, Haryana", icon: <MapPin className="w-4 h-4 text-emerald-400" /> },
+                { label: "Hand", val: "Right Hand", icon: <Calendar className="w-4 h-4 text-cyan-400" /> },
+                { label: "Coach", val: "Jan Železný", icon: <Award className="w-4 h-4 text-[#FFD700]" /> },
+              ].map((fact, idx) => (
                 <div key={idx} className="bg-black/35 rounded-2xl p-3 border border-white/5 flex items-start gap-2.5">
                   <div className="p-2 rounded-xl bg-white/5 shrink-0 mt-0.5">{fact.icon}</div>
                   <div className="min-w-0">
@@ -648,19 +484,19 @@ export default function AthleteProfile({ athleteId }: Props) {
               ))}
             </div>
 
-            {/* Achievements Badges */}
-            {achievements.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-white/5">
-                {achievements.map((badge, idx) => (
+            {/* Badges Carousel / List */}
+            <div className="flex flex-wrap items-center gap-2 mt-5 pt-4 border-t border-white/5">
+              {["Olympic Champion", "World Champion", "Asian Champion", "CWG Gold", "Diamond League Winner"].map(
+                (badge, idx) => (
                   <span
                     key={idx}
                     className="text-[10px] font-bold text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 px-3 py-1 rounded-full flex items-center gap-1"
                   >
                     🥇 {badge}
                   </span>
-                ))}
-              </div>
-            )}
+                )
+              )}
+            </div>
           </div>
 
           {/* Fan Power Card */}
@@ -695,7 +531,7 @@ export default function AthleteProfile({ athleteId }: Props) {
                     strokeWidth="10"
                     fill="transparent"
                     strokeDasharray={376.8}
-                    strokeDashoffset={376.8 * (1 - Math.min(fanImpactScore, 100) / 100)}
+                    strokeDashoffset={376.8 * (1 - 98 / 100)}
                     strokeLinecap="round"
                   />
                   <defs>
@@ -708,7 +544,7 @@ export default function AthleteProfile({ athleteId }: Props) {
 
                 {/* Score overlay */}
                 <div className="absolute text-center">
-                  <span className="block text-3xl font-black text-white leading-none">{fanImpactScore}</span>
+                  <span className="block text-3xl font-black text-white leading-none">98</span>
                   <span className="text-[10px] text-gray-400 font-bold uppercase">/ 100</span>
                 </div>
               </div>
@@ -717,8 +553,7 @@ export default function AthleteProfile({ athleteId }: Props) {
             <div className="text-center space-y-1">
               <span className="block text-xs font-semibold text-gray-300">Fan Impact Score</span>
               <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-xs">
-                {fanImpactChange >= 0 ? "▲" : "▼"} {Math.abs(fanImpactChange)}%{" "}
-                <span className="text-gray-400 font-medium text-[10px]">this month</span>
+                ▲ 14% <span className="text-gray-400 font-medium text-[10px]">this month</span>
               </span>
             </div>
           </div>
@@ -740,19 +575,19 @@ export default function AthleteProfile({ athleteId }: Props) {
               <div className="grid grid-cols-4 gap-2 mb-4 bg-black/40 p-3 rounded-2xl border border-white/5 text-center">
                 <div>
                   <span className="block text-[10px] text-gray-400 font-medium">Events</span>
-                  <span className="text-lg font-black text-white">{season?.events ?? "–"}</span>
+                  <span className="text-lg font-black text-white">8</span>
                 </div>
                 <div>
                   <span className="block text-[10px] text-gray-400 font-medium">Gold</span>
-                  <span className="text-lg font-black text-yellow-400">{season?.gold ?? "–"}</span>
+                  <span className="text-lg font-black text-yellow-400">5</span>
                 </div>
                 <div>
                   <span className="block text-[10px] text-gray-400 font-medium">Silver</span>
-                  <span className="text-lg font-black text-gray-300">{season?.silver ?? "–"}</span>
+                  <span className="text-lg font-black text-gray-300">2</span>
                 </div>
                 <div>
                   <span className="block text-[10px] text-gray-400 font-medium">Bronze</span>
-                  <span className="text-lg font-black text-amber-600">{season?.bronze ?? "–"}</span>
+                  <span className="text-lg font-black text-amber-600">1</span>
                 </div>
               </div>
 
@@ -760,16 +595,16 @@ export default function AthleteProfile({ athleteId }: Props) {
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
                   <span className="text-xs font-semibold text-gray-300">Season Best</span>
-                  <span className="text-xs font-bold text-white">{season?.seasonBest ?? "–"}</span>
+                  <span className="text-xs font-bold text-white">88.94 m</span>
                 </div>
                 <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
                   <span className="text-xs font-semibold text-gray-300">Average Throw</span>
-                  <span className="text-xs font-bold text-white">{season?.averageThrow ?? "–"}</span>
+                  <span className="text-xs font-bold text-white">87.72 m</span>
                 </div>
                 <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
                   <span className="text-xs font-semibold text-gray-300">Current Streak</span>
                   <span className="text-xs font-bold text-orange-400 flex items-center gap-1">
-                    {season?.currentStreak ?? "–"} 🔥
+                    4 Podiums 🔥
                   </span>
                 </div>
               </div>
@@ -870,7 +705,14 @@ export default function AthleteProfile({ athleteId }: Props) {
               ref={medalScrollRef}
               className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide sm:grid sm:grid-cols-3 md:grid-cols-6 sm:overflow-visible"
             >
-              {medals.map((medal, idx) => (
+              {[
+                { title: "Olympics Gold", year: "2021", icon: "🥇", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
+                { title: "Olympics Silver", year: "2024", icon: "🥈", color: "from-slate-300/20 to-zinc-400/20", text: "text-slate-300" },
+                { title: "World Champ Gold", year: "2023", icon: "🏆", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
+                { title: "Asian Games Gold", year: "2018", icon: "🥇", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
+                { title: "CWG Gold", year: "2022", icon: "🥇", color: "from-yellow-400/20 to-amber-500/20", text: "text-yellow-400" },
+                { title: "Diamond League Winner", year: "2022", icon: "💎", color: "from-cyan-400/20 to-blue-500/20", text: "text-cyan-400" },
+              ].map((medal, idx) => (
                 <div
                   key={idx}
                   className={`flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-br ${medal.color} border border-white/5 text-center snap-start min-w-[120px] shrink-0 sm:min-w-0 sm:shrink`}

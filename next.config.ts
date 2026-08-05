@@ -637,6 +637,16 @@ const nextConfig = {
         // },
 
 
+        // Athlete Profile (DynamoDB-backed)
+        {
+          source: "/api/athleteProfile",
+          destination: `${apiTarget}/api/athleteProfile`,
+        },
+        {
+          source: "/api/athleteProfile/:path*",
+          destination: `${apiTarget}/api/athleteProfile/:path*`,
+        },
+
         // ── v2 APIs (Athlete Home / Store / Playbook / Articles / Records) ──
         { source: "/api/v2/health", destination: `${apiTarget}/api/v2/health` },
 
