@@ -59,6 +59,9 @@ export default function AthleteProfile({ athleteId }: Props) {
   // Carousel refs
   const hubScrollRef = useRef<HTMLDivElement>(null);
   const medalScrollRef = useRef<HTMLDivElement>(null);
+  const welcomeVideoRef = useRef<HTMLVideoElement>(null);
+  const [isWelcomeVideoPlaying, setIsWelcomeVideoPlaying] = useState(false);
+  const [showYouTubeEmbed, setShowYouTubeEmbed] = useState(false);
 
   useEffect(() => {
     if (!athleteId) return;
@@ -123,6 +126,39 @@ export default function AthleteProfile({ athleteId }: Props) {
   const perf = (athlete as any)?.performance ?? {};
   const perfStats = perf?.stats ?? {};
   const analyticsData = (athlete as any)?.analytics ?? {};
+  // console.log("core.welcomeVideoUrl: ", athlete?.coreInfo?.welcomeVideoUrl);
+
+  // Welcome video — field lives on the top-level athlete object (not inside coreInfo)
+  const welcomeVideoUrl: string | undefined =
+    (athlete as any)?.welcomeVideoUrl ??
+    core?.welcomeVideoUrl ??
+    undefined;
+  console.log("[WelcomeVideo] resolved URL:", welcomeVideoUrl);
+
+  // ── YouTube helpers ─────────────────────────────────────────────────────
+  const extractYouTubeId = (url: string): string | null => {
+    try {
+      // Handles: youtu.be/ID, youtube.com/watch?v=ID, youtube.com/embed/ID, youtube.com/shorts/ID
+      const u = new URL(url);
+      if (u.hostname === "youtu.be") return u.pathname.slice(1).split("?")[0];
+      if (u.hostname.includes("youtube.com")) {
+        return (
+          u.searchParams.get("v") ||
+          u.pathname.split("/").find((s, i, arr) =>
+            (arr[i - 1] === "embed" || arr[i - 1] === "shorts") && s
+          ) ||
+          null
+        );
+      }
+    } catch { }
+    return null;
+  };
+
+  const youTubeId = welcomeVideoUrl ? extractYouTubeId(welcomeVideoUrl) : null;
+  const isYouTube = !!youTubeId;
+  const youTubeThumbnail = youTubeId
+    ? `https://img.youtube.com/vi/${youTubeId}/hqdefault.jpg`
+    : null;
 
   // Core identity
   const name = core.name ?? (athlete as any)?.name ?? "Athlete Profile";
@@ -209,30 +245,50 @@ export default function AthleteProfile({ athleteId }: Props) {
     .slice(0, 4)
     .map((m) => m.category ?? "");
 
-  // Performance trend — use analytics.seasonalData if available, else fallback
+  // Performance trend — primary: record_highlight.progressData, fallback: analytics.seasonalData
+  const recordHighlight = (athlete as any)?.record_highlight ?? {};
+  const progressData: Array<{ year: string; value: number }> =
+    recordHighlight.progressData ?? [];
+
   const rawSeasonalData: Array<{ year: string; value: number }> =
     analyticsData.seasonalData ?? (athlete as any)?.performanceTrend ?? [];
-  const trendData = rawSeasonalData.length > 0
-    ? rawSeasonalData.map((d) => ({ year: String(d.year), distance: d.value }))
-    : FALLBACK_TREND;
 
-  // Season stats
-  const currentSeason = perf.currentSeason ?? null;
-  const season = currentSeason
+  const trendData =
+    progressData.length > 0
+      ? progressData.map((d) => ({ year: String(d.year), distance: d.value })).sort((a, b) => a.year.localeCompare(b.year))
+      : rawSeasonalData.length > 0
+        ? rawSeasonalData.map((d) => ({ year: String(d.year), distance: d.value })).sort((a, b) => a.year.localeCompare(b.year))
+        : FALLBACK_TREND;
+
+  // Season stats from analytics - medalData (array of seasons, pick current year)
+  const medalDataArray: Array<Record<string, any>> = Array.isArray(analyticsData.medalData)
+    ? analyticsData.medalData
+    : analyticsData.medalData
+      ? [analyticsData.medalData]
+      : [];
+  const currentYear = String(new Date().getFullYear());
+  const currentMedalData =
+    medalDataArray.find((s) => String(s.year) === currentYear) ??
+    medalDataArray[medalDataArray.length - 1] ??
+    null;
+  console.log("currentMedalData", currentMedalData);
+  const season = currentMedalData
     ? {
-      events: currentSeason.events ?? "–",
-      gold: currentSeason.gold ?? "–",
-      silver: currentSeason.silver ?? "–",
-      bronze: currentSeason.bronze ?? "–",
-      seasonBest: currentSeason.seasonBest ?? perfStats.seasonBest ?? "–",
-      averageThrow: currentSeason.averageThrow ?? "–",
-      currentStreak: currentSeason.currentStreak ?? "–",
+      events: currentMedalData.events ?? "–",
+      gold: currentMedalData.gold ?? "–",
+      silver: currentMedalData.silver ?? "–",
+      bronze: currentMedalData.bronze ?? "–",
+      seasonBest: currentMedalData.seasonBest ?? perfStats.seasonBest ?? "–",
+      averageThrow: currentMedalData.averageThrow ?? "–",
+      currentStreak: currentMedalData.currentStreak ?? "–",
+      year: currentMedalData.year ?? "–",
     }
     : {
       events: "–", gold: "–", silver: "–", bronze: "–",
       seasonBest: perfStats.seasonBest ?? analyticsData.heroStat ?? "–",
       averageThrow: perfStats.personalBest ?? analyticsData.afterCoach ?? "–",
       currentStreak: "–",
+      year: "–",
     };
 
   // Athlete hub config
@@ -419,24 +475,98 @@ export default function AthleteProfile({ athleteId }: Props) {
               <h2 className="text-xl md:text-2xl font-black leading-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-gray-400">
                 {athlete?.welcomeMessage ?? `A special video message from ${name} to the fans!`}
               </h2>
-              <button className="flex items-center gap-2 bg-gradient-to-r from-[#FF0055] to-[#FF4500] px-5 py-2.5 rounded-full font-bold text-xs shadow-lg active:scale-95 transition-all w-max">
+              <button
+                className="flex items-center gap-2 bg-gradient-to-r from-[#FF0055] to-[#FF4500] px-5 py-2.5 rounded-full font-bold text-xs shadow-lg active:scale-95 transition-all w-max"
+                onClick={() => {
+                  if (isYouTube) {
+                    setShowYouTubeEmbed(true);
+                  } else {
+                    welcomeVideoRef.current?.play()
+                      .then(() => setIsWelcomeVideoPlaying(true))
+                      .catch((err) => console.error("[WelcomeVideo] play error:", err));
+                  }
+                }}
+              >
                 <Play className="w-3.5 h-3.5 fill-current" />
                 Watch Now
               </button>
             </div>
 
-            {/* Video Thumbnail */}
-            <div className="lg:col-span-8 relative rounded-2xl overflow-hidden aspect-video group cursor-pointer border border-white/10 shadow-2xl">
-              <img
-                src={athlete?.welcomeVideoThumbnail ?? "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=600"}
-                alt={`${name} Fan Message`}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              />
-              <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 group-hover:scale-110 transition-transform shadow-xl">
-                  <Play className="w-6 h-6 text-white fill-current translate-x-0.5" />
-                </div>
-              </div>
+            {/* Video Player */}
+            <div className="lg:col-span-8 relative rounded-2xl overflow-hidden aspect-video group border border-white/10 shadow-2xl">
+              {welcomeVideoUrl ? (
+                isYouTube ? (
+                  // ── YouTube embed ──────────────────────────────────────────
+                  showYouTubeEmbed ? (
+                    <iframe
+                      src={`https://www.youtube.com/embed/${youTubeId}?autoplay=1&rel=0&modestbranding=1`}
+                      className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      title={`${name} Welcome Message`}
+                    />
+                  ) : (
+                    // Show HQ thumbnail + play overlay until user clicks
+                    <>
+                      <img
+                        src={youTubeThumbnail ?? "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=600"}
+                        alt={`${name} Welcome Message`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      {/* Dark overlay + Play button */}
+                      <div
+                        className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer"
+                        onClick={() => setShowYouTubeEmbed(true)}
+                      >
+                        <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xl border-2 border-white/20">
+                          <Play className="w-7 h-7 text-white fill-current translate-x-0.5" />
+                        </div>
+                      </div>
+                    </>
+                  )
+                ) : (
+                  // ── Native video (non-YouTube URL) ─────────────────────────
+                  <>
+                    <video
+                      ref={welcomeVideoRef}
+                      src={welcomeVideoUrl}
+                      className="w-full h-full object-cover"
+                      playsInline
+                      controls
+                      onEnded={() => setIsWelcomeVideoPlaying(false)}
+                      onPause={() => setIsWelcomeVideoPlaying(false)}
+                      onPlay={() => setIsWelcomeVideoPlaying(true)}
+                      onError={(e) => console.error("[WelcomeVideo] load error", e)}
+                    />
+                    {!isWelcomeVideoPlaying && (
+                      <div
+                        className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer"
+                        onClick={() => {
+                          welcomeVideoRef.current?.play().then(() => setIsWelcomeVideoPlaying(true)).catch(() => { });
+                        }}
+                      >
+                        <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 group-hover:scale-110 transition-transform shadow-xl">
+                          <Play className="w-6 h-6 text-white fill-current translate-x-0.5" />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )
+              ) : (
+                // ── No video URL fallback ──────────────────────────────────
+                <>
+                  <img
+                    src={athlete?.welcomeVideoThumbnail ?? "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=600"}
+                    alt={`${name} Fan Message`}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-xl">
+                        <Play className="w-6 h-6 text-white fill-current translate-x-0.5" />
+                      </div>
+                    </div>
+                </>
+              )}
 
               {/* Quote Overlay */}
               {athlete?.welcomeVideoQuote && (
