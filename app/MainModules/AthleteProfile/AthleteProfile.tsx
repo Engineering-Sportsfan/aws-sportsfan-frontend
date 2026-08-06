@@ -893,7 +893,7 @@ export default function AthleteProfile({ athleteId }: Props) {
                   <span className="text-xs font-bold text-white">{season?.seasonBest ?? "–"}</span>
                 </div>
                 <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
-                  <span className="text-xs font-semibold text-gray-300">Average Throw</span>
+                  <span className="text-xs font-semibold text-gray-300">Season Average</span>
                   <span className="text-xs font-bold text-white">{season?.averageThrow ?? "–"}</span>
                 </div>
                 <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
