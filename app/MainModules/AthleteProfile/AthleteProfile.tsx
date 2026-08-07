@@ -164,12 +164,19 @@ export default function AthleteProfile({ athleteId }: Props) {
   const name = core.name ?? (athlete as any)?.name ?? "Athlete Profile";
   const sport = perf.primaryEvent ?? analyticsData.sport ?? (athlete as any)?.sport ?? "";
   const country = core.country ?? (athlete as any)?.country ?? "";
-  const profileImage = core.profileImage
+  const profileImage: string | null = core.profileImage
     ?? (athlete as any)?.profileImage
-    ?? "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=250";
+    ?? null;
+  // Initials: first letter of first word + first letter of last word
+  const nameInitials = (() => {
+    const parts = name.trim().split(/\s+/);
+    const first = parts[0]?.[0] ?? "";
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+    return (first + last).toUpperCase();
+  })();
   const coverImage = core.coverImage ?? (athlete as any)?.coverImage;
   const isVerified = core.isVerified ?? (athlete as any)?.isVerified ?? true; // athletes are verified by default
-  const worldRank = perfStats.worldRank ?? (athlete as any)?.worldRank;
+  const worldRank = analyticsData.stats.worldRank ?? (athlete as any)?.worldRank;
   const fanCount = (athlete as any)?.fanCount ?? "–";
   const fanImpactScore = (athlete as any)?.fanImpactScore ?? 0;
   const fanImpactChange = (athlete as any)?.fanImpactChange ?? 0;
@@ -253,12 +260,35 @@ export default function AthleteProfile({ athleteId }: Props) {
   const rawSeasonalData: Array<{ year: string; value: number }> =
     analyticsData.seasonalData ?? (athlete as any)?.performanceTrend ?? [];
 
+  // Build trendData: handle duplicate years by labeling them as attempts
+  const buildTrendData = (raw: Array<{ year: string; value: number }>) => {
+    const sorted = [...raw].sort((a, b) => String(a.year).localeCompare(String(b.year)));
+    const yearCount: Record<string, number> = {};
+    const yearIdx: Record<string, number> = {};
+    sorted.forEach((d) => { yearCount[d.year] = (yearCount[d.year] ?? 0) + 1; });
+    return sorted.map((d) => {
+      const yr = String(d.year);
+      if (yearCount[yr] > 1) {
+        yearIdx[yr] = (yearIdx[yr] ?? 0) + 1;
+        return { year: `${yr} #${yearIdx[yr]}`, distance: d.value };
+      }
+      return { year: yr, distance: d.value };
+    });
+  };
+
   const trendData =
     progressData.length > 0
-      ? progressData.map((d) => ({ year: String(d.year), distance: d.value })).sort((a, b) => a.year.localeCompare(b.year))
+      ? buildTrendData(progressData)
       : rawSeasonalData.length > 0
-        ? rawSeasonalData.map((d) => ({ year: String(d.year), distance: d.value })).sort((a, b) => a.year.localeCompare(b.year))
+        ? buildTrendData(rawSeasonalData)
         : FALLBACK_TREND;
+
+  // Dynamic Y-axis domain with ~5% padding
+  const trendValues = trendData.map((d) => d.distance);
+  const trendMin = trendValues.length > 0 ? Math.min(...trendValues) : 0;
+  const trendMax = trendValues.length > 0 ? Math.max(...trendValues) : 10;
+  const trendPad = Math.max((trendMax - trendMin) * 0.15, 0.5);
+  const yDomain: [number, number] = [Math.floor((trendMin - trendPad) * 10) / 10, Math.ceil((trendMax + trendPad) * 10) / 10];
 
   // Season stats from analytics - medalData (array of seasons, pick current year)
   const medalDataArray: Array<Record<string, any>> = Array.isArray(analyticsData.medalData)
@@ -347,12 +377,21 @@ export default function AthleteProfile({ athleteId }: Props) {
             {/* Avatar container */}
             <div className="relative shrink-0">
               <div className="w-[100px] h-[100px] md:w-[130px] md:h-[130px] rounded-full p-[3px] bg-gradient-to-r from-[#FF7A00] to-[#FF0055] shadow-lg shadow-[#FF7A00]/20">
-                <div className="w-full h-full rounded-full overflow-hidden bg-slate-800">
-                  <img
-                    src={profileImage}
-                    alt={name}
-                    className="w-full h-full object-cover"
-                  />
+                <div className="w-full h-full rounded-full overflow-hidden bg-[#1a1a2e] flex items-center justify-center">
+                  {profileImage ? (
+                    <img
+                      src={profileImage}
+                      alt={name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span
+                      className="text-[28px] md:text-[34px] font-black tracking-tight select-none"
+                      style={{ background: 'linear-gradient(135deg, #FF7A00, #FF0055)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+                    >
+                      {nameInitials}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="absolute bottom-0 right-1 w-6 h-6 bg-pink-500 rounded-full flex items-center justify-center border-2 border-[#08080c]">
@@ -933,11 +972,12 @@ export default function AthleteProfile({ athleteId }: Props) {
                     tickLine={false}
                   />
                   <YAxis
-                    domain={[85, 92]}
+                    domain={yDomain}
                     stroke="#4B5563"
                     tick={{ fill: "#9CA3AF", fontSize: 10 }}
                     axisLine={false}
                     tickLine={false}
+                    width={40}
                   />
                   <Tooltip
                     contentStyle={{
