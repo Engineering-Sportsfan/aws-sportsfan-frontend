@@ -45,13 +45,17 @@ import WomensT20Section from "@/src/components/HomeComponents/WomensT20Section";
 import FifaClub360Page from "../FifaClub360/page";
 import WT20Club360CardsSection from "../WT20WC360/page";
 import HeroCarousel, { HeroCard } from "@/src/components/NewHomeComponents/SportScoreSection";
-import { MyRoomsList } from "@/src/components/NewHomeComponents/Myroomsstatspreview";
+import RoarRooms from "@/src/components/NewHomeComponents/Myroomsstatspreview";
 import type { Room } from "@/src/components/NewROARComponent/types";
 import { useRouter } from "next/navigation";
 import StoreFeedSection from "../AtheleteHome/figma/HomeStore";
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import DollyPanel, { type DollyHistorySession } from "@/src/components/NewROARComponent/components/DollyPanel";
+import SportScoreSection from "@/src/components/NewHomeComponents/SportScoreSection";
+import IndiaHub from "@/src/components/NewHomeComponents/IndiaHub";
+import WatchAlongSessions from "@/src/components/NewHomeComponents/WatchAlongSessions";
+import StoreAndExperiences from "@/src/components/NewHomeComponents/StoreAndExperiences";
 
 export default function HomePage() {
   const router = useRouter();
@@ -124,6 +128,7 @@ export default function HomePage() {
       scarcityTag: "FEW LEFT",
       title: "Breakfast with Neeraj Chopra",
       subtitle: "Exclusive 1-on-1 session · ITC Maurya · New Delhi",
+      ctaLabel: "Book Experience",
       price: "₹12,500",
       priceSuffix: "/ person",
       onBook: () => console.log("Book experience"),
@@ -257,22 +262,22 @@ export default function HomePage() {
         {/* <SocialFeedSection />
         <NewsCenter /> */}
 
-        <HeroCarousel cards={heroCards} />
+        {/* <HeroCarousel cards={heroCards} /> */}
 
+      
         {/* <MyRoomsList
-          rooms={rooms}
-          presenceByRoom={presenceByRoom}
-          countsByRoom={countsByRoom}
           openRoomId="NMryj1w7t8mJpGzEvF9q"
           onSeeAll={() => router.push("/MainModules/ROAR")}
           onEnter={(room) => router.push(`/MainModules/ROAR?room=${room.roomId}`)}
         /> */}
-        <MyRoomsList
-          openRoomId="NMryj1w7t8mJpGzEvF9q"
-          onSeeAll={() => router.push("/MainModules/ROAR")}
-          onEnter={(room) => router.push(`/MainModules/ROAR?room=${room.roomId}`)}
-        />
 
+        <SportScoreSection />
+        <RoarRooms />
+        <WatchAlongSessions />
+
+        <IndiaHub />
+        <StoreAndExperiences />
+        
         <DollyPanel
           isOpen={dollyOpen}
           onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
@@ -331,7 +336,7 @@ export default function HomePage() {
           constrainedToParent={false}
         />
 
-        <StoreFeedSection />
+        {/* <StoreFeedSection /> */}
       </div>
     </div>
   );
