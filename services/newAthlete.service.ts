@@ -1,4 +1,4 @@
-﻿// ── Athlete Profile Types ──────────────────────────────────────────────────
+// ── Athlete Profile Types ──────────────────────────────────────────────────
 
 export interface AthleteMedal {
   title: string;
@@ -95,4 +95,72 @@ export async function getAthleteProfile(
   }
 
   return res.json() as Promise<AthleteProfile>;
+}
+
+// ── Athlete List Item (for discovery/home page) ────────────────────────────
+
+/**
+ * Lightweight representation of an athlete as returned by GET /api/athleteProfile
+ * (full DynamoDB item — nested coreInfo / performance / analytics shape)
+ */
+export interface AthleteListItem {
+  entityId: string;
+  sk: string;
+  /** Extracted from entityId: ATHLETE#<id> → <id> */
+  athleteId: string;
+  // Flat top-level fields (some older items may store directly)
+  name?: string;
+  sport?: string;
+  country?: string;
+  gender?: string;
+  profileImage?: string;
+  worldRank?: number | string;
+  dob?: string;
+  // Nested DynamoDB shape
+  coreInfo?: {
+    name?: string;
+    country?: string;
+    dob?: string;
+    gender?: string;
+    profileImage?: string;
+  };
+  performance?: {
+    primaryEvent?: string;
+    stats?: { worldRank?: number | string };
+  };
+  analytics?: {
+    sport?: string;
+    stats?: { worldRank?: number | string };
+  };
+}
+
+/** Shape returned by GET /api/athleteProfile */
+interface GetAllAthletesResponse {
+  athletes: AthleteListItem[];
+  count: number;
+}
+
+/**
+ * Fetch all athlete profiles.
+ * Maps the raw DynamoDB items so each item exposes a stable
+ * `athleteId` field derived from its entityId.
+ */
+export async function getAllAthletes(): Promise<AthleteListItem[]> {
+  const url = `/api/athleteProfile`;
+  const res = await fetch(url, { cache: "no-store" });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(
+      body?.message ?? `Failed to fetch athletes (${res.status})`
+    );
+  }
+
+  const data: GetAllAthletesResponse = await res.json();
+
+  // Derive athleteId from entityId: "ATHLETE#<id>" → "<id>"
+  return (data.athletes ?? []).map((a) => ({
+    ...a,
+    athleteId: a.entityId?.replace(/^ATHLETE#/, "") ?? a.athleteId ?? "",
+  }));
 }
