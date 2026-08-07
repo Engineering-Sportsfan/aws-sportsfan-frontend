@@ -67,6 +67,16 @@ function getSport(a: AthleteListItem): string {
   );
 }
 
+/** Raw sportId from DynamoDB (e.g. "athletics"). Lower-cased for comparison. */
+function getSportId(a: AthleteListItem): string {
+  return (a.sportId ?? "").toLowerCase();
+}
+
+/** Sub-category from performance.category (e.g. "Javelin Throw"). */
+function getCategory(a: AthleteListItem): string {
+  return a.performance?.category ?? "";
+}
+
 function getCountry(a: AthleteListItem): string {
   return a.country || a.coreInfo?.country || "–";
 }
@@ -235,16 +245,17 @@ function AthleteCard({ athlete, index, onClick }: AthleteCardProps) {
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 
-const DISCIPLINES = [
-  "All Sports",
-  "Athletics",
-  "Badminton",
-  "Boxing",
-  "Cricket",
-  "Shooting",
-  "Wrestling",
-  "Swimming",
-  "Weightlifting",
+// ── Known sports (label → sportId value stored in DynamoDB) ─────────────────
+const SPORT_OPTIONS: { label: string; id: string }[] = [
+  { label: "All Sports", id: "" },
+  { label: "Athletics",    id: "athletics" },
+  { label: "Badminton",    id: "badminton" },
+  { label: "Boxing",       id: "boxing" },
+  { label: "Cricket",      id: "cricket" },
+  { label: "Shooting",     id: "shooting" },
+  { label: "Wrestling",    id: "wrestling" },
+  { label: "Swimming",     id: "swimming" },
+  { label: "Weightlifting",id: "weightlifting" },
 ];
 
 type GenderFilter = "All" | "Male" | "Female";
@@ -256,8 +267,12 @@ export default function AthleteHomePage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [genderFilter, setGenderFilter] = useState<GenderFilter>("All");
-  const [disciplineFilter, setDisciplineFilter] = useState("All Sports");
-  const [showDisciplineDropdown, setShowDisciplineDropdown] = useState(false);
+  // Sport filter: matches sportId field in DynamoDB (empty string = All Sports)
+  const [sportFilter, setSportFilter] = useState("");
+  // Category filter: matches performance.category (empty string = All Categories)
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [showSportDropdown, setShowSportDropdown] = useState(false);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -272,6 +287,18 @@ export default function AthleteHomePage() {
     load();
   }, []);
   console.log("all athlete", athletes);
+
+  // ── Dynamic category list from athletes that match the selected sport ────
+  const availableCategories = useMemo(() => {
+    const cats = new Set<string>();
+    athletes.forEach((a) => {
+      if (sportFilter && getSportId(a) !== sportFilter) return;
+      const cat = getCategory(a);
+      if (cat) cats.add(cat);
+    });
+    return Array.from(cats).sort();
+  }, [athletes, sportFilter]);
+
   // ── Filtered athletes ────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     return athletes.filter((a) => {
@@ -289,13 +316,17 @@ export default function AthleteHomePage() {
       const matchesGender =
         genderFilter === "All" || gender === genderFilter;
 
-      const matchesDiscipline =
-        disciplineFilter === "All Sports" ||
-        sport.toLowerCase().includes(disciplineFilter.toLowerCase());
+      // Sport filter: compare against sportId field (case-insensitive)
+      const matchesSport =
+        !sportFilter || getSportId(a) === sportFilter;
 
-      return matchesSearch && matchesGender && matchesDiscipline;
+      // Category filter: compare against performance.category
+      const matchesCategory =
+        !categoryFilter || getCategory(a) === categoryFilter;
+
+      return matchesSearch && matchesGender && matchesSport && matchesCategory;
     });
-  }, [athletes, searchQuery, genderFilter, disciplineFilter]);
+  }, [athletes, searchQuery, genderFilter, sportFilter, categoryFilter]);
 
   const handleAthleteClick = (athlete: AthleteListItem) => {
     if (athlete.athleteId) {
@@ -369,14 +400,14 @@ export default function AthleteHomePage() {
         </div>
 
         {/* ── Filter Row ─────────────────────────────────────────────── */}
-        <div className="flex items-center gap-2.5 mt-4 relative">
+        <div className="flex items-center gap-2 mt-4 flex-wrap relative">
           {/* Gender filters */}
           {(["All", "Male", "Female"] as GenderFilter[]).map((g) => (
             <button
               key={g}
               id={`gender-filter-${g.toLowerCase()}`}
               onClick={() => setGenderFilter(g)}
-              className={`px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-95 ${
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 ${
                 genderFilter === g
                   ? "bg-gradient-to-r from-[#FF0055] to-[#FF7A00] text-white border-transparent shadow-lg shadow-[#FF0055]/20"
                   : "bg-[#16161f] border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
@@ -386,49 +417,96 @@ export default function AthleteHomePage() {
             </button>
           ))}
 
-          {/* Discipline dropdown */}
-          <div className="ml-auto relative">
+          {/* Sport dropdown */}
+          <div className="relative ml-auto">
             <button
-              id="discipline-filter-btn"
-              onClick={() => setShowDisciplineDropdown((p) => !p)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold border transition-all active:scale-95 ${
-                disciplineFilter !== "All Sports"
+              id="sport-filter-btn"
+              onClick={() => { setShowSportDropdown((p) => !p); setShowCategoryDropdown(false); }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 ${
+                sportFilter
                   ? "bg-[#FF7A00]/20 border-[#FF7A00]/40 text-[#FF7A00]"
                   : "bg-[#16161f] border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
               }`}
             >
-              🏅 {disciplineFilter === "All Sports" ? "Discipline" : disciplineFilter}
+              🏅 {sportFilter ? SPORT_OPTIONS.find((s) => s.id === sportFilter)?.label ?? sportFilter : "Sport"}
               <Filter className="w-3 h-3" />
             </button>
 
-            {showDisciplineDropdown && (
+            {showSportDropdown && (
               <div className="absolute right-0 top-full mt-2 w-44 bg-[#16161f] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 z-40 overflow-hidden">
-                {DISCIPLINES.map((d) => (
+                {SPORT_OPTIONS.map((s) => (
                   <button
-                    key={d}
+                    key={s.id}
                     onClick={() => {
-                      setDisciplineFilter(d);
-                      setShowDisciplineDropdown(false);
+                      setSportFilter(s.id);
+                      setCategoryFilter(""); // reset sub-category when sport changes
+                      setShowSportDropdown(false);
                     }}
                     className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors ${
-                      disciplineFilter === d
+                      sportFilter === s.id
                         ? "text-[#FF7A00] bg-[#FF7A00]/10"
                         : "text-gray-300 hover:bg-white/5 hover:text-white"
                     }`}
                   >
-                    {d}
+                    {s.label}
                   </button>
                 ))}
               </div>
             )}
           </div>
+
+          {/* Category dropdown — only shown when a sport is selected and categories exist */}
+          {sportFilter && availableCategories.length > 0 && (
+            <div className="relative">
+              <button
+                id="category-filter-btn"
+                onClick={() => { setShowCategoryDropdown((p) => !p); setShowSportDropdown(false); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 ${
+                  categoryFilter
+                    ? "bg-[#FF0055]/20 border-[#FF0055]/40 text-[#FF0055]"
+                    : "bg-[#16161f] border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
+                }`}
+              >
+                🎯 {categoryFilter || "Category"}
+                <Filter className="w-3 h-3" />
+              </button>
+
+              {showCategoryDropdown && (
+                <div className="absolute right-0 top-full mt-2 w-48 bg-[#16161f] border border-white/10 rounded-2xl shadow-2xl shadow-black/60 z-40 overflow-hidden max-h-60 overflow-y-auto">
+                  <button
+                    onClick={() => { setCategoryFilter(""); setShowCategoryDropdown(false); }}
+                    className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors ${
+                      !categoryFilter
+                        ? "text-[#FF0055] bg-[#FF0055]/10"
+                        : "text-gray-300 hover:bg-white/5 hover:text-white"
+                    }`}
+                  >
+                    All Categories
+                  </button>
+                  {availableCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => { setCategoryFilter(cat); setShowCategoryDropdown(false); }}
+                      className={`w-full text-left px-4 py-2.5 text-xs font-semibold transition-colors ${
+                        categoryFilter === cat
+                          ? "text-[#FF0055] bg-[#FF0055]/10"
+                          : "text-gray-300 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Click outside to close dropdown */}
-        {showDisciplineDropdown && (
+        {/* Click outside to close dropdowns */}
+        {(showSportDropdown || showCategoryDropdown) && (
           <div
             className="fixed inset-0 z-30"
-            onClick={() => setShowDisciplineDropdown(false)}
+            onClick={() => { setShowSportDropdown(false); setShowCategoryDropdown(false); }}
           />
         )}
 
@@ -469,7 +547,8 @@ export default function AthleteHomePage() {
                 onClick={() => {
                   setSearchQuery("");
                   setGenderFilter("All");
-                  setDisciplineFilter("All Sports");
+                  setSportFilter("");
+                  setCategoryFilter("");
                 }}
                 className="px-5 py-2 rounded-full bg-white/5 border border-white/10 text-gray-300 text-xs font-semibold hover:bg-white/10 transition-all"
               >

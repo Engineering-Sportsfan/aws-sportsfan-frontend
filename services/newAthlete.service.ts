@@ -111,6 +111,8 @@ export interface AthleteListItem {
   // Flat top-level fields (some older items may store directly)
   name?: string;
   sport?: string;
+  /** DynamoDB top-level sport identifier, e.g. "athletics", "badminton" */
+  sportId?: string;
   country?: string;
   gender?: string;
   profileImage?: string;
@@ -123,9 +125,12 @@ export interface AthleteListItem {
     dob?: string;
     gender?: string;
     profileImage?: string;
+    countryCode?: string;
   };
   performance?: {
     primaryEvent?: string;
+    /** Sub-category within a sport, e.g. "Javelin Throw", "100m Sprint" */
+    category?: string;
     stats?: { worldRank?: number | string };
   };
   analytics?: {
