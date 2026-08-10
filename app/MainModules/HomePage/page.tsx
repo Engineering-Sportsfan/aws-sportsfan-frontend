@@ -56,6 +56,8 @@ import SportScoreSection from "@/src/components/NewHomeComponents/SportScoreSect
 import IndiaHub from "@/src/components/NewHomeComponents/IndiaHub";
 import WatchAlongSessions from "@/src/components/NewHomeComponents/WatchAlongSessions";
 import StoreAndExperiences from "@/src/components/NewHomeComponents/StoreAndExperiences";
+import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
+import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
 
 export default function HomePage() {
   const router = useRouter();
@@ -274,6 +276,8 @@ export default function HomePage() {
         <SportScoreSection />
         <RoarRooms />
         <WatchAlongSessions />
+        <AskFlip />
+        <FlipCard />
 
         <IndiaHub />
         <StoreAndExperiences />

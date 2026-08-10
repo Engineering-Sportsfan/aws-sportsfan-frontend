@@ -602,8 +602,17 @@
 
 // components\NewHomeComponents\RoarRooms.tsx
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ChevronRight } from "lucide-react";
+import axios from "axios";
+import { useRouter } from "next/navigation";
+import type { Room } from "../NewROARComponent/types";
+
+interface PresenceInfo {
+  fanCount: number;
+  totalJoinCount?: number;
+}
 
 export type RoarRoomCard = {
   id: string;
@@ -657,59 +666,124 @@ function RoarRoomCardView({ card }: { card: RoarRoomCard }) {
   );
 }
 
-/* ---------------------------------- Mock data ---------------------------------- */
+/* ---------------------------------- Skeleton card ---------------------------------- */
 
-const MOCK_ROAR_ROOMS: RoarRoomCard[] = [
-  {
-    id: "india-korea-hockey",
-    emoji: "🔥",
-    title: "India vs Korea (Hockey)",
-    fansCount: "18.4K",
-    messagesCount: "32K",
-    avatarUrls: [
-      "/images/avatars/fan-1.jpg",
-      "/images/avatars/fan-2.jpg",
-      "/images/avatars/fan-3.jpg",
-    ],
-    moreLabel: "+more",
-    ctaLabel: "Join Room",
-    onJoin: () => console.log("Join India vs Korea hockey room"),
-  },
-  {
-    id: "neeraj-chopra-final",
-    emoji: "🤺",
-    title: "Neeraj Chopra Final",
-    fansCount: "12.6K",
-    messagesCount: "21K",
-    avatarUrls: [
-      "/images/avatars/fan-4.jpg",
-      "/images/avatars/fan-5.jpg",
-      "/images/avatars/fan-6.jpg",
-    ],
-    moreLabel: "+more",
-    ctaLabel: "Join Room",
-    onJoin: () => console.log("Join Neeraj Chopra final room"),
-  },
-  {
-    id: "badminton-fans-unite",
-    emoji: "🏸",
-    title: "Badminton Fans Unite",
-    fansCount: "9.2K",
-    messagesCount: "15K",
-    avatarUrls: [
-      "/images/avatars/fan-7.jpg",
-      "/images/avatars/fan-8.jpg",
-      "/images/avatars/fan-9.jpg",
-    ],
-    moreLabel: "+more",
-    ctaLabel: "Join Room",
-    onJoin: () => console.log("Join Badminton fans room"),
-  },
-];
+function RoarRoomCardSkeleton() {
+  return (
+    <div className="shrink-0 w-[220px] rounded-2xl bg-[#12101c] border border-white/[0.06] p-4 flex flex-col gap-3">
+      <div className="h-5 w-3/4 rounded bg-white/[0.07] animate-pulse" />
+      <div className="h-3 w-1/2 rounded bg-white/[0.05] animate-pulse" />
+      <div className="h-3 w-2/3 rounded bg-white/[0.04] animate-pulse" />
+      <div className="mt-auto h-10 w-full rounded-full bg-white/[0.07] animate-pulse" />
+    </div>
+  );
+}
+
+/* ---------------------------------- Helpers ---------------------------------- */
+
+const SPORT_EMOJI: Record<string, string> = {
+  cricket: "🏏",
+  football: "⚽",
+  hockey: "🏑",
+  badminton: "🏸",
+  athletics: "🏃",
+  shooting: "🎯",
+  wrestling: "🤼",
+  boxing: "🥊",
+  swimming: "🏊",
+  default: "🔥",
+};
+
+function getSportEmoji(sport?: string) {
+  if (!sport) return SPORT_EMOJI.default;
+  return SPORT_EMOJI[sport.toLowerCase()] ?? SPORT_EMOJI.default;
+}
+
+function formatCount(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+  return `${n}`;
+}
 
 /* ---------------------------------- Exported component ---------------------------------- */
 
 export default function RoarRooms() {
+  const router = useRouter();
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [presenceByRoom, setPresenceByRoom] = useState<Record<string, PresenceInfo>>({});
+  const [status, setStatus] = useState<"loading" | "error" | "empty" | "ready">("loading");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchAll = async () => {
+      try {
+        const roomsRes = await axios
+          .get(`/api/roar/rooms?t=${Date.now()}`)
+          .catch((err) => {
+            console.warn("[RoarRooms] GET /api/roar/rooms failed:", err?.response?.status, err?.message);
+            return null;
+          });
+
+        if (cancelled) return;
+
+        const fetchedRooms: Room[] = roomsRes?.data?.success ? roomsRes.data.rooms ?? [] : [];
+        setRooms(fetchedRooms);
+
+        if (fetchedRooms.length === 0) {
+          setPresenceByRoom({});
+          setStatus("empty");
+          return;
+        }
+
+        const roomIds = fetchedRooms.map((r) => r.roomId);
+        const presenceRes = await axios
+          .post("/api/roar/rooms/presence-preview", { roomIds })
+          .catch((err) => {
+            console.warn("[RoarRooms] presence-preview failed:", err?.response?.status, err?.message);
+            return null;
+          });
+
+        if (cancelled) return;
+
+        if (presenceRes?.data?.success) {
+          setPresenceByRoom(presenceRes.data.rooms ?? {});
+        }
+
+        setStatus("ready");
+      } catch (e) {
+        console.error("[RoarRooms] Failed to load rooms:", e);
+        if (!cancelled) setStatus("error");
+      }
+    };
+
+    fetchAll();
+    const iv = setInterval(() => { if (!document.hidden) fetchAll(); }, 30_000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, []);
+
+  // Same navigation pattern as index.tsx
+  const handleEnterRoom = (room: Room) => {
+    try { localStorage.setItem("roar_auto_join_room_id", room.roomId); } catch { /* ignore */ }
+    router.push("/MainModules/ROAR");
+  };
+
+  const liveCards: RoarRoomCard[] = rooms.map((room) => {
+    const presence = presenceByRoom[room.roomId];
+    const fanCount = presence?.fanCount ?? room.fanCount ?? 0;
+    const isLive = room.isActive || fanCount > 0;
+    return {
+      id: room.roomId,
+      emoji: getSportEmoji(room.sport),
+      title: room.name,
+      fansCount: fanCount > 0 ? formatCount(fanCount) : "—",
+      messagesCount: "—",
+      avatarUrls: [],
+      ctaLabel: isLive ? "Enter" : "Join",
+      onJoin: () => handleEnterRoom(room),
+    };
+  });
+
   return (
     <div className="w-full mt-5">
       <div className="flex items-center justify-between mb-3">
@@ -718,6 +792,7 @@ export default function RoarRooms() {
           type="button"
           className="flex items-center gap-0.5 text-[12px] font-bold"
           style={{ color: "#E91E8C" }}
+          onClick={() => router.push("/MainModules/ROAR")}
         >
           View all
           <ChevronRight size={14} />
@@ -725,7 +800,26 @@ export default function RoarRooms() {
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory">
-        {MOCK_ROAR_ROOMS.map((c) => (
+        {status === "loading" && (
+          <>
+            <div className="snap-start"><RoarRoomCardSkeleton /></div>
+            <div className="snap-start"><RoarRoomCardSkeleton /></div>
+            <div className="snap-start"><RoarRoomCardSkeleton /></div>
+          </>
+        )}
+
+        {(status === "empty" || status === "error") && (
+          <div className="w-full rounded-2xl border border-white/[0.08] bg-[#12101c] py-6 px-4 text-center">
+            <p className="text-[12px] font-bold text-white/50 m-0">
+              {status === "error" ? "Couldn't load rooms" : "No rooms live right now"}
+            </p>
+            <p className="text-[10px] text-white/30 mt-1 m-0">
+              {status === "error" ? "Check your connection and try again." : "Check back soon for live action!"}
+            </p>
+          </div>
+        )}
+
+        {status === "ready" && liveCards.map((c) => (
           <div key={c.id} className="snap-start">
             <RoarRoomCardView card={c} />
           </div>

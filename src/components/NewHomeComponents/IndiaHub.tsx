@@ -1,8 +1,10 @@
 // components\NewHomeComponents\IndiaHub.tsx
 
 import { ChevronRight } from "lucide-react";
+import { useRouter } from 'next/navigation'; // Note: 'next/navigation'
 
 export default function IndiaHub() {
+  const router = useRouter();
   return (
     <div className="w-full mt-5">
       <div className="flex items-center justify-between mb-3">
@@ -19,8 +21,8 @@ export default function IndiaHub() {
 
       <div className="grid grid-cols-2 gap-3">
         {/* Indian Squad */}
-        <div
-          className="rounded-2xl p-4 min-h-[170px] flex flex-col justify-between"
+        <div onClick={() => router.push('/MainModules/AthleteHomePage')}
+          className="rounded-2xl hover:cursor-pointer p-4 min-h-[170px] flex flex-col justify-between"
           style={{ background: "linear-gradient(160deg,#12213f,#0a1226)" }}
         >
           <div>

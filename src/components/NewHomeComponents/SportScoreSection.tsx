@@ -1,3 +1,4 @@
+"use client";
 // components\NewHomeComponents\SportScoreSection.tsx
 
 import { useEffect, useRef, useState } from "react";
@@ -14,6 +15,7 @@ import {
   Newspaper,
   ChevronRight,
 } from "lucide-react";
+import { useRouter } from 'next/navigation';
 
 export type LiveCard = {
   type: "live";
@@ -369,6 +371,7 @@ function UpcomingCardView({ card }: { card: UpcomingCard }) {
 function HeroCarousel({ cards }: { cards: HeroCard[] }) {
   const [index, setIndex] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (cards.length <= 1) return;
@@ -642,66 +645,7 @@ function MatchesStrip({ cards }: { cards: MiniMatchCard[] }) {
   );
 }
 
-/* ---------------------------------- Mock data ---------------------------------- */
-
-const MOCK_HERO_CARDS: HeroCard[] = [
-  {
-    type: "vip",
-    id: "asian-games-2026",
-    tag: "AICHI-NAGOYA, JAPAN · 2026",
-    dateRange: "19 Sep – 4 Oct",
-    title: "ASIAN GAMES 2026",
-    subtitle: "India. Passion. Glory.",
-    bgImageUrl: "/images/asiangames.jpeg",
-    ctaLabel: "Explore Today's Action",
-    onBook: () => console.log("Navigate to Asian Games hub"),
-  },
-  {
-    type: "live",
-    id: "porto-benfica",
-    status: "LIVE",
-    isFootball: true,
-    competition: "Liga Portugal",
-    matchLabel: "Football · O Clássico",
-    teamAName: "FC PORTO",
-    teamAShort: "POR",
-    teamBName: "S.L. BENFICA",
-    teamBShort: "SLB",
-    footballScoreA: 2,
-    footballScoreB: 1,
-    minute: "85'",
-    venue: "Estádio do Dragão",
-    scorers: "Evanilson 24', 67' · Di María 52'",
-    bgImageUrl: "/images/footballground.jpg",
-    overSummary: [],
-    oversLabel: "",
-    fanCount: 0,
-    ctaLabel: "Watch Live",
-    onJoin: () => console.log("Navigate to Porto vs Benfica room"),
-  },
-  {
-    type: "live",
-    id: "ind-pak-ct2026",
-    status: "LIVE",
-    isFootball: false,
-    competition: "ICC Champions Trophy 2026",
-    matchLabel: "Cricket · Match 22",
-    teamAName: "India",
-    teamAShort: "IND",
-    teamAScore: "287/4",
-    teamBName: "Pakistan",
-    teamBShort: "PAK",
-    teamBScore: "242/8",
-    oversLabel: "48.2",
-    overSummary: [],
-    result: "INDIA WON by 45 runs",
-    manOfMatch: "Bumrah 4/42",
-    bgImageUrl: "/images/cricketground.avif",
-    fanCount: 0,
-    ctaLabel: "Match Center",
-    onJoin: () => console.log("Navigate to India vs Pakistan match center"),
-  },
-];
+/* ---------------------------------- Mock data (static - no router needed) ---------------------------------- */
 
 const MOCK_INDIA_STATS: IndiaStatsData = {
   eventsToday: 18,
@@ -765,6 +709,67 @@ const MOCK_MINI_MATCHES: MiniMatchCard[] = [
 /* ---------------------------------- Exported section ---------------------------------- */
 
 export default function SportScoreSection() {
+  const router = useRouter();
+
+  const MOCK_HERO_CARDS: HeroCard[] = [
+    {
+      type: "vip",
+      id: "asian-games-2026",
+      tag: "AICHI-NAGOYA, JAPAN · 2026",
+      dateRange: "19 Sep – 4 Oct",
+      title: "ASIAN GAMES 2026",
+      subtitle: "India. Passion. Glory.",
+      bgImageUrl: "/images/asiangames.jpeg",
+      ctaLabel: "Explore Today's Action",
+      onBook: () => router.push('/MainModules/AsianGame'),
+    },
+    {
+      type: "live",
+      id: "porto-benfica",
+      status: "LIVE",
+      isFootball: true,
+      competition: "Liga Portugal",
+      matchLabel: "Football · O Clássico",
+      teamAName: "FC PORTO",
+      teamAShort: "POR",
+      teamBName: "S.L. BENFICA",
+      teamBShort: "SLB",
+      footballScoreA: 2,
+      footballScoreB: 1,
+      minute: "85'",
+      venue: "Estádio do Dragão",
+      scorers: "Evanilson 24', 67' · Di María 52'",
+      bgImageUrl: "/images/footballground.jpg",
+      overSummary: [],
+      oversLabel: "",
+      fanCount: 0,
+      ctaLabel: "Watch Live",
+      onJoin: () => console.log("Navigate to Porto vs Benfica room"),
+    },
+    {
+      type: "live",
+      id: "ind-pak-ct2026",
+      status: "LIVE",
+      isFootball: false,
+      competition: "ICC Champions Trophy 2026",
+      matchLabel: "Cricket · Match 22",
+      teamAName: "India",
+      teamAShort: "IND",
+      teamAScore: "287/4",
+      teamBName: "Pakistan",
+      teamBShort: "PAK",
+      teamBScore: "242/8",
+      oversLabel: "48.2",
+      overSummary: [],
+      result: "INDIA WON by 45 runs",
+      manOfMatch: "Bumrah 4/42",
+      bgImageUrl: "/images/cricketground.avif",
+      fanCount: 0,
+      ctaLabel: "Match Center",
+      onJoin: () => console.log("Navigate to India vs Pakistan match center"),
+    },
+  ];
+
   return (
     <div className="w-full">
       <HeroCarousel cards={MOCK_HERO_CARDS} />
