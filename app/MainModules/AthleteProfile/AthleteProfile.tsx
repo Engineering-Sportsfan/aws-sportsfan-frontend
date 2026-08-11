@@ -176,7 +176,7 @@ export default function AthleteProfile({ athleteId }: Props) {
   })();
   const coverImage = core.coverImage ?? (athlete as any)?.coverImage;
   const isVerified = core.isVerified ?? (athlete as any)?.isVerified ?? true; // athletes are verified by default
-  const worldRank = analyticsData.stats.worldRank ?? (athlete as any)?.worldRank;
+  const worldRank = analyticsData?.stats?.worldRank ?? (athlete as any)?.worldRank;
   const fanCount = (athlete as any)?.fanCount ?? "–";
   const fanImpactScore = (athlete as any)?.fanImpactScore ?? 0;
   const fanImpactChange = (athlete as any)?.fanImpactChange ?? 0;
