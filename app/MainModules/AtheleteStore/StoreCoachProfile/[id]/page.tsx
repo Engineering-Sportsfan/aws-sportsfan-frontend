@@ -194,6 +194,7 @@ function StoreCoachProfileContent() {
       const res = await storeService.lockSlot(`coach-${id || '1'}`, selectedSlotId, userId);
       if (res.status === 'locked' || res.status === 'reserved' || res.lockExpiresAt) {
         // Success: navigate directly to payment screen
+        // Upon successful payment completion, the backend checkout API will record the notification in DynamoDB.
         router.push(`/MainModules/AtheleteStore/StorePayment/coach-${id || '1'}?slotId=${selectedSlotId}&price=${getTotalPrice()}`);
       } else {
         setLockErrorMessage('It is locked by someone. Try again after 2 minutes.');
