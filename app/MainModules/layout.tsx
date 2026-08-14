@@ -418,10 +418,11 @@ export default function MainModulesLayout({
 >
           {!isProfilePath && !isAskAIPath && !isWatchAlongPath && !isFanszonePath && (
             <div className="relative z-60">
+
+              <Header />
               <div id="live-ticker-container">
                 <LiveTicker />
               </div>
-              <Header />
               <style>{`
                 @media (max-width: 767px) {
                   #live-ticker-container {

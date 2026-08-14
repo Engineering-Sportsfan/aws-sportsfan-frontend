@@ -56,6 +56,8 @@ import SportScoreSection from "@/src/components/NewHomeComponents/SportScoreSect
 import IndiaHub from "@/src/components/NewHomeComponents/IndiaHub";
 import WatchAlongSessions from "@/src/components/NewHomeComponents/WatchAlongSessions";
 import StoreAndExperiences from "@/src/components/NewHomeComponents/StoreAndExperiences";
+import PlaybookDrops from "@/src/components/NewHomeComponents/PlaybookDrops";
+import AthleticsSpotlight from "@/src/components/NewHomeComponents/AthleticsSpotlight";
 import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
 import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
 
@@ -274,12 +276,14 @@ export default function HomePage() {
         /> */}
 
         <SportScoreSection />
+        <AthleticsSpotlight />
         <RoarRooms />
         <WatchAlongSessions />
         <AskFlip />
         <FlipCard />
 
         <IndiaHub />
+        <PlaybookDrops />
         <StoreAndExperiences />
         
         <DollyPanel
