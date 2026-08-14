@@ -63,6 +63,7 @@ import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
 
 export default function HomePage() {
   const router = useRouter();
+  const [selectedSport, setSelectedSport] = useState("mixed");
   const REQUEST_TIMEOUT_MS = 12000;
   const DOLLY_ROOM_ID = "NMryj1w7t8mJpGzEvF9q"; // same "Open Room" used as openRoomId below
 
@@ -275,16 +276,16 @@ export default function HomePage() {
           onEnter={(room) => router.push(`/MainModules/ROAR?room=${room.roomId}`)}
         /> */}
 
-        <SportScoreSection />
-        <AthleticsSpotlight />
+        <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
+        <AthleticsSpotlight sport={selectedSport} />
         <RoarRooms />
         <WatchAlongSessions />
         <AskFlip />
         <FlipCard />
 
-        <IndiaHub />
+        <IndiaHub sport={selectedSport} />
         <PlaybookDrops />
-        <StoreAndExperiences />
+        <StoreAndExperiences sport={selectedSport} />
         
         <DollyPanel
           isOpen={dollyOpen}
