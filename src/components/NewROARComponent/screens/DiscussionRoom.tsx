@@ -3825,6 +3825,7 @@ function InlineSection({
   }, [isOpen, fetchReplies]);
 
   const handleSend = async () => {
+    console.log("[handleSend] fired", { commentText, sending, replyTo });
     const fullText = replyTo ? `@${replyTo.authorUsername} ${commentText.trim()}` : commentText.trim();
     if (!fullText || sending) return;
     setSending(true);
@@ -3834,7 +3835,9 @@ function InlineSection({
         phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
       }
       setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
-    } catch { }
+    } catch (err) {
+  console.log("[handleSend] caught error", err);   
+}
     finally { setSending(false); }
   };
 

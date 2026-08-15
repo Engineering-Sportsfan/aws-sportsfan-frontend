@@ -345,14 +345,14 @@
 // }
 
 
-
+// src\components\NewROARComponent\components\DollyPanel.tsx
 
 "use client";
 
 import React, { useEffect, useRef, useState, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, History as HistoryIcon, X, Lock, Send, Loader2, MoreVertical } from "lucide-react";
+import { ChevronLeft, History as HistoryIcon, X, Lock, Send, Loader2, MoreVertical, Bell } from "lucide-react";
 
 export interface DollyReply {
     id: string;
@@ -380,13 +380,14 @@ interface DollyPanelProps {
     question: string;
     setQuestion: (v: string) => void;
     asking: boolean;
-    onAsk: () => void;
+    // onAsk: () => void;
     replies: DollyReply[];
     loadingReplies?: boolean;
     history: DollyHistorySession[];
     loadingHistory?: boolean;
     onSelectHistorySession: (session: DollyHistorySession) => void;
     onNewChat?: () => void;
+    onAsk: (notify: boolean) => void;
     sport?: "cricket" | "football" | "athlete";
     constrainedToParent?: boolean;
     // roomKind?: "discussion" | "open";
@@ -422,6 +423,8 @@ export default function DollyPanel({
     const [view, setView] = useState<"chat" | "history">("chat");
     const inputRef = useRef<HTMLInputElement>(null);
     const bodyRef = useRef<HTMLDivElement>(null);
+    const [notifyOnReply, setNotifyOnReply] = useState(false);
+
 
     // ── Track the visual viewport so the panel shrinks (instead of scrolling
     // off-screen) when the mobile keyboard opens. `position: fixed` is
@@ -546,9 +549,13 @@ export default function DollyPanel({
         if (isOpen) setView("chat");
     }, [isOpen]);
 
+    // const handleSend = () => {
+    //     if (!question.trim() || asking) return;
+    //     onAsk();
+    // };
     const handleSend = () => {
         if (!question.trim() || asking) return;
-        onAsk();
+        onAsk(notifyOnReply);
     };
 
 
@@ -601,11 +608,11 @@ export default function DollyPanel({
 
     const GREETING_COPY: Record<string, { greeting: string; prompts: string[] }> = {
         "discussion": {
-            greeting: "Hey! I'm Dolly 🐬 Your AI analyst for this match. Ask anything about {room}!",
+            greeting: "Hey! I'm Flip 🐬 Your AI analyst for this match. Ask anything about {room}!",
             prompts: [],
         },
         "lobby": {
-            greeting: "Hey! I'm Dolly 🐬 Your AI sports analyst. Ask me about today's live matches, what's trending in the rooms, or upcoming fixtures — I'll help you find where the action is!",
+            greeting: "Hey! I'm Flip 🐬 Your AI sports analyst. Ask me about today's live matches, what's trending in the rooms, or upcoming fixtures — I'll help you find where the action is!",
             prompts: [
                 "What's live right now?",
                 "Which rooms are most active?",
@@ -613,7 +620,7 @@ export default function DollyPanel({
             ],
         },
         "open:cricket": {
-            greeting: "Hey! I'm Dolly 🐬 Your AI cricket analyst. Ask me about live scores, player stats, standings, or anything happening across today's matches!",
+            greeting: "Hey! I'm Flip 🐬 Your AI cricket analyst. Ask me about live scores, player stats, standings, or anything happening across today's matches!",
             prompts: [
                 "What's the score in today's match?",
                 "Who's the top run-scorer this series?",
@@ -621,7 +628,7 @@ export default function DollyPanel({
             ],
         },
         "open:football": {
-            greeting: "Hey! I'm Dolly 🐬 Your AI football analyst. Ask me about live scores, standings, transfers, or anything happening across today's fixtures!",
+            greeting: "Hey! I'm Flip 🐬 Your AI football analyst. Ask me about live scores, standings, transfers, or anything happening across today's fixtures!",
             prompts: [
                 "What's the score in today's match?",
                 "Who's top of the table right now?",
@@ -629,7 +636,7 @@ export default function DollyPanel({
             ],
         },
         "open:athlete": {
-            greeting: "Hey! I'm Dolly 🐬 Your AI athlete analyst. Ask me about player stats, career milestones, form, comparisons, or news for any athlete!",
+            greeting: "Hey! I'm Flip 🐬 Your AI athlete analyst. Ask me about player stats, career milestones, form, comparisons, or news for any athlete!",
             prompts: [
                 "How's this player performing this season?",
                 "Compare two players' stats",
@@ -637,7 +644,7 @@ export default function DollyPanel({
             ],
         },
         "open:general": {
-            greeting: "Hey! I'm Dolly 🐬 Your AI sports analyst. Ask me anything about today's matches, players, or standings!",
+            greeting: "Hey! I'm Flip 🐬 Your AI sports analyst. Ask me anything about today's matches, players, or standings!",
             prompts: [
                 "What matches are on today?",
                 "Any big scores or upsets so far?",
@@ -692,7 +699,7 @@ export default function DollyPanel({
                         <div className="w-[24px] h-[24px] rounded-full overflow-hidden border-2 border-white/85 shrink-0">
                             <img
                                 src="/images/dollyavatar.png"
-                                alt="Ask Dolly"
+                                alt="Ask Flip"
                                 className="w-full h-full object-cover"
                             />
                         </div>
@@ -700,7 +707,7 @@ export default function DollyPanel({
                             className="text-[8px] font-extrabold tracking-[0.08em] text-blue-300 uppercase"
                             style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
                         >
-                            Ask Dolly
+                            Ask Flip
                         </span>
                     </motion.button>
                 )}
@@ -739,7 +746,7 @@ export default function DollyPanel({
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="font-extrabold text-[15px] text-white">Dolly</span>
+                                                <span className="font-extrabold text-[15px] text-white">Flip</span>
                                                 <span className="text-[9px] font-extrabold text-blue-400 bg-blue-500/15 border border-blue-500/35 rounded-md px-1.5 py-px">AI</span>
                                                 {activeRoomName && (
                                                     <span className="text-[9.5px] font-bold text-white/55 bg-white/[0.06] border border-white/10 rounded-md px-1.5 py-px truncate max-w-[120px]">
@@ -826,7 +833,7 @@ export default function DollyPanel({
                                                                 <p className="m-0 text-[13px] leading-relaxed text-white">{r.question}</p>
                                                             </div>
                                                         </div>
-                                                        {/* dolly answer, left aligned */}
+                                                        {/* flip answer, left aligned */}
                                                         <div className="flex gap-2 items-start">
                                                             <div className="w-[26px] h-[26px] rounded-full overflow-hidden shrink-0">
                                                                 <img src="/images/dollyavatar.png" alt="" className="w-full h-full object-cover" />
@@ -837,7 +844,7 @@ export default function DollyPanel({
                                                                 ) : (
                                                                     <img
                                                                         src="/gifs/memory/Ask_Dolly_2.gif"
-                                                                        alt="Dolly is thinking…"
+                                                                        alt="Flip is thinking…"
                                                                         className="h-15 w-10 block object-fit"
                                                                     />
                                                                 )}
@@ -878,10 +885,20 @@ export default function DollyPanel({
                                             >
                                                 <Send size={14} className={question.trim() && !loadingReplies ? "text-white" : "text-white/30"} />
                                             </motion.button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setNotifyOnReply(v => !v)}
+                                                title={notifyOnReply ? "You'll be notified when Flip replies" : "Notify me when Flip replies"}
+                                                className={`w-7 h-7 rounded-full flex items-center justify-center border-none shrink-0 ${notifyOnReply ? "bg-blue-500/30 text-blue-300" : "bg-white/[0.06] text-white/40"
+                                                    }`}
+                                            >
+                                                <Bell size={13} />
+                                            </button>
+
 
                                         </div>
                                     </div>
-                                    <p className="text-[8px] text-gray-300 mb-2 ml-4">Ask Dolly loves sports but isn't always right. Double-check important information.</p>
+                                    <p className="text-[8px] text-gray-300 mb-2 ml-4">Ask Flip loves sports but isn't always right. Double-check important information.</p>
                                 </>
                             ) : (
                                 /* ── History view ── */
@@ -927,7 +944,7 @@ export default function DollyPanel({
                                             </div>
                                         ) : history.length === 0 ? (
                                             <p className="text-center text-[12.5px] text-white/35 italic py-8">
-                                                No Dolly conversations yet.
+                                                No Flip conversations yet.
                                             </p>
                                         ) : (
                                             // history.map(h => {

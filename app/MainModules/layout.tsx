@@ -15,6 +15,7 @@ import SportsFan360Footer from "@/src/components/footer-component/Footer";
 import { useAuth } from "@/context/AuthContext";
 import GlobalActionBar from "@/src/components/GlobalActionBar";
 import { Sparkles } from "lucide-react";
+import NotificationToast from "@/src/components/NewHomeComponents/NotificationToast";
 
 
 // ─── Types 
@@ -391,6 +392,7 @@ export default function MainModulesLayout({
 
   return (
     <>
+     <NotificationToast />
       <style>{`
   body.roar-room-active .roar-bottom-nav { 
     display: none !important; 
