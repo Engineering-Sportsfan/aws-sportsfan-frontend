@@ -56,11 +56,14 @@ import SportScoreSection from "@/src/components/NewHomeComponents/SportScoreSect
 import IndiaHub from "@/src/components/NewHomeComponents/IndiaHub";
 import WatchAlongSessions from "@/src/components/NewHomeComponents/WatchAlongSessions";
 import StoreAndExperiences from "@/src/components/NewHomeComponents/StoreAndExperiences";
+import PlaybookDrops from "@/src/components/NewHomeComponents/PlaybookDrops";
+import AthleticsSpotlight from "@/src/components/NewHomeComponents/AthleticsSpotlight";
 import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
 import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
 
 export default function HomePage() {
   const router = useRouter();
+  const [selectedSport, setSelectedSport] = useState("mixed");
   const REQUEST_TIMEOUT_MS = 12000;
   const DOLLY_ROOM_ID = "NMryj1w7t8mJpGzEvF9q"; // same "Open Room" used as openRoomId below
 
@@ -273,14 +276,16 @@ export default function HomePage() {
           onEnter={(room) => router.push(`/MainModules/ROAR?room=${room.roomId}`)}
         /> */}
 
-        <SportScoreSection />
+        <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
+        <AthleticsSpotlight sport={selectedSport} />
         <RoarRooms />
         <WatchAlongSessions />
         <AskFlip />
         <FlipCard />
 
-        <IndiaHub />
-        <StoreAndExperiences />
+        <IndiaHub sport={selectedSport} />
+        <PlaybookDrops />
+        <StoreAndExperiences sport={selectedSport} />
         
         <DollyPanel
           isOpen={dollyOpen}
