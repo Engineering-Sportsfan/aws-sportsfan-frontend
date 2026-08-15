@@ -6439,7 +6439,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                 </div>
               )} */}
 
-              {activeRoomBots.length > 0 && (
+              {/* {activeRoomBots.length > 0 && (
                 <div className="flex items-center gap-1.5 px-3 py-1 flex-wrap">
                   {activeRoomBots.map(b => (
                     <span
@@ -6456,7 +6456,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                     </span>
                   ))}
                 </div>
-              )}
+              )} */}
 
               {/* Right side: Sound + Share + Score (no ActiveFansStack here anymore) */}
               <div className="flex items-center gap-1 flex-shrink-0">

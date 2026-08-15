@@ -911,7 +911,6 @@ import { useAuth } from "@/context/AuthContext";
 import { useChats } from "@/hooks/useChat";
 import LogoutButton from "../LogoutButton";
 import axios from "axios";
-import { useRoarNotifications } from "@/context/RoarNotificationsContext";
 import { useUserProfile } from "@/context/UserProfileContext";
 
 // ── Tournament badge config
@@ -1157,7 +1156,7 @@ export default function Header() {
 
   const { userProfile, loading: profileLoading } = useUserProfile();
   const { currentUserPoints, loading: pointsLoading } = useLeaderboard();
-  const { user, getUserDisplayName, loading: authLoading } = useAuth();
+  const { user, getUserDisplayName, loading: authLoading, authReady } = useAuth();
   const { chats } = useChats();
 
   // ── Combined loading state ─────────────────────────────────────────────────
@@ -1175,7 +1174,6 @@ export default function Header() {
     [chats]
   );
 
-  const { roarUnreadCount } = useRoarNotifications();
   const [mainUnreadCount, setMainUnreadCount] = useState(0);
 
   // Pulled out of the effect so it can be called immediately on-demand
@@ -1196,28 +1194,34 @@ export default function Header() {
   }, [user?.email]);
 
   useEffect(() => {
-    if (!user?.email) return;
+    // Wait until auth is fully ready and we have an email
+    if (!authReady || !user?.email) return;
+    const fetchMainUnread = async () => {
+      try {
+        const params: Record<string, string | boolean> = {
+          email: user.email,
+          countOnly: true,
+        };
+        // Also pass userId as uid so the API can query both PK variants
+        if (user.userId) params.uid = user.userId;
+        const res = await axios.get<{ success: boolean; unreadCount: number }>(
+          "/api/notifications",
+          { params }
+        );
+        if (res.data?.success) {
+          setMainUnreadCount(res.data.unreadCount || 0);
+        }
+      } catch (err) {
+        console.error("Failed to fetch main unread count:", err);
+      }
+    };
     fetchMainUnread();
     const interval = setInterval(fetchMainUnread, 30000);
+    return () => clearInterval(interval);
+  }, [authReady, user?.email, user?.userId]);
 
-    // The badge previously only updated on this 30s poll — marking a
-    // notification read on NotificationsPage (or anywhere else) had no way
-    // to reach Header, so the count looked "stuck" until the next poll.
-    // NotificationsPage now dispatches this event after markRead/markAllRead/
-    // clearOne/clearAll; refetch immediately when we hear it. Also refetch
-    // on window focus to catch changes made in another tab.
-    const onUpdated = () => fetchMainUnread();
-    window.addEventListener("sf360:notifications-updated", onUpdated);
-    window.addEventListener("focus", onUpdated);
-
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener("sf360:notifications-updated", onUpdated);
-      window.removeEventListener("focus", onUpdated);
-    };
-  }, [user?.email, fetchMainUnread]);
-
-  const totalUnreadNotifications = mainUnreadCount + roarUnreadCount;
+  // Only show unread count from the DynamoDB-backed notifications API
+  const totalUnreadNotifications = mainUnreadCount;
 
   const [showDropdown, setShowDropdown] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);

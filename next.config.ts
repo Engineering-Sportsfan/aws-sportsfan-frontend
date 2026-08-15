@@ -377,6 +377,12 @@ const nextConfig = {
           destination: `${apiTarget}/api/ask-ai/:path*`,
         },
 
+        // Ticker API
+        {
+          source: "/api/ticker",
+          destination: `${apiTarget}/api/ticker`,
+        },
+
         // Playlists
         { source: "/api/playlists", destination: `${apiTarget}/api/playlists` },
         {

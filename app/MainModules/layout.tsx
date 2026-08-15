@@ -3,6 +3,7 @@
 "use client";
 
 import Header from "@/src/components/HomeComponents/Header";
+import LiveTicker from "@/src/components/Ticker/LiveTicker";
 import BottomNav from "@/src/components/HomeComponents/Bottomnav";
 import InviteFriendModal from "@/src/components/InviteFriendModal";
 import axios from "axios";
@@ -419,7 +420,28 @@ export default function MainModulesLayout({
 >
           {!isProfilePath && !isAskAIPath && !isWatchAlongPath && !isFanszonePath && (
             <div className="relative z-60">
+
               <Header />
+              <div id="live-ticker-container">
+                <LiveTicker />
+              </div>
+              <style>{`
+                @media (max-width: 767px) {
+                  #live-ticker-container {
+                    position: fixed !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    z-index: 101 !important;
+                  }
+                  #global-header-mobile {
+                    top: 36px !important;
+                  }
+                  .roar-header-spacer {
+                    height: 134px !important;
+                  }
+                }
+              `}</style>
             </div>
           )}
 

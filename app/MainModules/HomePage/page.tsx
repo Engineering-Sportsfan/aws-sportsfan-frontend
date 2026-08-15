@@ -343,8 +343,6 @@
 // }
 
 
-
-
 "use client";
 
 import ContinueListening from "@/src/components/HomeComponents/ContinueListening/index";
@@ -376,10 +374,15 @@ import SportScoreSection from "@/src/components/NewHomeComponents/SportScoreSect
 import IndiaHub from "@/src/components/NewHomeComponents/IndiaHub";
 import WatchAlongSessions from "@/src/components/NewHomeComponents/WatchAlongSessions";
 import StoreAndExperiences from "@/src/components/NewHomeComponents/StoreAndExperiences";
+import PlaybookDrops from "@/src/components/NewHomeComponents/PlaybookDrops";
+import AthleticsSpotlight from "@/src/components/NewHomeComponents/AthleticsSpotlight";
+import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
+import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
 
 function HomePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [selectedSport, setSelectedSport] = useState("mixed");
   const REQUEST_TIMEOUT_MS = 12000;
   const DOLLY_ROOM_ID = "NMryj1w7t8mJpGzEvF9q"; // same "Open Room" used as openRoomId below
 
@@ -396,6 +399,10 @@ function HomePageInner() {
   const dollyActiveSessionIdRef = useRef<string | undefined>(undefined);
   const [dollyRepliesLoading, setDollyRepliesLoading] = useState(false);
   const dollyFetchTokenRef = useRef<symbol | null>(null);
+  // Holds a question queued from AskFlip until the Dolly panel has actually
+  // opened — avoids a race where askDolly() fires before DollyPanel has
+  // mounted/settled, which was silently swallowing the ask.
+  const pendingFlipAskRef = useRef<string | null>(null);
 
   useEffect(() => {
     dollyActiveSessionIdRef.current = dollyActiveSessionId;
@@ -583,6 +590,66 @@ function HomePageInner() {
     }
   };
 
+  // Core "ask Dolly a question" flow — shared by the DollyPanel's own input
+  // and by AskFlip's input/quick-prompt pills so both funnel into the same
+  // panel + session + reply state instead of navigating to a separate page.
+  const askDolly = async (question: string, notify: boolean = false) => {
+    const q = question.trim();
+    if (!q || dollyAsking) return;
+    setDollyAsking(true);
+    const sessionId = await ensureDollySession();
+    if (!sessionId) { setDollyAsking(false); return; }
+    const tempId = `temp-dolly-${Date.now()}`;
+    setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
+    setDollyQuestion("");
+    try {
+      const res = await axios.post(
+        `/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${sessionId}`,
+        { question: q, notify },
+        { timeout: 30000 }
+      );
+      if (res.data?.success && dollyActiveSessionIdRef.current === sessionId) {
+        setDollyReplies(prev => prev.map(d => d.id === tempId ? res.data.reply : d));
+
+        if (notify) {
+          window.dispatchEvent(
+            new CustomEvent("sf360:new-notification", {
+              detail: { title: "Flip answered your question" },
+            })
+          );
+          window.dispatchEvent(new CustomEvent("sf360:notifications-updated"));
+        }
+      }
+    } catch {
+      if (dollyActiveSessionIdRef.current === sessionId) {
+        setDollyReplies(prev => prev.map(d => d.id === tempId ? { ...d, answer: "Something went wrong — try again." } : d));
+      }
+    } finally { setDollyAsking(false); }
+  };
+
+  // Handler passed to AskFlip: opens the Dolly panel (loading its history the
+  // same way the panel's own onOpen does), shows the question in the panel's
+  // input immediately, and queues it to be asked once the panel has
+  // confirmed it's open (see the effect below) rather than firing the ask in
+  // the same tick as opening the panel.
+  const handleAskFromFlip = (question: string) => {
+    pendingFlipAskRef.current = question;
+    setDollyQuestion(question);
+    setDollyOpen(true);
+    loadDollyHistory();
+  };
+
+  // Fires the queued AskFlip question once dollyOpen has actually flipped to
+  // true, so the panel is mounted/ready before we push a reply into it.
+  useEffect(() => {
+    if (dollyOpen && pendingFlipAskRef.current) {
+      const q = pendingFlipAskRef.current;
+      pendingFlipAskRef.current = null;
+      askDolly(q);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dollyOpen]);
+
   // Deep-link support: a notification's "See Dolly's answer" CTA routes here
   // with ?openDolly=1&dollySessionId=<id> (see NotificationsPage's
   // handleSchemaCtaClick). On mount, if those params are present, open the
@@ -629,12 +696,16 @@ function HomePageInner() {
           onEnter={(room) => router.push(`/MainModules/ROAR?room=${room.roomId}`)}
         /> */}
 
-        <SportScoreSection />
+        <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
+        <AthleticsSpotlight sport={selectedSport} />
         <RoarRooms />
         <WatchAlongSessions />
+        <AskFlip onAsk={handleAskFromFlip} />
+        <FlipCard />
 
-        <IndiaHub />
-        <StoreAndExperiences />
+        <IndiaHub sport={selectedSport} />
+        <PlaybookDrops />
+        <StoreAndExperiences sport={selectedSport} />
         
         <DollyPanel
           isOpen={dollyOpen}
@@ -647,39 +718,7 @@ function HomePageInner() {
           onRenameSession={renameDollySession}
           onDeleteSession={deleteDollySession}
           asking={dollyAsking}
-          onAsk={async (notify: boolean) => {
-            const q = dollyQuestion.trim();
-            if (!q || dollyAsking) return;
-            setDollyAsking(true);
-            const sessionId = await ensureDollySession();
-            if (!sessionId) { setDollyAsking(false); return; }
-            const tempId = `temp-dolly-${Date.now()}`;
-            setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
-            setDollyQuestion("");
-            try {
-              const res = await axios.post(
-                `/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${sessionId}`,
-                { question: q, notify },
-                { timeout: 30000 }
-              );
-              if (res.data?.success && dollyActiveSessionIdRef.current === sessionId) {
-                setDollyReplies(prev => prev.map(d => d.id === tempId ? res.data.reply : d));
-
-                if (notify) {
-                  window.dispatchEvent(
-                    new CustomEvent("sf360:new-notification", {
-                      detail: { title: "Flip answered your question" },
-                    })
-                  );
-                  window.dispatchEvent(new CustomEvent("sf360:notifications-updated"));
-                }
-              }
-            } catch {
-              if (dollyActiveSessionIdRef.current === sessionId) {
-                setDollyReplies(prev => prev.map(d => d.id === tempId ? { ...d, answer: "Something went wrong — try again." } : d));
-              }
-            } finally { setDollyAsking(false); }
-          }}
+          onAsk={(notify: boolean) => askDolly(dollyQuestion, notify)}
           replies={dollyReplies}
           loadingReplies={dollyRepliesLoading}
           history={dollyHistory}
