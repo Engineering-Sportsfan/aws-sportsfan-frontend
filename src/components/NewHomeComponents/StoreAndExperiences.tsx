@@ -72,7 +72,7 @@ export default function StoreAndExperiences({ sport = "mixed" }: { sport?: strin
         </button>
       </div>
 
-      <div className="flex gap-4 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory">
+      <div className="flex gap-4 overflow-x-auto pb-12 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory">
         {items.map(({ id, icon: Icon, label }) => (
           <button
             key={id}

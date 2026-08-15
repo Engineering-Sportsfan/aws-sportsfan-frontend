@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Zap } from "lucide-react";
 
 interface AthletePreview {
+  id: string;
   country: string;
   score: number;
   name: string;
@@ -14,22 +15,25 @@ interface AthletePreview {
 }
 
 const ATHLETES: AthletePreview[] = [
-  { country: "IN", score: 94, name: "V. Kohli",    sport: "Cricket"   },
-  { country: "IN", score: 96, name: "N. Chopra",   sport: "Athletics" },
-  { country: "IN", score: 91, name: "P.V. Sindhu", sport: "Badminton", highlight: true },
-  { country: "IN", score: 93, name: "R. Sharma",   sport: "Cricket"   },
+  { id: "india-team",       country: "IN", score: 121, name: "India",      sport: "Team",   highlight: true },
+  { id: "sri-lanka-team",   country: "LK", score: 96,  name: "Sri Lanka",  sport: "Team" },
+  { id: "kuldeep-yadav",     country: "IN", score: 85, name: "K. Yadav",   sport: "Cricket" },
+  { id: "shubman-gill",      country: "IN", score: 87, name: "S. Gill",    sport: "Cricket" },
+  { id: "yashasvi-jaiswal",  country: "IN", score: 86, name: "Y. Jaiswal", sport: "Cricket" },
+  { id: "rishabh-pant",      country: "IN", score: 88, name: "R. Pant",    sport: "Cricket" },
 ];
 
-function AthleteCard({ a }: { a: AthletePreview }) {
+function AthleteCard({ a, onClick }: { a: AthletePreview; onClick: () => void }) {
   return (
-    <div
-      className="shrink-0 flex flex-col gap-0.5 rounded-xl px-3 py-2.5 min-w-[80px]"
+    <button
+      onClick={onClick}
+      className="shrink-0 flex flex-col gap-0.5 rounded-xl px-3 py-2.5 min-w-[80px] text-left active:scale-95 transition-transform"
       style={{
         background: a.highlight
-          ? "linear-gradient(135deg,#1e1040,#2d1060)"
+          ? "linear-gradient(135deg,#0b2f6b,#1d4ed8)"
           : "rgba(255,255,255,0.05)",
         border: a.highlight
-          ? "1px solid rgba(124,58,237,0.5)"
+          ? "1px solid rgba(59,130,246,0.5)"
           : "1px solid rgba(255,255,255,0.08)",
       }}
     >
@@ -43,7 +47,7 @@ function AthleteCard({ a }: { a: AthletePreview }) {
         <span
           className="text-[22px] font-black leading-none"
           style={{
-            color: a.highlight ? "#a855f7" : "#E91E8C",
+            color: a.highlight ? "#93c5fd" : "#3b82f6",
             fontVariantNumeric: "tabular-nums",
           }}
         >
@@ -59,7 +63,7 @@ function AthleteCard({ a }: { a: AthletePreview }) {
       >
         {a.sport}
       </p>
-    </div>
+    </button>
   );
 }
 
@@ -70,17 +74,17 @@ export default function FlipCard() {
     <div
       className="w-full mt-4 rounded-2xl p-4"
       style={{
-        background: "linear-gradient(135deg,#0f0a1e 0%,#12101c 100%)",
-        border: "1px solid rgba(124,58,237,0.22)",
+        background: "linear-gradient(135deg,#0a1128 0%,#0f1a2e 100%)",
+        border: "1px solid rgba(59,130,246,0.22)",
       }}
     >
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <div
           className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-xl"
-          style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)" }}
+          style={{ background: "linear-gradient(135deg,#1d4ed8,#3b82f6)" }}
         >
-          🃏
+          🏏
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
@@ -90,7 +94,7 @@ export default function FlipCard() {
             <Zap size={13} className="text-amber-400" fill="currentColor" />
             <span
               className="text-[9px] font-extrabold px-1.5 py-0.5 rounded"
-              style={{ background: "rgba(99,102,241,0.35)", color: "#a5b4fc" }}
+              style={{ background: "rgba(59,130,246,0.35)", color: "#bfdbfe" }}
             >
               AI
             </span>
@@ -107,16 +111,20 @@ export default function FlipCard() {
       {/* Athlete mini-cards row */}
       <div className="flex gap-2 overflow-x-auto pb-1 mb-4 scrollbar-hide">
         {ATHLETES.map((a) => (
-          <AthleteCard key={a.name} a={a} />
+          <AthleteCard
+            key={a.id}
+            a={a}
+            onClick={() => router.push(`/MainModules/FlipCards?player=${a.id}`)}
+          />
         ))}
       </div>
 
       {/* CTA */}
       <motion.button
         whileTap={{ scale: 0.97 }}
-        onClick={() => router.push("/MainModules/FlipCard")}
+        onClick={() => router.push("/MainModules/FlipCards")}
         className="w-full py-3.5 rounded-full font-extrabold text-white text-[14px]"
-        style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
+        style={{ background: "linear-gradient(135deg,#1d4ed8,#3b82f6)" }}
       >
         Build Your FlipCard →
       </motion.button>
