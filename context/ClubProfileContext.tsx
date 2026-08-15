@@ -359,7 +359,7 @@ const fetchFullProfile = useCallback(async (teamName: string): Promise<CompleteT
         
         if (res.data.success) {
             const teamData: CompleteTeamData = res.data.data;
-
+            console.log("teamData", teamData);
             setSingleProfile({
                 id: teamData.id,
                 name: teamData.name,
