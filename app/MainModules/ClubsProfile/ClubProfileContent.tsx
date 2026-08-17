@@ -1,16 +1,59 @@
 // app/MainModules/ClubsProfile/ClubProfileContent.tsx
 "use client";
 
-import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import ClubGamePlan from "@/src/components/ClubProfile-Component/ClubGamePlan/index";
 import ClubProfileActions from "@/src/components/ClubProfile-Component/ClubProfileActions/index";
 import ClubProfileHeader from "@/src/components/ClubProfile-Component/ClubProfileHeader/index";
 import ClubSeasonStats from "@/src/components/ClubProfile-Component/ClubSeasonStats/index";
 import { useClubProfile } from "@/context/ClubProfileContext";
 
+function ensureClubFields(club: any) {
+  if (!club) return null;
+  return {
+    id: club.id ?? "",
+    name: club.name ?? "–",
+    team: club.team ?? "–",
+    avatar: club.avatar ?? null,
+    about: club.about ?? "",
+    headCoach: club.headCoach ?? "–",
+    homeGround: club.homeGround ?? "–",
+    country: club.country ?? "–",
+    battingStyle: club.battingStyle ?? "–",
+    bowlingStyle: club.bowlingStyle ?? "–",
+    season: club.season ?? {
+      year: "–",
+      runs: "0",
+      losses: "0",
+      wins: "0",
+      points: "0",
+      position: "–",
+      matchesPlayed: "0",
+      netRunRate: "0",
+    },
+    stats: club.stats ?? {
+      runs: "–",
+      sr: "–",
+      avg: "–",
+    },
+    insights: club.insights ?? [],
+    strengths: club.strengths ?? [],
+    media: club.media ?? [],
+    overview: club.overview ?? {
+      captain: club.captain ?? "–",
+      coach: club.headCoach ?? club.coach ?? "–",
+      owner: club.owner ?? "–",
+      venue: club.homeGround ?? club.venue ?? "–",
+    },
+  };
+}
+
 export default function ClubProfileContent() {
   const searchParams = useSearchParams();
+  const params = useParams();
+  
+  const slug = params?.slug as string | undefined;
   const teamName = searchParams.get("teamProfile");
   
   const { 
@@ -24,39 +67,113 @@ export default function ClubProfileContent() {
     error 
   } = useClubProfile();
 
+  // Local state for direct API fetch (when URL contains slug /MainModules/ClubsProfile/[slug])
+  const [localProfile, setLocalProfile] = useState<any>(null);
+  const [localLoading, setLocalLoading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+
   useEffect(() => {
     if (teamName) {
       fetchFullProfile(teamName);
     }
   }, [teamName, fetchFullProfile]);
 
+  useEffect(() => {
+    if (!slug) return;
+    setLocalLoading(true);
+    setLocalError(null);
+    fetch(`/api/ms_teams/${slug}`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`Failed to load profile (status ${res.status})`);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (data.success && data.team) {
+          const t = data.team;
+          setLocalProfile({
+            id: t.entityId,
+            name: t.clubName ?? "–",
+            team: t.shortName ?? "–",
+            avatar: t.logoUrl ?? null,
+            about: t.bio ?? "",
+            headCoach: t.headCoach ?? "–",
+            homeGround: t.homeGround ?? "–",
+            country: t.country ?? "–",
+            captain: t.captain ?? "–",
+            owner: t.owner ?? "–",
+            season: data.record_highlight ?? {
+              year: "–",
+              runs: "0",
+              losses: "0",
+              wins: "0",
+              points: "0",
+              position: "–",
+              matchesPlayed: "0",
+              netRunRate: "0",
+            },
+            insights: t.insights ?? [],
+            strengths: t.strengths ?? [],
+            media: data.stints ?? [],
+            stats: data.analytics ?? {
+              runs: "–",
+              sr: "–",
+              avg: "–",
+            },
+          });
+        } else {
+          setLocalError(data.error || "Failed to load club details");
+        }
+      })
+      .catch((err) => setLocalError(err.message))
+      .finally(() => setLocalLoading(false));
+  }, [slug]);
+
+  // Determine active states
+  const activeLoading = slug ? localLoading : (loading || (!singleProfile && !error));
+  const activeError = slug ? localError : error;
+
+  // Prepare club object
+  const contextClubData = singleProfile ? {
+    ...singleProfile,
+    season: seasons?.[0] || singleProfile.season,
+    insights: insights?.length ? insights : singleProfile.insights,
+    strengths: strengths?.length ? strengths : singleProfile.strengths,
+    media: mediaItems?.length ? mediaItems : singleProfile.media,
+  } : null;
+
+  const rawClubData = slug ? localProfile : contextClubData;
+  const clubData = ensureClubFields(rawClubData);
+
   // Loading state
-  if (loading || (!singleProfile && !error)) {
+  if (activeLoading || (slug && !localProfile && !localError)) {
     return (
       <div className="min-h-screen bg-[#111111] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading {teamName} profile...</p>
+          <p className="text-gray-400">Loading profile...</p>
         </div>
       </div>
     );
   }
 
   // Error state with friendly messages
-  if (error) {
+  if (activeError) {
     let friendlyMessage = "";
     let suggestion = "";
+    const errorStr = activeError;
     
-    if (error.includes("404") || error.includes("not found")) {
-      friendlyMessage = `"${teamName}" team profile not found`;
-      suggestion = "Please check the team name or try searching for another team.";
-    } else if (error.includes("Network Error") || error.includes("Failed to fetch")) {
+    if (errorStr.includes("404") || errorStr.includes("not found")) {
+      friendlyMessage = `Club profile not found`;
+      suggestion = "Please check the link or try searching for another club.";
+    } else if (errorStr.includes("Network Error") || errorStr.includes("Failed to fetch")) {
       friendlyMessage = "Unable to connect to the server";
       suggestion = "Please check your internet connection and try again.";
-    } else if (error.includes("500") || error.includes("Internal Server Error")) {
+    } else if (errorStr.includes("500") || errorStr.includes("Internal Server Error")) {
       friendlyMessage = "Something went wrong on our end";
       suggestion = "We're working on fixing this. Please try again in a few moments.";
-    } else if (error.includes("timeout")) {
+    } else if (errorStr.includes("timeout")) {
       friendlyMessage = "Request timed out";
       suggestion = "The server is taking too long to respond. Please try again.";
     } else {
@@ -79,7 +196,56 @@ export default function ClubProfileContent() {
           
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
-              onClick={() => teamName && fetchFullProfile(teamName)}
+              onClick={() => {
+                if (slug) {
+                  // Trigger reload by resetting state
+                  setLocalLoading(true);
+                  setLocalError(null);
+                  fetch(`/api/ms_teams/${slug}`)
+                    .then((res) => res.json())
+                    .then((data) => {
+                      if (data.success && data.team) {
+                        const t = data.team;
+                        setLocalProfile({
+                          id: t.entityId,
+                          name: t.clubName ?? "–",
+                          team: t.shortName ?? "–",
+                          avatar: t.logoUrl ?? null,
+                          about: t.bio ?? "",
+                          headCoach: t.headCoach ?? "–",
+                          homeGround: t.homeGround ?? "–",
+                          country: t.country ?? "–",
+                          captain: t.captain ?? "–",
+                          owner: t.owner ?? "–",
+                          season: data.record_highlight ?? {
+                            year: "–",
+                            runs: "0",
+                            losses: "0",
+                            wins: "0",
+                            points: "0",
+                            position: "–",
+                            matchesPlayed: "0",
+                            netRunRate: "0",
+                          },
+                          insights: t.insights ?? [],
+                          strengths: t.strengths ?? [],
+                          media: data.stints ?? [],
+                          stats: data.analytics ?? {
+                            runs: "–",
+                            sr: "–",
+                            avg: "–",
+                          },
+                        });
+                      } else {
+                        setLocalError(data.error || "Failed to load club details");
+                      }
+                    })
+                    .catch((err) => setLocalError(err.message))
+                    .finally(() => setLocalLoading(false));
+                } else if (teamName) {
+                  fetchFullProfile(teamName);
+                }
+              }}
               className="bg-red-500 px-6 py-2.5 rounded-lg text-white hover:bg-red-600 transition-colors"
             >
               Try Again
@@ -97,22 +263,13 @@ export default function ClubProfileContent() {
   }
 
   // No data state
-  if (!singleProfile) {
+  if (!clubData) {
     return (
       <div className="min-h-screen bg-[#111111] flex items-center justify-center">
-        <p className="text-gray-400">No profile found for &apos;{teamName}&apos;</p>
+        <p className="text-gray-400">No profile found</p>
       </div>
     );
   }
-
-  // Prepare club object with all data from context
-  const clubData = {
-    ...singleProfile,
-    season: seasons?.[0] || singleProfile.season,
-    insights: insights?.length ? insights : singleProfile.insights,
-    strengths: strengths?.length ? strengths : singleProfile.strengths,
-    media: mediaItems?.length ? mediaItems : singleProfile.media,
-  };
 
   return (
     <div className="min-h-screen bg-[#111111] font-sans">

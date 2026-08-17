@@ -1027,7 +1027,7 @@ export const NAV_TABS = [
   { id: "alerts", label: "Alerts", icon: "🔔" },
 ];
 
-export const NOTIF_FILTERS = ["All", "Predictions", "Challenges", "Badges", "Match"];
+export const NOTIF_FILTERS = ["All", "Predictions", "Challenges", "Badges", "Match", "WatchAlong", "Live Center"];
 
 export const TYPE_STYLES: Record<string, any> = {
   PREDICTION_OK: { color: "var(--correct-green)", label: "PREDICTION ✓", pulse: false },
@@ -1039,6 +1039,18 @@ export const TYPE_STYLES: Record<string, any> = {
   RIVAL: { color: "var(--accent-magenta)", label: "RIVAL", pulse: false },
   FAN_OF_WEEK: { color: "var(--gold)", label: "FAN OF WEEK", pulse: false },
   WEEKLY: { color: "#9C27B0", label: "BOLD CALL", pulse: false },
+  "watchalong.invited_to_session": { color: "#7C3AED", label: "WATCHALONG", pulse: false },
+  "watchalong.session_starting_soon": { color: "#7C3AED", label: "WATCHALONG", pulse: false },
+  "watchalong.followed_user_started": { color: "var(--live-green)", label: "WATCHALONG LIVE", pulse: true },
+  "watchalong.session_about_to_end": { color: "#7C3AED", label: "WATCHALONG", pulse: false },
+  "watchalong.promoted_to_cohost": { color: "#F59E0B", label: "CO-HOST", pulse: false },
+  "watchalong.breakfast_session_announced": { color: "#7C3AED", label: "BREAKFAST", pulse: false },
+  "watchalong.breakfast_starting_soon": { color: "#7C3AED", label: "BREAKFAST", pulse: false },
+  "watchalong.session_recording_available": { color: "#6B7280", label: "RECORDING", pulse: false },
+  "livecenter.wicket_falls": { color: "var(--live-green)", label: "WICKET 🎯", pulse: true },
+  "livecenter.boundary_milestone": { color: "var(--accent-orange)", label: "BOUNDARY 💥", pulse: false },
+  "livecenter.individual_milestone": { color: "var(--gold)", label: "MILESTONE ⭐", pulse: false },
+  "livecenter.ai_moment": { color: "#E91E8C", label: "AI MOMENT ⚡", pulse: true },
 };
 
 export const LB_TABS = ["All Time", "This Month", "Cricket", "Football"];

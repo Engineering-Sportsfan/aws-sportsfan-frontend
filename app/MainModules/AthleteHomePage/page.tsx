@@ -243,6 +243,95 @@ function AthleteCard({ athlete, index, onClick }: AthleteCardProps) {
   );
 }
 
+// ── Club Card ──────────────────────────────────────────────────────────────
+
+interface ClubCardProps {
+  club: any;
+  index: number;
+  onClick: () => void;
+}
+
+function ClubCard({ club, index, onClick }: ClubCardProps) {
+  const name = club.clubName || "–";
+  const sport = club.sportId || "–";
+  const logo = club.logoUrl || null;
+  const initials = getInitials(name);
+  const cardGrad = CARD_GRADIENTS[index % CARD_GRADIENTS.length];
+  const avatarGrad = AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
+  const country = club.country || "";
+
+  return (
+    <div
+      onClick={onClick}
+      className={`relative rounded-2xl overflow-hidden cursor-pointer border border-white/5 bg-gradient-to-br ${cardGrad}
+        transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/50 hover:border-white/12 active:scale-[0.98] group`}
+    >
+      {/* Card Hero area */}
+      <div className="relative h-[168px] flex items-center justify-center overflow-hidden">
+        {/* Subtle radial glow */}
+        <div
+          className={`absolute inset-0 opacity-25 bg-gradient-to-br ${avatarGrad} blur-3xl scale-150`}
+        />
+
+        {/* Country - top right */}
+        {country && (
+          <div className="absolute top-3 right-3 text-[11px] font-black text-white/80 tracking-wide z-10 uppercase">
+            {country}
+          </div>
+        )}
+
+        {/* Avatar */}
+        <div className="relative z-10">
+          <div
+            className={`w-[88px] h-[88px] rounded-full p-[2.5px] bg-gradient-to-br ${avatarGrad} shadow-2xl group-hover:scale-105 transition-transform duration-300`}
+          >
+            <div className="w-full h-full rounded-full overflow-hidden bg-[#0f0f1a] flex items-center justify-center">
+              {logo ? (
+                <img
+                  src={logo}
+                  alt={name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-2xl font-black tracking-tight select-none text-white">
+                  {initials}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card Body */}
+      <div className="px-4 pt-3 pb-4">
+        <h3 className="text-[15px] font-extrabold text-white leading-tight truncate group-hover:text-[#FF7A00] transition-colors">
+          {name}
+        </h3>
+        <p className="text-[11px] text-gray-400 font-medium mt-0.5 truncate uppercase">
+          {sport}
+        </p>
+        {club.headCoach && (
+          <p className="text-[10px] text-gray-500 font-medium mt-1">
+            <span className="text-gray-600 uppercase text-[9px] tracking-wider font-bold">
+              Coach:{" "}
+            </span>
+            {club.headCoach}
+          </p>
+        )}
+        {club.homeGround && (
+          <p className="text-[10px] text-gray-500 font-medium mt-0.5 truncate">
+            <span className="text-gray-600 uppercase text-[9px] tracking-wider font-bold">
+              Venue:{" "}
+            </span>
+            {club.homeGround}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 // ── Main Page ──────────────────────────────────────────────────────────────
 
 // ── Known sports (label → sportId value stored in DynamoDB) ─────────────────
@@ -274,6 +363,12 @@ export default function AthleteHomePage() {
   const [showSportDropdown, setShowSportDropdown] = useState(false);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
+  // ── Clubs state and views ──────────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState<"athletes" | "clubs">("athletes");
+  const [clubs, setClubs] = useState<any[]>([]);
+  const [clubsLoading, setClubsLoading] = useState(false);
+  const [clubsError, setClubsError] = useState<string | null>(null);
+
   const load = () => {
     setLoading(true);
     setError(null);
@@ -283,10 +378,61 @@ export default function AthleteHomePage() {
       .finally(() => setLoading(false));
   };
 
+  const loadClubs = async () => {
+    setClubsLoading(true);
+    setClubsError(null);
+    console.log("loadClubs: fetching from /api/ms_teams");
+    try {
+      const res = await fetch("/api/ms_teams");
+      console.log("loadClubs response status:", res.status);
+      if (!res.ok) {
+        throw new Error(`Server returned status ${res.status}`);
+      }
+      const data = await res.json();
+      console.log("loadClubs data received:", data);
+      if (data.success) {
+        setClubs(data.teams || []);
+      } else {
+        setClubsError("Failed to retrieve clubs");
+      }
+    } catch (err: any) {
+      console.error("loadClubs fetch error:", err);
+      setClubsError(err.message || "Failed to load clubs");
+    } finally {
+      setClubsLoading(false);
+    }
+  };
+
   useEffect(() => {
     load();
   }, []);
-  console.log("all athlete", athletes);
+
+  useEffect(() => {
+    if (viewMode === "clubs" && clubs.length === 0) {
+      loadClubs();
+    }
+  }, [viewMode, clubs.length]);
+
+  console.log("clubs  ", clubs);
+  const filteredClubs = useMemo(() => {
+    return clubs.filter((c) => {
+      const name = (c.clubName || "").toLowerCase();
+      const sport = (c.sportId || "").toLowerCase();
+      const country = (c.country || "").toLowerCase();
+
+      const matchesSearch =
+        !searchQuery ||
+        name.includes(searchQuery.toLowerCase()) ||
+        sport.includes(searchQuery.toLowerCase()) ||
+        country.includes(searchQuery.toLowerCase());
+
+      const matchesSport =
+        !sportFilter || sport === sportFilter.toLowerCase();
+
+      return matchesSearch && matchesSport;
+    });
+  }, [clubs, searchQuery, sportFilter]);
+
 
   // ── Dynamic category list from athletes that match the selected sport ────
   const availableCategories = useMemo(() => {
@@ -362,9 +508,15 @@ export default function AthleteHomePage() {
                 Athlete Discovery
               </h1>
               <p className="text-[11px] text-gray-500 font-medium mt-0.5">
-                {loading
-                  ? "Loading athletes…"
-                  : `${filtered.length} athlete${filtered.length !== 1 ? "s" : ""} found`}
+                {viewMode === "athletes" ? (
+                  loading
+                    ? "Loading athletes…"
+                    : `${filtered.length} athlete${filtered.length !== 1 ? "s" : ""} found`
+                ) : (
+                  clubsLoading
+                    ? "Loading clubs…"
+                    : `${filteredClubs.length} club${filteredClubs.length !== 1 ? "s" : ""} found`
+                )}
               </p>
             </div>
           </div>
@@ -406,9 +558,12 @@ export default function AthleteHomePage() {
             <button
               key={g}
               id={`gender-filter-${g.toLowerCase()}`}
-              onClick={() => setGenderFilter(g)}
+              onClick={() => {
+                setViewMode("athletes");
+                setGenderFilter(g);
+              }}
               className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 ${
-                genderFilter === g
+                viewMode === "athletes" && genderFilter === g
                   ? "bg-gradient-to-r from-[#FF0055] to-[#FF7A00] text-white border-transparent shadow-lg shadow-[#FF0055]/20"
                   : "bg-[#16161f] border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
               }`}
@@ -416,6 +571,20 @@ export default function AthleteHomePage() {
               {g === "Male" ? "♂ Male" : g === "Female" ? "♀ Female" : g}
             </button>
           ))}
+
+          {/* Clubs filter tab */}
+          <button
+            id="clubs-filter-btn"
+            onClick={() => {
+              setViewMode("clubs");
+            }}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all active:scale-95 ${viewMode === "clubs"
+                ? "bg-gradient-to-r from-[#FF0055] to-[#FF7A00] text-white border-transparent shadow-lg shadow-[#FF0055]/20"
+                : "bg-[#16161f] border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
+              }`}
+          >
+            🛡️ Clubs
+          </button>
 
           {/* Sport dropdown */}
           <div className="relative ml-auto">
@@ -513,7 +682,7 @@ export default function AthleteHomePage() {
         {/* ── Content ────────────────────────────────────────────────── */}
         <div className="mt-5">
           {/* Loading State */}
-          {loading && (
+          {((viewMode === "athletes" && loading) || (viewMode === "clubs" && clubsLoading)) && (
             <div className="grid grid-cols-2 gap-3.5">
               {Array.from({ length: 6 }).map((_, i) => (
                 <SkeletonCard key={i} />
@@ -521,8 +690,8 @@ export default function AthleteHomePage() {
             </div>
           )}
 
-          {/* Error State */}
-          {!loading && error && (
+          {/* Error State - Athletes */}
+          {viewMode === "athletes" && !loading && error && (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
               <span className="text-5xl">⚠️</span>
               <p className="text-red-400 font-bold text-sm">{error}</p>
@@ -535,8 +704,22 @@ export default function AthleteHomePage() {
             </div>
           )}
 
-          {/* Empty State */}
-          {!loading && !error && filtered.length === 0 && (
+          {/* Error State - Clubs */}
+          {viewMode === "clubs" && !clubsLoading && clubsError && (
+            <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
+              <span className="text-5xl">⚠️</span>
+              <p className="text-red-400 font-bold text-sm">{clubsError}</p>
+              <button
+                onClick={loadClubs}
+                className="px-6 py-2.5 rounded-full bg-gradient-to-r from-[#FF0055] to-[#FF7A00] text-white text-xs font-bold active:scale-95 transition-all"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Empty State - Athletes */}
+          {viewMode === "athletes" && !loading && !error && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
               <span className="text-5xl">🔍</span>
               <p className="text-white font-bold">No athletes found</p>
@@ -557,8 +740,28 @@ export default function AthleteHomePage() {
             </div>
           )}
 
+          {/* Empty State - Clubs */}
+          {viewMode === "clubs" && !clubsLoading && !clubsError && filteredClubs.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
+              <span className="text-5xl">🔍</span>
+              <p className="text-white font-bold">No clubs found</p>
+              <p className="text-gray-500 text-xs max-w-[240px]">
+                Try adjusting your search or filters to find clubs.
+              </p>
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setSportFilter("");
+                }}
+                className="px-5 py-2 rounded-full bg-white/5 border border-white/10 text-gray-300 text-xs font-semibold hover:bg-white/10 transition-all"
+              >
+                Clear Filters
+              </button>
+            </div>
+          )}
+
           {/* Athlete Grid */}
-          {!loading && !error && filtered.length > 0 && (
+          {viewMode === "athletes" && !loading && !error && filtered.length > 0 && (
             <div className="grid grid-cols-2 gap-3.5">
               {filtered.map((athlete, i) => (
                 <div
@@ -570,6 +773,28 @@ export default function AthleteHomePage() {
                     athlete={athlete}
                     index={i}
                     onClick={() => handleAthleteClick(athlete)}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Clubs Grid */}
+          {viewMode === "clubs" && !clubsLoading && !clubsError && filteredClubs.length > 0 && (
+            <div className="grid grid-cols-2 gap-3.5">
+              {filteredClubs.map((club, i) => (
+                <div
+                  key={club.entityId ?? i}
+                  className="fade-in-up"
+                  style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
+                >
+                  <ClubCard
+                    club={club}
+                    index={i}
+                    onClick={() => {
+                      const slug = club.entityId?.replace(/^CLUB#/, "") || club.team_id || "";
+                      router.push(`/MainModules/ClubsProfile/${slug}`);
+                    }}
                   />
                 </div>
               ))}
