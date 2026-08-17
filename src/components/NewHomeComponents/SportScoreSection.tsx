@@ -14,6 +14,7 @@ import {
   BarChart3,
   Newspaper,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 
@@ -445,7 +446,13 @@ function HeroCarousel({ cards }: { cards: HeroCard[] }) {
 
 /* ---------------------------------- India stats bar (Image 4) ---------------------------------- */
 
-function IndiaStatsBar({ data }: { data: IndiaStatsData }) {
+function IndiaStatsBar({
+  data,
+  onAllSportsClick,
+}: {
+  data: IndiaStatsData;
+  onAllSportsClick?: () => void;
+}) {
   const navItems = [
     { label: "All Sports", icon: Trophy },
     { label: "India", icon: Flag },
@@ -511,6 +518,11 @@ function IndiaStatsBar({ data }: { data: IndiaStatsData }) {
           <button
             key={label}
             type="button"
+            onClick={() => {
+              if (label === "All Sports" && onAllSportsClick) {
+                onAllSportsClick();
+              }
+            }}
             className="flex flex-col items-center justify-center gap-1.5 py-3 hover:bg-white/[0.04] transition-colors"
           >
             <Icon size={16} className="text-white/70" />
@@ -706,10 +718,35 @@ const MOCK_MINI_MATCHES: MiniMatchCard[] = [
   },
 ];
 
-/* ---------------------------------- Exported section ---------------------------------- */
+const SPORTS_LIST = [
+  { id: "mixed", label: "Mixed", emoji: "🏆" },
+  { id: "athletics", label: "Athletics", emoji: "🏃" },
+  { id: "cricket", label: "Cricket", emoji: "🏏" },
+  { id: "football", label: "Football", emoji: "⚽" },
+  { id: "badminton", label: "Badminton", emoji: "🏸" },
+  { id: "kabaddi", label: "Kabaddi", emoji: "🤼" },
+  { id: "lawn tennis", label: "Lawn Tennis", emoji: "🎾" },
+  { id: "hockey", label: "Hockey", emoji: "🏑" },
+  { id: "wrestling", label: "Wrestling", emoji: "🤼" },
+  { id: "shooting", label: "Shooting", emoji: "🎯" },
+  { id: "boxing", label: "Boxing", emoji: "🥊" },
+  { id: "swimming", label: "Swimming", emoji: "🏊" },
+  { id: "weightlifting", label: "Weightlifting", emoji: "🏋️" },
+];
 
-export default function SportScoreSection() {
+export default function SportScoreSection({
+  selectedSport: externalSelectedSport,
+  onSelectSport,
+}: {
+  selectedSport?: string;
+  onSelectSport?: (sport: string) => void;
+}) {
   const router = useRouter();
+  const [localSelectedSport, setLocalSelectedSport] = useState("mixed");
+  const [isAllSportsOpen, setIsAllSportsOpen] = useState(false);
+
+  const selectedSport = externalSelectedSport ?? localSelectedSport;
+  const setSelectedSport = onSelectSport ?? setLocalSelectedSport;
 
   const MOCK_HERO_CARDS: HeroCard[] = [
     {
@@ -770,11 +807,90 @@ export default function SportScoreSection() {
     },
   ];
 
+  const filteredMatches = MOCK_MINI_MATCHES.filter((match) => {
+    if (selectedSport === "mixed") return true;
+    return match.sport.toLowerCase() === selectedSport;
+  });
+
   return (
-    <div className="w-full">
+    <div className="w-full relative">
       <HeroCarousel cards={MOCK_HERO_CARDS} />
-      <IndiaStatsBar data={MOCK_INDIA_STATS} />
-      <MatchesStrip cards={MOCK_MINI_MATCHES} />
+      <IndiaStatsBar data={MOCK_INDIA_STATS} onAllSportsClick={() => setIsAllSportsOpen(true)} />
+      <MatchesStrip cards={filteredMatches} />
+
+      <AnimatePresence>
+        {isAllSportsOpen && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAllSportsOpen(false)}
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            {/* Modal Panel */}
+            <motion.div
+              initial={{ opacity: 0, y: 100 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 100 }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="relative w-full max-w-[420px] bg-[#0c0914] border border-white/[0.08] rounded-t-[32px] sm:rounded-[32px] overflow-hidden shadow-2xl z-10"
+            >
+              {/* Drag handle style */}
+              <div className="w-12 h-1 bg-white/20 rounded-full mx-auto my-3" />
+              
+              <div className="flex items-start justify-between px-6 pt-1 pb-4">
+                <div>
+                  <h2 className="text-[22px] font-black text-white leading-tight">All Sports</h2>
+                  <p className="text-[11px] text-white/50 mt-1">Select a sport to filter your feed</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAllSportsOpen(false)}
+                  className="w-8 h-8 rounded-full bg-white/[0.08] flex items-center justify-center text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="px-6 pb-8 grid grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto scrollbar-hide">
+                {SPORTS_LIST.map((sport) => {
+                  const isSelected = selectedSport === sport.id;
+                  return (
+                    <div key={sport.id} className="relative pb-3.5 flex flex-col items-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedSport(sport.id);
+                          setIsAllSportsOpen(false);
+                        }}
+                        className={`w-full aspect-square rounded-2xl border flex flex-col items-center justify-center p-2 transition-all duration-200 ${
+                          isSelected
+                            ? "border-[#E91E8C] bg-[#E91E8C]/10 shadow-[0_0_15px_rgba(233,30,140,0.15)]"
+                            : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
+                        }`}
+                      >
+                        <span className="text-2xl mb-1">{sport.emoji}</span>
+                        <span
+                          className={`text-[10px] font-bold text-center leading-tight transition-colors ${
+                            isSelected ? "text-[#E91E8C]" : "text-white/60"
+                          }`}
+                        >
+                          {sport.label}
+                        </span>
+                      </button>
+                      {isSelected && (
+                        <div className="absolute bottom-0.5 w-1.5 h-1.5 rounded-full bg-[#E91E8C]" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

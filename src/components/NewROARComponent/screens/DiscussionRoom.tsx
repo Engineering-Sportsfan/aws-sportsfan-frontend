@@ -3825,6 +3825,7 @@ function InlineSection({
   }, [isOpen, fetchReplies]);
 
   const handleSend = async () => {
+    console.log("[handleSend] fired", { commentText, sending, replyTo });
     const fullText = replyTo ? `@${replyTo.authorUsername} ${commentText.trim()}` : commentText.trim();
     if (!fullText || sending) return;
     setSending(true);
@@ -3834,7 +3835,9 @@ function InlineSection({
         phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
       }
       setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
-    } catch { }
+    } catch (err) {
+  console.log("[handleSend] caught error", err);   
+}
     finally { setSending(false); }
   };
 
@@ -6436,7 +6439,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                 </div>
               )} */}
 
-              {activeRoomBots.length > 0 && (
+              {/* {activeRoomBots.length > 0 && (
                 <div className="flex items-center gap-1.5 px-3 py-1 flex-wrap">
                   {activeRoomBots.map(b => (
                     <span
@@ -6453,7 +6456,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                     </span>
                   ))}
                 </div>
-              )}
+              )} */}
 
               {/* Right side: Sound + Share + Score (no ActiveFansStack here anymore) */}
               <div className="flex items-center gap-1 flex-shrink-0">

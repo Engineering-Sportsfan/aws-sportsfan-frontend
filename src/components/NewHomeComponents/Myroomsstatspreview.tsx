@@ -762,10 +762,13 @@ export default function RoarRooms() {
     return () => { cancelled = true; clearInterval(iv); };
   }, []);
 
-  // Same navigation pattern as index.tsx
+  // Navigate straight to this room's ROAR view via the ?room= query param,
+  // so the room the person tapped is the one that opens (instead of landing
+  // on ROAR's default/first room and relying on the localStorage auto-join
+  // flag, which the destination page may or may not read on mount).
   const handleEnterRoom = (room: Room) => {
     try { localStorage.setItem("roar_auto_join_room_id", room.roomId); } catch { /* ignore */ }
-    router.push("/MainModules/ROAR");
+    router.push(`/MainModules/ROAR?room=${room.roomId}`);
   };
 
   const liveCards: RoarRoomCard[] = rooms.map((room) => {
