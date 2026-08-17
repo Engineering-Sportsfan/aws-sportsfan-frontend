@@ -236,6 +236,8 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
+console.log("RUNTIME CHECK - GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID ? "PRESENT" : "MISSING");
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
     providers: [
         GoogleProvider({
