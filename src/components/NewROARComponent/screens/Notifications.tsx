@@ -34,6 +34,8 @@ export default function Notifications({
     if (filter === "Challenges") return n.type === "CHALLENGE" || n.type === "RIVAL";
     if (filter === "Badges") return n.type === "BADGE" || n.type === "FAN_OF_WEEK";
     if (filter === "Match") return n.type === "MATCH_LIVE" || n.type === "HEATING_UP";
+    if (filter === "WatchAlong") return n.type.startsWith("watchalong.");
+    if (filter === "Live Center") return n.type.startsWith("livecenter.");
     return true;
   });
 
@@ -96,6 +98,10 @@ export default function Notifications({
                 transition={{ delay: i * 0.04 }}
                 onClick={() => {
                   onMarkRead(n.id);
+                  if (n.ctaTarget) {
+                    window.location.href = n.ctaTarget;
+                    return;
+                  }
                   if (n.type === "MATCH_LIVE" || n.type === "HEATING_UP") { onJoinRoom(targetRoom); return; }
                   if (n.type === "CHALLENGE") { onCompose(); return; }
                   if (n.type.includes("PREDICTION") || n.type === "BADGE" || n.type === "FAN_OF_WEEK") { onNavigateTab("profile"); return; }
@@ -128,7 +134,16 @@ export default function Notifications({
                     <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>{n.subtitle}</p>
                     {n.cta && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); if (n.type.includes("PREDICTION")) onNavigateTab("profile"); else onCompose(); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (n.ctaTarget) {
+                            window.location.href = n.ctaTarget;
+                          } else if (n.type.includes("PREDICTION")) {
+                            onNavigateTab("profile");
+                          } else {
+                            onCompose();
+                          }
+                        }}
                         style={{ marginTop: 6, fontSize: 12, color: "var(--accent-magenta)", fontWeight: 700, background: "none", border: "none", cursor: "pointer" }}
                       >
                         {n.cta} →

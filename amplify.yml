@@ -3,7 +3,7 @@ frontend:
   phases:
     preBuild:
       commands:
-        - npm ci
+        - npm install --legacy-peer-deps
         - env | grep -e NEXT_PUBLIC_ >> .env.production
         - env | grep -e NEXTAUTH_ >> .env.production
         - env | grep -e AUTH_ >> .env.production

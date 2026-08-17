@@ -70,6 +70,7 @@ export interface Notification {
   read: boolean;
   fan: Fan | null;
   cta: string | null;
+  ctaTarget?: string;
 }
 
 export interface LeaderboardEntry {
