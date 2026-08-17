@@ -3317,8 +3317,6 @@
 
 
 
-
-
 // src\components\NewROARComponent\screens\DiscussionRoom.tsx
 
 
@@ -3335,7 +3333,6 @@ import ReactionsDialog from "../components/ReactionsDialog";
 import ActiveFansDialog from "../components/ActiveFansDialog";
 import EmojiPicker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
-import { roarApi } from "@/lib/roarApi";
 import { RADIAL_OPTS } from "../constants";
 import {
   Image, ChevronLeft, Flame, TrendingUp, Zap, History, PenTool,
@@ -4843,7 +4840,6 @@ export default function DiscussionRoom({
   const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>(currentAvatarUrl);
   const [selectedActionId, setSelectedActionId] = useState("post");
   const dropdownRef = useRef<HTMLDivElement>(null);
-  // const dollyActiveRoomIdRef = useRef<string | undefined>(roomId);
   const dollyActiveSessionIdRef = useRef<string | undefined>(undefined);
   const dollyFetchTokenRef = useRef<symbol | null>(null);
   const [liveCount, setLiveCount] = useState<number>(fanCount ?? 0);
@@ -4853,11 +4849,6 @@ export default function DiscussionRoom({
   const { userProfile } = useUserProfile();
   const [roomCounts, setRoomCounts] = useState({ post: 0, debate: 0, prediction: 0, trivia: 0, battle: 0 });
   const [activeFilter, setActiveFilter] = useState<"all" | "post" | "debate" | "prediction" | "trivia" | "battle">("all");
-  // const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
-  // const [dollyHistoryLoading, setDollyHistoryLoading] = useState(false);
-  // const [dollyActiveRoomId, setDollyActiveRoomId] = useState<string | undefined>(roomId);
-  // const [dollyActiveRoomName, setDollyActiveRoomName] = useState<string | undefined>(roomName);
-  // const [dollyRepliesLoading, setDollyRepliesLoading] = useState(false);
   const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
   const [dollyHistoryLoading, setDollyHistoryLoading] = useState(false);
   const [dollyHistoryLoadingMore, setDollyHistoryLoadingMore] = useState(false);
@@ -5073,7 +5064,6 @@ export default function DiscussionRoom({
       id: m.msgId, authorUid: m.authorUid, authorEmail: m.authorEmail,
       fan: {
         username: displayUsername(m.authorUsername), authorUid: m.authorUid, badge: m.authorBadge,
-        // avatarUrl: m.authorUid === currentUserId ? (userAvatarUrl || m.authorAvatarUrl || m.avatarUrl) : (m.authorAvatarUrl || m.avatarUrl) },
         avatarUrl:
           getKnownBotAvatarUrl(m.authorUsername) ??
           (m.authorUid === currentUserId
@@ -5119,27 +5109,6 @@ export default function DiscussionRoom({
     };
   }, [currentUserId, userAvatarUrl]);
 
-  // const loadMoreMsgs = useCallback(async () => {
-  //   if (!roomId || loadingMoreMsgsRef.current || !hasMoreMsgs) return;
-  //   const combined = [...posts, ...morePosts];
-  //   if (combined.length === 0) return;
-  //   const oldestCreatedAt = combined.reduce((min, p) => (p.createdAt < min ? p.createdAt : min), combined[0].createdAt);
-  //   loadingMoreMsgsRef.current = true; setLoadingMoreMsgs(true);
-  //   try {
-  //     const res = await axios.get(`/api/roar/rooms/${roomId}/messages`, { params: { limit: LOAD_MORE_PAGE_SIZE, lastCreatedAt: oldestCreatedAt }, timeout: REQUEST_TIMEOUT_MS });
-  //     if (res.data?.success) {
-  //       const newMsgs: any[] = res.data.messages ?? [];
-  //       setMorePosts(prev => {
-  //         const seenIds = new Set([...posts, ...prev].map(p => p.id ?? p.msgId));
-  //         const fresh = newMsgs.filter(m => !seenIds.has(m.msgId)).map(m => mapMessage(m));
-  //         return [...fresh, ...prev];
-  //       });
-  //       setHasMoreMsgs(Boolean(res.data.pagination?.hasMore));
-  //     } else { setHasMoreMsgs(false); }
-  //   } catch (e) { console.error("Failed to load more messages:", e); }
-  //   finally { loadingMoreMsgsRef.current = false; setLoadingMoreMsgs(false); }
-  // }, [roomId, hasMoreMsgs, posts, morePosts, mapMessage]);
-
   useEffect(() => {
   if (!pendingScrollRestoreRef.current) return;
   const { prevScrollHeight, prevScrollTop } = pendingScrollRestoreRef.current;
@@ -5153,7 +5122,6 @@ export default function DiscussionRoom({
 
   const loadMoreMsgs = useCallback(async () => {
     if (!roomId || loadingMoreMsgsRef.current || !hasMoreMsgs) return;
-    // console.log("[loadMoreMsgs] firing", { roomId, hasMoreMsgs });
     const combined = [...postsRef.current, ...morePostsRef.current];
     if (combined.length === 0) return;
     const oldestCreatedAt = combined.reduce((min, p) => (p.createdAt < min ? p.createdAt : min), combined[0].createdAt);
@@ -5168,21 +5136,12 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
       const res = await axios.get(`/api/roar/rooms/${roomId}/messages`, { params: { limit: LOAD_MORE_PAGE_SIZE, lastCreatedAt: oldestCreatedAt }, timeout: REQUEST_TIMEOUT_MS });
       if (res.data?.success) {
         const newMsgs: any[] = res.data.messages ?? [];
-        console.log("[loadMoreMsgs] response", {
-          oldestCreatedAt,
-          returnedCount: newMsgs.length,
-          returnedIds: newMsgs.map(m => m.msgId),
-          hasMore: res.data.pagination?.hasMore,
-        });
         setMorePosts(prev => {
           const seenIds = new Set([...postsRef.current, ...prev].map(p => p.id ?? p.msgId));
           const fresh = newMsgs.filter(m => !seenIds.has(m.msgId)).map(m => mapMessage(m));
-          console.log("[loadMoreMsgs] fresh after dedup", fresh.length, "of", newMsgs.length);
           return [...fresh, ...prev];
         });
         setHasMoreMsgs(Boolean(res.data.pagination?.hasMore));
-
-       
       } else { setHasMoreMsgs(false); }
     } catch (e) { console.error("Failed to load more messages:", e); setHasMoreMsgs(false); }
     finally { loadingMoreMsgsRef.current = false; setLoadingMoreMsgs(false); }
@@ -5208,23 +5167,14 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
 
   useEffect(() => () => { if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current); }, []);
 
-  // useEffect(() => {
-  //   const sentinel = sentinelRef.current;
-  //   if (!sentinel) return;
-  //   const observer = new IntersectionObserver((entries) => { if (entries[0]?.isIntersecting) loadMoreMsgs(); }, { root: listRef.current, rootMargin: "200px 0px 0px 0px", threshold: 0 });
-  //   observer.observe(sentinel);
-  //   return () => observer.disconnect();
-  // }, [loadMoreMsgs]);
-
   useEffect(() => {
     const list = listRef.current;
     if (!list) return;
 
     const handleScroll = () => {
-      // console.log("[scroll]", { scrollTop: list.scrollTop, initialDone: initialScrollDoneRef.current, hasMoreMsgs, loading: loadingMoreMsgsRef.current });
       if (!initialScrollDoneRef.current) return;
       if (list.scrollTop < 250) {
-        categoryFetchAttemptsRef.current = 0; // manual scroll always gets fresh budget
+        categoryFetchAttemptsRef.current = 0;
         loadMoreMsgs();
       }
     };
@@ -5272,34 +5222,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
       ))}
     </>
   );
-
-  // const loadDollyHistory = useCallback(async () => {
-  //   setDollyHistoryLoading(true);
-  //   try {
-  //     const res = await axios.get("/api/roar/dolly/rooms", { timeout: REQUEST_TIMEOUT_MS });
-  //     const rooms: any[] = res.data?.rooms ?? [];
-  //     const mapped: DollyHistorySession[] = rooms
-  //       .filter(r => r.roomId !== roomId)
-  //       .map(r => ({
-  //         roomId: r.roomId,
-  //         title: r.title,
-  //         subtitle: r.lastQuestion || "No questions yet",
-  //         dateLabel: new Date(r.lastAskedAt).toLocaleDateString([], { month: "short", day: "numeric" }),
-  //         sport: r.sport,
-  //       }));
-  //     setDollyHistory([
-  //       { roomId: roomId!, title: roomName || "This match", subtitle: "", dateLabel: "Today", isLive: true, sport: roomSports },
-  //       ...mapped,
-  //     ]);
-  //   } catch (err) {
-  //     console.error("[dolly] Failed to load room history:", err);
-  //     onToast?.("Couldn't load chat history — showing this match only");
-  //     setDollyHistory(roomId ? [{ roomId, title: roomName || "This match", subtitle: "", dateLabel: "Today", isLive: true, sport: roomSports }] : []);
-  //   } finally {
-  //     setDollyHistoryLoading(false);
-  //   }
-  // }, [roomId, roomName, roomSports]);
-
 
   const loadDollyHistory = useCallback(async () => {
     if (!roomId) return;
@@ -5358,24 +5280,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     if (dollyOpen) loadDollyHistory();
   }, [roomId, dollyOpen, loadDollyHistory]);
 
-  // const handleSelectDollySession = useCallback(async (session: DollyHistorySession) => {
-  //   if (session.roomId === dollyActiveRoomId) return;
-  //   const requestId = Symbol();
-  //   dollyFetchTokenRef.current = requestId;
-  //   setDollyActiveRoomId(session.roomId);
-  //   setDollyActiveRoomName(session.title);
-  //   setDollyRepliesLoading(true);
-  //   try {
-  //     const res = await axios.get(`/api/roar/rooms/${session.roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS });
-  //     if (dollyFetchTokenRef.current !== requestId) return;
-  //     setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
-  //   } catch {
-  //     if (dollyFetchTokenRef.current === requestId) setDollyReplies([]);
-  //   } finally {
-  //     if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false);
-  //   }
-  // }, [dollyActiveRoomId]);
-
   const handleSelectDollySession = useCallback(async (session: DollyHistorySession) => {
     if (session.sessionId === dollyActiveSessionId) return;
     const requestId = Symbol();
@@ -5393,23 +5297,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
       if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false);
     }
   }, [dollyActiveSessionId, roomId]);
-
-  // const handleNewDollyChat = useCallback(() => {
-  //   const requestId = Symbol();
-  //   dollyFetchTokenRef.current = requestId;
-  //   setDollyActiveRoomId(roomId);
-  //   setDollyActiveRoomName(roomName);
-  //   setDollyQuestion("");
-  //   if (!roomId) { setDollyReplies([]); return; }
-  //   setDollyRepliesLoading(true);
-  //   axios.get(`/api/roar/rooms/${roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS })
-  //     .then(res => {
-  //       if (dollyFetchTokenRef.current !== requestId) return;
-  //       setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
-  //     })
-  //     .catch(() => { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); })
-  //     .finally(() => { if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false); });
-  // }, [roomId, roomName]);
 
   const handleNewDollyChat = useCallback(() => {
     dollyFetchTokenRef.current = Symbol();
@@ -5435,15 +5322,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // const refreshActiveFans = useCallback(async () => {
-  //   if (!roomId) return;
-  //   const seq = ++presenceRequestSeqRef.current;
-  //   try {
-  //     const res = await axios.get(`/api/roar/rooms/${roomId}/presence`, { timeout: PRESENCE_TIMEOUT_MS });
-  //     if (res.data?.success) applyPresenceResponse(seq, res.data);
-  //   } catch (e) { console.error("Active fans fetch failed:", e); }
-  // }, [roomId, applyPresenceResponse]);
-
   const refreshActiveFans = useCallback(async () => {
     if (!roomId || presenceFetchInFlightRef.current) return;
     presenceFetchInFlightRef.current = true;
@@ -5458,24 +5336,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
   useEffect(() => {
     if (!roomId) return;
     setActiveFans([]); setLiveCount(0); setTotalJoinCount(0);
-
-    // const join = async () => {
-    //   const seq = ++presenceRequestSeqRef.current;
-    //   try {
-    //     const res = await axios.post(`/api/roar/rooms/${roomId}/presence`, undefined, { timeout: PRESENCE_TIMEOUT_MS });
-    //     if (res.data?.success) applyPresenceResponse(seq, res.data);
-    //   } catch (e) { console.error("Join failed:", e); }
-    // };
-
-    // const leaveBeacon = () => { navigator.sendBeacon(`/api/roar/rooms/${roomId}/presence/leave`); };
-    // const leaveAxios = () => { axios.delete(`/api/roar/rooms/${roomId}/presence`, { timeout: PRESENCE_TIMEOUT_MS }).catch(() => { }); };
-
-    // join();
-    // presenceBootstrapTimeoutRef.current = setTimeout(refreshActiveFans, 2000);
-
-    // const heartbeat = setInterval(() => { if (!document.hidden) join(); }, 30000);
-    // const fanRefresh = setInterval(() => { if (!document.hidden) refreshActiveFans(); }, 120000);
-
 
     const join = async () => {
       if (presenceFetchInFlightRef.current) return;
@@ -5492,7 +5352,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     const leaveAxios = () => { axios.delete(`/api/roar/rooms/${roomId}/presence`, { timeout: PRESENCE_TIMEOUT_MS }).catch(() => { }); };
 
     join();
-    // Bootstrap refresh pushed out so it doesn't race the initial join() response
     presenceBootstrapTimeoutRef.current = setTimeout(refreshActiveFans, 8000);
 
     const heartbeat = setInterval(() => { if (!document.hidden) join(); }, 30000);
@@ -5516,21 +5375,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     } catch { }
   }, [currentAvatarUrl, userProfile]);
 
-  // useEffect(() => {
-  //   if (!roomId) { setDollyReplies([]); setDollyLoaded(true); return; }
-  //   const requestId = Symbol();
-  //   dollyFetchTokenRef.current = requestId;
-  //   setDollyActiveRoomId(roomId);
-  //   setDollyActiveRoomName(roomName);
-  //   setDollyLoaded(false);
-  //   axios.get(`/api/roar/rooms/${roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS })
-  //     .then(res => {
-  //       if (dollyFetchTokenRef.current !== requestId) return;
-  //       setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
-  //     })
-  //     .catch(() => { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); })
-  //     .finally(() => { if (dollyFetchTokenRef.current === requestId) setDollyLoaded(true); });
-  // }, [roomId, roomName]);
   const renameDollySession = useCallback(async (sessionId: string, newTitle: string) => {
     if (!roomId) return;
     setDollyHistory(prev => prev.map(s => s.sessionId === sessionId ? { ...s, title: newTitle } : s));
@@ -5628,11 +5472,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     setTopReactionsMap({});
     setOpenInlinePostId(null);
     setActiveFilter("all");
-    //   knownFanUidsRef.current = null;
-    //   presenceRequestSeqRef.current = 0;
-    //   joinToastQueueRef.current = [];
-    //   setJoinToast(null);
-    // }, [roomId]);
     knownFanUidsRef.current = null;
     toastedUidsRef.current = new Set();
     presenceFetchInFlightRef.current = false;
@@ -5702,7 +5541,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
   const checkNotifs = useCallback(async () => {
     if (!roomId) return;
     try {
-      // Cheap first: just get the unread count, don't pull full docs every time.
       const countRes = await axios.get("/api/notifications", {
         params: { uid: userProfile?.actualUserId, email: userProfile?.email, countOnly: "true" },
         timeout: REQUEST_TIMEOUT_MS,
@@ -5710,7 +5548,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
       const unreadCount = countRes.data?.unreadCount ?? 0;
       if (unreadCount <= lastKnownUnreadCountRef.current) {
         lastKnownUnreadCountRef.current = unreadCount;
-        return; // nothing new, skip the expensive full fetch
+        return;
       }
       lastKnownUnreadCountRef.current = unreadCount;
 
@@ -5739,13 +5577,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     return () => { if (notifToastTimerRef.current) clearTimeout(notifToastTimerRef.current); };
   }, [roomId]);
 
-  // Only polls while the tab is visible — same pattern as fetchMsgs/fetchReactionUpdates below.
   useVisibilityInterval(checkNotifs, 60000);
-
-  // useEffect(() => {
-  //   if (!loading && listRef.current)
-  //     setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight }), 50);
-  // }, [loading]);
 
   const initialScrollDoneRef = useRef(false);
 
@@ -5754,7 +5586,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
       initialScrollDoneRef.current = false;
       setTimeout(() => {
         listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-        // give the browser a beat before we start allowing "load more" triggers
         setTimeout(() => { initialScrollDoneRef.current = true; }, 150);
       }, 50);
     }
@@ -5811,6 +5642,11 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [openMenuPostId]);
 
+  // ── FIXED: was calling roarApi.reactPost/unreactPost, which hit the
+  // now-404ing /api/roar/posts/:id/likesection route. Room-message reactions
+  // go through the room-scoped endpoint, same pattern as vote/pin/resolve/
+  // trivia-answer elsewhere in this file: POST /rooms/:roomId/messages/:id/react
+  // with { reaction } — reaction: null means "remove".
   const handleReact = useCallback(async (msgId: string, reaction: Reaction | null) => {
     if (!roomId || pendingReactRef.current[msgId]) return;
     const post = posts.find(p => p.id === msgId);
@@ -5824,18 +5660,26 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     setLocalReactions(p => ({ ...p, [msgId]: optimisticState }));
     lastLocalReactAtRef.current[msgId] = Date.now();
     pendingReactRef.current[msgId] = true;
-    // Failsafe: if roarApi's underlying axios call hangs past the timeout for
-    // any reason, don't leave this reaction permanently "pending" — release
-    // the lock so the person can try again instead of the button going dead.
+    // Failsafe: release the pending lock even if the request hangs, so the
+    // person can retry instead of the reaction button going permanently dead.
     const failsafe = setTimeout(() => { pendingReactRef.current[msgId] = false; }, REQUEST_TIMEOUT_MS + 3000);
     try {
-      const res: any = newReaction === null ? await roarApi.unreactPost(msgId, roomId) : await roarApi.reactPost(msgId, newReaction, roomId);
-      if (res && typeof res.likeCount === "number") {
-        setLocalReactions(p => ({ ...p, [msgId]: { ...optimisticState, heartCount: res.likeCount } }));
+      const res = await axios.post(
+        `/api/roar/rooms/${roomId}/messages/${msgId}/react`,
+        { reaction: newReaction },
+        { timeout: REQUEST_TIMEOUT_MS }
+      );
+      if (res.data && typeof res.data.heartCount === "number") {
+        setLocalReactions(p => ({ ...p, [msgId]: { ...optimisticState, heartCount: res.data.heartCount } }));
         lastLocalReactAtRef.current[msgId] = Date.now();
       }
-    } catch { setLocalReactions(p => ({ ...p, [msgId]: prev })); onToast("Failed to save reaction"); }
-    finally { clearTimeout(failsafe); pendingReactRef.current[msgId] = false; }
+    } catch {
+      setLocalReactions(p => ({ ...p, [msgId]: prev }));
+      onToast("Failed to save reaction");
+    } finally {
+      clearTimeout(failsafe);
+      pendingReactRef.current[msgId] = false;
+    }
   }, [roomId, posts, onToast]);
 
   const getPredictionVoteValue = (optionIndex: number) => (
@@ -5886,8 +5730,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     try {
       setUploading(true); onToast("Uploading media...");
       const fd = new FormData(); fd.append("file", file);
-      // Uploads can legitimately take longer than a normal API call, so this
-      // one intentionally gets a longer timeout rather than REQUEST_TIMEOUT_MS.
       const res = await axios.post("/api/upload", fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 60000 });
       if (res.data?.url) { setAttachedUrl(res.data.url); onToast("Media uploaded!"); }
     } catch { onToast("Upload failed"); setAttachedType(null); }
@@ -5901,8 +5743,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     if (!text && !attachedUrl) return;
     if (sendingRef.current) return;
     sendingRef.current = true; setIsSending(true);
-    // Failsafe: guarantees the send lock is released even if something we
-    // didn't anticipate keeps the axios promise from ever settling.
     const failsafe = setTimeout(() => {
       sendingRef.current = false;
       setIsSending(false);
@@ -5926,36 +5766,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     finally { clearTimeout(failsafe); sendingRef.current = false; setIsSending(false); }
   };
 
-  // const askDolly = async () => {
-  //   const q = dollyQuestion.trim();
-
-  //   const targetRoomId = dollyActiveRoomId ?? roomId;
-  //   if (!q || dollyAsking || !targetRoomId) return;
-  //   setDollyAsking(true);
-  //   const tempId = `temp-dolly-${Date.now()}`;
-  //   setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
-  //   setDollyQuestion("");
-  //   try {
-  //     // Dolly is an AI response and can legitimately take longer than a
-  //     // normal API call, so it gets a longer timeout than REQUEST_TIMEOUT_MS.
-  //     const res = await axios.post(`/api/roar/rooms/${targetRoomId}/dolly`, { question: q }, { timeout: 30000 });
-  //     if (res.data?.success) {
-  //       if (dollyActiveRoomIdRef.current === targetRoomId) {
-  //         setDollyReplies(prev => prev.map(d => d.id === tempId ? res.data.reply : d));
-  //       }
-  //     } else {
-  //       throw new Error("Dolly request failed");
-  //     }
-  //   } catch {
-  //     if (dollyActiveRoomIdRef.current === targetRoomId) {
-  //       setDollyReplies(prev => prev.map(d => d.id === tempId ? { ...d, answer: "Something went wrong — try again." } : d));
-  //     }
-  //   } finally {
-  //     setDollyAsking(false);
-  //   }
-  // };
-
-
   const askDolly = async () => {
     const q = dollyQuestion.trim();
     if (!q || dollyAsking || !roomId) return;
@@ -5966,8 +5776,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
     setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
     setDollyQuestion("");
     try {
-      // Dolly is an AI response and can legitimately take longer than a
-      // normal API call, so it gets a longer timeout than REQUEST_TIMEOUT_MS.
       const res = await axios.post(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { question: q }, { timeout: 30000 });
       if (res.data?.success) {
         if (dollyActiveSessionIdRef.current === sessionId) {
@@ -6237,16 +6045,8 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
       return p.type === activeFilter;
     });
 
-  // useEffect(() => {
-  //   if (activeFilter === "all") return;
-  //   if (loadingMoreMsgsRef.current || !hasMoreMsgs) return;
-  //   if (filteredPosts.length < 8) {
-  //     loadMoreMsgs();
-  //   }
-  // }, [activeFilter, filteredPosts.length, hasMoreMsgs, loadMoreMsgs]);
-
   const categoryFetchAttemptsRef = useRef(0);
-  const MAX_CATEGORY_AUTOFETCH = 6; // ~6 pages of 15 = 90 older msgs scanned, then let manual scroll take over
+  const MAX_CATEGORY_AUTOFETCH = 6;
 
   useEffect(() => {
     categoryFetchAttemptsRef.current = 0;
@@ -6331,73 +6131,10 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
         </>
       )}
 
-      {/* {!watchAlongRoomId && (
-        <>
-          <div className="shrink-0 px-3 py-1 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
-            <div className="flex justify-between items-center gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                {showBackButton && (
-                  <button type="button" onPointerDown={handleBack} onClick={handleBack} className="bg-transparent border-none cursor-pointer text-white flex items-center p-0 flex-shrink-0" style={{ touchAction: "manipulation", WebkitTapHighlightColor: "transparent" }}>
-                    <ChevronLeft size={20} />
-                  </button>
-                )}
-                {showBackButton && (
-                  <div className="text-left pt-0 min-w-0 flex-1">
-                    <p className="font-display text-base tracking-[0.04em] m-0 leading-tight text-white font-extrabold uppercase truncate">{roomName || "WORLDCUP"}</p>
-                    <div className="flex items-center gap-1 flex-wrap">
-                      <div className="flex items-center gap-1">
-                        <span className="live-pulse w-1 h-1 rounded-full bg-[var(--live-green)] inline-block flex-shrink-0" />
-                        <span className="text-[7px] font-bold text-[var(--live-green)] flex-shrink-0">LIVE</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-0.5 flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={toggleSound}
-                  className="flex-shrink-0 rounded-[8px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
-                  style={{ width: "28px", height: "28px" }}
-                  title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
-                >
-                  {soundEnabled ? <Volume2 size={13} /> : <VolumeX size={13} />}
-                </button>
-                <button
-                  type="button"
-                  onClick={shareRoomLink}
-                  className="flex-shrink-0 rounded-[8px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
-                  style={{ width: "28px", height: "28px" }}
-                >
-                  <Share2 size={13} />
-                </button>
-                {(score || scoreSubtitle) && (
-                  <div className="text-right pr-0.5 flex-shrink-0">
-                    {score && <div className="font-display text-[18px] text-[var(--accent-yellow)] leading-none">{score}</div>}
-                    {scoreSubtitle && <div className="text-[9px] text-[var(--text-secondary)] mt-0">{scoreSubtitle}</div>}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="shrink-0 px-3 py-0 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)]">
-            <ActiveFansStack
-              fans={activeFans}
-              count={liveCount}
-              totalJoinCount={totalJoinCount}
-              onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
-            />
-          </div>
-        </>
-      )} */}
-
-
       {!watchAlongRoomId && (
         <>
           <div className="shrink-0 px-2 py-1 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
             <div className="flex justify-between items-center gap-1">
-              {/* Left side */}
               <div className="flex items-center gap-1 min-w-0 flex-1">
                 {showBackButton ? (
                   <>
@@ -6415,7 +6152,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                     </div>
                   </>
                 ) : (
-                  // Pulse / Open Room: Members on the left instead of back button + name
                   <ActiveFansStack
                     fans={activeFans}
                     count={liveCount}
@@ -6425,40 +6161,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                 )}
               </div>
 
-              {/* {activeRoomBots.length > 0 && (
-                <div className="flex items-center gap-1.5 px-3 py-1 flex-wrap">
-                  {activeRoomBots.map(b => (
-                    <span
-                      key={b.id}
-                      className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: "rgba(233,30,140,0.12)", color: "#e91e8c", border: "1px solid rgba(233,30,140,0.3)" }}
-                    >
-                      🤖 {b.name}{b.team ? ` · ${b.team}` : ""}
-                    </span>
-                  ))}
-                </div>
-              )} */}
-
-              {/* {activeRoomBots.length > 0 && (
-                <div className="flex items-center gap-1.5 px-3 py-1 flex-wrap">
-                  {activeRoomBots.map(b => (
-                    <span
-                      key={b.id}
-                      className="flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full"
-                      style={{ background: "rgba(233,30,140,0.12)", color: "#e91e8c", border: "1px solid rgba(233,30,140,0.3)" }}
-                    >
-                      <img
-                        src={getBotAvatarUrl(b.name)}
-                        alt=""
-                        style={{ width: 12, height: 12, borderRadius: "50%", objectFit: "cover" }}
-                      />
-                      {b.name}{b.team ? ` · ${b.team}` : ""}
-                    </span>
-                  ))}
-                </div>
-              )} */}
-
-              {/* Right side: Sound + Share + Score (no ActiveFansStack here anymore) */}
               <div className="flex items-center gap-1 flex-shrink-0">
                 {isMatchEnded && onRecap && (
                   <button
@@ -6497,9 +6199,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
             </div>
           </div>
 
-
-
-          {/* Second row: Members section, only for normal rooms (Pulse already shows it up top) */}
           {showBackButton && (
             <div className="shrink-0 px-3 py-0 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)]">
               <ActiveFansStack
@@ -6512,26 +6211,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
           )}
         </>
       )}
-
-      {/* {pinnedPost && (
-        <div
-          className="shrink-0 px-3 py-0.5 bg-[rgba(233,30,140,0.08)] border-b border-[rgba(233,30,140,0.18)] flex items-center gap-1.5 cursor-pointer"
-          onClick={() => {
-            const target = [...morePosts, ...posts].find(p => p.id === pinnedPost.msgId);
-            if (target) {
-              onPostClick?.({ id: target.id, text: target.text, fan: target.fan, timeAgo: target.timeAgo, createdAt: target.createdAt, type: target.type || "post", isDbPost: true, roomId, mediaUrls: target.mediaUrls });
-            }
-          }}
-        >
-          <span className="text-[9px] shrink-0">📌</span>
-          <p className="m-0 text-[10px] text-white/85 whitespace-nowrap overflow-hidden text-ellipsis flex-1">
-            <span className="font-bold text-[#e91e8c]">Pinned: </span>
-            {pinnedPost.text}
-          </p>
-          <ChevronDown size={12} className="text-white/35 shrink-0 -rotate-90" />
-        </div>
-      )} */}
-
 
       {pinnedPost && (
         <div className="shrink-0 px-3 py-0.5 bg-[rgba(233,30,140,0.08)] border-b border-[rgba(233,30,140,0.18)] flex items-center gap-1.5">
@@ -6790,7 +6469,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                           {p.text}
                         </p>
 
-                        {/* Play sound only, without showing video, for newly posted quick-reacts */}
                         {p.memTag &&
                           QUICK_REACT_VIDEO_MAP[p.memTag] &&
                           newlyPostedIds.has(p.id) &&
@@ -7154,7 +6832,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
 
               <button
                 type="button"
-                // onClick={() => { setShowQuickCompose(prev => !prev); setShowEmojiPicker(false); }}
                 onClick={() => { if (isMatchEnded) return; setShowQuickCompose(prev => !prev); setShowEmojiPicker(false); }}
                 className="bg-transparent border-none cursor-pointer flex items-center justify-center p-1 shrink-0"
                 style={{
@@ -7196,27 +6873,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                     <span className="text-xs font-medium truncate" style={{ color: MODE_COLOR["post"] || "var(--text-secondary)" }}>{PLACEHOLDER["post"]}</span>
                   </div>
                 )}
-                {/* <input
-                  ref={mainInputRef}
-                  type="text"
-                  disabled={uploading || postCooldown > 0}
-                  value={input}
-                  onChange={e => {
-                    const value = e.target.value;
-                    setInput(value);
-                    mention.handleMentionInputChange(value, e.target.selectionStart || value.length);
-                  }}
-                  onKeyDown={e => {
-                    if (mention.handleMentionKeyDown(e, input, setInput, mainInputRef)) return;
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      send();
-                    }
-                  }}
-                  placeholder={postCooldown > 0 ? `Wait ${postCooldown}s before posting …` : ""}
-                  className="w-full h-8 rounded-[16px] bg-[var(--bg-secondary)] border border-[var(--border)] pl-2.5 pr-2.5 text-white text-xs outline-none"
-                  style={{ opacity: postCooldown > 0 ? 0.5 : 1 }}
-                /> */}
 
                 <input
                   ref={mainInputRef}
@@ -7243,8 +6899,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                 />
               </div>
 
-              {/* <motion.button
-                whileTap={{ scale: 0.96 }} onClick={send} disabled={uploading || isSending || postCooldown > 0} */}
               <motion.button
                 whileTap={{ scale: 0.96 }} onClick={send} disabled={uploading || isSending || postCooldown > 0 || isMatchEnded}
                 className="w-6 h-6 rounded-full border-none -mr-1 text-white text-base font-bold flex items-center justify-center cursor-pointer shrink-0 bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]"
@@ -7276,26 +6930,6 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
         prefetchedFans={activeFans}
         prefetchedCount={liveCount}
       />
-      {/* 
-       <DollyPanel
-      isOpen={dollyOpen}
-      onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
-      onClose={() => setDollyOpen(false)}
-      activeRoomId={dollyActiveRoomId}
-      activeRoomName={dollyActiveRoomName}
-      question={dollyQuestion}
-      setQuestion={setDollyQuestion}
-      asking={dollyAsking}
-      onAsk={askDolly}
-      replies={dollyReplies}
-      loadingReplies={dollyRepliesLoading}
-      history={dollyHistory}
-      loadingHistory={dollyHistoryLoading}
-      onSelectHistorySession={handleSelectDollySession}
-      onNewChat={handleNewDollyChat}
-      constrainedToParent={!!watchAlongRoomId}
-      containerRef={roomRootRef}
-    /> */}
 
       <DollyPanel
         isOpen={dollyOpen}

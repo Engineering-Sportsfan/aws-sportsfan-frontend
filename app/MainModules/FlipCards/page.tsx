@@ -21,6 +21,14 @@ interface Player {
   highlights: string[];
 }
 
+export interface PlayerStat {
+  label: string;
+  value: string;
+  color: string;
+}
+
+
+
 const PLAYERS: Player[] = [
   {
     id: "india-team",
@@ -32,11 +40,11 @@ const PLAYERS: Player[] = [
     role: "National Team",
     overall: 121,
     stats: [
-      { label: "Matches", value: "581", color: "#94a3b8" },
-      { label: "Wins", value: "178", color: "#34d399" },
-      { label: "Losses", value: "180", color: "#f87171" },
-      { label: "Draws", value: "223", color: "#60a5fa" },
-      { label: "Win %", value: "30.6", color: "#fbbf24" },
+      { label: "Matches", value: "600", color: "#94a3b8" },
+      { label: "Wins", value: "186", color: "#34d399" },
+      { label: "Losses", value: "188", color: "#f87171" },
+      { label: "Draws", value: "225", color: "#60a5fa" }, // incl. 1 tie
+      { label: "Win %", value: "31.0", color: "#fbbf24" },
       { label: "ICC Rank", value: "#2", color: "#60a5fa" },
     ],
     highlights: [
@@ -55,11 +63,11 @@ const PLAYERS: Player[] = [
     role: "National Team",
     overall: 96,
     stats: [
-      { label: "Matches", value: "310", color: "#94a3b8" },
-      { label: "Wins", value: "108", color: "#34d399" },
-      { label: "Losses", value: "119", color: "#f87171" },
-      { label: "Draws", value: "83", color: "#60a5fa" },
-      { label: "Win %", value: "34.8", color: "#fbbf24" },
+      { label: "Matches", value: "328", color: "#94a3b8" },
+      { label: "Wins", value: "97", color: "#34d399" },
+      { label: "Losses", value: "129", color: "#f87171" },
+      { label: "Draws", value: "102", color: "#60a5fa" },
+      { label: "Win %", value: "29.6", color: "#fbbf24" },
       { label: "ICC Rank", value: "#7", color: "#60a5fa" },
     ],
     highlights: [
@@ -78,17 +86,17 @@ const PLAYERS: Player[] = [
     role: "Bowling",
     overall: 85,
     stats: [
-      { label: "Batting Avg", value: "10.2", color: "#60a5fa" },
-      { label: "Economy", value: "4.6", color: "#60a5fa" },
-      { label: "Wickets", value: "174", color: "#fbbf24" },
-      { label: "5W Hauls", value: "4", color: "#34d399" },
-      { label: "Strike Rate", value: "24.8", color: "#60a5fa" },
-      { label: "Matches", value: "112", color: "#94a3b8" },
+      { label: "Bowling Avg", value: "22.38", color: "#60a5fa" },
+      { label: "Economy", value: "3.53", color: "#60a5fa" },
+      { label: "Wickets", value: "80", color: "#fbbf24" },
+      { label: "5W Hauls", value: "5", color: "#34d399" },
+      { label: "Best Figures", value: "5/40", color: "#60a5fa" },
+      { label: "Matches", value: "19", color: "#94a3b8" },
     ],
     highlights: [
-      "5/27 vs Australia, WTC Final",
-      "Player of the Series vs England 2024",
-      "ICC #3 Bowling in Test rankings",
+      "7-wicket innings haul vs England, Dharamsala 2024",
+      "Fastest Indian to 50 Test wickets (1871 balls)",
+      "ICC Top-15 Bowling in Test rankings",
     ],
   },
   {
@@ -101,17 +109,17 @@ const PLAYERS: Player[] = [
     role: "Batting",
     overall: 87,
     stats: [
-      { label: "Batting Avg", value: "45.3", color: "#60a5fa" },
-      { label: "Strike Rate", value: "58.2", color: "#60a5fa" },
-      { label: "Centuries", value: "9", color: "#fbbf24" },
+      { label: "Batting Avg", value: "61.82", color: "#60a5fa" },
+      { label: "Runs", value: "2985", color: "#60a5fa" },
+      { label: "Centuries", value: "11", color: "#fbbf24" }, // incl. 4 in 2025 England series
       { label: "Wickets", value: "0", color: "#34d399" },
-      { label: "Fifties", value: "18", color: "#60a5fa" },
-      { label: "Matches", value: "38", color: "#94a3b8" },
+      { label: "Fours", value: "335", color: "#60a5fa" },
+      { label: "Matches", value: "42", color: "#94a3b8" },
     ],
     highlights: [
       "Test Captain, India tour of England 2025",
-      "Personal best 269 vs England",
-      "ICC #4 Batting in Tests",
+      "Career-best 269 vs England, Edgbaston 2025",
+      "754 runs in a single Test series (2025 vs England)",
     ],
   },
   {
@@ -124,17 +132,19 @@ const PLAYERS: Player[] = [
     role: "Batting",
     overall: 86,
     stats: [
-      { label: "Batting Avg", value: "48.1", color: "#60a5fa" },
-      { label: "Strike Rate", value: "62.7", color: "#60a5fa" },
+      { label: "Batting Avg", value: "48.43", color: "#60a5fa" },
+      { label: "Runs", value: "2567", color: "#60a5fa" },
       { label: "Centuries", value: "7", color: "#fbbf24" },
-      { label: "Wickets", value: "1", color: "#34d399" },
-      { label: "Fifties", value: "10", color: "#60a5fa" },
-      { label: "Matches", value: "29", color: "#94a3b8" },
+      { label: "Double Centuries", value: "2", color: "#34d399" },
+      { label: "Highest Score", value: "214*", color: "#60a5fa" },
+      { label: "Matches", value: "30", color: "#94a3b8" },
+      { label: "Strike Rate", value: "66.29", color: "#94a3b8" },
+
     ],
     highlights: [
-      "209 vs England, Rajkot 2024",
-      "Fastest Indian to 2000 Test runs (opener)",
-      "ICC #6 Batting in Tests",
+      "209 & 214* vs England, back-to-back doubles, 2024",
+      "Fastest Indian opener to 2000 Test runs",
+      "Player of the Series vs England 2024",
     ],
   },
   {
@@ -147,17 +157,18 @@ const PLAYERS: Player[] = [
     role: "Wicketkeeper - Batting",
     overall: 88,
     stats: [
-      { label: "Batting Avg", value: "43.6", color: "#60a5fa" },
-      { label: "Strike Rate", value: "73.4", color: "#60a5fa" },
-      { label: "Centuries", value: "7", color: "#fbbf24" },
-      { label: "Dismissals", value: "196", color: "#34d399" },
-      { label: "Fifties", value: "24", color: "#60a5fa" },
-      { label: "Matches", value: "45", color: "#94a3b8" },
+      { label: "Batting Avg", value: "43.32", color: "#60a5fa" },
+      { label: "Runs", value: "3596", color: "#60a5fa" },
+      { label: "Centuries", value: "8", color: "#fbbf24" }, // approx, growing through 2025
+      { label: "Sixes", value: "98", color: "#34d399" },
+      { label: "Fours", value: "382", color: "#60a5fa" },
+      { label: "Matches", value: "51", color: "#94a3b8" },
+      { label: "Strike Rate", value: "73.91", color: "#94a3b8" },
     ],
     highlights: [
-      "146 vs England after injury comeback",
-      "Fastest fifty by an Indian keeper in Tests",
-      "ICC #5 Batting in Tests",
+      "First keeper to score Test hundreds in England, Australia & South Africa",
+      "Second-most Test centuries by an Indian keeper (behind Dhoni)",
+      "ICC Top-15 Batting in Test rankings",
     ],
   },
 ];
