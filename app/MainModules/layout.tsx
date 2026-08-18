@@ -167,7 +167,7 @@ function UserSidebar() {
     //   href: "/MainModules/Store" 
     // },
     {
-      name: "Ask Dolly",
+      name: "Ask Flip",
       icon: <Sparkles className="w-5 h-5 text-gradient" />,
       href: "/MainModules/AskAI"
     },

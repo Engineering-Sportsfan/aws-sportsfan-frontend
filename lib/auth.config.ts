@@ -236,6 +236,11 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
+// console.log("RUNTIME CHECK - GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID ? "PRESENT" : "MISSING");
+console.log("ALL ENV KEYS WITH GOOGLE:", Object.keys(process.env).filter(k => k.toUpperCase().includes("GOOGLE")));
+console.log("ALL ENV KEYS COUNT:", Object.keys(process.env).length);
+console.log("FULL ENV KEY LIST:", JSON.stringify(Object.keys(process.env).sort()));
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
     providers: [
         GoogleProvider({

@@ -248,9 +248,12 @@ export default function ReactionsDialog({ postId, isOpen, onClose, onFanProfile,
     if (!isOpen || !postId) return;
     setLoading(true);
     setFilter("all");
+    // const url = commentId && roomId && msgId
+    //   ? `/api/roar/rooms/${roomId}/messages/${msgId}/comments/${commentId}/reactions`
+    //   : `/api/roar/posts/${postId}/reactions${roomId ? `?roomId=${encodeURIComponent(roomId)}` : ""}`;
     const url = commentId && roomId && msgId
-      ? `/api/roar/rooms/${roomId}/messages/${msgId}/comments/${commentId}/reactions`
-      : `/api/roar/posts/${postId}/reactions${roomId ? `?roomId=${encodeURIComponent(roomId)}` : ""}`;
+  ? `/api/roar/rooms/${roomId}/messages/${msgId}/comments/${commentId}/reactions`
+  : `/api/roar/rooms/${roomId}/messages/${msgId ?? postId}/reactions`;
     axios.get(url)
       .then(r => setReactors(r.data?.reactors ?? []))
       .catch(() => setReactors([]))
