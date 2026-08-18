@@ -169,7 +169,7 @@ export default function AskFlip({ onAsk }: AskFlipProps) {
           className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-xl"
           style={{ background: "linear-gradient(135deg,#7c3aed,#E91E8C)" }}
         >
-          🤖
+          <img src="/images/dollyavatar.png" alt="askflip" className="w-10 h-10 object-fit"/>
         </div>
         <div>
           <p className="text-[15px] font-extrabold text-white leading-none">

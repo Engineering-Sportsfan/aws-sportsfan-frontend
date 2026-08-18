@@ -4595,9 +4595,9 @@ export default function WatchRoom({ room, onBack }: Props) {
                         ) : (
                             <div className="absolute inset-0 w-full h-full">
                                 <img
-                                    src="/images/watchalong_welcome.jpg"
+                                    src="/images/ind_vs_sl_room_dp.png"
                                     alt="Welcome to Watchalong!"
-                                    className="w-full h-full object-cover"
+                                    className="w-full h-full object-fit"
                                 />
                             </div>
                         )}
@@ -4613,7 +4613,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         {liveMatch && (
                             <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20">
                                 <div className={`rounded-lg border-2 ${room.borderColor || "border-pink-500"} bg-[#111] px-2 py-1.5 flex items-center justify-center text-xs font-bold text-blue-400`}>
-                                    {liveMatch.team2?.name?.slice(0, 3) || "T2"}
+                                    {liveMatch.team2?.name?.slice(0, 3) || "Team 2"}
                                 </div>
                             </div>
                         )}
