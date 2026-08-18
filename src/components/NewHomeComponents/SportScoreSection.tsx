@@ -304,7 +304,7 @@ function LiveCricketCardView({ card }: { card: LiveCard }) {
         className="w-full py-3 rounded-full font-extrabold text-white text-[13px] flex items-center justify-center gap-2"
         style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
       >
-        {card.ctaLabel ?? "Match Center"}
+        {card.ctaLabel ?? "Wtch Along"}
         <span>→</span>
       </motion.button>
     </div>
@@ -802,7 +802,7 @@ export default function SportScoreSection({
       manOfMatch: "Bumrah 4/42",
       bgImageUrl: "/images/ind_srl_homepage.png",
       fanCount: 0,
-      ctaLabel: "Match Center",
+      ctaLabel: "Watch Along",
       onJoin: () => router.push("/MainModules/WatchAlong/room/acc569cd-831b-4f3c-ab7d-cf862b11be6a"),
     },
   ];
