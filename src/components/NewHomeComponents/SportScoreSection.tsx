@@ -172,73 +172,73 @@ function VipCardView({ card }: { card: VipCard }) {
 
 /* ---------------------------------- Live football card (Image 2) ---------------------------------- */
 
-function LiveFootballCardView({ card }: { card: LiveCard }) {
-  return (
-    <div
-      className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px]"
-      style={{
-        backgroundImage: `linear-gradient(180deg, rgba(6,6,10,0.55) 0%, rgba(6,6,10,0.9) 100%), url(${card.bgImageUrl ?? ""
-          })`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundColor: "#111318",
-      }}
-    >
-      <div className="flex items-center gap-2 mb-4">
-        <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          LIVE
-        </span>
-        <span className="text-[10px] font-semibold text-white/70 bg-white/[0.08] px-2.5 py-1 rounded-full">
-          {card.competition}
-        </span>
-      </div>
+// function LiveFootballCardView({ card }: { card: LiveCard }) {
+//   return (
+//     <div
+//       className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px]"
+//       style={{
+//         backgroundImage: `linear-gradient(180deg, rgba(6,6,10,0.55) 0%, rgba(6,6,10,0.9) 100%), url(${card.bgImageUrl ?? ""
+//           })`,
+//         backgroundSize: "cover",
+//         backgroundPosition: "center",
+//         backgroundColor: "#111318",
+//       }}
+//     >
+//       <div className="flex items-center gap-2 mb-4">
+//         <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full">
+//           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+//           LIVE
+//         </span>
+//         <span className="text-[10px] font-semibold text-white/70 bg-white/[0.08] px-2.5 py-1 rounded-full">
+//           {card.competition}
+//         </span>
+//       </div>
 
-      <p className="text-[10px] font-extrabold tracking-widest text-amber-400 mb-3">
-        {card.matchLabel}
-      </p>
+//       <p className="text-[10px] font-extrabold tracking-widest text-amber-400 mb-3">
+//         {card.matchLabel}
+//       </p>
 
-      <div className="bg-black/40 rounded-xl p-3.5 mb-3">
-        <div className="flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="text-[13px] font-extrabold text-white mb-0.5">{card.teamAName}</p>
-            <p className="text-[11px] text-white/50">Home · {card.venue}</p>
-          </div>
-          <p className="text-3xl font-black text-white px-2">{card.footballScoreA}</p>
-        </div>
+//       <div className="bg-black/40 rounded-xl p-3.5 mb-3">
+//         <div className="flex items-center justify-between">
+//           <div className="min-w-0">
+//             <p className="text-[13px] font-extrabold text-white mb-0.5">{card.teamAName}</p>
+//             <p className="text-[11px] text-white/50">Home · {card.venue}</p>
+//           </div>
+//           <p className="text-3xl font-black text-white px-2">{card.footballScoreA}</p>
+//         </div>
 
-        <div className="flex items-center gap-2 my-1.5">
-          <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded">
-            {card.minute}
-          </span>
-          <div className="h-px flex-1 bg-white/10" />
-        </div>
+//         <div className="flex items-center gap-2 my-1.5">
+//           <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded">
+//             {card.minute}
+//           </span>
+//           <div className="h-px flex-1 bg-white/10" />
+//         </div>
 
-        <div className="flex items-center justify-between">
-          <div className="min-w-0">
-            <p className="text-[13px] font-extrabold text-white mb-0.5">{card.teamBName}</p>
-            <p className="text-[11px] text-white/50">Away</p>
-          </div>
-          <p className="text-3xl font-black text-white px-2">{card.footballScoreB}</p>
-        </div>
-      </div>
+//         <div className="flex items-center justify-between">
+//           <div className="min-w-0">
+//             <p className="text-[13px] font-extrabold text-white mb-0.5">{card.teamBName}</p>
+//             <p className="text-[11px] text-white/50">Away</p>
+//           </div>
+//           <p className="text-3xl font-black text-white px-2">{card.footballScoreB}</p>
+//         </div>
+//       </div>
 
-      {card.scorers && (
-        <p className="text-[11px] text-white/50 mb-4 truncate">{card.scorers}</p>
-      )}
+//       {card.scorers && (
+//         <p className="text-[11px] text-white/50 mb-4 truncate">{card.scorers}</p>
+//       )}
 
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={card.onJoin}
-        className="w-full py-3 rounded-full font-extrabold text-white text-[13px] flex items-center justify-center gap-2"
-        style={{ background: "linear-gradient(135deg,#4f46e5,#3b82f6)" }}
-      >
-        {card.ctaLabel ?? "Watch Live"}
-        <span>→</span>
-      </motion.button>
-    </div>
-  );
-}
+//       <motion.button
+//         whileTap={{ scale: 0.97 }}
+//         onClick={card.onJoin}
+//         className="w-full py-3 rounded-full font-extrabold text-white text-[13px] flex items-center justify-center gap-2"
+//         style={{ background: "linear-gradient(135deg,#4f46e5,#3b82f6)" }}
+//       >
+//         {card.ctaLabel ?? "Watch Live"}
+//         <span>→</span>
+//       </motion.button>
+//     </div>
+//   );
+// }
 
 /* ---------------------------------- Live cricket card (Image 3) ---------------------------------- */
 
@@ -287,7 +287,7 @@ function LiveCricketCardView({ card }: { card: LiveCard }) {
         </div>
       </div>
 
-      {card.result && (
+      {/* {card.result && (
         <div className="flex items-center gap-2 mb-4">
           <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-500/15 px-2.5 py-1 rounded-full">
             {card.result}
@@ -296,7 +296,7 @@ function LiveCricketCardView({ card }: { card: LiveCard }) {
             <span className="text-[11px] text-white/50">{card.manOfMatch}</span>
           )}
         </div>
-      )}
+      )} */}
 
       <motion.button
         whileTap={{ scale: 0.97 }}
@@ -406,9 +406,9 @@ function HeroCarousel({ cards }: { cards: HeroCard[] }) {
             transition={{ duration: 0.35, ease: "easeInOut" }}
           >
             {active.type === "vip" && <VipCardView card={active} />}
-            {active.type === "live" && active.isFootball && (
+            {/* {active.type === "live" && active.isFootball && (
               <LiveFootballCardView card={active} />
-            )}
+            )} */}
             {active.type === "live" && !active.isFootball && (
               <LiveCricketCardView card={active} />
             )}
@@ -467,7 +467,7 @@ function IndiaStatsBar({
       <div className="flex items-center justify-between px-4 py-4">
         <div className="flex items-center gap-2.5">
           {data.flagUrl ? (
-            <img src={data.flagUrl} alt="India" className="w-9 h-6 rounded object-cover" />
+            <img src={data.flagUrl} alt="India" className="w-9 h-6 rounded object-fit" />
           ) : (
             <div className="w-9 h-6 rounded overflow-hidden flex flex-col shrink-0">
               <div className="flex-1 bg-orange-500" />
@@ -760,50 +760,50 @@ export default function SportScoreSection({
       ctaLabel: "Explore Today's Action",
       onBook: () => router.push('/MainModules/AsianGame'),
     },
+    // {
+    //   type: "live",
+    //   id: "porto-benfica",
+    //   status: "LIVE",
+    //   isFootball: true,
+    //   competition: "Liga Portugal",
+    //   matchLabel: "Football · O Clássico",
+    //   teamAName: "FC PORTO",
+    //   teamAShort: "POR",
+    //   teamBName: "S.L. BENFICA",
+    //   teamBShort: "SLB",
+    //   footballScoreA: 2,
+    //   footballScoreB: 1,
+    //   minute: "85'",
+    //   venue: "Estádio do Dragão",
+    //   scorers: "Evanilson 24', 67' · Di María 52'",
+    //   bgImageUrl: "/images/footballground.jpg",
+    //   overSummary: [],
+    //   oversLabel: "",
+    //   fanCount: 0,
+    //   ctaLabel: "Watch Live",
+    //   onJoin: () => console.log("Navigate to Porto vs Benfica room"),
+    // },
     {
       type: "live",
-      id: "porto-benfica",
-      status: "LIVE",
-      isFootball: true,
-      competition: "Liga Portugal",
-      matchLabel: "Football · O Clássico",
-      teamAName: "FC PORTO",
-      teamAShort: "POR",
-      teamBName: "S.L. BENFICA",
-      teamBShort: "SLB",
-      footballScoreA: 2,
-      footballScoreB: 1,
-      minute: "85'",
-      venue: "Estádio do Dragão",
-      scorers: "Evanilson 24', 67' · Di María 52'",
-      bgImageUrl: "/images/footballground.jpg",
-      overSummary: [],
-      oversLabel: "",
-      fanCount: 0,
-      ctaLabel: "Watch Live",
-      onJoin: () => console.log("Navigate to Porto vs Benfica room"),
-    },
-    {
-      type: "live",
-      id: "ind-pak-ct2026",
+      id: "ind-sl-test2026",
       status: "LIVE",
       isFootball: false,
-      competition: "ICC Champions Trophy 2026",
-      matchLabel: "Cricket · Match 22",
+      competition: "India tour of Sri Lanka 2026",
+      matchLabel: "Test · Day 4",
       teamAName: "India",
       teamAShort: "IND",
-      teamAScore: "287/4",
-      teamBName: "Pakistan",
-      teamBShort: "PAK",
-      teamBScore: "242/8",
-      oversLabel: "48.2",
+      teamAScore: "200/4",
+      teamBName: "Sri Lanka",
+      teamBShort: "SL",
+      teamBScore: "284",
+      oversLabel: "79.4",
       overSummary: [],
       result: "INDIA WON by 45 runs",
       manOfMatch: "Bumrah 4/42",
-      bgImageUrl: "/images/cricketground.avif",
+      bgImageUrl: "/images/ind_srl_homepage.png",
       fanCount: 0,
       ctaLabel: "Match Center",
-      onJoin: () => console.log("Navigate to India vs Pakistan match center"),
+      onJoin: () => router.push("/MainModules/WatchAlong/room/acc569cd-831b-4f3c-ab7d-cf862b11be6a"),
     },
   ];
 
@@ -816,7 +816,7 @@ export default function SportScoreSection({
     <div className="w-full relative">
       <HeroCarousel cards={MOCK_HERO_CARDS} />
       <IndiaStatsBar data={MOCK_INDIA_STATS} onAllSportsClick={() => setIsAllSportsOpen(true)} />
-      <MatchesStrip cards={filteredMatches} />
+      {/* <MatchesStrip cards={filteredMatches} /> */}
 
       <AnimatePresence>
         {isAllSportsOpen && (

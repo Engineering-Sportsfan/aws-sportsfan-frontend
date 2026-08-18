@@ -3436,6 +3436,10 @@ const PLACEHOLDER: Record<string, string> = {
   raw_reactions: "Share your raw reaction...",
 };
 
+const EXPERT_EMAILS: string[] = [
+   "anandvasu@gmail.com", "anans_anandvasu_gmail_com"
+];
+
 
 interface MentionUser {
   userId: string;
@@ -3726,12 +3730,13 @@ function threadSort(flat: any[]): any[] {
 
 function InlineSection({
   postId, roomId, roomName, isOpen, onOpenFull, accentColor, currentAvatarUrl,
-  onCommentPosted, onCommentDeleted, currentUserId, currentUsername, onFanProfile,
+  onCommentPosted, onCommentDeleted, currentUserId, currentUsername, onFanProfile, onToast,
 }: {
   postId: string; roomId: string; roomName?: string; isOpen: boolean; onOpenFull: () => void;
   accentColor: string; currentAvatarUrl?: string; onCommentPosted: () => void;
   onCommentDeleted?: () => void;
   currentUserId?: string; currentUsername?: string; onFanProfile?: (fan: any) => void;
+  onToast: (m: string) => void;
 }) {
   const phog = usePostHog();
   const [replies, setReplies] = useState<any[]>([]);
@@ -3832,9 +3837,11 @@ function InlineSection({
         phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
       }
       setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
-    } catch (err) {
-  console.log("[handleSend] caught error", err);   
-}
+    } catch (err: any) {
+      const isTimeout = err?.code === "ECONNABORTED" || err?.message?.includes("timeout");
+      onToast(isTimeout ? "Taking too long — please try again" : "Failed to send comment");
+      console.log("[handleSend] caught error", err);
+    }
     finally { setSending(false); }
   };
 
@@ -4523,7 +4530,7 @@ function WaveInlineContent({
   const joined = (lo !== undefined ? lo.reaction : post.userReaction) != null;
   // const required = Math.max(6, Math.ceil((liveCount || 3) * 0.6));
   const half = Math.max(1, Math.ceil((liveCount || 2) / 2));
-const required = Math.max(1, Math.ceil((liveCount || 2) / half));
+  const required = Math.max(1, Math.ceil((liveCount || 2) / half));
   const pct = Math.min(100, Math.round((joinedCount / required) * 100));
 
   const [hasFired, setHasFired] = useState(joinedCount >= required);
@@ -4612,6 +4619,11 @@ function displayUsername(raw: string | undefined | null): string {
   const spaced = trimmed.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
   if (!spaced) return "RoarUser";
   return spaced.split(" ").map((word) => (/[A-Z]/.test(word) ? word : word.charAt(0).toUpperCase() + word.slice(1))).join(" ");
+}
+
+function isExpertEmail(email?: string | null): boolean {
+  if (!email) return false;
+  return EXPERT_EMAILS.map(e => e.toLowerCase()).includes(email.toLowerCase());
 }
 
 const buildRoarPostShareUrl = (post: ShareableRoarPost) => {
@@ -5040,25 +5052,25 @@ export default function DiscussionRoom({
   useEffect(() => { morePostsRef.current = morePosts; }, [morePosts]);
   const pendingScrollRestoreRef = useRef<{ prevScrollHeight: number; prevScrollTop: number } | null>(null);
 
- const fetchTopReactions = useCallback(async (msgId: string) => {
-  if (topReactionsCache.current[msgId] !== undefined) return;
-  topReactionsCache.current[msgId] = [];
-  if (!roomId) { return; }
-  try {
-    // Use the new room-scoped reactions route, which already returns
-    // reactionsByType/counts grouped for us — no need to re-count here.
-    const url = `/api/roar/rooms/${roomId}/messages/${msgId}/reactions`;
-    const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
-    const counts: Record<string, number> = res.data?.counts ?? {};
-    const top = Object.entries(counts)
-      .filter(([, n]) => (n as number) > 0)
-      .sort(([, a], [, b]) => (b as number) - (a as number))
-      .slice(0, 3)
-      .map(([type]) => type);
-    topReactionsCache.current[msgId] = top;
-    setTopReactionsMap(prev => ({ ...prev, [msgId]: top }));
-  } catch { topReactionsCache.current[msgId] = []; }
-}, [roomId]);
+  const fetchTopReactions = useCallback(async (msgId: string) => {
+    if (topReactionsCache.current[msgId] !== undefined) return;
+    topReactionsCache.current[msgId] = [];
+    if (!roomId) { return; }
+    try {
+      // Use the new room-scoped reactions route, which already returns
+      // reactionsByType/counts grouped for us — no need to re-count here.
+      const url = `/api/roar/rooms/${roomId}/messages/${msgId}/reactions`;
+      const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
+      const counts: Record<string, number> = res.data?.counts ?? {};
+      const top = Object.entries(counts)
+        .filter(([, n]) => (n as number) > 0)
+        .sort(([, a], [, b]) => (b as number) - (a as number))
+        .slice(0, 3)
+        .map(([type]) => type);
+      topReactionsCache.current[msgId] = top;
+      setTopReactionsMap(prev => ({ ...prev, [msgId]: top }));
+    } catch { topReactionsCache.current[msgId] = []; }
+  }, [roomId]);
 
 
 
@@ -5068,6 +5080,7 @@ export default function DiscussionRoom({
       id: m.msgId, authorUid: m.authorUid, authorEmail: m.authorEmail,
       fan: {
         username: displayUsername(m.authorUsername), authorUid: m.authorUid, badge: m.authorBadge,
+        email: m.authorEmail,
         avatarUrl:
           getKnownBotAvatarUrl(m.authorUsername) ??
           (m.authorUid === currentUserId
@@ -5114,15 +5127,15 @@ export default function DiscussionRoom({
   }, [currentUserId, userAvatarUrl]);
 
   useEffect(() => {
-  if (!pendingScrollRestoreRef.current) return;
-  const { prevScrollHeight, prevScrollTop } = pendingScrollRestoreRef.current;
-  pendingScrollRestoreRef.current = null;
-  const list = listRef.current;
-  if (list) {
-    const newScrollHeight = list.scrollHeight;
-    list.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
-  }
-}, [morePosts]);
+    if (!pendingScrollRestoreRef.current) return;
+    const { prevScrollHeight, prevScrollTop } = pendingScrollRestoreRef.current;
+    pendingScrollRestoreRef.current = null;
+    const list = listRef.current;
+    if (list) {
+      const newScrollHeight = list.scrollHeight;
+      list.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+    }
+  }, [morePosts]);
 
   const loadMoreMsgs = useCallback(async () => {
     if (!roomId || loadingMoreMsgsRef.current || !hasMoreMsgs) return;
@@ -5134,7 +5147,7 @@ export default function DiscussionRoom({
     const list = listRef.current;
     const prevScrollHeight = list?.scrollHeight ?? 0;
     const prevScrollTop = list?.scrollTop ?? 0;
-pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
+    pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
 
     try {
       const res = await axios.get(`/api/roar/rooms/${roomId}/messages`, { params: { limit: LOAD_MORE_PAGE_SIZE, lastCreatedAt: oldestCreatedAt }, timeout: REQUEST_TIMEOUT_MS });
@@ -5760,7 +5773,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
       );
       if (res.data?.success) {
         const m = res.data.message;
-        setPosts(p => [...p, { id: m.msgId, fan: { username: displayUsername(m.authorUsername), authorUid: m.authorUid, badge: m.authorBadge, avatarUrl: m.authorAvatarUrl || m.avatarUrl || (m.authorUsername === userUsername ? userAvatarUrl : undefined) }, text: m.text, fireCount: m.fireCount ?? 0, heartCount: m.heartCount ?? 0, mindblownCount: m.mindblownCount ?? 0, goatCount: m.goatCount ?? 0, clapCount: m.clapCount ?? 0, nochanceCount: m.noChanceCount ?? 0, userReaction: null, replyCount: 0, agreeCount: 0, disagreeCount: 0, userVote: null, sideA: m.sideA ?? null, sideB: m.sideB ?? null, timeAgo: "now", createdAt: m.createdAt || Date.now(), type: m.type, mediaUrls: m.mediaUrls, quizQuestion: m.quizQuestion, quizOptions: m.quizOptions, quizCorrectOption: m.quizCorrectOption, quizUserAnswer: m.quizUserAnswer ?? null, quizTimer: m.quizTimer, quizPoints: m.quizPoints, quizParticipants: m.quizParticipants ?? 0, memGifUrl: m.memGifUrl ?? null, memTag: m.memTag ?? null }]);
+        setPosts(p => [...p, { id: m.msgId, fan: { username: displayUsername(m.authorUsername), authorUid: m.authorUid, badge: m.authorBadge, email: m.authorEmail, avatarUrl: m.authorAvatarUrl || m.avatarUrl || (m.authorUsername === userUsername ? userAvatarUrl : undefined) }, text: m.text, fireCount: m.fireCount ?? 0, heartCount: m.heartCount ?? 0, mindblownCount: m.mindblownCount ?? 0, goatCount: m.goatCount ?? 0, clapCount: m.clapCount ?? 0, nochanceCount: m.noChanceCount ?? 0, userReaction: null, replyCount: 0, agreeCount: 0, disagreeCount: 0, userVote: null, sideA: m.sideA ?? null, sideB: m.sideB ?? null, timeAgo: "now", createdAt: m.createdAt || Date.now(), type: m.type, mediaUrls: m.mediaUrls, quizQuestion: m.quizQuestion, quizOptions: m.quizOptions, quizCorrectOption: m.quizCorrectOption, quizUserAnswer: m.quizUserAnswer ?? null, quizTimer: m.quizTimer, quizPoints: m.quizPoints, quizParticipants: m.quizParticipants ?? 0, memGifUrl: m.memGifUrl ?? null, memTag: m.memTag ?? null }]);
         setInput(""); setAttachedUrl(null); setAttachedType(null);
         playSound("post");
         startPostCooldown();
@@ -5900,11 +5913,11 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
   };
 
   const renderPostHeader = (p: any, postType: string, onAvatarClick?: () => void) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minWidth: 0 }} onClick={e => e.stopPropagation()}>
+    <div style={{ display: "flex", alignItems: "start", gap: 6, marginBottom: 6, minWidth: 0 }} onClick={e => e.stopPropagation()}>
       <div style={{ flexShrink: 0, cursor: onAvatarClick ? "pointer" : "default" }} onClick={e => { e.stopPropagation(); onAvatarClick?.(); }}>
         <AvatarWithBadge username={p.fan.username} badge={p.fan.badge} size="sm" avatarUrl={p.fan.avatarUrl} />
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
+      {/* <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
         <span style={{ fontWeight: 700, fontSize: 10, color: "#fff", whiteSpace: "nowrap", cursor: onAvatarClick ? "pointer" : "default" }} onClick={e => { e.stopPropagation(); onAvatarClick?.(); }}>
           {p.fan.username}
         </span>
@@ -5913,6 +5926,29 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
           <span className={typeBadgeClass(p.type)}>
             {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
           </span>
+        )}
+      </div> */}
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap" }}>
+          <span style={{ fontWeight: 700, fontSize: 10, color: "#fff", whiteSpace: "nowrap", cursor: onAvatarClick ? "pointer" : "default" }} onClick={e => { e.stopPropagation(); onAvatarClick?.(); }}>
+            {p.fan.username}
+          </span>
+          {isExpertEmail(p.fan?.email) && (
+            <span title="Verified" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 12, height: 12, borderRadius: "50%", background: "#1d9bf0", flexShrink: 0 }}>
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </span>
+          )}
+          <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)", whiteSpace: "nowrap" }}>{p.timeAgo}</span>
+          {p.type && (
+            <span className={typeBadgeClass(p.type)}>
+              {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
+            </span>
+          )}
+        </div>
+        {isExpertEmail(p.fan?.email) && (
+          <span style={{ fontSize: 8, fontWeight: 700, color: "#1d9bf0", marginTop: 1 }}>Expert</span>
         )}
       </div>
       <div style={{ position: "relative", flexShrink: 0 }} ref={openMenuPostId === p.id ? menuRef : undefined}>
@@ -6010,6 +6046,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
               currentUserId={currentUserId}
               currentUsername={userUsername}
               onFanProfile={onFanProfile}
+              onToast={onToast}
               onCommentPosted={() => {
                 setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: (x.replyCount || 0) + 1 } : x));
                 playSound("comment");
@@ -6369,7 +6406,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                           { label: sideA, voted: displayVotedA, color: "var(--accent-magenta)", bg: "rgba(233,30,140,0.08)", border: "rgba(233,30,140,0.3)", voteVal: "agree" as const },
                           { label: sideB, voted: displayVotedB, color: "#60a5fa", bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.3)", voteVal: "disagree" as const },
                         ].map(({ label, voted, color, bg, border, voteVal }, idx) => (
-                          <>
+                          <React.Fragment key={voteVal}>
                             {idx === 1 && <div key="vs" style={{ display: "flex", alignItems: "center", padding: "0 1px" }}><span className="font-display" style={{ fontSize: 14, color: "var(--text-muted)" }}>VS</span></div>}
                             <motion.button key={voteVal} whileTap={!hasVoted ? { scale: 0.96 } : {}}
                               onClick={async (e) => {
@@ -6403,7 +6440,7 @@ pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
                             >
                               <p style={{ fontSize: 10, fontWeight: 700, margin: 0 }}>{voted ? "✓ " : ""}{label}</p>
                             </motion.button>
-                          </>
+                          </React.Fragment>
                         ))}
                       </div>
                       <div style={{ marginBottom: 1 }}>
