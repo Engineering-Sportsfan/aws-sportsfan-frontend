@@ -378,6 +378,7 @@ import PlaybookDrops from "@/src/components/NewHomeComponents/PlaybookDrops";
 import AthleticsSpotlight from "@/src/components/NewHomeComponents/AthleticsSpotlight";
 import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
 import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
+import FlipLine from "@/src/components/NewHomeComponents/FlipLine";
 
 function HomePageInner() {
   const router = useRouter();
@@ -697,6 +698,7 @@ function HomePageInner() {
         /> */}
 
         <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
+        <FlipLine selectedSport={selectedSport} />
         <AthleticsSpotlight sport={selectedSport} />
         <RoarRooms />
         <WatchAlongSessions />
