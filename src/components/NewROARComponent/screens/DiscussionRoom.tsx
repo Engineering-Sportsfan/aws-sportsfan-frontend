@@ -5040,21 +5040,25 @@ export default function DiscussionRoom({
   useEffect(() => { morePostsRef.current = morePosts; }, [morePosts]);
   const pendingScrollRestoreRef = useRef<{ prevScrollHeight: number; prevScrollTop: number } | null>(null);
 
-  const fetchTopReactions = useCallback(async (msgId: string) => {
-    if (topReactionsCache.current[msgId] !== undefined) return;
-    topReactionsCache.current[msgId] = [];
-    try {
-      const url = `/api/roar/posts/${msgId}/reactions${roomId ? `?roomId=${encodeURIComponent(roomId)}` : ""}`;
-      const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
-      const reactors: { reaction: string }[] = res.data?.reactors ?? [];
-      const counts: Record<string, number> = {};
-      reactors.forEach(r => { counts[r.reaction] = (counts[r.reaction] ?? 0) + 1; });
-      const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 3).map(([type]) => type);
-      topReactionsCache.current[msgId] = top;
-      setTopReactionsMap(prev => ({ ...prev, [msgId]: top }));
-    } catch { topReactionsCache.current[msgId] = []; }
-  }, [roomId]);
-
+ const fetchTopReactions = useCallback(async (msgId: string) => {
+  if (topReactionsCache.current[msgId] !== undefined) return;
+  topReactionsCache.current[msgId] = [];
+  if (!roomId) { return; }
+  try {
+    // Use the new room-scoped reactions route, which already returns
+    // reactionsByType/counts grouped for us — no need to re-count here.
+    const url = `/api/roar/rooms/${roomId}/messages/${msgId}/reactions`;
+    const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
+    const counts: Record<string, number> = res.data?.counts ?? {};
+    const top = Object.entries(counts)
+      .filter(([, n]) => (n as number) > 0)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
+      .slice(0, 3)
+      .map(([type]) => type);
+    topReactionsCache.current[msgId] = top;
+    setTopReactionsMap(prev => ({ ...prev, [msgId]: top }));
+  } catch { topReactionsCache.current[msgId] = []; }
+}, [roomId]);
 
 
 

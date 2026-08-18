@@ -192,7 +192,7 @@ export default function BottomNav() {
       url: "/MainModules/WatchAlong" 
     },
         { 
-      name: "Ask Dolly", 
+      name: "Ask Flip", 
       logoInactive: <Sparkles className="w-5 h-5 text-gray-400" />,
       logoActive: <Sparkles className="w-5 h-5 text-pink-500 drop-shadow-[0_0_6px_rgba(244,114,182,0.7)]" />,
       url: "/MainModules/AskAI" 
