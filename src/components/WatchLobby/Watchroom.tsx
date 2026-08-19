@@ -62,7 +62,7 @@
 //     const [micOn, setMicOn] = useState(true);
 //     const [vidOn, setVidOn] = useState(true);
 //     const [isExpanded, setIsExpanded] = useState(false);
-    
+
 //     // Custom browser-based screen recorder states
 //     const [isMounted, setIsMounted] = useState(false);
 //     const [customRecordingState, setCustomRecordingState] = useState<'idle' | 'recording' | 'finished'>('idle');
@@ -85,7 +85,7 @@
 //         if (onApiReady) {
 //             onApiReady(api);
 //         }
-        
+
 //         // Listen to Jitsi's internal mute status changes and synchronize state
 //         api.addListener("audioMuteStatusChanged", (data: { muted: boolean }) => {
 //             setMicOn(!data.muted);
@@ -169,7 +169,7 @@
 //             });
 
 //             streamRef.current = stream;
-            
+
 //             const options = { mimeType: 'video/webm;codecs=vp9,opus' };
 //             let recorder: MediaRecorder;
 //             try {
@@ -190,7 +190,7 @@
 //                 setRecordedBlob(blob);
 //                 setCustomRecordingState('finished');
 //                 setShowSaveModal(true);
-                
+
 //                 if (streamRef.current) {
 //                     streamRef.current.getTracks().forEach(track => track.stop());
 //                 }
@@ -241,7 +241,7 @@
 //             a.click();
 //             document.body.removeChild(a);
 //             URL.revokeObjectURL(url);
-            
+
 //             setShowSaveModal(false);
 //             setRecordedBlob(null);
 //             setCustomRecordingState('idle');
@@ -279,7 +279,7 @@
 //                 ? 'inset-0 w-full h-full rounded-none z-45' 
 //                 : 'bottom-2.5 right-3 w-[140px] h-[95px] lg:w-[240px] lg:h-[160px] rounded-xl border border-white/20 hover:scale-105'
 //             }`}>
-            
+
 //             <div className="flex w-full h-full">
 //                 {/* Jitsi meeting frame */}
 //                 <div className="h-full relative w-full">
@@ -534,7 +534,7 @@
 //                     </div>
 //                 </div>
 //             </div>
-            
+
 //             <style jsx>{`
 //                 @keyframes scanLine {
 //                     0% { transform: translateY(0); }
@@ -698,7 +698,7 @@
 //                                             )}
 //                                         </div>
 //                                         <p className="text-sm text-gray-100 font-extrabold leading-relaxed">{q.text}</p>
-                                        
+
 //                                         {/* Host controls */}
 //                                         {isHost && (
 //                                             <div className="flex gap-2.5 mt-4 pt-3 border-t border-white/5">
@@ -868,7 +868,7 @@
 //     const [isLoadingMatch, setIsLoadingMatch] = useState(false);
 //     const [isMounted, setIsMounted] = useState(false);
 //     const [activeTab, setActiveTab] = useState<'prediction' | 'polls' | 'flashQuiz' | 'liveChat' | 'emojiStorm' | 'participants' | 'qna'>('liveChat');
-    
+
 //     // Real-time Jitsi states
 //     const [jitsiParticipants, setJitsiParticipants] = useState<any[]>([]);
 //     const jitsiApiRef = useRef<any>(null);
@@ -907,7 +907,7 @@
 
 //     const { data: session, status } = useSession();
 //     const { user: authUser } = useAuth();
-    
+
 //     // Auth and Roles
 //     const [userName, setUserName] = useState<string | null>(null);
 //     const [userRole, setUserRole] = useState<string>("Viewer");
@@ -923,7 +923,7 @@
 //         { id: "q3", user: "Ananya M", text: "Strategic timeout: Will they aim for 180 or 200+ here?", answered: false, timestamp: Date.now() - 5000 }
 //     ]);
 //     const [answeringQuestion, setAnsweringQuestion] = useState<{ user: string; text: string } | null>(null);
-    
+
 //     // Menu toggles
 //     const [showPredictTemplates, setShowPredictTemplates] = useState(false);
 //     const [showDropsMenu, setShowDropsMenu] = useState(false);
@@ -1021,7 +1021,7 @@
 //                 const speed = 1.5 + Math.random() * 2;
 //                 const scale = 0.8 + Math.random() * 0.6;
 //                 const opacity = 0.6 + Math.random() * 0.4;
-                
+
 //                 setStormFloating(prev => [...prev, { id, emoji: randomEmoji, x, rot, speed, scale, opacity }]);
 //                 setTimeout(() => {
 //                     setStormFloating(prev => prev.filter(f => f.id !== id));
@@ -1064,7 +1064,7 @@
 
 //     const handleStormTap = (emoji: string) => {
 //         setStormLocalTaps(prev => prev + 1);
-        
+
 //         // Spawn emoji locally
 //         const id = Math.random() + Date.now();
 //         const x = 10 + Math.random() * 80;
@@ -1072,7 +1072,7 @@
 //         const speed = 2 + Math.random() * 1.5;
 //         const scale = 1.2 + Math.random() * 0.4;
 //         const opacity = 1;
-        
+
 //         setStormFloating(prev => [...prev, { id, emoji, x, rot, speed, scale, opacity }]);
 //         setTimeout(() => {
 //             setStormFloating(prev => prev.filter(f => f.id !== id));
@@ -1179,7 +1179,7 @@
 //                     console.error("Failed to broadcast reaction via Jitsi:", err);
 //                 }
 //             }
-            
+
 //             // 2. Send as a robust backend-synced system reaction message so all spectators see it instantly
 //             if (room?.liveMatchId) {
 //                 try {
@@ -1360,13 +1360,13 @@
 
 //     useEffect(() => {
 //         setIsMounted(true);
-        
+
 //         const isUserLoggedIn = status === "authenticated" || !!authUser;
 //         const actualName = authUser?.name || session?.user?.name;
 
 //         if (isUserLoggedIn && actualName) {
 //             setUserName(actualName);
-            
+
 //             // ROLE LOGIC — Priority order:
 //             // 1. Real backend: check if session user ID matches room.hostUserId or coHostUserId
 //             // 2. Fallback: static demo room IDs
@@ -1610,7 +1610,7 @@
 //             {/* ── Top Host CTA Panel ── */}
 //             {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
 //                 <div className="bg-[#161618] border-b border-[#222] px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3 overflow-x-auto scrollbar-hide z-30 pointer-events-auto">
-                    
+
 //                     {/* Create Prediction Button */}
 //                     <button 
 //                         onClick={() => setShowPredictionModal(true)}
@@ -1855,7 +1855,7 @@
 //                                 </span>
 //                             </div>
 //                             <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide py-1">
-                                
+
 //                                 {/* WICKET */}
 //                                 <button 
 //                                     onClick={() => triggerMoment("WICKET")}
@@ -2423,7 +2423,7 @@
 //                     stormState === 'active' ? 'bg-black/60 pointer-events-none' : 
 //                     'bg-black/95 backdrop-blur-2xl pointer-events-auto'
 //                 } transition-all duration-500`}>
-                    
+
 //                     {/* Countdown Screen */}
 //                     {stormState === 'countdown' && (
 //                         <div className="flex-1 flex flex-col items-center justify-center text-center animate-in fade-in duration-300 pointer-events-auto">
@@ -2505,7 +2505,7 @@
 //                     {stormState === 'summary' && (
 //                         <div className="flex-1 flex flex-col items-center justify-center text-center p-4 pointer-events-auto">
 //                             <div className="max-w-md w-full animate-in zoom-in duration-300">
-                                
+
 //                                 {/* Storm Intensity Card */}
 //                                 <div className="bg-gradient-to-br from-orange-600 to-pink-600 rounded-3xl p-8 shadow-[0_15px_50px_rgba(236,72,153,0.3)] border border-pink-500/20 mb-6 transform hover:scale-102 transition-transform">
 //                                     <p className="text-[10px] font-black uppercase tracking-widest text-orange-200 mb-1">Storm Status: Ended</p>
@@ -2586,10 +2586,10 @@ const JitsiMeeting = dynamic(
 );
 
 /* ── Jitsi PiP — Jitsi Meet External API SDK ── */
-function LiveCameraFeed({ 
-    hostName, 
-    roomName, 
-    userRole, 
+function LiveCameraFeed({
+    hostName,
+    roomName,
+    userRole,
     userName,
     userEmail,
     onApiReady,
@@ -2602,10 +2602,10 @@ function LiveCameraFeed({
     onTelestratorUndo,
     onTelestratorClear,
     onTelestratorToggleActive
-}: { 
-    hostName: string; 
-    roomName: string; 
-    userRole: string; 
+}: {
+    hostName: string;
+    roomName: string;
+    userRole: string;
     userName: string;
     userEmail?: string;
     onApiReady?: (api: any) => void;
@@ -2624,7 +2624,7 @@ function LiveCameraFeed({
     const [micOn, setMicOn] = useState(true);
     const [vidOn, setVidOn] = useState(true);
     const [isExpanded, setIsExpanded] = useState(false);
-    
+
     // Custom browser-based screen recorder states
     const [isMounted, setIsMounted] = useState(false);
     const [customRecordingState, setCustomRecordingState] = useState<'idle' | 'recording' | 'finished'>('idle');
@@ -2647,17 +2647,17 @@ function LiveCameraFeed({
         if (onApiReady) {
             onApiReady(api);
         }
-        
+
         // Sync initial state
         try {
             const audioMuted = await api.isAudioMuted();
             setMicOn(!audioMuted);
-        } catch (err) {}
+        } catch (err) { }
         try {
             const videoMuted = await api.isVideoMuted();
             setVidOn(!videoMuted);
-        } catch (err) {}
-        
+        } catch (err) { }
+
         // Listen to Jitsi's internal mute status changes and synchronize state
         api.addListener("audioMuteStatusChanged", (data: { muted: boolean }) => {
             setMicOn(!data.muted);
@@ -2741,7 +2741,7 @@ function LiveCameraFeed({
             });
 
             streamRef.current = stream;
-            
+
             const options = { mimeType: 'video/webm;codecs=vp9,opus' };
             let recorder: MediaRecorder;
             try {
@@ -2762,7 +2762,7 @@ function LiveCameraFeed({
                 setRecordedBlob(blob);
                 setCustomRecordingState('finished');
                 setShowSaveModal(true);
-                
+
                 if (streamRef.current) {
                     streamRef.current.getTracks().forEach(track => track.stop());
                 }
@@ -2813,7 +2813,7 @@ function LiveCameraFeed({
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
+
             setShowSaveModal(false);
             setRecordedBlob(null);
             setCustomRecordingState('idle');
@@ -2847,11 +2847,11 @@ function LiveCameraFeed({
 
     return (
         <div className={`absolute transition-all overflow-hidden bg-[#000] shadow-2xl z-20 
-            ${isExpanded 
-                ? 'inset-0 w-full h-full rounded-none z-45' 
+            ${isExpanded
+                ? 'inset-0 w-full h-full rounded-none z-45'
                 : 'bottom-2.5 right-3 w-[140px] h-[95px] lg:w-[240px] lg:h-[160px] rounded-xl border border-white/20 hover:scale-105'
             }`}>
-            
+
             <div className="flex w-full h-full">
                 {/* Jitsi meeting frame */}
                 <div className="h-full relative w-full">
@@ -2891,7 +2891,7 @@ function LiveCameraFeed({
                             DEFAULT_WELCOME_PAGE_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
                             BRAND_WATERMARK_LINK: '',
                             JITSI_WATERMARK_LINK: '',
-                            TOOLBAR_BUTTONS: isModerator 
+                            TOOLBAR_BUTTONS: isModerator
                                 ? ['microphone', 'camera', 'desktop', 'fullscreen', 'hangup', 'settings', 'raisehand', 'videoquality', 'participants-pane', 'recording', 'localrecording', 'select-background']
                                 : ['microphone', 'hangup'],
                             FILM_STRIP_MAX_HEIGHT: isModerator ? undefined : 0,
@@ -2918,7 +2918,7 @@ function LiveCameraFeed({
                     />
 
                     {/* Telestrator Drawing Board Overlay */}
-                    <Telestrator 
+                    <Telestrator
                         isActive={telestratorActive}
                         isModerator={isModerator}
                         strokes={telestratorStrokes}
@@ -2977,11 +2977,10 @@ function LiveCameraFeed({
                             <button
                                 type="button"
                                 onClick={toggleRecording}
-                                className={`w-6 h-6 rounded-md flex items-center justify-center transition-all hover:scale-110 ${
-                                    customRecordingState === 'recording' 
-                                        ? "bg-red-600 text-white animate-pulse" 
+                                className={`w-6 h-6 rounded-md flex items-center justify-center transition-all hover:scale-110 ${customRecordingState === 'recording'
+                                        ? "bg-red-600 text-white animate-pulse"
                                         : "bg-white/20 text-white hover:bg-white/30"
-                                }`}
+                                    }`}
                                 title={customRecordingState === 'recording' ? "Stop Recording" : "Start Recording Options"}
                             >
                                 <span className={`w-2.5 h-2.5 rounded-full ${customRecordingState === 'recording' ? "bg-white" : "bg-red-500"}`} />
@@ -2996,7 +2995,7 @@ function LiveCameraFeed({
                         <div className="absolute top-[40px] right-1.5 w-[160px] bg-[#111]/95 backdrop-blur-xl border border-white/15 rounded-xl shadow-2xl p-2.5 z-[9999] flex flex-col gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
                             <div className="flex items-center justify-between text-[9px] text-white/50 font-bold uppercase tracking-wider px-1 pb-1 border-b border-white/5">
                                 <span>Record Session</span>
-                                <button 
+                                <button
                                     onClick={() => setShowRecordingOptions(false)}
                                     className="text-white/40 hover:text-white transition-colors"
                                 >
@@ -3063,7 +3062,7 @@ function LiveCameraFeed({
                                             <span>{uploadProgress}%</span>
                                         </div>
                                         <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                                            <div 
+                                            <div
                                                 className="h-full bg-pink-500 rounded-full transition-all duration-300"
                                                 style={{ width: `${uploadProgress}%` }}
                                             />
@@ -3096,7 +3095,7 @@ function LiveCameraFeed({
                     </div>
                 </div>
             </div>
-            
+
             <style jsx>{`
                 @keyframes scanLine {
                     0% { transform: translateY(0); }
@@ -3188,20 +3187,20 @@ function TabContent({
         case 'flashQuiz': return <FlashQuiz matchId={matchId!} />;
         case 'liveChat': return (
             <div className="h-full w-full overflow-hidden relative">
-                <DiscussionRoom 
-                    roomId={room.id || room.liveMatchId} 
-                    onBack={() => {}} 
-                    onToast={(m: string) => console.log(m)} 
+                <DiscussionRoom
+                    roomId={room.id || room.liveMatchId}
+                    onBack={() => { }}
+                    onToast={(m: string) => console.log(m)}
                     roomName={room.name}
                     roomSports={(room as any).sport || (room.name?.toLowerCase().includes("football") || room.name?.toLowerCase().includes("soccer") ? "football" : "cricket")}
                     watchAlongRoomId={room.id}
                     onCompose={(type) => { setComposeType(type); setComposeOpen(true); }}
                 />
-                <ComposeModal 
-                    open={composeOpen} 
-                    onClose={() => { setComposeOpen(false); setComposeType(null); }} 
-                    onPost={handleComposePost} 
-                    initialType={composeType} 
+                <ComposeModal
+                    open={composeOpen}
+                    onClose={() => { setComposeOpen(false); setComposeType(null); }}
+                    onPost={handleComposePost}
+                    initialType={composeType}
                     constrainedToParent={!isMobile}
                 />
             </div>
@@ -3270,15 +3269,14 @@ function TabContent({
                             qnaList.map((q) => {
                                 const isBeingAnswered = answeringQuestion?.text === q.text;
                                 return (
-                                    <div 
-                                        key={q.id} 
-                                        className={`p-4 rounded-2xl border transition-all ${
-                                            isBeingAnswered 
-                                                ? 'bg-pink-950/20 border-pink-500/50 shadow-[0_4px_15px_rgba(219,39,119,0.2)]' 
-                                                : q.answered 
-                                                    ? 'bg-black/40 border-white/5 opacity-50' 
+                                    <div
+                                        key={q.id}
+                                        className={`p-4 rounded-2xl border transition-all ${isBeingAnswered
+                                                ? 'bg-pink-950/20 border-pink-500/50 shadow-[0_4px_15px_rgba(219,39,119,0.2)]'
+                                                : q.answered
+                                                    ? 'bg-black/40 border-white/5 opacity-50'
                                                     : 'bg-[#18181b] border-white/5 hover:border-white/10'
-                                        }`}
+                                            }`}
                                     >
                                         <div className="flex items-center justify-between gap-2 mb-2.5">
                                             <span className="text-xs font-black text-pink-400">@{q.user}</span>
@@ -3291,7 +3289,7 @@ function TabContent({
                                             )}
                                         </div>
                                         <p className="text-sm text-gray-100 font-extrabold leading-relaxed">{q.text}</p>
-                                        
+
                                         {/* Host controls */}
                                         {isHost && (
                                             <div className="flex gap-2.5 mt-4 pt-3 border-t border-white/5">
@@ -3309,11 +3307,10 @@ function TabContent({
                                                             }
                                                         }
                                                     }}
-                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                                                        isBeingAnswered 
-                                                            ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${isBeingAnswered
+                                                            ? 'bg-gray-700 hover:bg-gray-600 text-white'
                                                             : 'bg-pink-600 hover:bg-pink-500 text-white shadow-md shadow-pink-500/20'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {isBeingAnswered ? "Stop Answering" : "🎙️ Answer Live"}
                                                 </button>
@@ -3387,13 +3384,13 @@ function TabContent({
                         {jitsiParticipants && jitsiParticipants.map((p: any) => {
                             const displayName = p.displayName || p.formattedDisplayName || 'Viewer';
                             const initial = displayName.charAt(0).toUpperCase() || '?';
-                            const isHostUser = displayName.toLowerCase().includes('host') || 
-                                               (room?.hostUserId && (
-                                                   displayName.toLowerCase() === room.hostUserId.toLowerCase() ||
-                                                   p.email?.toLowerCase() === room.hostUserId.toLowerCase()
-                                               )) || 
-                                               displayName.toLowerCase() === room?.name?.split(' ')[0]?.toLowerCase();
-                            
+                            const isHostUser = displayName.toLowerCase().includes('host') ||
+                                (room?.hostUserId && (
+                                    displayName.toLowerCase() === room.hostUserId.toLowerCase() ||
+                                    p.email?.toLowerCase() === room.hostUserId.toLowerCase()
+                                )) ||
+                                displayName.toLowerCase() === room?.name?.split(' ')[0]?.toLowerCase();
+
                             const coHostsList = room?.coHostUserId
                                 ? room.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
                                 : [];
@@ -3425,11 +3422,11 @@ function TabContent({
                                                                 ? room.coHostUserId.split(",").map((id: string) => id.trim())
                                                                 : [];
                                                             const userKey = (p.email && !p.email.toLowerCase().endsWith('@sportsfan360.com')) ? p.email : displayName;
-                                                            
+
                                                             const isAlreadyCoHost = currentCoHosts.some(
                                                                 (id: string) => id.toLowerCase() === userKey.toLowerCase()
                                                             );
-                                                            
+
                                                             let newCoHosts: string[];
                                                             if (isAlreadyCoHost) {
                                                                 newCoHosts = currentCoHosts.filter(
@@ -3438,24 +3435,23 @@ function TabContent({
                                                             } else {
                                                                 newCoHosts = [...currentCoHosts, userKey];
                                                             }
-                                                            
+
                                                             const targetValue = newCoHosts.join(",");
                                                             fd.set('coHostUserId', targetValue);
                                                             const res = await fetch(`/api/watch-along/${room.id}`, {
                                                                 method: 'PUT',
                                                                 body: fd
-                                                             });
-                                                             if (res.ok) {
-                                                                 alert(isAlreadyCoHost ? `${displayName} is no longer Co-Host!` : `${displayName} is now Co-Host!`);
-                                                                 if (room.id) await fetchRoomById(room.id);
-                                                             }
+                                                            });
+                                                            if (res.ok) {
+                                                                alert(isAlreadyCoHost ? `${displayName} is no longer Co-Host!` : `${displayName} is now Co-Host!`);
+                                                                if (room.id) await fetchRoomById(room.id);
+                                                            }
                                                         } catch (err) { console.error('Toggle Co-Host failed:', err); }
                                                     }}
-                                                    className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all flex items-center gap-1 ${
-                                                        isCoHostUser
+                                                    className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all flex items-center gap-1 ${isCoHostUser
                                                             ? 'bg-yellow-600 border-yellow-500 text-white'
                                                             : 'bg-[#222] hover:bg-yellow-600 border-[#444] text-white'
-                                                    }`}
+                                                        }`}
                                                     title={isCoHostUser ? "Remove Co-Host" : "Make Co-Host"}
                                                 >
                                                     <Crown size={10} /> {isCoHostUser ? "Co-Host" : "Make Co-Host"}
@@ -3520,12 +3516,12 @@ function TabContent({
 }
 
 export default function WatchRoom({ room, onBack }: Props) {
-    const { 
-        fetchMatchById, 
-        currentMatch, 
-        createPrediction, 
-        createQuizQuestion, 
-        predictions, 
+    const {
+        fetchMatchById,
+        currentMatch,
+        createPrediction,
+        createQuizQuestion,
+        predictions,
         quizQuestions,
         chats,
         fetchChats,
@@ -3538,7 +3534,7 @@ export default function WatchRoom({ room, onBack }: Props) {
     const [isLoadingMatch, setIsLoadingMatch] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
     const [activeTab, setActiveTab] = useState<'prediction' | 'polls' | 'flashQuiz' | 'liveChat' | 'emojiStorm' | 'participants' | 'qna'>('liveChat');
-    
+
     // Real-time Jitsi states
     const [jitsiParticipants, setJitsiParticipants] = useState<any[]>([]);
     const jitsiApiRef = useRef<any>(null);
@@ -3655,7 +3651,7 @@ export default function WatchRoom({ room, onBack }: Props) {
 
     const { data: session, status } = useSession();
     const { user: authUser } = useAuth();
-    
+
     // Auth and Roles
     const [userName, setUserName] = useState<string | null>(null);
     const [userRole, setUserRole] = useState<string>("Viewer");
@@ -3671,7 +3667,7 @@ export default function WatchRoom({ room, onBack }: Props) {
         { id: "q3", user: "Ananya M", text: "Strategic timeout: Will they aim for 180 or 200+ here?", answered: false, timestamp: Date.now() - 5000 }
     ]);
     const [answeringQuestion, setAnsweringQuestion] = useState<{ user: string; text: string } | null>(null);
-    
+
     // Menu toggles
     const [showPredictTemplates, setShowPredictTemplates] = useState(false);
     const [showDropsMenu, setShowDropsMenu] = useState(false);
@@ -3686,7 +3682,7 @@ export default function WatchRoom({ room, onBack }: Props) {
     const [confettiText, setConfettiText] = useState("");
 
     // Floating emoji overlays for smaller reactions (Fire, Clap, Heart)
-    const [floatingReactions, setFloatingReactions] = useState<{id: number; emoji: string; x: number}[]>([]);
+    const [floatingReactions, setFloatingReactions] = useState<{ id: number; emoji: string; x: number }[]>([]);
     const floatCounter = useRef(0);
 
     // Telestrator states
@@ -3769,7 +3765,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                 const speed = 1.5 + Math.random() * 2;
                 const scale = 0.8 + Math.random() * 0.6;
                 const opacity = 0.6 + Math.random() * 0.4;
-                
+
                 setStormFloating(prev => [...prev, { id, emoji: randomEmoji, x, rot, speed, scale, opacity }]);
                 setTimeout(() => {
                     setStormFloating(prev => prev.filter(f => f.id !== id));
@@ -3812,7 +3808,7 @@ export default function WatchRoom({ room, onBack }: Props) {
 
     const handleStormTap = (emoji: string) => {
         setStormLocalTaps(prev => prev + 1);
-        
+
         // Spawn emoji locally
         const id = Math.random() + Date.now();
         const x = 10 + Math.random() * 80;
@@ -3820,7 +3816,7 @@ export default function WatchRoom({ room, onBack }: Props) {
         const speed = 2 + Math.random() * 1.5;
         const scale = 1.2 + Math.random() * 0.4;
         const opacity = 1;
-        
+
         setStormFloating(prev => [...prev, { id, emoji, x, rot, speed, scale, opacity }]);
         setTimeout(() => {
             setStormFloating(prev => prev.filter(f => f.id !== id));
@@ -3943,7 +3939,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                     console.error("Failed to broadcast reaction via Jitsi:", err);
                 }
             }
-            
+
             // 2. Send as a robust backend-synced system reaction message so all spectators see it instantly
             if (room?.liveMatchId) {
                 try {
@@ -4122,13 +4118,13 @@ export default function WatchRoom({ room, onBack }: Props) {
         chats.forEach((msg: any) => {
             if (msg.text?.startsWith('[SYSTEM_REACTION]:') && !processedChatReactions.current.has(msg.id)) {
                 processedChatReactions.current.add(msg.id);
-                
+
                 // Only process reactions that were sent AFTER the room was mounted
-                const msgTime = msg.createdAt 
-                    ? (typeof msg.createdAt === 'number' 
-                        ? msg.createdAt 
-                        : (msg.createdAt.seconds 
-                            ? msg.createdAt.seconds * 1000 
+                const msgTime = msg.createdAt
+                    ? (typeof msg.createdAt === 'number'
+                        ? msg.createdAt
+                        : (msg.createdAt.seconds
+                            ? msg.createdAt.seconds * 1000
                             : new Date(msg.createdAt).getTime()))
                     : Date.now();
                 if (msgTime < mountTime.current - 3000) {
@@ -4136,7 +4132,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                 }
 
                 const reactionType = msg.text.replace('[SYSTEM_REACTION]:', '');
-                
+
                 if (reactionType.startsWith('KICK:')) {
                     const kickedName = reactionType.replace('KICK:', '').trim().toLowerCase();
                     const currentLowerName = userName?.trim().toLowerCase();
@@ -4169,10 +4165,10 @@ export default function WatchRoom({ room, onBack }: Props) {
 
     useEffect(() => {
         setIsMounted(true);
-        
+
         const isUserLoggedIn = status === "authenticated" || !!authUser;
         const actualName = authUser?.name || session?.user?.name;
-        
+
         let resolvedName = "Anonymous";
         let resolvedUserId = "";
         let resolvedEmail = "";
@@ -4298,7 +4294,9 @@ export default function WatchRoom({ room, onBack }: Props) {
         )
     ).filter((u) => u !== userName);
     const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
-    const dynamicParticipantsCount = 1 + (jitsiParticipants?.length || 0) + chatOnlyUsers.length;
+
+    const currentUserInJitsi = userName ? jitsiNames.has(userName.toLowerCase()) : false;
+    const dynamicParticipantsCount = (currentUserInJitsi ? 0 : 1) + (jitsiParticipants?.length || 0) + chatOnlyUsers.length;
 
     const sidebarTabs = [
         { id: 'liveChat', label: 'Live Chat' },
@@ -4576,7 +4574,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse" />
                                                 <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 bg-blue-500/10 px-2.5 py-0.5 rounded border border-blue-500/20">🧠 Match Intelligence</span>
                                             </div>
-                                            <button 
+                                            <button
                                                 type="button"
                                                 onClick={() => setActiveTacticalDrop(null)}
                                                 className="text-gray-400 hover:text-white transition-colors"
@@ -4620,9 +4618,9 @@ export default function WatchRoom({ room, onBack }: Props) {
 
                         {/* Live Camera Feed PiP */}
                         {userName && (
-                            <LiveCameraFeed 
-                                hostName={room.name?.split(" ")[0] || "Expert"} 
-                                roomName={room.id ? `Watch-${room.id}` : 'Sportsfan-Watchalong'} 
+                            <LiveCameraFeed
+                                hostName={room.name?.split(" ")[0] || "Expert"}
+                                roomName={room.id ? `Watch-${room.id}` : 'Sportsfan-Watchalong'}
                                 userRole={userRole}
                                 userName={userName}
                                 userEmail={authUser?.email || session?.user?.email || ""}
@@ -4633,7 +4631,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 onApiReady={async (api) => {
                                     jitsiApiRef.current = api;
                                     setJitsiApi(api);
-                                    
+
                                     // Query initial mute states to synchronize HTML Control Panel on mount
                                     try {
                                         const audioMuted = await api.isAudioMuted();
@@ -4683,11 +4681,10 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 <button
                                     type="button"
                                     onClick={toggleMic}
-                                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${
-                                        micOn 
-                                            ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20" 
+                                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${micOn
+                                            ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
                                             : "bg-red-600 border-red-500 text-white hover:bg-red-700"
-                                    }`}
+                                        }`}
                                 >
                                     {micOn ? <Mic size={12} /> : <MicOff size={12} />}
                                     <span>{micOn ? "Mute" : "Unmute"}</span>
@@ -4697,11 +4694,10 @@ export default function WatchRoom({ room, onBack }: Props) {
                                     <button
                                         type="button"
                                         onClick={toggleVid}
-                                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${
-                                            vidOn 
-                                                ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20" 
+                                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${vidOn
+                                                ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
                                                 : "bg-red-600 border-red-500 text-white hover:bg-red-700"
-                                        }`}
+                                            }`}
                                     >
                                         {vidOn ? <Video size={12} /> : <VideoOff size={12} />}
                                         <span>{vidOn ? "Stop Cam" : "Start Cam"}</span>
@@ -4712,7 +4708,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                     )}
 
                     {/* Zoom-style Host Reactions */}
-                    {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
+                    {(userRole === 'Co-Host' || userRole === 'Moderator') && (
                         <div className="flex flex-col gap-1.5 lg:gap-2.5 bg-[#141416] border border-white/5 rounded-xl p-1.5 lg:p-3.5 mt-1 lg:mt-3 mx-2 sm:mx-4 lg:mx-6">
                             <div className="flex items-center gap-1.5 text-gray-400 text-xs">
                                 <span className="font-extrabold uppercase tracking-widest text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-white">Host Reactions</span>
@@ -4721,9 +4717,9 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </span>
                             </div>
                             <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide py-1">
-                                
+
                                 {/* WICKET */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("WICKET")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4732,7 +4728,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
 
                                 {/* SIX */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("SIX")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4741,7 +4737,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
 
                                 {/* FOUR */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("FOUR")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4750,20 +4746,19 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
 
                                 {/* TELESTRATOR / CHALKBOARD DRAW */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("TEL_TOGGLE:" + (!isTelestratorActive).toString())}
-                                    className={`flex-shrink-0 flex items-center gap-1.5 border rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold ${
-                                        isTelestratorActive 
-                                            ? 'bg-green-600/20 border-green-500 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse' 
+                                    className={`flex-shrink-0 flex items-center gap-1.5 border rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold ${isTelestratorActive
+                                            ? 'bg-green-600/20 border-green-500 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse'
                                             : 'bg-[#202023] hover:bg-[#2a2a2e] border-white/5 text-gray-200'
-                                    }`}
+                                        }`}
                                 >
                                     <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center text-[10px] text-white">✏️</div>
                                     <span>{isTelestratorActive ? 'Drawing Live...' : 'Draw Live'}</span>
                                 </button>
 
                                 {/* GOAL */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("GOAL")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4772,7 +4767,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
 
                                 {/* FIRE */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("FIRE")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4781,7 +4776,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
 
                                 {/* CLAP */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("CLAP")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4790,7 +4785,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
 
                                 {/* HEART */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("HEART")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4799,7 +4794,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
 
                                 {/* DRUMROLL */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("DRUMROLL")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4822,7 +4817,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
                             <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide py-1">
                                 {/* FIRE */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("FIRE")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4831,7 +4826,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
 
                                 {/* CLAP */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("CLAP")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4840,7 +4835,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
 
                                 {/* HEART */}
-                                <button 
+                                <button
                                     onClick={() => triggerMoment("HEART")}
                                     className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
                                 >
@@ -4858,11 +4853,10 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 <button
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
-                                    className={`flex-shrink-0 text-xs px-3.5 py-1.5 rounded-full font-bold transition-all ${
-                                        activeTab === tab.id
+                                    className={`flex-shrink-0 text-xs px-3.5 py-1.5 rounded-full font-bold transition-all ${activeTab === tab.id
                                             ? "bg-pink-600 text-white shadow-lg"
                                             : "bg-[#202023] text-gray-400 hover:bg-[#2a2a2e]"
-                                    }`}
+                                        }`}
                                 >
                                     {tab.label}
                                 </button>
@@ -4889,7 +4883,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                 </div>
 
                 {/* ── RIGHT: tab content sidebar — desktop only ── */}
-                <div 
+                <div
                     onMouseDown={startResize}
                     className={`hidden lg:block w-1.5 hover:w-2 bg-[#1a1a1c] hover:bg-pink-500/80 cursor-col-resize select-none transition-all duration-150 relative group ${isResizing ? 'bg-pink-500 w-2' : ''}`}
                     style={{ height: '100%', zIndex: 30 }}
@@ -4897,7 +4891,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                     <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-white/10 group-hover:bg-white/30 transition-colors pointer-events-none" />
                 </div>
 
-                <div 
+                <div
                     className="hidden lg:flex lg:flex-col border-l border-[#222] min-h-0 bg-[#0e0e10]"
                     style={{ width: `${sidebarWidth}px` }}
                 >
@@ -4907,11 +4901,10 @@ export default function WatchRoom({ room, onBack }: Props) {
                             <button
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as any)}
-                                className={`flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1.5 rounded-lg font-bold tracking-wide transition-all ${
-                                    activeTab === tab.id
+                                className={`flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1.5 rounded-lg font-bold tracking-wide transition-all ${activeTab === tab.id
                                         ? "bg-pink-600/10 text-pink-400 border border-pink-500/20"
                                         : "text-gray-400 hover:text-white hover:bg-white/5"
-                                }`}
+                                    }`}
                             >
                                 {tab.label}
                             </button>
@@ -4960,7 +4953,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         </div>
                         <div className="flex flex-col gap-3">
                             <label className="text-xs font-bold text-gray-400 uppercase">Question</label>
-                            <input 
+                            <input
                                 type="text"
                                 value={predQ}
                                 onChange={(e) => setPredQ(e.target.value)}
@@ -4972,7 +4965,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         <div className="grid grid-cols-2 gap-3">
                             <div className="flex flex-col gap-2">
                                 <label className="text-xs font-bold text-gray-400 uppercase">Option A</label>
-                                <input 
+                                <input
                                     type="text"
                                     value={predA}
                                     onChange={(e) => setPredA(e.target.value)}
@@ -4983,7 +4976,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-xs font-bold text-gray-400 uppercase">Option B</label>
-                                <input 
+                                <input
                                     type="text"
                                     value={predB}
                                     onChange={(e) => setPredB(e.target.value)}
@@ -4993,7 +4986,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 />
                             </div>
                         </div>
-                        <button 
+                        <button
                             type="submit"
                             disabled={submittingModal}
                             className="w-full bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-bold py-2.5 rounded-lg text-sm transition-all hover:shadow-[0_0_15px_rgba(239,68,68,0.4)] disabled:opacity-50"
@@ -5019,7 +5012,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         </div>
                         <div className="flex flex-col gap-3">
                             <label className="text-xs font-bold text-gray-400 uppercase">Poll Question</label>
-                            <input 
+                            <input
                                 type="text"
                                 value={pollQ}
                                 onChange={(e) => setPollQ(e.target.value)}
@@ -5031,7 +5024,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         <div className="grid grid-cols-2 gap-3">
                             <div className="flex flex-col gap-2">
                                 <label className="text-xs font-bold text-gray-400 uppercase">Option A</label>
-                                <input 
+                                <input
                                     type="text"
                                     value={pollA}
                                     onChange={(e) => setPollA(e.target.value)}
@@ -5042,7 +5035,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-xs font-bold text-gray-400 uppercase">Option B</label>
-                                <input 
+                                <input
                                     type="text"
                                     value={pollB}
                                     onChange={(e) => setPollB(e.target.value)}
@@ -5055,7 +5048,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         <div className="grid grid-cols-2 gap-3">
                             <div className="flex flex-col gap-2">
                                 <label className="text-xs font-bold text-gray-400 uppercase">Option C (Optional)</label>
-                                <input 
+                                <input
                                     type="text"
                                     value={pollC}
                                     onChange={(e) => setPollC(e.target.value)}
@@ -5065,7 +5058,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-xs font-bold text-gray-400 uppercase">Option D (Optional)</label>
-                                <input 
+                                <input
                                     type="text"
                                     value={pollD}
                                     onChange={(e) => setPollD(e.target.value)}
@@ -5074,7 +5067,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 />
                             </div>
                         </div>
-                        <button 
+                        <button
                             type="submit"
                             disabled={submittingModal}
                             className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm transition-all hover:shadow-[0_0_15px_rgba(59,130,246,0.4)] disabled:opacity-50"
@@ -5100,7 +5093,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         </div>
                         <div className="flex flex-col gap-3">
                             <label className="text-xs font-bold text-gray-400 uppercase">Quiz Question</label>
-                            <input 
+                            <input
                                 type="text"
                                 value={quizQ}
                                 onChange={(e) => setQuizQ(e.target.value)}
@@ -5118,7 +5111,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         <div className="grid grid-cols-3 gap-3">
                             <div className="flex flex-col gap-2">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase">Correct Option</label>
-                                <select 
+                                <select
                                     value={quizAns}
                                     onChange={(e) => setQuizAns(e.target.value)}
                                     className="bg-[#0c0c0e] border border-white/10 outline-none rounded-lg px-3 py-2 text-sm text-white"
@@ -5131,29 +5124,29 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase">Timer (Sec)</label>
-                                <input 
-                                    type="number" 
-                                    value={quizTime} 
-                                    onChange={(e) => setQuizTime(parseInt(e.target.value))} 
-                                    className="bg-[#0c0c0e] border border-white/10 outline-none rounded-lg px-3 py-2 text-sm text-white" 
+                                <input
+                                    type="number"
+                                    value={quizTime}
+                                    onChange={(e) => setQuizTime(parseInt(e.target.value))}
+                                    className="bg-[#0c0c0e] border border-white/10 outline-none rounded-lg px-3 py-2 text-sm text-white"
                                     min={5}
                                     max={60}
-                                    required 
+                                    required
                                 />
                             </div>
                             <div className="flex flex-col gap-2">
                                 <label className="text-[10px] font-bold text-gray-400 uppercase">Points</label>
-                                <input 
-                                    type="number" 
-                                    value={quizPts} 
-                                    onChange={(e) => setQuizPts(parseInt(e.target.value))} 
-                                    className="bg-[#0c0c0e] border border-white/10 outline-none rounded-lg px-3 py-2 text-sm text-white" 
+                                <input
+                                    type="number"
+                                    value={quizPts}
+                                    onChange={(e) => setQuizPts(parseInt(e.target.value))}
+                                    className="bg-[#0c0c0e] border border-white/10 outline-none rounded-lg px-3 py-2 text-sm text-white"
                                     min={10}
-                                    required 
+                                    required
                                 />
                             </div>
                         </div>
-                        <button 
+                        <button
                             type="submit"
                             disabled={submittingModal}
                             className="w-full bg-pink-600 hover:bg-pink-500 text-white font-bold py-2.5 rounded-lg text-sm transition-all hover:shadow-[0_0_15px_rgba(219,39,119,0.4)] disabled:opacity-50"
@@ -5179,7 +5172,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         </div>
                         <div className="flex flex-col gap-3">
                             <label className="text-xs font-bold text-gray-400 uppercase">Message</label>
-                            <input 
+                            <input
                                 type="text"
                                 value={pinText}
                                 onChange={(e) => setPinText(e.target.value)}
@@ -5188,7 +5181,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 required
                             />
                         </div>
-                        <button 
+                        <button
                             type="submit"
                             className="w-full bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 rounded-lg text-sm transition-all hover:shadow-[0_0_15px_rgba(239,68,68,0.4)]"
                         >
@@ -5217,7 +5210,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         }} className="p-6 space-y-4">
                             <div>
                                 <label className="block text-[10px] uppercase font-black tracking-wider text-gray-400 mb-1.5">Analysis Title</label>
-                                <select 
+                                <select
                                     value={tacticalTitle}
                                     onChange={(e) => setTacticalTitle(e.target.value)}
                                     className="w-full bg-[#1c1c1f] border border-white/10 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-pink-500 font-bold"
@@ -5231,7 +5224,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
                             <div>
                                 <label className="block text-[10px] uppercase font-black tracking-wider text-gray-400 mb-1.5">Strategic Commentary</label>
-                                <textarea 
+                                <textarea
                                     value={tacticalText}
                                     onChange={(e) => setTacticalText(e.target.value)}
                                     placeholder="Type match commentary, strategy shifts, or captain critiques..."
@@ -5241,8 +5234,8 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 />
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button 
-                                    type="button" 
+                                <button
+                                    type="button"
                                     onClick={() => {
                                         triggerMoment("TACTICAL_CLEAR");
                                         setShowTacticalModal(false);
@@ -5251,7 +5244,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 >
                                     Clear Overlay
                                 </button>
-                                <button 
+                                <button
                                     type="submit"
                                     className="flex-1 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white font-black py-3.5 rounded-xl text-xs transition-all shadow-[0_4px_15px_rgba(219,39,119,0.3)] hover:scale-105 active:scale-95"
                                 >
@@ -5277,7 +5270,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                             <p className="text-xs text-gray-400 font-medium mb-4">
                                 Select a micro-stage cricket prediction template to broadcast instantly to all fans in the watchroom.
                             </p>
-                            <button 
+                            <button
                                 onClick={() => {
                                     handleQuickPrediction("How many runs will India score in the next 2 overs?", ["Under 12 Runs", "12 to 18 Runs", "Over 18 Runs"]);
                                     setShowPredictTemplates(false);
@@ -5293,7 +5286,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </div>
                                 <span className="text-xs text-pink-500 font-black tracking-wider uppercase bg-pink-500/10 px-2 py-0.5 rounded border border-pink-500/20">Launch</span>
                             </button>
-                            <button 
+                            <button
                                 onClick={() => {
                                     handleQuickPrediction("Will the next ball be a boundary?", ["Yes, Boundary", "No, Single/Dot", "Wicket!"]);
                                     setShowPredictTemplates(false);
@@ -5309,7 +5302,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </div>
                                 <span className="text-xs text-pink-500 font-black tracking-wider uppercase bg-pink-500/10 px-2 py-0.5 rounded border border-pink-500/20">Launch</span>
                             </button>
-                            <button 
+                            <button
                                 onClick={() => {
                                     handleQuickPrediction("Will India take a DRS review in the next 3 overs?", ["Yes, DRS Review", "No Review"]);
                                     setShowPredictTemplates(false);
@@ -5325,7 +5318,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </div>
                                 <span className="text-xs text-pink-500 font-black tracking-wider uppercase bg-pink-500/10 px-2 py-0.5 rounded border border-pink-500/20">Launch</span>
                             </button>
-                            <button 
+                            <button
                                 onClick={() => {
                                     handleQuickPrediction("Will the captain bring back Bumrah to bowl the next over?", ["Yes, Bumrah bowls", "No, other bowler"]);
                                     setShowPredictTemplates(false);
@@ -5348,12 +5341,11 @@ export default function WatchRoom({ room, onBack }: Props) {
 
             {/* TIMED FULL-SCREEN EMOJI STORM OVERLAY */}
             {stormState !== 'idle' && (
-                <div className={`fixed inset-0 z-[9999] flex flex-col justify-between ${
-                    stormState === 'countdown' ? 'bg-black/95 backdrop-blur-xl pointer-events-auto' : 
-                    stormState === 'active' ? 'bg-black/60 pointer-events-none' : 
-                    'bg-black/95 backdrop-blur-2xl pointer-events-auto'
-                } transition-all duration-500`}>
-                    
+                <div className={`fixed inset-0 z-[9999] flex flex-col justify-between ${stormState === 'countdown' ? 'bg-black/95 backdrop-blur-xl pointer-events-auto' :
+                        stormState === 'active' ? 'bg-black/60 pointer-events-none' :
+                            'bg-black/95 backdrop-blur-2xl pointer-events-auto'
+                    } transition-all duration-500`}>
+
                     {/* Countdown Screen */}
                     {stormState === 'countdown' && (
                         <div className="flex-1 flex flex-col items-center justify-center text-center animate-in fade-in duration-300 pointer-events-auto">
@@ -5435,7 +5427,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                     {stormState === 'summary' && (
                         <div className="flex-1 flex flex-col items-center justify-center text-center p-4 pointer-events-auto">
                             <div className="max-w-md w-full animate-in zoom-in duration-300">
-                                
+
                                 {/* Storm Intensity Card */}
                                 <div className="bg-gradient-to-br from-orange-600 to-pink-600 rounded-3xl p-8 shadow-[0_15px_50px_rgba(236,72,153,0.3)] border border-pink-500/20 mb-6 transform hover:scale-102 transition-transform">
                                     <p className="text-[10px] font-black uppercase tracking-widest text-orange-200 mb-1">Storm Status: Ended</p>
