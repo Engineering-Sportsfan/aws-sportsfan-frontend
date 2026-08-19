@@ -4413,7 +4413,7 @@ export default function WatchRoom({ room, onBack }: Props) {
             </div>
 
             {/* ── Score bar ── */}
-            <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2 border-b border-[#222]">
+            {/* <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2 border-b border-[#222]">
                 {isLoadingMatch ? (
                     <>
                         <span className="text-sm text-gray-400">Loading match...</span>
@@ -4444,13 +4444,13 @@ export default function WatchRoom({ room, onBack }: Props) {
                         <span className="text-sm font-bold text-blue-400">...</span>
                     </>
                 )}
-            </div>
+            </div> */}
 
             {/* ── Top Host CTA Panel ── */}
-            {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
+            {/* {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
                 <div className="bg-[#0c0c0e] shrink-0 border-b border-[#222]">
 
-                    {/* ── MOBILE: compact scrollable icon+label cards (like SS2) ── */}
+                     ── MOBILE: compact scrollable icon+label cards (like SS2) ── 
                     <div className="lg:hidden px-2 py-1.5">
                         <div className="flex items-center gap-1 text-[8px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 px-0.5">
                             <span>🛡️ Host Actions</span>
@@ -4507,7 +4507,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         </div>
                     </div>
 
-                    {/* ── DESKTOP: full-width horizontal strip (unchanged) ── */}
+                     ── DESKTOP: full-width horizontal strip (unchanged) ── 
                     <div className="hidden lg:flex items-center justify-between w-full gap-2 px-3 py-1.5">
                         <button onClick={() => setShowPredictionModal(true)} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-pink-600/10 border border-pink-500/20 text-pink-400 hover:bg-pink-600/20 hover:border-pink-500/40 active:scale-95 transition-all cursor-pointer group">
                             <TrendingUp className="w-4 h-4 shrink-0" />
@@ -4539,7 +4539,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         </button>
                     </div>
                 </div>
-            )}
+            )} */}
 
             <div className="flex flex-col lg:flex-row flex-1 min-h-0">
 
@@ -4868,7 +4868,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
                             ))}
                         </div>
-                        {pinnedMessage && (
+                        {/* {pinnedMessage && (
                             <div className="bg-pink-600/10 border border-pink-500/25 px-3 py-2 flex items-center justify-between gap-3 text-xs rounded-xl mt-1">
                                 <div className="flex items-center gap-2 text-pink-400 overflow-hidden">
                                     <Pin size={12} className="shrink-0 animate-bounce" />
@@ -4881,7 +4881,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                     </button>
                                 )}
                             </div>
-                        )}
+                        )} */}
                     </div>
                     <div className="flex-1 flex flex-col min-h-[300px] lg:min-h-0 lg:hidden relative">
                         <TabContent isMobile={true} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
@@ -4919,7 +4919,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                     </div>
 
                     {/* Pinned Message Ribbon inside sidebar */}
-                    {pinnedMessage && (
+                    {/* {pinnedMessage && (
                         <div className="bg-pink-600/10 border-b border-pink-500/25 px-4 py-2 flex items-center justify-between gap-3 text-xs">
                             <div className="flex items-center gap-2 text-pink-400 overflow-hidden">
                                 <Pin size={12} className="shrink-0 animate-bounce" />
@@ -4932,7 +4932,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 </button>
                             )}
                         </div>
-                    )}
+                    )} */}
 
                     <div className="flex-1 flex flex-col min-h-0 relative">
                         <TabContent isMobile={false} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
