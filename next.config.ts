@@ -654,6 +654,16 @@ const nextConfig = {
           destination: `${apiTarget}/api/athleteProfile/:path*`,
         },
 
+        // FlipLine (DynamoDB-backed)
+        {
+          source: "/api/flipline",
+          destination: `${apiTarget}/api/flipline`,
+        },
+        {
+          source: "/api/flipline/:path*",
+          destination: `${apiTarget}/api/flipline/:path*`,
+        },
+
         // MS Teams / Clubs API
         {
           source: "/api/ms_teams",
