@@ -3,6 +3,7 @@ import { ArrowLeft, Check, User, Tag, MapPin, Pencil, X, Clock, AlertCircle } fr
 import { useState, useEffect, useRef } from 'react';
 import { storeService, Slot } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
+import { useAuth } from '@/context/AuthContext';
 
 const services = [
   { id: 1, title: 'Technique Analysis', duration: '60 min', pricePaise: 180000, desc: 'Video-based biomechanical breakdown with actionable fixes.' },
@@ -21,9 +22,13 @@ const stepLabels = ['Service & Slot', 'Review'];
 
 export default function StoreBooking() {
   const navigate = useNavigate();
-  const { id } = useParams();
-  const coachIdStr = id || '1';
+  const params = useParams();
+  const id = params?.id;
+  const coachIdStr = (id as string) || '1';
   const coachName = coachNames[coachIdStr] || 'Anubhav Karmakar';
+
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || '';
 
   const queryParams = new URLSearchParams(window.location.search);
   const serviceIndexParam = queryParams.get('serviceIndex');
@@ -111,7 +116,7 @@ export default function StoreBooking() {
         if (remaining <= 0) {
           if (timerRef.current) clearInterval(timerRef.current);
           if (selectedSlotId) {
-            storeService.unlockSlot(`coach-${coachIdStr}`, selectedSlotId, 'abhishekrt959_gmail_com').catch(console.error);
+            storeService.unlockSlot(`coach-${coachIdStr}`, selectedSlotId, userId || 'anonymous').catch(console.error);
           }
           setSelectedSlotId(null);
           setLockExpiresAt(null);
@@ -131,7 +136,7 @@ export default function StoreBooking() {
 
   const handleSelectSlot = async (slotId: string) => {
     try {
-      const res = await storeService.lockSlot(`coach-${coachIdStr}`, slotId, 'abhishekrt959_gmail_com');
+      const res = await storeService.lockSlot(`coach-${coachIdStr}`, slotId, userId || 'anonymous');
       setSelectedSlotId(slotId);
       setLockExpiresAt(new Date(res.lockExpiresAt).getTime());
     } catch (err: any) {

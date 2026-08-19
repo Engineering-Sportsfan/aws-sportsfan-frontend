@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { storeService } from '@/services/store.service';
 import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
 import { formatPrice } from '@/utils/formatters';
+import { useAuth } from '@/context/AuthContext';
 
 export default function StorePayment() {
   const navigate = useNavigate();
@@ -13,6 +14,9 @@ export default function StorePayment() {
   const priceParam = searchParams.get('price');
   const pricePaise = priceParam ? parseInt(priceParam, 10) : 189900; // fallback to ₹1,899
 
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || '';
+
   const { key: idempotencyKey } = useIdempotencyKey();
   const [selected, setSelected] = useState('gpay');
   const [processing, setProcessing] = useState(false);
@@ -20,10 +24,11 @@ export default function StorePayment() {
 
   // Fetch wallet balance
   useEffect(() => {
-    storeService.getWalletBalance('abhishekrt959_gmail_com')
+    if (!userId) return;
+    storeService.getWalletBalance(userId)
       .then((res) => setWalletBalance(res.balancePaise))
       .catch((err) => console.error('Error fetching wallet balance:', err));
-  }, []);
+  }, [userId]);
 
   const handlePay = async () => {
     setProcessing(true);
@@ -31,7 +36,7 @@ export default function StorePayment() {
       const res = await storeService.checkout({
         productId: id || 'coach-1',
         slotId: slotId,
-        userId: 'abhishekrt959_gmail_com',
+        userId: userId || 'anonymous',
         paymentMethod: selected as any,
         pricePaise,
         idempotencyKey,

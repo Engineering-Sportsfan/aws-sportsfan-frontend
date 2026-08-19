@@ -3,6 +3,7 @@ import { ArrowLeft, Timer, Users, TrendingUp, Bookmark, CheckCircle, Clock, Shie
 import { useState, useEffect } from 'react';
 import { storeService } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
+import { useAuth } from '@/context/AuthContext';
 
 type GovernanceStatus = 'approved' | 'pending';
 
@@ -45,6 +46,9 @@ function AuctionDetail({ auctionId, dbId, title, description, image, reservePric
   reservePrice: number;
   onBack: () => void;
 }) {
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || '';
+
   const [currentBidPaise, setCurrentBidPaise] = useState<number>(0);
   const [bids, setBids] = useState<any[]>([]);
   const [timeLeft, setTimeLeft] = useState<number>(172800);
@@ -88,7 +92,7 @@ function AuctionDetail({ auctionId, dbId, title, description, image, reservePric
     }
 
     try {
-      const res = await storeService.placeBid(dbId, bidPaise, 'mock-user-123');
+      const res = await storeService.placeBid(dbId, bidPaise, userId || 'anonymous');
       if (res.success) {
         setBidPlaced(true);
         loadAuctionData();
@@ -205,7 +209,7 @@ function AuctionDetail({ auctionId, dbId, title, description, image, reservePric
             ) : (
               bids.map((bid, i) => (
                 <div key={bid.id || i} className="flex items-center justify-between py-2 border-b border-[rgba(255,255,255,0.05)]">
-                  <span className="text-[#99A1AF] text-[13px]">{bid.userId === 'mock-user-123' ? 'You' : 'Anonymous'}</span>
+                  <span className="text-[#99A1AF] text-[13px]">{bid.userId === userId ? 'You' : 'Anonymous'}</span>
                   <span className="text-white text-[13px] font-semibold">{formatPrice(bid.amountPaise)}</span>
                   <span className="text-[#4a4a5a] text-[11px]">Recent</span>
                 </div>

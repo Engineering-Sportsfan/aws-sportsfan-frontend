@@ -8,8 +8,10 @@ import { formatPrice } from '@/utils/formatters';
 import { useRouter } from 'next/navigation';
 
 
-function ProductDetail({ product, onBack, onBuy }: { product: any; onBack: () => void; onBuy: () => void }) {
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+function ProductDetail({ product, onBack, onBuy }: { product: any; onBack: () => void; onBuy: (variantId: string) => void }) {
+  const [selectedVariant, setSelectedVariant] = useState<any | null>(null);
+
+  const variants = product.variants || [];
 
   return (
     <div className="flex-1 overflow-y-auto pb-[100px] no-scrollbar">
@@ -21,6 +23,7 @@ function ProductDetail({ product, onBack, onBuy }: { product: any; onBack: () =>
       <div className="px-4 pt-4">
         <p className="text-[#c9115f] text-[11px] font-bold uppercase tracking-wider mb-0.5">{product.brand || 'Brand Partner'}</p>
         <h2 className="text-white text-[19px] font-bold leading-tight mb-2">{product.title}</h2>
+        <p className="text-[#99A1AF] text-[12px] mb-4">{product.description}</p>
         <div className="flex items-center gap-1.5 mb-5">
           <Star className="w-[12px] h-[12px] text-[#FFD700] fill-[#FFD700]" />
           <span className="text-[#FFD700] text-[12px] font-bold">{product.rating || 4.7}</span>
@@ -31,16 +34,25 @@ function ProductDetail({ product, onBack, onBuy }: { product: any; onBack: () =>
         <div className="mb-6">
           <p className="text-white text-[12px] font-bold mb-2">Select Size</p>
           <div className="flex gap-2 flex-wrap">
-            {['UK 7', 'UK 8', 'UK 9', 'UK 10'].map((sz) => (
-              <button
-                key={sz}
-                onClick={() => setSelectedSize(sz)}
-                className={`px-4 py-2 border rounded-full text-[12px] font-bold ${selectedSize === sz ? 'bg-white border-white text-black' : 'bg-transparent border-[rgba(255,255,255,0.1)] text-white'
+            {variants.map((v: any) => {
+              const isOutOfStock = v.stock <= 0 || !v.available;
+              return (
+                <button
+                  key={v.id}
+                  disabled={isOutOfStock}
+                  onClick={() => setSelectedVariant(v)}
+                  className={`px-4 py-2 border rounded-full text-[12px] font-bold transition-all ${
+                    isOutOfStock 
+                      ? 'opacity-30 border-[rgba(255,255,255,0.05)] text-[#5a5a6a] cursor-not-allowed line-through'
+                      : selectedVariant?.id === v.id 
+                      ? 'bg-white border-white text-black' 
+                      : 'bg-transparent border-[rgba(255,255,255,0.1)] text-white hover:border-white'
                   }`}
-              >
-                {sz}
-              </button>
-            ))}
+                >
+                  {v.size} {v.stock <= 2 && v.stock > 0 && <span className="text-[9px] text-[#cd620e] ml-1">({v.stock} left)</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -52,8 +64,8 @@ function ProductDetail({ product, onBack, onBuy }: { product: any; onBack: () =>
           <p className="text-white text-[20px] font-black">{formatPrice(product.pricePaise)}</p>
         </div>
         <button
-          onClick={onBuy}
-          disabled={!selectedSize}
+          onClick={() => selectedVariant && onBuy(selectedVariant.id)}
+          disabled={!selectedVariant}
           className="rounded-full px-8 py-3.5 text-white text-[14px] font-bold bg-gradient-to-r from-[#c9115f] to-[#cd620e] shadow-[0_0_20px_rgba(201,17,95,0.4)] disabled:opacity-40"
         >
           Claim Deal
@@ -76,11 +88,10 @@ export default function StoreBrands() {
       setLoading(true);
       try {
         const [allProducts, allBrands] = await Promise.all([
-          storeService.getProducts(),
+          storeService.getProducts('brands'),
           storeService.getBrandDeals(),
         ]);
-        const merchantItems = allProducts.filter(p => p.category === 'brands');
-        setProducts(merchantItems);
+        setProducts(allProducts);
         setBrands(allBrands);
       } catch (err) {
         console.error(err);
@@ -91,8 +102,9 @@ export default function StoreBrands() {
     loadData();
   }, []);
 
-  const handleBuy = () => {
-    setBought(true);
+  const handleBuy = (variantId: string) => {
+    if (!selectedProduct) return;
+    router.push(`/MainModules/AtheleteStore/StorePayment/${selectedProduct.id}?price=${selectedProduct.pricePaise}&variantId=${variantId}`);
   };
 
   if (bought) {

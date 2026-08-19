@@ -200,7 +200,7 @@ export default function Player360CardsSection() {
 
     const resolveShareImageUrl = (post: Post) => {
         if (!post.image) return "/images/share.png";
-        return post.image.startsWith("http") ? post.image : `https://api.sportsfan360.com${post.image}`;
+        return post.image.startsWith("http") ? post.image : `https://sportsfan360.vercel.app${post.image}`;
     };
 
     const buildShareUrl = (post: Post) => {

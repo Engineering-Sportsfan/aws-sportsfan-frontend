@@ -13,9 +13,8 @@ const BASE_URL =
     : `${
         process.env.NEXT_PUBLIC_BACKEND_URL ||
         process.env.NEXT_PUBLIC_ADMIN_URL ||
-        ""
+        "https://sportsfan360.vercel.app"
       }/api/v2`;
-
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
@@ -37,7 +36,7 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(errorData?.message ?? `HTTP ${res.status}`);
+    throw new Error(errorData?.error ?? errorData?.message ?? `HTTP ${res.status}`);
   }
 
   // Handle 204 No Content

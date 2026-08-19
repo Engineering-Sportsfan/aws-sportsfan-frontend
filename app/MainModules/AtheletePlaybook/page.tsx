@@ -116,21 +116,21 @@ export default function Playbook() {
           {activeTab === 'timeline' && (
             <TimelineView
               playbook={playbook}
-              onNavigate={router.push}
+              onNavigate={(path) => router.push(path)}
             />
           )}
 
           {activeTab === 'calendar' && (
             <CalendarView
               playbook={playbook}
-              onNavigate={router.push}
+              onNavigate={(path) => router.push(path)}
             />
           )}
 
           {activeTab === 'agenda' && (
             <AgendaView
               playbook={playbook}
-              onNavigate={router.push}
+              onNavigate={(path) => router.push(path)}
             />
           )}
         </div>

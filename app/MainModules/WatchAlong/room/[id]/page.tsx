@@ -128,20 +128,37 @@ export default function WatchRoomPage() {
     );
   }
 
-  if (((!isMockRoom && !hasStartedFetching) || loading) && !currentRoom) {
-    return (
-      <div className="min-h-screen bg-[#111] flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
-      </div>
-    );
-  }
+  // if (((!isMockRoom && !hasStartedFetching) || loading) && !currentRoom) {
+  //   return (
+  //     <div className="min-h-screen bg-[#111] flex items-center justify-center">
+  //       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+  //     </div>
+  //   );
+  // }
 
-  if (error && !currentRoom) {
+  // if (error && !currentRoom) {
+  //   return (
+  //     <div className="min-h-screen bg-[#111] flex items-center justify-center">
+  //       <div className="text-center">
+  //         <p className="text-red-400 mb-4">{error}</p>
+  //         <button 
+  //           onClick={() => router.push("/MainModules/WatchAlong")}
+  //           className="text-pink-500 hover:text-pink-400"
+  //         >
+  //           Go Back
+  //         </button>
+  //       </div>
+  //     </div>
+  //   );
+  // }
+
+  if (!isMockRoom && !currentRoom) {
+  if (error) {
     return (
       <div className="min-h-screen bg-[#111] flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-400 mb-4">{error}</p>
-          <button 
+          <button
             onClick={() => router.push("/MainModules/WatchAlong")}
             className="text-pink-500 hover:text-pink-400"
           >
@@ -151,6 +168,12 @@ export default function WatchRoomPage() {
       </div>
     );
   }
+  return (
+    <div className="min-h-screen bg-[#111] flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+    </div>
+  );
+}
 
   if (!currentRoom) {
     return (

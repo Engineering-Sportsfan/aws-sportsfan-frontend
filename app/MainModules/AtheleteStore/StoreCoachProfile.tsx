@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { CoachBadge } from './Store';
 import { storeService } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
+import { useAuth } from '@/context/AuthContext';
 
 const defaultCoach = {
   id: 1, name: 'Anubhav Karmakar', role: 'Founder, Athloft Multisport', experience: '12 yrs',
@@ -60,7 +61,11 @@ const groupSlotsByDate = (slotList: any[]) => {
 export default function StoreCoachProfile() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [coach, setCoach] = useState<any>(defaultCoach);
+  const { user } = useAuth();
+  const userId = user?.userId || user?.email || '';
+
+  const [coach, setCoach] = useState<any>(null);
+  const [selectedService, setSelectedService] = useState<number>(0);
   const [groupedSlots, setGroupedSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -131,7 +136,7 @@ export default function StoreCoachProfile() {
     setLockingSlot(true);
 
     try {
-      const res = await storeService.lockSlot(`coach-${id || '1'}`, selectedSlotId, 'abhishekrt959_gmail_com');
+      const res = await storeService.lockSlot(`coach-${id || '1'}`, selectedSlotId, userId || 'anonymous');
       if (res.status === 'locked' || res.lockExpiresAt) {
         // Success: navigate to booking screen carrying parameters
         navigate(`/store/booking/${id || '1'}?date=${currentSlot.date}&time=${selectedTime}&day=${currentSlot.day}&num=${currentSlot.num}&serviceIndex=${selectedService}`);
@@ -288,7 +293,7 @@ export default function StoreCoachProfile() {
                   btnBg = 'rgba(255,255,255,0.02)';
                   btnBorder = '1px solid rgba(255,255,255,0.04)';
                   btnColor = '#4a4a5a';
-                } else if (isLocked && t.lockedBy !== 'abhishekrt959_gmail_com') {
+                } else if (isLocked && t.lockedBy !== userId) {
                   btnBg = 'rgba(255,255,255,0.02)';
                   btnBorder = '1px solid rgba(255,255,255,0.04)';
                   btnColor = '#4a4a5a';
@@ -297,7 +302,7 @@ export default function StoreCoachProfile() {
                 return (
                   <button
                     key={t.id}
-                    disabled={isBooked || (isLocked && t.lockedBy !== 'abhishekrt959_gmail_com')}
+                    disabled={isBooked || (isLocked && t.lockedBy !== userId)}
                     onClick={() => handleSlotSelect(t)}
                     className="rounded-full px-4 py-2 text-[13px] font-semibold transition-all relative"
                     style={{
@@ -312,7 +317,7 @@ export default function StoreCoachProfile() {
                         Booked
                       </span>
                     )}
-                    {!isBooked && isLocked && t.lockedBy !== 'abhishekrt959_gmail_com' && (
+                    {!isBooked && isLocked && t.lockedBy !== userId && (
                       <span className="absolute -top-1 -right-1 text-[8px] font-bold px-1 py-0.2 bg-[rgba(255,215,0,0.15)] text-[#FFD700] border border-[rgba(255,215,0,0.3)] rounded-full">
                         Locked
                       </span>

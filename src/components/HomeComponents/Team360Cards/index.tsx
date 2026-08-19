@@ -40,7 +40,7 @@
 //     const [copied, setCopied] = useState(false);
 
 //     // Add admin base URL
-//     const ADMIN_BASE_URL = 'https://api.sportsfan360.com';
+//     const ADMIN_BASE_URL = 'https://sportsfan360.vercel.app';
 
 
 //     const getFullImageUrl = (path: string) => {
@@ -48,7 +48,7 @@
 
 //         return path.startsWith("http")
 //             ? path
-//             : `https://api.sportsfan360.com${path}`;
+//             : `https://sportsfan360.vercel.app${path}`;
 //     };
 
 //     useEffect(() => {
@@ -106,7 +106,7 @@
 
 //     const resolveShareImageUrl = (post: Post) => {
 //         if (!post.image) return "/images/share.png";
-//         return post.image.startsWith("http") ? post.image : `https://api.sportsfan360.com${post.image}`;
+//         return post.image.startsWith("http") ? post.image : `https://sportsfan360.vercel.app${post.image}`;
 //     };
 
 //     const buildShareUrl = (post: Post) => {
@@ -599,7 +599,7 @@ export default function Team360CardsSection() {
 
   const getFullImageUrl = (path: string) => {
     if (!path) return "";
-    return path.startsWith("http") ? path : `https://api.sportsfan360.com${path}`;
+    return path.startsWith("http") ? path : `https://sportsfan360.vercel.app${path}`;
   };
 
   useEffect(() => {

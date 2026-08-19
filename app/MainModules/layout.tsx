@@ -1,6 +1,9 @@
+// app/MainModules/layout.tsx
+
 "use client";
 
 import Header from "@/src/components/HomeComponents/Header";
+import LiveTicker from "@/src/components/Ticker/LiveTicker";
 import BottomNav from "@/src/components/HomeComponents/Bottomnav";
 import InviteFriendModal from "@/src/components/InviteFriendModal";
 import axios from "axios";
@@ -8,11 +11,12 @@ import { UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import SportsFan360Footer from "@/src/components/footer-component/Footer";
 import { useAuth } from "@/context/AuthContext";
 import GlobalActionBar from "@/src/components/GlobalActionBar";
 import { Sparkles } from "lucide-react";
+import NotificationToast from "@/src/components/NewHomeComponents/NotificationToast";
 
 
 // ─── Types 
@@ -142,7 +146,7 @@ function UserSidebar() {
   // const isMatchIntelligence = user?.email?.endsWith("@sportsfan360.com");
 
   const sidebarItems: SidebarItem[] = [
-    // { name: "Feed", icon: "/images/feed.png", href: "/MainModules/HomePage" },
+    { name: "Home", icon: "/images/feed.png", href: "/MainModules/HomePage" },
 
     // { name: "Fantasy", icon: "/images/battle.png", href: "/MainModules/Fantasy" },
     {
@@ -163,13 +167,13 @@ function UserSidebar() {
     //   href: "/MainModules/Store" 
     // },
     {
-      name: "Ask AI",
+      name: "Ask Flip",
       icon: <Sparkles className="w-5 h-5 text-gradient" />,
       href: "/MainModules/AskAI"
     },
     // { name: "Fan Zone", icon: "/images/profile.png", href: "/MainModules/Fanszone" },
     {
-      name: "Fan Zone",
+      name: "Athelte",
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -178,7 +182,7 @@ function UserSidebar() {
           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       ),
-      href: "/MainModules/Fanszone"
+      href: "/MainModules/AtheleteHome"
     }
   ];
 
@@ -246,6 +250,29 @@ export default function MainModulesLayout({
   const [loading, setLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false); 
+  const bottomNavRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+  const el = bottomNavRef.current;
+  if (!el) return;
+
+  const setVar = () => {
+    const height = el.getBoundingClientRect().height;
+    document.documentElement.style.setProperty("--roar-bottom-nav-height", `${height}px`);
+  };
+
+  setVar();
+  const ro = new ResizeObserver(setVar);
+  ro.observe(el);
+  window.addEventListener("resize", setVar);
+  window.addEventListener("orientationchange", setVar);
+
+  return () => {
+    ro.disconnect();
+    window.removeEventListener("resize", setVar);
+    window.removeEventListener("orientationchange", setVar);
+  };
+}, []);
 
   useEffect(() => {
     async function fetchCurrentUser() {
@@ -344,7 +371,7 @@ export default function MainModulesLayout({
 
   //             <UserPlus className="text-white w-3 h-3 md:w-4 md:h-4 lg:w-6 lg:h-6" />
   //           </button> */}
-  //  <GlobalActionBar /> 
+ 
   //         {/* </div> */}
 
   //         {/* BottomNav hidden for now — You and Alerts will integrate into global app profile/alerts */}
@@ -366,6 +393,8 @@ export default function MainModulesLayout({
 
   return (
     <>
+     <NotificationToast />
+    <GlobalActionBar /> 
       <style>{`
   body.roar-room-active .roar-bottom-nav { 
     display: none !important; 
@@ -392,7 +421,28 @@ export default function MainModulesLayout({
 >
           {!isProfilePath && !isAskAIPath && !isWatchAlongPath && !isFanszonePath && (
             <div className="relative z-60">
+
               <Header />
+              <div id="live-ticker-container">
+                <LiveTicker />
+              </div>
+              <style>{`
+                @media (max-width: 767px) {
+                  #live-ticker-container {
+                    position: fixed !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    right: 0 !important;
+                    z-index: 101 !important;
+                  }
+                  #global-header-mobile {
+                    top: 36px !important;
+                  }
+                  .roar-header-spacer {
+                    height: 134px !important;
+                  }
+                }
+              `}</style>
             </div>
           )}
 
