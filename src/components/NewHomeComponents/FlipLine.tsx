@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Heart, Share2, Play, Volume2, Sparkles } from 'lucide-react';
+import { fliplineService } from '@/services/flipline.service';
 import asianGamesHero from '../../../public/asian_games_banner.png';
 import rajaramanPhoto from '../../../public/image-21.png';
 import anandVasuPhoto from '../../../public/image-23.png';
@@ -20,6 +21,7 @@ type FlipCard = {
   fomoMsg: string; fomoCount: number;
   ctaType: 'room' | 'watchalong' | 'drop';
   flipResponse: string;
+  sk?: string;
 };
 /* ─── FlipLine shared data ─────────────────────────────────────────── */
 type ScoreChip = {
@@ -306,12 +308,20 @@ const FL_CARDS: FlipCard[] = [
 
 ];
 
-function FlipLineSection({ selectedSport, onViewFull }: { selectedSport: string; onViewFull: () => void }) {
+function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { selectedSport: string; onViewFull: () => void; cards: FlipCard[]; loading: boolean }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [likedCards, setLikedCards] = useState<Set<number>>(new Set());
   const [askOpen, setAskOpen] = useState<number | null>(null);
 
-  let displayCards = density === 'key' ? FL_CARDS.filter(c => c.isKey) : FL_CARDS;
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 150 }}>
+        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: 700 }}>Loading moments... ⚡</span>
+      </div>
+    );
+  }
+
+  let displayCards = density === 'key' ? cards.filter(c => c.isKey) : cards;
   if (selectedSport && selectedSport !== 'mixed') {
     displayCards = displayCards.filter(c => c.sport === selectedSport);
   }
@@ -358,12 +368,20 @@ function FlipLineSection({ selectedSport, onViewFull }: { selectedSport: string;
 }
 
 /* ─── FlipLine full-page screen ─────────────────────────────────────── */
-function FlipLineFullScreen({ onBack, selectedSport = 'mixed' }: { onBack: () => void; selectedSport?: string }) {
+function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loading }: { onBack: () => void; selectedSport?: string; cards: FlipCard[]; loading: boolean }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [likedCards, setLikedCards] = useState<Set<number>>(new Set());
   const [askOpen, setAskOpen] = useState<number | null>(null);
 
-  let displayCards = density === 'key' ? FL_CARDS.filter(c => c.isKey) : FL_CARDS;
+  if (loading) {
+    return (
+      <div style={{ height: '100dvh', display: 'flex', justifyContent: 'center', alignItems: 'center', background: 'rgb(7,11,20)' }}>
+        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, fontWeight: 700 }}>Loading moments... ⚡</span>
+      </div>
+    );
+  }
+
+  let displayCards = density === 'key' ? cards.filter(c => c.isKey) : cards;
   if (selectedSport && selectedSport !== 'mixed') {
     displayCards = displayCards.filter(c => c.sport === selectedSport);
   }
@@ -437,6 +455,358 @@ const DolphinIcon = () => (
   </svg>
 );
 
+export function FlipCardItem({
+  card,
+  index,
+  totalCards,
+  isLiked,
+  likedCards,
+  setLikedCards,
+  askOpen,
+  setAskOpen,
+  typeColorMap,
+  typeLabelMap,
+  router,
+  handleLike,
+  handleShare,
+  handleCtaClick,
+}: {
+  card: FlipCard;
+  index: number;
+  totalCards: number;
+  isLiked: boolean;
+  likedCards: Set<number>;
+  setLikedCards: React.Dispatch<React.SetStateAction<Set<number>>>;
+  askOpen: number | null;
+  setAskOpen: (id: number | null) => void;
+  typeColorMap: Record<string, string>;
+  typeLabelMap: Record<string, string>;
+  router: any;
+  handleLike: (card: FlipCard) => void;
+  handleShare: (card: FlipCard) => void;
+  handleCtaClick: (ctaType: 'room' | 'watchalong' | 'drop') => void;
+}) {
+  const [question, setQuestion] = useState("");
+  const [answer, setAnswer] = useState(card.flipResponse || "");
+  const [loading, setLoading] = useState(false);
+
+  const handleAskFlip = async () => {
+    if (!question.trim() || loading) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/ask-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `Context moment: "${card.content}". Question about this moment: "${question}". Answer this question in a short, engaging sports fan format under 180 characters.`
+        }),
+      });
+      if (!res.ok) throw new Error("API call failed");
+      const data = await res.json();
+      setAnswer(data.answer || "No response received.");
+      setQuestion("");
+    } catch (e) {
+      console.error("Failed to ask Flip:", e);
+      setAnswer("Something went wrong — please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isExpanded = askOpen === card.id;
+  const themeColor = typeColorMap[card.type] || 'rgba(255, 255, 255, 0.4)';
+  const themeLabel = typeLabelMap[card.type] || card.type;
+
+  return (
+    <div className="flex w-full relative mb-8">
+      {/* Left timeline axis */}
+      <div className="w-[70px] shrink-0 flex flex-col items-center pt-1 relative">
+        {(() => {
+          const parts = card.time.split(' ');
+          if (parts.length >= 2) {
+            return (
+              <>
+                <span className="text-[15px] font-black text-white leading-none">{parts[0]}</span>
+                <span className="text-[9px] font-bold text-white/40 leading-none mt-1 uppercase tracking-wider">{parts.slice(1).join(' ')}</span>
+              </>
+            );
+          }
+          return (
+            <span className="text-[12px] font-extrabold text-white leading-tight text-center break-words max-w-[60px]">
+              {card.time}
+            </span>
+          );
+        })()}
+        
+        {/* Dot */}
+        <div 
+          className="w-3 h-3 rounded-full bg-white border border-white/20 relative z-10 mt-3"
+          style={{
+            boxShadow: '0 0 8px rgba(255, 255, 255, 0.8)'
+          }}
+        />
+
+        {/* Vertical Line */}
+        {index < totalCards - 1 && (
+          <div 
+            className="absolute w-[1px] bg-white/10"
+            style={{
+              top: '52px', // starts below the dot
+              bottom: '-32px', // extends to the next card's top
+              left: '50%',
+              transform: 'translateX(-50%)'
+            }}
+          />
+        )}
+      </div>
+
+      {/* Right card container */}
+      <div className="flex-1 pr-4 pb-2 min-w-0">
+        <div className="transition-all duration-300 relative flex flex-col gap-3.5 w-full">
+          
+          {/* Row 1: Score & Sport Tag */}
+          <div className="flex items-center justify-between w-full min-h-[24px]">
+            {card.scoreChip ? (
+              <div className="flex items-center gap-2">
+                <div 
+                  className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-[#10b981] bg-[#10b981]/12 border border-[#10b981]/20"
+                >
+                  {card.scoreChip.score}
+                </div>
+                <span 
+                  className="text-[11px] font-extrabold text-[#10b981]"
+                >
+                  {card.scoreChip.status}
+                </span>
+              </div>
+            ) : (
+              <div />
+            )}
+            
+            <div 
+              className="px-2.5 py-1 rounded-full text-[10.5px] font-bold flex items-center gap-1.5"
+              style={{
+                background: 'rgba(15, 23, 42, 0.7)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: 'rgba(255, 255, 255, 0.7)'
+              }}
+            >
+              <span>{card.sportEmoji}</span>
+              <span>{card.sportLabel}</span>
+            </div>
+          </div>
+
+          {/* Row 2: Author info */}
+          <div className="flex items-center gap-2.5 w-full">
+            {card.authorPhoto ? (
+              <img 
+                src={typeof card.authorPhoto === 'object' ? card.authorPhoto.src : card.authorPhoto} 
+                alt={card.author} 
+                className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0" 
+              />
+            ) : (
+              <div 
+                className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[14px] shrink-0"
+                style={{
+                  background: `linear-gradient(135deg, ${themeColor}, #0f172a)`
+                }}
+              >
+                {card.author[0]}
+              </div>
+            )}
+            
+            <div className="min-w-0 flex flex-col">
+              <div className="flex items-center gap-1.5">
+                <span className="font-extrabold text-[13.5px] text-white leading-tight truncate">{card.author}</span>
+                {card.handle && (
+                  <span className="text-[11px] text-white/40 truncate">{card.handle}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span 
+                  className="text-[8.5px] font-black tracking-wider px-1.5 py-0.5 rounded uppercase"
+                  style={{ background: `${themeColor}1f`, color: themeColor }}
+                >
+                  {themeLabel}
+                </span>
+                <span className="text-[9.5px] text-white/30 font-medium">via {card.source}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Card Content */}
+          <p className="text-[14px] font-medium text-white/90 leading-relaxed break-words whitespace-pre-line">
+            {card.content}
+          </p>
+
+          {/* Inline Image or Video/Audio media */}
+          {card.image && (
+            <div className="relative rounded-xl overflow-hidden mt-1 max-h-[220px]">
+              <img 
+                src={typeof card.image === 'object' ? card.image.src : card.image} 
+                alt="Moment media" 
+                className="w-full h-full object-fill" 
+              />
+              
+              {card.mediaType === 'video' && (
+                <div className="absolute inset-0 bg-black/35 flex items-center justify-center cursor-pointer">
+                  <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white transition-transform hover:scale-105">
+                    <Play size={18} fill="currentColor" className="ml-0.5" />
+                  </div>
+                </div>
+              )}
+              
+              {card.mediaType === 'audio' && (
+                <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 p-2 flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white cursor-pointer">
+                    <Volume2 size={13} />
+                  </div>
+                  <div className="flex-1 flex items-center gap-[2px] h-3 px-1">
+                    {[30, 80, 45, 90, 60, 35, 75, 40, 65, 80, 50, 70, 45, 85].map((h, i) => (
+                      <div 
+                        key={i} 
+                        className="flex-1 bg-white/40 rounded-full" 
+                        style={{ height: `${h}%` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Row 4: Tags (if present) */}
+          {card.tags && card.tags.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-0.5">
+              {card.tags.map(t => (
+                <span key={t} className="text-[11px] font-bold text-pink-500 hover:underline cursor-pointer">
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Row 5: FOMO Banner */}
+          {card.fomoMsg && (
+            <div 
+              className="flex items-center justify-between gap-3 rounded-2xl p-3 bg-[#0d0a14] border border-pink-500/15"
+              style={{
+                borderColor: `${themeColor}2a`,
+                background: `linear-gradient(135deg, rgba(7, 11, 20, 0.98), rgba(15, 10, 25, 0.6))`
+              }}
+            >
+              <p className="text-[12px] font-semibold text-white/85 leading-snug">
+                🔥 {card.fomoMsg}
+              </p>
+              <button
+                onClick={() => handleCtaClick(card.ctaType)}
+                className="shrink-0 px-4 py-2 rounded-xl text-[12px] font-extrabold text-white transition-all active:scale-95 cursor-pointer"
+                style={{
+                  background: card.ctaType === 'room'
+                    ? 'linear-gradient(135deg, #E91E8C, #FF6B35)'
+                    : card.ctaType === 'watchalong'
+                    ? 'linear-gradient(135deg, #7c3aed, #E91E8C)'
+                    : 'linear-gradient(135deg, #06b6d4, #3b82f6)'
+                }}
+              >
+                {card.ctaType === 'room' && 'Join Room →'}
+                {card.ctaType === 'watchalong' && 'Watch Along →'}
+                {card.ctaType === 'drop' && 'Claim Drop →'}
+              </button>
+            </div>
+          )}
+
+          {/* Row 6: Action buttons (Like, Share, Flip) */}
+          <div className="flex items-center justify-between pt-1">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => handleLike(card)}
+                className="flex items-center gap-2 text-white/40 hover:text-rose-500 transition-colors cursor-pointer"
+              >
+                <Heart 
+                  size={16} 
+                  fill={isLiked ? 'rgb(244, 63, 94)' : 'none'} 
+                  className={`transition-all duration-200 ${isLiked ? 'text-rose-500 scale-110' : ''}`} 
+                />
+                <span className="text-[12.5px] font-extrabold leading-none">{card.likes + (isLiked ? 1 : 0)}</span>
+              </button>
+              
+              <button 
+                onClick={() => handleShare(card)}
+                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors cursor-pointer"
+              >
+                <Share2 size={15} />
+                <span className="text-[12.5px] font-extrabold leading-none">Share</span>
+              </button>
+            </div>
+
+            <button 
+              onClick={() => setAskOpen(isExpanded ? null : card.id)}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-bold border transition-all duration-300 cursor-pointer"
+              style={{
+                background: isExpanded 
+                  ? `${themeColor}22` 
+                  : 'rgba(255, 255, 255, 0.03)',
+                borderColor: isExpanded ? themeColor : 'rgba(255, 255, 255, 0.1)',
+                color: isExpanded ? themeColor : '#fff',
+                boxShadow: isExpanded ? `0 0 10px ${themeColor}33` : 'none'
+              }}
+            >
+              <DolphinIcon />
+              <span>{isExpanded ? 'Flipped' : 'Ask Flip'}</span>
+            </button>
+          </div>
+
+          {/* Expanded AI response */}
+          <AnimatePresence>
+            {isExpanded && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-2 pt-3 border-t border-white/[0.08] flex flex-col gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 rounded-full bg-violet-600 flex items-center justify-center text-[10px]">🤖</div>
+                    <span className="text-[11px] font-black text-violet-300 uppercase tracking-widest">Ask Flip about this moment</span>
+                  </div>
+                  
+                  {/* Query Input field */}
+                  <div className="flex gap-2 w-full mt-1">
+                    <input
+                      type="text"
+                      value={question}
+                      onChange={(e) => setQuestion(e.target.value)}
+                      placeholder="Ask Flip anything about this moment..."
+                      className="flex-1 bg-white/[0.06] border border-white/[0.1] rounded-xl px-3 py-2 text-[12.5px] text-white placeholder:text-white/30 outline-none focus:border-violet-500 transition-colors"
+                      onKeyDown={(e) => e.key === 'Enter' && handleAskFlip()}
+                    />
+                    <button
+                      onClick={handleAskFlip}
+                      disabled={!question.trim() || loading}
+                      className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-[12px] px-4 py-2 rounded-xl transition-all cursor-pointer"
+                    >
+                      {loading ? 'Thinking...' : 'Ask Flip'}
+                    </button>
+                  </div>
+
+                  {answer && (
+                    <p className="text-[13px] text-white/90 leading-relaxed italic bg-violet-950/20 border border-violet-900/30 rounded-xl p-3">
+                      {answer}
+                    </p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function FlipTimeline({
   cards,
   previewLimit,
@@ -447,16 +817,35 @@ export function FlipTimeline({
 }: FlipTimelineProps) {
   const router = useRouter();
 
-  const handleLike = (cardId: number) => {
+  const handleLike = async (card: FlipCard) => {
+    const isLiked = likedCards.has(card.id);
+    const action = isLiked ? 'unlike' : 'like';
+
     setLikedCards(prev => {
       const next = new Set(prev);
-      if (next.has(cardId)) {
-        next.delete(cardId);
+      if (next.has(card.id)) {
+        next.delete(card.id);
       } else {
-        next.add(cardId);
+        next.add(card.id);
       }
       return next;
     });
+
+    try {
+      const cardSk = card.sk || `CARD#${card.timeMs}#${card.id}`;
+      await fliplineService.likeFlipCard(cardSk, action);
+    } catch (e) {
+      console.error("Failed to update like in backend:", e);
+      setLikedCards(prev => {
+        const next = new Set(prev);
+        if (next.has(card.id)) {
+          next.delete(card.id);
+        } else {
+          next.add(card.id);
+        }
+        return next;
+      });
+    }
   };
 
   const handleShare = (card: FlipCard) => {
@@ -502,276 +891,24 @@ export function FlipTimeline({
     <div className="flex flex-col w-full relative">
       {finalCards.map((card, index) => {
         const isLiked = likedCards.has(card.id);
-        const isExpanded = askOpen === card.id;
-        const themeColor = typeColorMap[card.type] || 'rgba(255, 255, 255, 0.4)';
-        const themeLabel = typeLabelMap[card.type] || card.type;
-
         return (
-          <div key={card.id} className="flex w-full relative mb-8">
-            {/* Left timeline axis */}
-            <div className="w-[70px] shrink-0 flex flex-col items-center pt-1 relative">
-              {(() => {
-                const parts = card.time.split(' ');
-                if (parts.length >= 2) {
-                  return (
-                    <>
-                      <span className="text-[15px] font-black text-white leading-none">{parts[0]}</span>
-                      <span className="text-[9px] font-bold text-white/40 leading-none mt-1 uppercase tracking-wider">{parts.slice(1).join(' ')}</span>
-                    </>
-                  );
-                }
-                return (
-                  <span className="text-[12px] font-extrabold text-white leading-tight text-center break-words max-w-[60px]">
-                    {card.time}
-                  </span>
-                );
-              })()}
-              
-              {/* Dot */}
-              <div 
-                className="w-3 h-3 rounded-full bg-white border border-white/20 relative z-10 mt-3"
-                style={{
-                  boxShadow: '0 0 8px rgba(255, 255, 255, 0.8)'
-                }}
-              />
-
-              {/* Vertical Line */}
-              {index < finalCards.length - 1 && (
-                <div 
-                  className="absolute w-[1px] bg-white/10"
-                  style={{
-                    top: '52px', // starts below the dot
-                    bottom: '-32px', // extends to the next card's top
-                    left: '50%',
-                    transform: 'translateX(-50%)'
-                  }}
-                />
-              )}
-            </div>
-
-            {/* Right card container */}
-            <div className="flex-1 pr-4 pb-2 min-w-0">
-              <div className="transition-all duration-300 relative flex flex-col gap-3.5 w-full">
-                
-                {/* Row 1: Score & Sport Tag */}
-                <div className="flex items-center justify-between w-full min-h-[24px]">
-                  {card.scoreChip ? (
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-[#10b981] bg-[#10b981]/12 border border-[#10b981]/20"
-                      >
-                        {card.scoreChip.score}
-                      </div>
-                      <span 
-                        className="text-[11px] font-extrabold text-[#10b981]"
-                      >
-                        {card.scoreChip.status}
-                      </span>
-                    </div>
-                  ) : (
-                    <div />
-                  )}
-                  
-                  <div 
-                    className="px-2.5 py-1 rounded-full text-[10.5px] font-bold flex items-center gap-1.5"
-                    style={{
-                      background: 'rgba(15, 23, 42, 0.7)',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      color: 'rgba(255, 255, 255, 0.7)'
-                    }}
-                  >
-                    <span>{card.sportEmoji}</span>
-                    <span>{card.sportLabel}</span>
-                  </div>
-                </div>
-
-                {/* Row 2: Author info */}
-                <div className="flex items-center gap-2.5 w-full">
-                  {card.authorPhoto ? (
-                    <img 
-                      src={typeof card.authorPhoto === 'object' ? card.authorPhoto.src : card.authorPhoto} 
-                      alt={card.author} 
-                      className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0" 
-                    />
-                  ) : (
-                    <div 
-                      className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[14px] shrink-0"
-                      style={{
-                        background: `linear-gradient(135deg, ${themeColor}, #0f172a)`
-                      }}
-                    >
-                      {card.author[0]}
-                    </div>
-                  )}
-                  
-                  <div className="min-w-0 flex flex-col">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-extrabold text-[13.5px] text-white leading-tight truncate">{card.author}</span>
-                      {card.handle && (
-                        <span className="text-[11px] text-white/40 truncate">{card.handle}</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span 
-                        className="text-[8.5px] font-black tracking-wider px-1.5 py-0.5 rounded uppercase"
-                        style={{ background: `${themeColor}1f`, color: themeColor }}
-                      >
-                        {themeLabel}
-                      </span>
-                      <span className="text-[9.5px] text-white/30 font-medium">via {card.source}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Row 3: Card Content */}
-                <p className="text-[14px] font-medium text-white/90 leading-relaxed break-words whitespace-pre-line">
-                  {card.content}
-                </p>
-
-                {/* Inline Image or Video/Audio media */}
-                {card.image && (
-                  <div className="relative rounded-xl overflow-hidden mt-1 max-h-[220px]">
-                    <img 
-                      src={typeof card.image === 'object' ? card.image.src : card.image} 
-                      alt="Moment media" 
-                      className="w-full h-full object-fill" 
-                    />
-                    
-                    {card.mediaType === 'video' && (
-                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center cursor-pointer">
-                        <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white transition-transform hover:scale-105">
-                          <Play size={18} fill="currentColor" className="ml-0.5" />
-                        </div>
-                      </div>
-                    )}
-                    
-                    {card.mediaType === 'audio' && (
-                      <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 p-2 flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white cursor-pointer">
-                          <Volume2 size={13} />
-                        </div>
-                        <div className="flex-1 flex items-center gap-[2px] h-3 px-1">
-                          {[30, 80, 45, 90, 60, 35, 75, 40, 65, 80, 50, 70, 45, 85].map((h, i) => (
-                            <div 
-                              key={i} 
-                              className="flex-1 bg-white/40 rounded-full" 
-                              style={{ height: `${h}%` }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Row 4: Tags (if present) */}
-                {card.tags && card.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-0.5">
-                    {card.tags.map(t => (
-                      <span key={t} className="text-[11px] font-bold text-pink-500 hover:underline cursor-pointer">
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {/* Row 5: FOMO Banner */}
-                {card.fomoMsg && (
-                  <div 
-                    className="flex items-center justify-between gap-3 rounded-2xl p-3 bg-[#0d0a14] border border-pink-500/15"
-                    style={{
-                      borderColor: `${themeColor}2a`,
-                      background: `linear-gradient(135deg, rgba(7, 11, 20, 0.98), rgba(15, 10, 25, 0.6))`
-                    }}
-                  >
-                    <p className="text-[12px] font-semibold text-white/85 leading-snug">
-                      🔥 {card.fomoMsg}
-                    </p>
-                    <button
-                      onClick={() => handleCtaClick(card.ctaType)}
-                      className="shrink-0 px-4 py-2 rounded-xl text-[12px] font-extrabold text-white transition-all active:scale-95 cursor-pointer"
-                      style={{
-                        background: card.ctaType === 'room'
-                          ? 'linear-gradient(135deg, #E91E8C, #FF6B35)'
-                          : card.ctaType === 'watchalong'
-                          ? 'linear-gradient(135deg, #7c3aed, #E91E8C)'
-                          : 'linear-gradient(135deg, #06b6d4, #3b82f6)'
-                      }}
-                    >
-                      {card.ctaType === 'room' && 'Join Room →'}
-                      {card.ctaType === 'watchalong' && 'Watch Along →'}
-                      {card.ctaType === 'drop' && 'Claim Drop →'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Row 6: Action buttons (Like, Share, Flip) */}
-                <div className="flex items-center justify-between pt-1">
-                  <div className="flex items-center gap-4">
-                    <button 
-                      onClick={() => handleLike(card.id)}
-                      className="flex items-center gap-2 text-white/40 hover:text-rose-500 transition-colors cursor-pointer"
-                    >
-                      <Heart 
-                        size={16} 
-                        fill={isLiked ? 'rgb(244, 63, 94)' : 'none'} 
-                        className={`transition-all duration-200 ${isLiked ? 'text-rose-500 scale-110' : ''}`} 
-                      />
-                      <span className="text-[12.5px] font-extrabold leading-none">{card.likes + (isLiked ? 1 : 0)}</span>
-                    </button>
-                    
-                    <button 
-                      onClick={() => handleShare(card)}
-                      className="flex items-center gap-2 text-white/40 hover:text-white transition-colors cursor-pointer"
-                    >
-                      <Share2 size={15} />
-                      <span className="text-[12.5px] font-extrabold leading-none">Share</span>
-                    </button>
-                  </div>
-
-                  <button 
-                    onClick={() => setAskOpen(isExpanded ? null : card.id)}
-                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-bold border transition-all duration-300 cursor-pointer"
-                    style={{
-                      background: isExpanded 
-                        ? `${themeColor}22` 
-                        : 'rgba(255, 255, 255, 0.03)',
-                      borderColor: isExpanded ? themeColor : 'rgba(255, 255, 255, 0.1)',
-                      color: isExpanded ? themeColor : '#fff',
-                      boxShadow: isExpanded ? `0 0 10px ${themeColor}33` : 'none'
-                    }}
-                  >
-                    <DolphinIcon />
-                    <span>{isExpanded ? 'Flipped' : 'Ask Flip'}</span>
-                  </button>
-                </div>
-
-                {/* Expanded AI response */}
-                <AnimatePresence>
-                  {isExpanded && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-2 pt-3 border-t border-white/[0.08] flex flex-col gap-3">
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-5 h-5 rounded-full bg-violet-600 flex items-center justify-center text-[10px]">🤖</div>
-                          <span className="text-[11px] font-black text-violet-300 uppercase tracking-widest">Flip AI Insight</span>
-                        </div>
-                        
-                        <p className="text-[13px] text-white/90 leading-relaxed italic bg-violet-950/20 border border-violet-900/30 rounded-xl p-3">
-                          {card.flipResponse}
-                        </p>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </div>
-          </div>
+          <FlipCardItem
+            key={card.id}
+            card={card}
+            index={index}
+            totalCards={finalCards.length}
+            isLiked={isLiked}
+            likedCards={likedCards}
+            setLikedCards={setLikedCards}
+            askOpen={askOpen}
+            setAskOpen={setAskOpen}
+            typeColorMap={typeColorMap}
+            typeLabelMap={typeLabelMap}
+            router={router}
+            handleLike={handleLike}
+            handleShare={handleShare}
+            handleCtaClick={handleCtaClick}
+          />
         );
       })}
     </div>
@@ -780,15 +917,55 @@ export function FlipTimeline({
 
 export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: string }) {
   const [showFull, setShowFull] = useState(false);
+  const [cards, setCards] = useState<FlipCard[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchCards = async () => {
+    try {
+      const fetched = await fliplineService.fetchFlipCards();
+      setCards(fetched);
+    } catch (e) {
+      console.error("Failed to fetch FlipLine cards:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCards();
+
+    const handleNewPost = () => {
+      fetchCards();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("flipline-post-created", handleNewPost);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("flipline-post-created", handleNewPost);
+      }
+    };
+  }, []);
 
   if (showFull) {
-    return <FlipLineFullScreen onBack={() => setShowFull(false)} selectedSport={selectedSport} />;
+    return (
+      <FlipLineFullScreen
+        onBack={() => setShowFull(false)}
+        selectedSport={selectedSport}
+        cards={cards}
+        loading={loading}
+      />
+    );
   }
 
   return (
     <FlipLineSection
       selectedSport={selectedSport}
       onViewFull={() => setShowFull(true)}
+      cards={cards}
+      loading={loading}
     />
   );
 }
