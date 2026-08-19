@@ -84,12 +84,12 @@ export default function FlipCard() {
           className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-xl"
           style={{ background: "linear-gradient(135deg,#1d4ed8,#3b82f6)" }}
         >
-          🏏
+          <img src="/images/dollyavatar.png" alt="askflip" className="w-10 h-10 object-cover"/>
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <p className="text-[15px] font-extrabold text-white leading-none">
-              FlipCard
+              FlipFlex
             </p>
             <Zap size={13} className="text-amber-400" fill="currentColor" />
             <span

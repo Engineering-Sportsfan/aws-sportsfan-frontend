@@ -193,8 +193,10 @@ export default function BottomNav() {
     },
         { 
       name: "Ask Flip", 
-      logoInactive: <Sparkles className="w-5 h-5 text-gray-400" />,
-      logoActive: <Sparkles className="w-5 h-5 text-pink-500 drop-shadow-[0_0_6px_rgba(244,114,182,0.7)]" />,
+      // logoInactive: <Sparkles className="w-5 h-5 text-gray-400" />,
+      logoInactive: "/images/dollyavatar.png",
+      // logoActive: <Sparkles className="w-5 h-5 text-pink-500 drop-shadow-[0_0_6px_rgba(244,114,182,0.7)]" />,
+      logoActive: "/images/dollyavatar.png",
       url: "/MainModules/AskAI" 
     },
     { 

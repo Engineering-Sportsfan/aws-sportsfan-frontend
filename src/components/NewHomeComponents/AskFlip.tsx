@@ -137,23 +137,34 @@ const QUICK_PILLS = [
 
 interface AskFlipProps {
   onAsk: (question: string) => void;
+   matchContext?: string;
 }
 
-export default function AskFlip({ onAsk }: AskFlipProps) {
+export default function AskFlip({ onAsk, matchContext }: AskFlipProps) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = () => {
+  // const handleSubmit = () => {
+  //   const q = query.trim();
+  //   if (!q) return;
+  //   onAsk(q);
+  //   setQuery("");
+  // };
+   const handleSubmit = () => {
     const q = query.trim();
     if (!q) return;
-    onAsk(q);
+    onAsk(matchContext ? `${q} — regarding ${matchContext}` : q);
     setQuery("");
   };
 
-  const handlePill = (pill: string) => {
-    onAsk(pill);
+  // const handlePill = (pill: string) => {
+  //   onAsk(pill);
+  // };
+   const handlePill = (pill: string) => {
+    onAsk(matchContext ? `${pill} — regarding ${matchContext}` : pill);
   };
+
 
   return (
     <div
@@ -169,7 +180,7 @@ export default function AskFlip({ onAsk }: AskFlipProps) {
           className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-xl"
           style={{ background: "linear-gradient(135deg,#7c3aed,#E91E8C)" }}
         >
-          🤖
+          <img src="/images/dollyavatar.png" alt="askflip" className="w-10 h-10 object-fit"/>
         </div>
         <div>
           <p className="text-[15px] font-extrabold text-white leading-none">

@@ -107,7 +107,7 @@ export default function PreJoinLobby({ room, onJoin, onBack }: PreJoinLobbyProps
                 {/* Room Info */}
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full border-4 border-[#333] overflow-hidden mb-3 sm:mb-4 relative flex items-center justify-center bg-black shadow-[0_0_20px_rgba(219,39,119,0.2)]">
                     {room?.displayPicture ? (
-                        <Image src={room.displayPicture} alt={room.name || "Host"} fill className="object-cover" />
+                        <Image src={room.displayPicture} alt={room.name || "Host"} fill className="object-fit" />
                     ) : (
                         <span className="text-3xl sm:text-4xl font-bold text-gray-500">{room?.name?.charAt(0) || "R"}</span>
                     )}

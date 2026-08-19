@@ -378,6 +378,7 @@ import PlaybookDrops from "@/src/components/NewHomeComponents/PlaybookDrops";
 import AthleticsSpotlight from "@/src/components/NewHomeComponents/AthleticsSpotlight";
 import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
 import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
+import FlipLine from "@/src/components/NewHomeComponents/FlipLine";
 
 function HomePageInner() {
   const router = useRouter();
@@ -408,6 +409,7 @@ function HomePageInner() {
     dollyActiveSessionIdRef.current = dollyActiveSessionId;
   }, [dollyActiveSessionId]);
 
+  const FEATURED_MATCH_CONTEXT = "India vs Sri Lanka Test Series";
 
   // TODO: replace with real API data (e.g. from your existing
   // presence-preview / rooms endpoints, same as RoomsHome.tsx)
@@ -697,10 +699,11 @@ function HomePageInner() {
         /> */}
 
         <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
+        <FlipLine selectedSport={selectedSport} />
         <AthleticsSpotlight sport={selectedSport} />
         <RoarRooms />
         <WatchAlongSessions />
-        <AskFlip onAsk={handleAskFromFlip} />
+        <AskFlip onAsk={handleAskFromFlip} matchContext={FEATURED_MATCH_CONTEXT} />
         <FlipCard />
 
         <IndiaHub sport={selectedSport} />
