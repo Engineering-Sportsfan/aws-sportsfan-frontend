@@ -409,6 +409,7 @@ function HomePageInner() {
     dollyActiveSessionIdRef.current = dollyActiveSessionId;
   }, [dollyActiveSessionId]);
 
+  const FEATURED_MATCH_CONTEXT = "India vs Sri Lanka Test Series";
 
   // TODO: replace with real API data (e.g. from your existing
   // presence-preview / rooms endpoints, same as RoomsHome.tsx)
@@ -702,7 +703,7 @@ function HomePageInner() {
         <AthleticsSpotlight sport={selectedSport} />
         <RoarRooms />
         <WatchAlongSessions />
-        <AskFlip onAsk={handleAskFromFlip} />
+        <AskFlip onAsk={handleAskFromFlip} matchContext={FEATURED_MATCH_CONTEXT} />
         <FlipCard />
 
         <IndiaHub sport={selectedSport} />
