@@ -1,488 +1,414 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
-import { X, Image, BarChart2, Plus, Trash2 } from "lucide-react";
-import type { CreatePostPayload, MediaItem } from "@/types/PostPolls";
-import { useAuth } from "@/context/AuthContext";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { fliplineService } from "@/services/flipline.service";
 
-// ─── helpers 
-const FALLBACK_AVATAR = "https://api.dicebear.com/7.x/avataaars/svg?seed=AthleteFan";
+export type FlipCard = {
+  id: number;
+  type: 'analyst' | 'fan' | 'official';
+  sport: 'cricket' | 'football' | 'athletics';
+  sportEmoji: string;
+  sportLabel: string;
+  day: string;
+  time: string;
+  timeMs: number;
+  author: string;
+  handle?: string;
+  source: string;
+  authorPhoto?: any;
+  content: string;
+  emoji?: string;
+  mediaType?: 'audio' | 'video';
+  image?: any;
+  likes: number;
+  isKey: boolean;
+  tags?: string[];
+  scoreChip?: {
+    score: string;
+    status: string;
+    statusType: 'live' | 'final' | 'break' | 'upcoming' | 'delay' | 'info';
+  };
+  fomoMsg: string;
+  fomoCount: number;
+  ctaType: 'room' | 'watchalong' | 'drop';
+  flipResponse: string;
+  isUserPost?: boolean;
+  hasAttachedImage?: boolean;
+  hasAttachedVideo?: boolean;
+};
 
-function getVoterId(): string {
-  if (typeof window === "undefined") return "guest";
-  let id = sessionStorage.getItem("voterId");
-  if (!id) {
-    id = `user_${Math.random().toString(36).slice(2, 10)}`;
-    sessionStorage.setItem("voterId", id);
+const POST_EMOJIS = [
+  '🔥', '❤️', '😍', '👏', '🎉', '😮', '100', '🏏', 'IN',
+  '⚡', '🙌', '😪', '💪', '👻', '😭', '👑', '🎯', '💥',
+  '🐐', '⚽', '🏃', '🏆', '🎙️', '📊', '🌧️', '💎',
+  '🥞', '😱', '👌'
+];
+
+function getAIPost(prompt: string, sport: FlipCard['sport']): string {
+  const clean = prompt.trim();
+  if (sport === 'cricket') {
+    return `🔥 Flip Take: ${clean} | What a session! The pace, line and length are absolutely top-tier. Expecting more wickets soon! #INDvsSL 🏏`;
+  } else if (sport === 'football') {
+    return `⚽ Flip Pitchside: ${clean} | Solid defense and fast transitions. Manager's tactical plan is working perfectly! #Football ⚡`;
+  } else {
+    return `🏃 Flip Track: ${clean} | Incredible performance and pacing! The momentum is completely with the lead pack. #Athletics 🏆`;
   }
-  return id;
 }
 
-function formatTimeLeft(endsAt: number): string {
-  const diff = endsAt - Date.now();
-  if (diff <= 0) return "Ended";
-  const h = Math.floor(diff / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  return `${h}h ${m}m left`;
+function spClr(sport: FlipCard['sport']): string {
+  if (sport === 'cricket') return 'rgb(34,197,94)'; // green
+  if (sport === 'football') return 'rgb(96,165,250)'; // blue
+  return 'rgb(168,85,247)'; // purple
 }
 
-// ─── types 
+function spBg(sport: FlipCard['sport']): string {
+  if (sport === 'cricket') return 'rgba(34,197,94,0.1)';
+  if (sport === 'football') return 'rgba(96,165,250,0.1)';
+  return 'rgba(168,85,247,0.1)';
+}
+
+const formatFileName = (name: string) => {
+  if (name.length <= 15) return name;
+  return name.slice(0, 12) + "...";
+};
+
+export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: {
+  onClose: () => void;
+  onPost: (card: FlipCard, imageFile: File | null, videoFile: File | null) => void;
+  sport: FlipCard['sport'];
+}) {
+  const [tab, setTab] = useState<'write' | 'askflip'>('write');
+  const [text, setText] = useState('');
+  const [sport, setSport] = useState<FlipCard['sport']>(initialSport);
+  const [showEmojis, setShowEmojis] = useState(false);
+  const [askPrompt, setAskPrompt] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState('');
+
+  // Local storage upload states
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const vidInputRef = useRef<HTMLInputElement>(null);
+
+  const MAX = 280;
+  const activeText = tab === 'askflip' ? generated : text;
+  const remaining = MAX - activeText.length;
+  const canPost = activeText.trim().length > 0;
+
+  async function handleGenerate() {
+    if (!askPrompt.trim()) return;
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/ask-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `Write a short, engaging fan post under 150 characters based on this description: "${askPrompt}". Use appropriate sports emojis.`
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to generate AI post");
+      const data = await res.json();
+      setGenerated(data.answer || "");
+    } catch (e) {
+      console.error("AI Generation failed, falling back to local model:", e);
+      setGenerated(getAIPost(askPrompt, sport));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+    }
+    e.target.value = "";
+  }
+
+  function handleVideoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) {
+      setVideoFile(file);
+    }
+    e.target.value = "";
+  }
+
+  function handlePost() {
+    const now = new Date();
+    const h = now.getHours(), mn = now.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    const timeStr = `${h12}:${mn.toString().padStart(2, '0')} ${ampm}`;
+    const sportMeta: Record<FlipCard['sport'], { emoji: string; label: string }> = {
+      cricket: { emoji: '🏏', label: 'IND vs SL' },
+      football: { emoji: '⚽', label: 'IND vs JPN' },
+      athletics: { emoji: '🏃', label: 'Asian Athletics' },
+    };
+    onPost({
+      id: Date.now(),
+      type: 'fan',
+      sport,
+      sportEmoji: sportMeta[sport].emoji,
+      sportLabel: sportMeta[sport].label,
+      day: 'Just Now',
+      time: timeStr,
+      timeMs: 9000 + Date.now() % 1000,
+      author: 'You',
+      handle: '@you',
+      source: tab === 'askflip' ? 'Ask Flip' : 'ROAR Room',
+      content: activeText.trim(),
+      likes: 0,
+      isKey: false,
+      tags: [],
+      fomoMsg: '',
+      fomoCount: 0,
+      ctaType: 'room',
+      flipResponse: '',
+      isUserPost: true,
+      hasAttachedImage: !!imageFile,
+      hasAttachedVideo: !!videoFile,
+    }, imageFile, videoFile);
+    onClose();
+  }
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) return null;
+
+  const portalTarget = document.getElementById('sf360-app-root') ?? document.body;
+  return createPortal(
+    <div style={{ position: 'absolute', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(4px)' }} />
+
+      {/* Sheet */}
+      <div style={{ position: 'relative', zIndex: 1, borderRadius: '20px 20px 0 0', background: 'rgb(12,14,24)', border: '1px solid rgba(255,255,255,0.1)', borderBottom: 'none', maxHeight: '92dvh', display: 'flex', flexDirection: 'column' }}>
+
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 0' }}>
+          <div style={{ width: 38, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)' }} />
+        </div>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 10px' }}>
+          <span style={{ fontSize: 16, fontWeight: 900, color: 'white', letterSpacing: -0.4 }}>New FlipLine Moment</span>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
+        </div>
+
+        {/* Sport selector */}
+        <div style={{ display: 'flex', gap: 6, padding: '0 16px 12px' }}>
+          {(['cricket', 'football', 'athletics'] as const).map(s => {
+            const map = { cricket: { e: '🏏', l: 'Cricket' }, football: { e: '⚽', l: 'Football' }, athletics: { e: '🏃', l: 'Athletics' } };
+            const sc = spClr(s), sbk = spBg(s);
+            return (
+              <button key={s} onClick={() => setSport(s)}
+                style={{ flex: 1, padding: '6px 4px', borderRadius: 10, border: `1.5px solid ${sport === s ? sc : 'rgba(255,255,255,0.1)'}`, background: sport === s ? sbk : 'rgba(255,255,255,0.04)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                <span style={{ fontSize: 16 }}>{map[s].e}</span>
+                <span style={{ fontSize: 8.5, fontWeight: 800, color: sport === s ? sc : 'rgba(255,255,255,0.38)' }}>{map[s].l}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Tab switcher */}
+        <div style={{ display: 'flex', margin: '0 16px 12px', borderRadius: 12, padding: 3, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          {([['write', '✍️ Write'], ['askflip', '🐬 Ask Flip']] as const).map(([t, l]) => (
+            <button key={t} onClick={() => setTab(t)}
+              style={{
+                flex: 1, padding: '7px 0', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 800,
+                background: tab === t ? (t === 'askflip' ? 'linear-gradient(90deg,rgb(168,85,247),rgb(233,30,140))' : 'rgba(255,255,255,0.1)') : 'transparent',
+                color: tab === t ? 'white' : 'rgba(255,255,255,0.4)'
+              }}>
+              {l}
+            </button>
+          ))}
+        </div>
+
+        {/* Scrollable body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px', minHeight: 0 }}>
+          {tab === 'write' ? (
+            <div>
+              {/* Textarea */}
+              <div style={{ position: 'relative', background: 'rgba(255,255,255,0.04)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.1)', padding: 12 }}>
+                <textarea
+                  value={text}
+                  onChange={e => setText(e.target.value.slice(0, MAX))}
+                  placeholder="Share your take on this moment... 🔥"
+                  style={{ width: '100%', minHeight: 100, background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 14, color: 'rgba(255,255,255,0.9)', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box' }}
+                  autoFocus
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: remaining < 40 ? 'rgb(255,80,80)' : 'rgba(255,255,255,0.3)' }}>{remaining}</span>
+                </div>
+              </div>
+
+              {/* Attached media indicators */}
+              {(imageFile || videoFile) && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                  {imageFile && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 9, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }}>
+                      <span style={{ fontSize: 13 }}>📷</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'rgb(34,197,94)' }}>{formatFileName(imageFile.name)}</span>
+                      <button onClick={() => setImageFile(null)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>✕</button>
+                    </div>
+                  )}
+                  {videoFile && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 9, background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.3)' }}>
+                      <span style={{ fontSize: 13 }}>🎬</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'rgb(96,165,250)' }}>{formatFileName(videoFile.name)}</span>
+                      <button onClick={() => setVideoFile(null)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>✕</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Emoji picker */}
+              {showEmojis && (
+                <div style={{ marginTop: 10, padding: '10px 8px', borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {POST_EMOJIS.map(em => (
+                    <button key={em} onClick={() => { if (text.length < MAX) setText(t => t + em); }}
+                      style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: '2px 4px', borderRadius: 6, lineHeight: 1 }}>
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Ask Flip tab */
+            <div>
+                <div style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                    <span style={{ fontSize: 18 }}>🐬</span>
+                    <div>
+                      <p style={{ fontSize: 11, fontWeight: 800, color: 'rgb(192,132,252)', margin: 0 }}>Ask Flip to write your post</p>
+                      <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.38)', margin: 0, marginTop: 1 }}>Describe your thoughts — Flip drafts the perfect FlipLine moment</p>
+                    </div>
+                  </div>
+                  <textarea
+                    value={askPrompt}
+                    onChange={e => setAskPrompt(e.target.value)}
+                    placeholder="e.g. Bumrah is bowling unreal today, that wicket was insane..."
+                    style={{ width: '100%', minHeight: 72, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(168,85,247,0.2)', borderRadius: 10, padding: '8px 10px', fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
+                  />
+                  <button onClick={handleGenerate} disabled={!askPrompt.trim() || generating}
+                    style={{ marginTop: 10, width: '100%', padding: '9px 0', borderRadius: 10, background: generating ? 'rgba(168,85,247,0.3)' : 'linear-gradient(90deg,rgb(168,85,247),rgb(233,30,140))', border: 'none', cursor: askPrompt.trim() && !generating ? 'pointer' : 'not-allowed', fontSize: 11.5, fontWeight: 900, color: 'white' }}>
+                    {generating ? '✨ Generating...' : '✨ Generate with Flip'}
+
+                  </button>
+                </div>
+
+                {generated && (
+                  <div style={{ padding: 12, borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <p style={{ fontSize: 9, fontWeight: 800, color: 'rgb(192,132,252)', letterSpacing: 0.5, marginBottom: 8 }}>✨ FLIP DRAFT — Edit before posting</p>
+                    <textarea
+                      value={generated}
+                      onChange={e => setGenerated(e.target.value.slice(0, MAX))}
+                      style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, color: 'rgba(255,255,255,0.9)', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box', minHeight: 80 }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)' }}>{MAX - generated.length}</span>
+                    </div>
+                  </div>
+                )}
+            </div>
+          )}
+          <div style={{ height: 12 }} />
+        </div>
+
+        {/* Action bar */}
+        <div style={{ flexShrink: 0, padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgb(12,14,24)' }}>
+          {tab === 'write' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <button onClick={() => setShowEmojis(e => !e)}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: showEmojis ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.07)', border: `1px solid ${showEmojis ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: 'pointer', fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                😊
+              </button>
+
+              {/* Hidden file input for Photo */}
+              <input 
+                ref={imgInputRef}
+                type="file" 
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handleImageChange}
+              />
+              <button onClick={() => imgInputRef.current?.click()}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: imageFile ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.07)', border: `1px solid ${imageFile ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                📷
+              </button>
+
+              {/* Hidden file input for Video */}
+              <input
+                ref={vidInputRef}
+                type="file"
+                accept="video/*"
+                style={{ display: "none" }}
+                onChange={handleVideoChange}
+              />
+              <button onClick={() => vidInputRef.current?.click()}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: videoFile ? 'rgba(96,165,250,0.12)' : 'rgba(255,255,255,0.07)', border: `1px solid ${videoFile ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                🎬
+              </button>
+
+              <div style={{ flex: 1 }} />
+              <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, position: 'relative' }}>
+                <svg viewBox="0 0 36 36" style={{ width: 28, height: 28, transform: 'rotate(-90deg)' }}>
+                  <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+                  <circle cx="18" cy="18" r="15" fill="none"
+                    stroke={remaining < 40 ? 'rgb(255,80,80)' : remaining < 100 ? 'rgb(251,191,36)' : 'rgb(168,85,247)'}
+                    strokeWidth="3" strokeDasharray={`${(1 - remaining / MAX) * 94.2} 94.2`} strokeLinecap="round" />
+                </svg>
+              </div>
+            </div>
+          )}
+          <button onClick={handlePost} disabled={!canPost}
+            style={{ width: '100%', padding: '13px 0', borderRadius: 14, background: canPost ? 'linear-gradient(90deg,rgb(233,30,140),rgb(255,107,53))' : 'rgba(255,255,255,0.08)', border: 'none', cursor: canPost ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 900, color: canPost ? 'white' : 'rgba(255,255,255,0.28)', letterSpacing: 0.2 }}>
+            {canPost ? 'Post to FlipLine ⚡' : 'Write something first...'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    portalTarget
+  );
+}
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (
-    formData: FormData,  
+    formData: FormData,
     userId: string,
     userName: string,
     userEmail?: string
   ) => Promise<void>;
 }
 
-// ─── component 
-export default function CreatePostDialog({ isOpen, onClose, onSubmit }: Props) {
-  const { user, getUserDisplayName, getUserName } = useAuth();
-  const [voterId] = useState<string>(getVoterId);
-
-  const [content, setContent] = useState("");
-  const [media, setMedia] = useState<MediaItem[]>([]);
-  const [showPoll, setShowPoll] = useState(false);
-  const [pollOptions, setPollOptions] = useState(["", ""]);
-  const [submitting, setSubmitting] = useState(false);
-  const [activeTab, setActiveTab] = useState<"none" | "media" | "poll">("none");
-  const [dragOver, setDragOver] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const pollEndsAt = Date.now() + 24 * 60 * 60 * 1000;
-
-  // Derived author info from auth context
-  const displayName = user ? getUserDisplayName() : "Fan";
-  const handle = user ? `@${getUserName()}` : "@fan";
-  const avatar = user
-    ? `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(displayName)}`
-    : FALLBACK_AVATAR;
-
-  // auto-grow textarea
-  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setContent(e.target.value);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-    }
-  };
-
-  // reset on close
-  useEffect(() => {
-    if (!isOpen) {
-      setContent("");
-      setMedia([]);
-      setShowPoll(false);
-      setPollOptions(["", ""]);
-      setActiveTab("none");
-    }
-  }, [isOpen]);
-
-  // lock body scroll when open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => { document.body.style.overflow = ""; };
-  }, [isOpen]);
-
-  // ── media ──────────────────────────────────────────────────────────────────
-  const processFiles = useCallback((files: FileList | null) => {
-    if (!files) return;
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const url = e.target?.result as string;
-        setMedia((prev) => [
-          ...prev,
-          { url, type: file.type.startsWith("video") ? "video" : "image", name: file.name },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    });
-  }, []);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    processFiles(e.target.files);
-    e.target.value = "";
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    processFiles(e.dataTransfer.files);
-  };
-
-  const removeMedia = (idx: number) => setMedia((prev) => prev.filter((_, i) => i !== idx));
-
-  // ── poll ───────────────────────────────────────────────────────────────────
-  const togglePoll = () => {
-    if (activeTab === "poll") { setShowPoll(false); setActiveTab("none"); }
-    else { setShowPoll(true); setActiveTab("poll"); setMedia([]); }
-  };
-
-  const toggleMedia = () => {
-    if (activeTab === "media") { setActiveTab("none"); }
-    else { setActiveTab("media"); setShowPoll(false); fileInputRef.current?.click(); }
-  };
-
-  const updateOption = (idx: number, val: string) =>
-    setPollOptions((prev) => prev.map((o, i) => (i === idx ? val : o)));
-
-  const addOption = () => { if (pollOptions.length < 4) setPollOptions((p) => [...p, ""]); };
-
-  const removeOption = (idx: number) => {
-    if (pollOptions.length <= 2) return;
-    setPollOptions((p) => p.filter((_, i) => i !== idx));
-  };
-
-  // ── submit 
-  const handleSubmit = async () => {
-    if (!content.trim() && !media.length && !showPoll) return;
-    setSubmitting(true);
-    try {
-      const userId = user?.userId || user?.email || voterId || "guest";
-      const userName = displayName;
-      const userEmail = user?.email;
-      const formData = new FormData();
-      formData.append("userName", displayName);
-      formData.append("userHandle", handle);
-      formData.append("userAvatar", avatar);
-      formData.append("content", content.trim());
-      formData.append("userId", userId);
-      if (userEmail) formData.append("userEmail", userEmail);
-    
-    // Add poll if exists
-    if (showPoll && pollOptions.filter(o => o.trim()).length >= 2) {
-      formData.append("poll", JSON.stringify({ 
-        options: pollOptions.filter(o => o.trim()) 
-      }));
-    }
-    
-    // Convert base64 media to File objects and append to FormData
-    for (let i = 0; i < media.length; i++) {
-      const mediaItem = media[i];
-      // Convert base64 URL to Blob/File
-      const response = await fetch(mediaItem.url);
-      const blob = await response.blob();
-      const file = new File([blob], mediaItem.name || `media-${i}.${blob.type.split('/')[1] || 'jpg'}`, { 
-        type: blob.type 
-      });
-      formData.append("media", file);
-    }
-
-    // Call onSubmit with FormData instead of payload
-    await onSubmit(formData, userId, userName, userEmail);
-    onClose();
-  } catch (error) {
-    console.error("Submit error:", error);
-  } finally {
-    setSubmitting(false);
-  }
-};
-
-  const canPost =
-    (content.trim().length > 0 ||
-      media.length > 0 ||
-      (showPoll && pollOptions.filter((o) => o.trim()).length >= 2)) &&
-    !submitting;
-
+export default function CreatePostDialog({ isOpen, onClose }: Props) {
   if (!isOpen) return null;
 
-  // ── shared inner content 
-  const innerContent = (
-    <>
-      {/* drag handle (mobile only) */}
-      <div className="flex justify-center pt-3 pb-1 shrink-0 md:hidden">
-        <div className="w-10 h-1 rounded-full bg-white/20" />
-      </div>
-
-      {/* header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 shrink-0">
-        <button
-          onClick={onClose}
-          className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors"
-        >
-          <X className="w-5 h-5 text-white/70" />
-        </button>
-        <h2 className="text-white font-bold text-base tracking-wide">Create Post</h2>
-        <button
-          onClick={handleSubmit}
-          disabled={!canPost}
-          className={`px-5 py-1.5 rounded-full text-sm font-bold transition-all duration-200 ${
-            canPost
-              ? "bg-gradient-to-r from-[#C9115F] to-[#e8185a] text-white hover:opacity-90 active:scale-95"
-              : "bg-white/10 text-white/30 cursor-not-allowed"
-          }`}
-        >
-          {submitting ? "Posting…" : "Post"}
-        </button>
-      </div>
-
-      {/* scrollable body */}
-      <div className="flex-1 overflow-y-auto overscroll-contain">
-        {/* author row */}
-        <div className="flex items-start gap-3 px-4 pt-4">
-          <div className="relative shrink-0">
-            <img
-              src={avatar}
-              alt="avatar"
-              className="w-10 h-10 rounded-full object-cover border-2 border-[#C9115F]/40 bg-zinc-800"
-            />
-            <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#0f0f0f]" />
-          </div>
-          <div>
-            <p className="text-white font-semibold text-sm leading-tight">{displayName}</p>
-            <p className="text-white/40 text-xs">{user ? "FAN ACCOUNT" : "GUEST"}</p>
-          </div>
-        </div>
-
-        {/* textarea */}
-        <div className="px-4 pt-3">
-          <textarea
-            ref={textareaRef}
-            value={content}
-            maxLength={300}
-            onChange={handleContentChange}
-            placeholder="What's on your mind?"
-            rows={3}
-            className="w-full bg-transparent text-white text-base placeholder-white/25 resize-none outline-none leading-relaxed min-h-[80px]"
-            style={{ caretColor: "#C9115F" }}
-          />
-        </div>
-
-       {/* media preview */}
-{media.length > 0 && (
-  <div className="px-4 pb-3 flex flex-wrap gap-2">
-    {media.map((item, idx) => (
-      <div
-        key={idx}
-        className="relative rounded-xl overflow-hidden bg-zinc-800 group shrink-0"
-        style={{ width: "200px", height: "200px" }}
-      >
-        {item.type === "image" ? (
-          <img
-            src={item.url}
-            alt={item.name || `media-${idx}`}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <video 
-            src={item.url} 
-            className="w-full h-full object-cover" 
-            controls={false} 
-          />
-        )}
-        <button
-          onClick={() => removeMedia(idx)}
-          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/80"
-        >
-          <X className="w-3.5 h-3.5 text-white" />
-        </button>
-      </div>
-    ))}
-    {media.length < 4 && (
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        className="rounded-xl border-2 border-dashed border-white/20 flex flex-col items-center justify-center gap-1 hover:border-[#C9115F]/60 transition-colors shrink-0"
-        style={{ width: "200px", height: "200px" }}
-      >
-        <Plus className="w-6 h-6 text-white/40" />
-        <span className="text-white/30 text-xs">Add more</span>
-      </button>
-    )}
-  </div>
-)}
-
-        {/* drop zone */}
-        {activeTab === "media" && media.length === 0 && (
-          <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className={`mx-4 mb-3 rounded-2xl border-2 border-dashed transition-all duration-200 flex flex-col items-center justify-center py-10 cursor-pointer ${
-              dragOver
-                ? "border-[#C9115F] bg-[#C9115F]/10"
-                : "border-white/15 hover:border-white/30"
-            }`}
-          >
-            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-3">
-              <Image className="w-6 h-6 text-white/40" />
-            </div>
-            <p className="text-white/50 text-sm font-medium">Drop photos or videos here</p>
-            <p className="text-white/25 text-xs mt-1">or tap to browse</p>
-          </div>
-        )}
-
-        {/* poll builder */}
-        {showPoll && (
-          <div className="mx-4 mb-3 bg-white/5 rounded-2xl p-4 border border-white/10">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p className="text-white font-semibold text-sm">Create Poll</p>
-                <p className="text-white/40 text-xs mt-0.5">
-                  Ends in {formatTimeLeft(pollEndsAt)}
-                </p>
-              </div>
-              <button
-                onClick={togglePoll}
-                className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors"
-              >
-                <X className="w-3 h-3 text-white/60" />
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              {pollOptions.map((opt, idx) => (
-                <div key={idx} className="flex items-center gap-2 group">
-                  <div className="flex-1 relative">
-                    <input
-                      value={opt}
-                      onChange={(e) => updateOption(idx, e.target.value)}
-                      placeholder={`Option ${idx + 1}`}
-                      maxLength={80}
-                      className="w-full bg-white/8 border border-white/15 rounded-xl px-4 py-2.5 text-white text-sm placeholder-white/25 outline-none focus:border-[#C9115F]/60 focus:bg-white/10 transition-all"
-                    />
-                  </div>
-                  {pollOptions.length > 2 && (
-                    <button
-                      onClick={() => removeOption(idx)}
-                      className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all shrink-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {pollOptions.length < 4 && (
-              <button
-                onClick={addOption}
-                className="mt-3 w-full py-2 rounded-xl border border-dashed border-white/15 text-white/40 text-sm hover:border-[#C9115F]/40 hover:text-[#C9115F] transition-colors flex items-center justify-center gap-1"
-              >
-                <Plus className="w-4 h-4" />
-                Add option
-              </button>
-            )}
-
-            <p className="text-white/25 text-xs mt-3 text-center">
-              Poll automatically closes after 24 hours
-            </p>
-          </div>
-        )}
-
-        <div className="h-4" />
-      </div>
-
-      {/* action bar */}
-      <div className="border-t border-white/10 px-4 py-3 flex items-center gap-2 shrink-0 bg-[#0f0f0f]">
-        <button
-          onClick={toggleMedia}
-          className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 ${
-            activeTab === "media"
-              ? "bg-[#C9115F]/20 text-[#C9115F]"
-              : "bg-white/8 text-white/50 hover:bg-white/12 hover:text-white"
-          }`}
-          title="Add photo or video"
-        >
-          <Image className="w-5 h-5" />
-        </button>
-
-        <button
-          onClick={togglePoll}
-          className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all duration-200 ${
-            activeTab === "poll"
-              ? "bg-[#C9115F]/20 text-[#C9115F]"
-              : "bg-white/8 text-white/50 hover:bg-white/12 hover:text-white"
-          }`}
-          title="Create poll"
-        >
-          <BarChart2 className="w-5 h-5" />
-        </button>
-
-        <div className="flex-1" />
-
-        {content.length > 0 && (
-          <span
-            className={`text-xs font-mono tabular-nums ${
-              content.length > 270
-                ? "text-red-400"
-                : content.length > 220
-                ? "text-yellow-400"
-                : "text-white/30"
-            }`}
-          >
-            {280 - content.length}
-          </span>
-        )}
-      </div>
-
-      {/* hidden file input */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*,video/*"
-        multiple
-        className="hidden"
-        onChange={handleFileChange}
-      />
-    </>
-  );
-
   return (
-    <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40 transition-opacity duration-300"
-        onClick={onClose}
-      />
-
-      {/* ── Mobile: bottom sheet ── */}
-      <div
-        className={`
-          md:hidden
-          fixed bottom-0 left-0 right-0 z-50
-          bg-[#0f0f0f] rounded-t-3xl shadow-2xl
-          transition-transform duration-500 ease-out
-          max-h-[100vh] pb-16 flex flex-col
-          ${isOpen ? "translate-y-0" : "translate-y-full"}
-        `}
-        style={{ boxShadow: "0 -4px 60px rgba(201,17,95,0.15)" }}
-      >
-        {innerContent}
-      </div>
-
-      {/* ── Desktop: centered modal ── */}
-      <div
-        className={`
-          hidden md:flex
-          fixed inset-0 z-50
-          items-center justify-center
-          p-4
-        `}
-        onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      >
-        <div
-          className={`
-            w-full max-w-lg
-            bg-[#0f0f0f] rounded-2xl shadow-2xl
-            flex flex-col max-h-[85vh]
-            transition-all duration-300
-            ${isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"}
-          `}
-          style={{ boxShadow: "0 0 60px rgba(201,17,95,0.2)" }}
-        >
-          {innerContent}
-        </div>
-      </div>
-    </>
+    <CreateFlipPostOverlay
+      onClose={onClose}
+      sport="cricket"
+      onPost={async (card, imageFile, videoFile) => {
+        try {
+          await fliplineService.createFlipCard(card, imageFile, videoFile);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("flipline-post-created"));
+          }
+        } catch (e) {
+          console.error("Failed to post to FlipLine:", e);
+        }
+      }}
+    />
   );
 }
