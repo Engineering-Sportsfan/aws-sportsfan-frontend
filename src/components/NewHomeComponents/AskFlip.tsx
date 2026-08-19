@@ -137,23 +137,34 @@ const QUICK_PILLS = [
 
 interface AskFlipProps {
   onAsk: (question: string) => void;
+   matchContext?: string;
 }
 
-export default function AskFlip({ onAsk }: AskFlipProps) {
+export default function AskFlip({ onAsk, matchContext }: AskFlipProps) {
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = () => {
+  // const handleSubmit = () => {
+  //   const q = query.trim();
+  //   if (!q) return;
+  //   onAsk(q);
+  //   setQuery("");
+  // };
+   const handleSubmit = () => {
     const q = query.trim();
     if (!q) return;
-    onAsk(q);
+    onAsk(matchContext ? `${q} — regarding ${matchContext}` : q);
     setQuery("");
   };
 
-  const handlePill = (pill: string) => {
-    onAsk(pill);
+  // const handlePill = (pill: string) => {
+  //   onAsk(pill);
+  // };
+   const handlePill = (pill: string) => {
+    onAsk(matchContext ? `${pill} — regarding ${matchContext}` : pill);
   };
+
 
   return (
     <div
