@@ -420,30 +420,38 @@ export default function MainModulesLayout({
   style={{ ["--sidebar-width" as any]: isSidebarHovered ? "248px" : "84px" }}
 >
           {!isProfilePath && !isAskAIPath && !isWatchAlongPath && !isFanszonePath && (
-            <div className="relative z-60">
+            // <div className="relative z-60">
 
-              <Header />
-              <div id="live-ticker-container">
-                <LiveTicker />
-              </div>
-              <style>{`
-                @media (max-width: 767px) {
-                  #live-ticker-container {
-                    position: fixed !important;
-                    top: 0 !important;
-                    left: 0 !important;
-                    right: 0 !important;
-                    z-index: 101 !important;
-                  }
-                  #global-header-mobile {
-                    top: 36px !important;
-                  }
-                  .roar-header-spacer {
-                    height: 134px !important;
-                  }
-                }
-              `}</style>
-            </div>
+            //   <Header />
+            //   <div id="live-ticker-container">
+            //     <LiveTicker />
+            //   </div>
+            //   <style>
+            //     {`
+            //     @media (max-width: 767px) {
+            //       #live-ticker-container {
+            //         position: fixed !important;
+            //         top: 0 !important;
+            //         left: 0 !important;
+            //         right: 0 !important;
+            //         z-index: 101 !important;
+            //       }
+            //       #global-header-mobile {
+            //         top: 36px !important;
+            //       }
+            //       .roar-header-spacer {
+            //         height: 134px !important;
+            //       }
+            //     }
+            //   `}
+            //   </style>
+            // </div>
+            <div className="relative z-60 md:static fixed top-0 left-0 right-0 z-[102] md:z-60">
+  <Header />
+  <div id="live-ticker-container">
+    <LiveTicker />
+  </div>
+</div>
           )}
 
           {/* <div 

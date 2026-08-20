@@ -700,15 +700,16 @@ function HomePageInner() {
 
         <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
         <FlipLine selectedSport={selectedSport} />
-        <AthleticsSpotlight sport={selectedSport} />
+        {/* <AthleticsSpotlight sport={selectedSport} /> */}
         <RoarRooms />
+        <PlaybookDrops />
         <WatchAlongSessions />
         <AskFlip onAsk={handleAskFromFlip} matchContext={FEATURED_MATCH_CONTEXT} />
         <FlipCard />
 
         <IndiaHub sport={selectedSport} />
-        <PlaybookDrops />
-        <StoreAndExperiences sport={selectedSport} />
+        
+        {/* <StoreAndExperiences sport={selectedSport} /> */}
         
         <DollyPanel
           isOpen={dollyOpen}
