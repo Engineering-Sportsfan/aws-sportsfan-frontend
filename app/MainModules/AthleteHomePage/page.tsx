@@ -338,13 +338,13 @@ function ClubCard({ club, index, onClick }: ClubCardProps) {
 const SPORT_OPTIONS: { label: string; id: string }[] = [
   { label: "All Sports", id: "" },
   { label: "Athletics",    id: "athletics" },
-  { label: "Badminton",    id: "badminton" },
-  { label: "Boxing",       id: "boxing" },
+  // { label: "Badminton",    id: "badminton" },
+  // { label: "Boxing",       id: "boxing" },
   { label: "Cricket",      id: "cricket" },
-  { label: "Shooting",     id: "shooting" },
-  { label: "Wrestling",    id: "wrestling" },
-  { label: "Swimming",     id: "swimming" },
-  { label: "Weightlifting",id: "weightlifting" },
+  // { label: "Shooting",     id: "shooting" },
+  // { label: "Wrestling",    id: "wrestling" },
+  // { label: "Swimming",     id: "swimming" },
+  // { label: "Weightlifting",id: "weightlifting" },
 ];
 
 type GenderFilter = "All" | "Male" | "Female";
