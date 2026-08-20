@@ -94,6 +94,25 @@ export default function AthleteProfile({ athleteId }: Props) {
     setIsCheered(!isCheered);
   };
 
+  const handleShare = () => {
+    if (typeof window !== "undefined") {
+      const shareUrl = window.location.href;
+      const athleteName = athlete?.coreInfo?.name || "Athlete";
+      const shareTitle = `${athleteName} Profile | Sportsfan360`;
+
+      if (navigator.share) {
+        navigator.share({
+          title: shareTitle,
+          text: `Check out the official athlete profile of ${athleteName} on Sportsfan360!`,
+          url: shareUrl,
+        }).catch((err) => console.log("Share failed:", err));
+      } else {
+        navigator.clipboard.writeText(shareUrl);
+        alert("Profile link copied to clipboard!");
+      }
+    }
+  };
+
   // ── Loading state ────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -450,34 +469,43 @@ export default function AthleteProfile({ athleteId }: Props) {
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={() => setIsFollowing(!isFollowing)}
-                className={`px-4 sm:px-5 py-1.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 ${
-                  isFollowing
+                className={`px-4 sm:px-5 py-1.5 rounded-full font-bold text-xs sm:text-sm shadow-md transition-all active:scale-95 ${isFollowing
                     ? "bg-gray-800 text-gray-300 border border-gray-700"
                     : "bg-gradient-to-r from-[#FF0055] to-[#FF4500] text-white"
-                }`}
+                  }`}
               >
                 {isFollowing ? "Following" : "Follow"}
               </button>
+
               <button
                 onClick={handleCheer}
-                className={`px-3 sm:px-4 py-1.5 rounded-full font-bold text-xs sm:text-sm flex items-center gap-1 border transition-all active:scale-95 ${
-                  isCheered
+                className={`px-3 sm:px-4 py-1.5 rounded-full font-bold text-xs sm:text-sm flex items-center gap-1 border transition-all active:scale-95 ${isCheered
                     ? "bg-red-500/20 border-red-500 text-red-500"
                     : "border-[#FF0055] text-white hover:bg-[#FF0055]/10"
-                }`}
+                  }`}
               >
                 <span>Cheer</span>
                 <Heart className={`w-3 h-3 fill-current ${isCheered ? "text-red-500" : "text-gray-300"}`} />
               </button>
+
+              {/* Extracted Share Button */}
+              <button
+                onClick={handleShare} // Add your custom share function here
+                className="px-3 sm:px-4 py-1.5 rounded-full font-bold text-xs sm:text-sm flex items-center gap-1.5 border border-white/10 bg-white/5 hover:bg-white/10 text-blue-400 hover:text-white transition-all active:scale-95"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span className="text-gray-300 group-hover:text-white">Share</span>
+              </button>
             </div>
+
           </div>
         </div>
       </div>
 
       {/* Main Container */}
-      <div className="px-4 md:px-8 max-w-[1200px] mx-auto mt-6 space-y-6">
+      <div className="w-full max-w-[1200px] mx-auto px-4 sm:px-6 md:px-8 mt-4 md:mt-8 space-y-4 md:space-y-6">
         {/* Interactive Quick Links Menu */}
-        <div className="grid grid-cols-5 gap-2 bg-[#12121e]/80 border border-white/5 rounded-2xl p-4 backdrop-blur-md">
+        {/* <div className="grid grid-cols-5 gap-2 bg-[#12121e]/80 border border-white/5 rounded-2xl p-4 backdrop-blur-md">
           {[
             { label: "Ask Dolly", icon: "🐬", color: "from-[#00F0FF] to-[#0072FF]" },
             { label: "Fan Club", icon: <Users className="w-5 h-5 text-pink-400" />, color: "from-pink-500/20 to-purple-500/20" },
@@ -497,38 +525,14 @@ export default function AthleteProfile({ athleteId }: Props) {
               </span>
             </button>
           ))}
-        </div>
+        </div> */}
 
         {/* Welcome Message Card */}
-        <div className="bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
-            {/* Title / Description */}
-            <div className="lg:col-span-4 space-y-3">
-              <div className="inline-block px-3 py-1 bg-pink-500/10 border border-pink-500/20 rounded-full">
-                <span className="text-[10px] uppercase font-extrabold tracking-wider text-pink-400">Welcome Message!</span>
-              </div>
-              <h2 className="text-xl md:text-2xl font-black leading-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-gray-400">
-                {athlete?.welcomeMessage ?? `A special video message from ${name} to the fans!`}
-              </h2>
-              <button
-                className="flex items-center gap-2 bg-gradient-to-r from-[#FF0055] to-[#FF4500] px-5 py-2.5 rounded-full font-bold text-xs shadow-lg active:scale-95 transition-all w-max"
-                onClick={() => {
-                  if (isYouTube) {
-                    setShowYouTubeEmbed(true);
-                  } else {
-                    welcomeVideoRef.current?.play()
-                      .then(() => setIsWelcomeVideoPlaying(true))
-                      .catch((err) => console.error("[WelcomeVideo] play error:", err));
-                  }
-                }}
-              >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                Watch Now
-              </button>
-            </div>
+        <div className="bg-[#12121e]/80 border border-white/5 rounded-2xl md:rounded-3xl p-4 md:p-6 backdrop-blur-md">
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-5 md:gap-6 items-center">
 
-            {/* Video Player */}
-            <div className="lg:col-span-8 relative rounded-2xl overflow-hidden aspect-video group border border-white/10 shadow-2xl">
+            {/* Video Player - Order 1 on mobile, 2 on desktop */}
+            <div className="w-full lg:col-span-7 xl:col-span-8 order-1 lg:order-2 relative rounded-xl md:rounded-2xl overflow-hidden aspect-video group border border-white/10 shadow-2xl bg-black/40">
               {welcomeVideoUrl ? (
                 isYouTube ? (
                   // ── YouTube embed ──────────────────────────────────────────
@@ -541,254 +545,119 @@ export default function AthleteProfile({ athleteId }: Props) {
                       title={`${name} Welcome Message`}
                     />
                   ) : (
-                    // Show HQ thumbnail + play overlay until user clicks
-                    <>
-                      <img
-                        src={youTubeThumbnail ?? "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=600"}
-                        alt={`${name} Welcome Message`}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      {/* Dark overlay + Play button */}
+                      // Show HQ thumbnail + play overlay until user clicks
                       <div
-                        className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer"
+                        className="relative w-full h-full cursor-pointer"
                         onClick={() => setShowYouTubeEmbed(true)}
                       >
-                        <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xl border-2 border-white/20">
-                          <Play className="w-7 h-7 text-white fill-current translate-x-0.5" />
+                        <img
+                          src={youTubeThumbnail ?? "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=600"}
+                          alt={`${name} Welcome Message`}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        {/* Premium Glassmorphic Play Overlay */}
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center transition-colors group-hover:bg-black/40">
+                          <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center group-hover:scale-110 transition-transform shadow-2xl border border-white/20">
+                            <Play className="w-6 h-6 md:w-7 md:h-7 text-white fill-current translate-x-0.5" />
+                          </div>
                         </div>
                       </div>
-                    </>
                   )
                 ) : (
                   // ── Native video (non-YouTube URL) ─────────────────────────
-                  <>
-                    <video
-                      ref={welcomeVideoRef}
-                      src={welcomeVideoUrl}
-                      className="w-full h-full object-cover"
-                      playsInline
-                      controls
-                      onEnded={() => setIsWelcomeVideoPlaying(false)}
-                      onPause={() => setIsWelcomeVideoPlaying(false)}
-                      onPlay={() => setIsWelcomeVideoPlaying(true)}
-                      onError={(e) => console.error("[WelcomeVideo] load error", e)}
-                    />
-                    {!isWelcomeVideoPlaying && (
-                      <div
-                        className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer"
-                        onClick={() => {
-                          welcomeVideoRef.current?.play().then(() => setIsWelcomeVideoPlaying(true)).catch(() => { });
-                        }}
-                      >
-                        <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 group-hover:scale-110 transition-transform shadow-xl">
-                          <Play className="w-6 h-6 text-white fill-current translate-x-0.5" />
+                    <div className="relative w-full h-full">
+                      <video
+                        ref={welcomeVideoRef}
+                        src={welcomeVideoUrl}
+                        className="w-full h-full object-cover"
+                        playsInline
+                        controls
+                        onEnded={() => setIsWelcomeVideoPlaying(false)}
+                        onPause={() => setIsWelcomeVideoPlaying(false)}
+                        onPlay={() => setIsWelcomeVideoPlaying(true)}
+                        onError={(e) => console.error("[WelcomeVideo] load error", e)}
+                      />
+                      {!isWelcomeVideoPlaying && (
+                        <div
+                          className="absolute inset-0 bg-black/30 flex items-center justify-center cursor-pointer"
+                          onClick={() => {
+                            welcomeVideoRef.current?.play()
+                              .then(() => setIsWelcomeVideoPlaying(true))
+                              .catch(() => { });
+                          }}
+                        >
+                          <div className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20 group-hover:scale-110 transition-transform shadow-xl">
+                            <Play className="w-6 h-6 text-white fill-current translate-x-0.5" />
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </>
+                      )}
+                    </div>
                 )
               ) : (
                 // ── No video URL fallback ──────────────────────────────────
-                <>
-                  <img
-                    src={athlete?.welcomeVideoThumbnail ?? "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=600"}
-                    alt={`${name} Fan Message`}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                      <div className="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-xl">
-                        <Play className="w-6 h-6 text-white fill-current translate-x-0.5" />
+                  <div className="relative w-full h-full">
+                    <img
+                      src={athlete?.welcomeVideoThumbnail ?? "https://images.unsplash.com/photo-1517649763962-0c623066013b?auto=format&fit=crop&q=80&w=600"}
+                      alt={`${name} Fan Message`}
+                      className="w-full h-full object-cover opacity-70"
+                    />
+                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                      <div className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 backdrop-blur-md text-xs font-semibold text-gray-300">
+                        Video coming soon
                       </div>
                     </div>
-                </>
-              )}
-
-              {/* Quote Overlay */}
-              {athlete?.welcomeVideoQuote && (
-                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-xs text-white/90 bg-black/60 backdrop-blur-sm px-4 py-2 rounded-xl border border-white/5">
-                  <span className="font-semibold italic">"{athlete.welcomeVideoQuote}"</span>
-                  <span className="text-[10px] text-gray-400">- {name.split(" ")[0]}</span>
                 </div>
               )}
 
-              {/* Micro stats */}
-              <div className="absolute top-4 right-4 flex items-center gap-3 bg-black/60 backdrop-blur-sm px-3 py-1.5 rounded-full text-[10px] font-semibold border border-white/5">
-                <span className="flex items-center gap-1">❤️ 12.4K</span>
-                <span className="flex items-center gap-1">💬 832</span>
-                <span className="flex items-center gap-1">➡️ 523</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Neeraj's Corner & Athlete Hub Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Athlete's Corner */}
-          <div className="lg:col-span-6 bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">{name.split(" ")[0]}'s Corner</h3>
-                <button className="text-xs text-gray-400 hover:text-white flex items-center gap-0.5 font-semibold">
-                  View All <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+              {/* Modern Top-Right Stats Overlay */}
+              <div className="absolute top-3 right-3 flex items-center gap-2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold border border-white/10 tracking-wide text-gray-200 shadow-lg">
+                <span className="flex items-center gap-0.5">❤️ <span className="text-gray-300 font-medium">12.4K</span></span>
+                <span className="w-px h-2.5 bg-white/20"></span>
+                <span className="flex items-center gap-0.5">💬 <span className="text-gray-300 font-medium">832</span></span>
               </div>
 
-              {/* Tabs */}
-              <div className="flex items-center gap-2 mb-4 bg-black/40 p-1.5 rounded-xl border border-white/5">
-                <button
-                  onClick={() => setActiveTab("drops")}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                    activeTab === "drops"
-                      ? "bg-[#FF0055] text-white shadow-md"
-                      : "text-gray-400 hover:text-white"
-                  }`}
-                >
-                  🎁 Drops
-                </button>
-                <button
-                  onClick={() => setActiveTab("posts")}
-                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
-                    activeTab === "posts"
-                      ? "bg-[#FF0055] text-white shadow-md"
-                      : "text-gray-400 hover:text-white"
-                  }`}
-                >
-                  📝 Posts
-                </button>
-              </div>
-
-              {/* Corner List */}
-              <div className="space-y-3">
-                {[
-                  {
-                    title: "Mental Toughness: Neeraj's Mindset",
-                    type: "Audio",
-                    duration: "15 min",
-                    views: "189K",
-                    time: "5d ago",
-                    icon: <Volume2 className="w-4 h-4 text-pink-400" />,
-                    bg: "bg-pink-500/10",
-                  },
-                  {
-                    title: "Training Breakdown: Neeraj Chopra",
-                    type: "Video",
-                    duration: "10 min",
-                    views: "234K",
-                    time: "3d ago",
-                    icon: <Video className="w-4 h-4 text-orange-400" />,
-                    bg: "bg-orange-500/10",
-                  },
-                  {
-                    title: "Neeraj's Competition Strategy",
-                    type: "Document",
-                    duration: "8 min read",
-                    views: "156K",
-                    time: "1w ago",
-                    icon: <FileText className="w-4 h-4 text-emerald-400" />,
-                    bg: "bg-emerald-500/10",
-                  },
-                ].map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center gap-3 p-3 bg-black/30 rounded-2xl border border-white/5 hover:border-white/10 transition-colors cursor-pointer group"
-                  >
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.bg}`}>
-                      {item.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-white group-hover:text-[#FF0055] transition-colors truncate">
-                          {item.title}
-                        </span>
-                        <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-white/10 text-gray-300">
-                          {item.type}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400 font-medium">
-                        <span>{item.duration}</span>
-                        <span>•</span>
-                        <span>👁️ {item.views}</span>
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                      <span className="text-[10px] text-gray-500">{item.time}</span>
-                      <button className="p-1 hover:bg-white/5 rounded-full">
-                        <MoreVertical className="w-4 h-4 text-gray-400" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Athlete Hub */}
-          <div className="lg:col-span-6 bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">Athlete Hub</h3>
-                <span className="bg-red-500 text-white font-extrabold text-[8px] px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">
-                  New
-                </span>
-              </div>
+              {/* Bottom Quote Banner (Hidden if video plays) */}
+              {athlete?.welcomeVideoQuote && (!isYouTube ? !isWelcomeVideoPlaying : !showYouTubeEmbed) && (
+                <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between text-[11px] md:text-xs text-white bg-black/70 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/10 shadow-lg">
+                  <span className="font-medium italic line-clamp-1">"{athlete.welcomeVideoQuote}"</span>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider shrink-0 ml-4">
+                    - {name ? name.split(" ")[0] : "Athlete"}
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Scrollable carousel on mobile, grid on sm+ */}
-            <div className="relative">
-              {/* Left arrow – mobile only */}
+            {/* Title / Description - Order 2 on mobile, 1 on desktop */}
+            <div className="w-full lg:col-span-5 xl:col-span-4 space-y-3.5 order-2 lg:order-1 text-center lg:text-left px-1 md:px-0">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-pink-500/10 border border-pink-500/20 rounded-full mx-auto lg:mx-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse"></span>
+                <span className="text-[10px] uppercase font-black tracking-widest text-pink-400">Welcome Message</span>
+              </div>
+
+              <h4 className="text-lg sm:text-xl md:text-2xl lg:text-2xl xl:text-3xl font-black tracking-tight leading-snug text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-100 to-slate-400 drop-shadow-sm">
+                {athlete?.welcomeMessage ?? `A special video message from ${name} to the fans!`}
+              </h4>
+
+              {/* Main Call To Action Trigger */}
+              {welcomeVideoUrl && (!isYouTube ? !isWelcomeVideoPlaying : !showYouTubeEmbed) && (
               <button
-                onClick={() => scroll(hubScrollRef, "left")}
-                className="sm:hidden absolute -left-2 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:bg-[#FF0055]/80 transition-colors"
-                aria-label="Scroll left"
+                  className="flex items-center gap-2 bg-gradient-to-r from-[#FF0055] to-[#FF4500] hover:from-[#ff1a66] hover:to-[#ff5714] px-6 py-3 rounded-full font-bold text-xs uppercase tracking-wider shadow-xl active:scale-95 transition-all w-full sm:w-max justify-center mx-auto lg:mx-0 text-white"
+                  onClick={() => {
+                    if (isYouTube) {
+                      setShowYouTubeEmbed(true);
+                    } else {
+                      welcomeVideoRef.current?.play()
+                        .then(() => setIsWelcomeVideoPlaying(true))
+                        .catch((err) => console.error("[WelcomeVideo] play error:", err));
+                    }
+                  }}
               >
-                <ChevronLeft className="w-4 h-4" />
+                  <Play className="w-3.5 h-3.5 fill-current" />
+                  Watch Now
               </button>
-
-              {/* Right arrow – mobile only */}
-              <button
-                onClick={() => scroll(hubScrollRef, "right")}
-                className="sm:hidden absolute -right-2 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:bg-[#FF0055]/80 transition-colors"
-                aria-label="Scroll right"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-
-              <div
-                ref={hubScrollRef}
-                className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide sm:grid sm:grid-cols-3 sm:overflow-visible"
-              >
-                {hubItems.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.color} border border-white/10 p-5 h-[120px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 hover:border-[#FF0055]/40 snap-start min-w-[160px] shrink-0 sm:min-w-0 sm:shrink`}
-                  >
-                    {/* Background glow */}
-                    <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10 blur-2xl group-hover:bg-[#FF0055]/20 transition-all duration-300" />
-
-                    {/* Badge */}
-                    <span className="absolute top-3 right-3 min-w-6 h-6 px-2 flex items-center justify-center rounded-full bg-[#FF0055] text-[10px] font-semibold text-white shadow-lg">
-                      {item.badge}
-                    </span>
-
-                    <div className="relative flex h-full flex-col justify-between overflow-visible">
-                      {/* Icon Wrapper - Uses flex layout instead of padding to keep the 12x12 proportions perfect */}
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-3xl backdrop-blur-sm transition-transform duration-300 group-hover:scale-110">
-                        {item.icon}
-                      </div>
-
-                      {/* Text Content Area */}
-                      <div className="mt-4 flex flex-col gap-1">
-                        <h4 className="text-sm font-semibold leading-snug text-white transition-colors duration-300 group-hover:text-[#FF0055]">
-                          {item.title}
-                        </h4>
-                        {/* Optional description can safely go here later without breaking layout */}
-                      </div>
-                    </div>
-
-                  </div>
-                ))}
-              </div>
+              )}
             </div>
+
           </div>
         </div>
 
@@ -1003,6 +872,176 @@ export default function AthleteProfile({ athleteId }: Props) {
             </div>
           </div>
         </div>
+
+        {/* Neeraj's Corner & Athlete Hub Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Athlete's Corner */}
+          <div className="lg:col-span-6 bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">{name.split(" ")[0]}'s Corner</h3>
+                <button className="text-xs text-gray-400 hover:text-white flex items-center gap-0.5 font-semibold">
+                  View All <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex items-center gap-2 mb-4 bg-black/40 p-1.5 rounded-xl border border-white/5">
+                <button
+                  onClick={() => setActiveTab("drops")}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === "drops"
+                    ? "bg-[#FF0055] text-white shadow-md"
+                    : "text-gray-400 hover:text-white"
+                    }`}
+                >
+                  🎁 Drops
+                </button>
+                <button
+                  onClick={() => setActiveTab("posts")}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === "posts"
+                    ? "bg-[#FF0055] text-white shadow-md"
+                    : "text-gray-400 hover:text-white"
+                    }`}
+                >
+                  📝 Posts
+                </button>
+              </div>
+
+              {/* Corner List */}
+              <div className="space-y-3">
+                {[
+                  {
+                    title: "Mental Toughness: Neeraj's Mindset",
+                    type: "Audio",
+                    duration: "15 min",
+                    views: "189K",
+                    time: "5d ago",
+                    icon: <Volume2 className="w-4 h-4 text-pink-400" />,
+                    bg: "bg-pink-500/10",
+                  },
+                  {
+                    title: "Training Breakdown: Neeraj Chopra",
+                    type: "Video",
+                    duration: "10 min",
+                    views: "234K",
+                    time: "3d ago",
+                    icon: <Video className="w-4 h-4 text-orange-400" />,
+                    bg: "bg-orange-500/10",
+                  },
+                  {
+                    title: "Neeraj's Competition Strategy",
+                    type: "Document",
+                    duration: "8 min read",
+                    views: "156K",
+                    time: "1w ago",
+                    icon: <FileText className="w-4 h-4 text-emerald-400" />,
+                    bg: "bg-emerald-500/10",
+                  },
+                ].map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center gap-3 p-3 bg-black/30 rounded-2xl border border-white/5 hover:border-white/10 transition-colors cursor-pointer group"
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.bg}`}>
+                      {item.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white group-hover:text-[#FF0055] transition-colors truncate">
+                          {item.title}
+                        </span>
+                        <span className="text-[8px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-white/10 text-gray-300">
+                          {item.type}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-400 font-medium">
+                        <span>{item.duration}</span>
+                        <span>•</span>
+                        <span>👁️ {item.views}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span className="text-[10px] text-gray-500">{item.time}</span>
+                      <button className="p-1 hover:bg-white/5 rounded-full">
+                        <MoreVertical className="w-4 h-4 text-gray-400" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Athlete Hub */}
+          <div className="lg:col-span-6 bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">Athlete Hub</h3>
+                <span className="bg-red-500 text-white font-extrabold text-[8px] px-1.5 py-0.5 rounded uppercase tracking-wider animate-pulse">
+                  New
+                </span>
+              </div>
+            </div>
+
+            {/* Scrollable carousel on mobile, grid on sm+ */}
+            <div className="relative">
+              {/* Left arrow – mobile only */}
+              <button
+                onClick={() => scroll(hubScrollRef, "left")}
+                className="sm:hidden absolute -left-2 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:bg-[#FF0055]/80 transition-colors"
+                aria-label="Scroll left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              {/* Right arrow – mobile only */}
+              <button
+                onClick={() => scroll(hubScrollRef, "right")}
+                className="sm:hidden absolute -right-2 top-1/2 -translate-y-1/2 z-10 p-1 rounded-full bg-black/60 border border-white/10 text-white backdrop-blur-sm hover:bg-[#FF0055]/80 transition-colors"
+                aria-label="Scroll right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              <div
+                ref={hubScrollRef}
+                className="flex gap-3 overflow-x-auto snap-x snap-mandatory scrollbar-hide sm:grid sm:grid-cols-3 sm:overflow-visible"
+              >
+                {hubItems.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br ${item.color} border border-white/10 p-5 h-[120px] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/20 hover:border-[#FF0055]/40 snap-start min-w-[160px] shrink-0 sm:min-w-0 sm:shrink`}
+                  >
+                    {/* Background glow */}
+                    <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-white/10 blur-2xl group-hover:bg-[#FF0055]/20 transition-all duration-300" />
+
+                    {/* Badge */}
+                    <span className="absolute top-3 right-3 min-w-6 h-6 px-2 flex items-center justify-center rounded-full bg-[#FF0055] text-[10px] font-semibold text-white shadow-lg">
+                      {item.badge}
+                    </span>
+
+                    <div className="relative flex h-full flex-col justify-between overflow-visible">
+                      {/* Icon Wrapper - Uses flex layout instead of padding to keep the 12x12 proportions perfect */}
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/10 text-3xl backdrop-blur-sm transition-transform duration-300 group-hover:scale-110">
+                        {item.icon}
+                      </div>
+
+                      {/* Text Content Area */}
+                      <div className="mt-4 flex flex-col gap-1">
+                        <h4 className="text-sm font-semibold leading-snug text-white transition-colors duration-300 group-hover:text-[#FF0055]">
+                          {item.title}
+                        </h4>
+                        {/* Optional description can safely go here later without breaking layout */}
+                      </div>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
 
         {/* Medal Cabinet */}
         <div className="bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md">
