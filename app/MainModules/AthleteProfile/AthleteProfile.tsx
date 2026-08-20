@@ -200,6 +200,11 @@ export default function AthleteProfile({ athleteId }: Props) {
   const fanImpactScore = (athlete as any)?.fanImpactScore ?? 0;
   const fanImpactChange = (athlete as any)?.fanImpactChange ?? 0;
 
+  const isClub = !!(
+    athlete?.entityId?.startsWith("CLUB#") ||
+    core?.role === "Club / Team"
+  );
+
   // Age from dob
   const dobAge = (() => {
     const dob = core.dob ?? (athlete as any)?.dob;
@@ -207,40 +212,6 @@ export default function AthleteProfile({ athleteId }: Props) {
     const diff = Date.now() - new Date(dob).getTime();
     return Math.floor(diff / (1000 * 60 * 60 * 24 * 365.25));
   })();
-
-  // Quick Facts
-  const quickFacts = [
-    {
-      label: "Age",
-      val: dobAge ? `${dobAge} yrs` : (core.age ? `${core.age}` : "–"),
-      icon: <User className="w-4 h-4 text-pink-400" />,
-    },
-    {
-      label: "Height",
-      val: core.heightCm ? `${core.heightCm} cm` : (core.height ?? "–"),
-      icon: <TrendingUp className="w-4 h-4 text-orange-400" />,
-    },
-    {
-      label: "Weight",
-      val: core.weightKg ? `${core.weightKg} kg` : (core.weight ?? "–"),
-      icon: <Zap className="w-4 h-4 text-yellow-400" />,
-    },
-    {
-      label: "Birthplace",
-      val: core.birthplace ?? (athlete as any)?.birthplace ?? "–",
-      icon: <MapPin className="w-4 h-4 text-emerald-400" />,
-    },
-    {
-      label: "Active Since",
-      val: core.yearsActiveSince ? `${core.yearsActiveSince}` : (core.hand ?? "–"),
-      icon: <Calendar className="w-4 h-4 text-cyan-400" />,
-    },
-    {
-      label: "Coach",
-      val: core.coachName ?? core.coach ?? (athlete as any)?.coach ?? "–",
-      icon: <Award className="w-4 h-4 text-[#FFD700]" />,
-    },
-  ];
 
   // Medal cabinet from performance.medalCabinet[]{category, medal, event}
   const medalIconMap: Record<string, string> = {
@@ -339,6 +310,87 @@ export default function AthleteProfile({ athleteId }: Props) {
       currentStreak: "–",
       year: "–",
     };
+
+  // Quick Facts
+  const quickFacts = isClub
+    ? [
+        {
+          label: "Age",
+          val: dobAge ? `${dobAge} yrs` : (core.age ? `${core.age}` : "–"),
+          icon: <User className="w-4 h-4 text-pink-400" />,
+        },
+        {
+          label: "Captain",
+          val: core.captain ?? (athlete as any)?.captain ?? "–",
+          icon: <User className="w-4 h-4 text-orange-400" />,
+        },
+        {
+          label: "Season Best",
+          val: season?.seasonBest ?? "–",
+          icon: <Award className="w-4 h-4 text-[#FFD700]" />,
+        },
+        {
+          label: "Season Average",
+          val: season?.averageThrow ?? "–",
+          icon: <TrendingUp className="w-4 h-4 text-cyan-400" />,
+        },
+        {
+          label: "Birthplace",
+          val: core.birthplace ?? (athlete as any)?.birthplace ?? "–",
+          icon: <MapPin className="w-4 h-4 text-emerald-400" />,
+        },
+        {
+          label: "Active Since",
+          val: core.yearsActiveSince ? `${core.yearsActiveSince}` : (core.hand ?? "–"),
+          icon: <Calendar className="w-4 h-4 text-cyan-400" />,
+        },
+        {
+          label: "Coach",
+          val: core.coachName ?? core.coach ?? (athlete as any)?.coach ?? "–",
+          icon: <Award className="w-4 h-4 text-[#FFD700]" />,
+        },
+      ]
+    : [
+        {
+          label: "Age",
+          val: dobAge ? `${dobAge} yrs` : (core.age ? `${core.age}` : "–"),
+          icon: <User className="w-4 h-4 text-pink-400" />,
+        },
+        {
+          label: "Height",
+          val: core.heightCm ? `${core.heightCm} cm` : (core.height ?? "–"),
+          icon: <TrendingUp className="w-4 h-4 text-orange-400" />,
+        },
+        {
+          label: "Weight",
+          val: core.weightKg ? `${core.weightKg} kg` : (core.weight ?? "–"),
+          icon: <Zap className="w-4 h-4 text-yellow-400" />,
+        },
+        {
+          label: "Birthplace",
+          val: core.birthplace ?? (athlete as any)?.birthplace ?? "–",
+          icon: <MapPin className="w-4 h-4 text-emerald-400" />,
+        },
+        {
+          label: "Active Since",
+          val: core.yearsActiveSince ? `${core.yearsActiveSince}` : (core.hand ?? "–"),
+          icon: <Calendar className="w-4 h-4 text-cyan-400" />,
+        },
+        {
+          label: "Coach",
+          val: core.coachName ?? core.coach ?? (athlete as any)?.coach ?? "–",
+          icon: <Award className="w-4 h-4 text-[#FFD700]" />,
+        },
+      ];
+
+  const defaultHeadToHead = [
+    { opponent: 'Sri Lanka', played: 46, won: 22, drawn: 17, lost: 7, lastResult: 'India won by 91 runs', lastMet: 'August 2026' },
+    { opponent: 'Australia', played: 112, won: 45, drawn: 30, lost: 37, lastResult: 'Australia won by 10 wickets', lastMet: 'November 2024' },
+    { opponent: 'England', played: 141, won: 37, drawn: 53, lost: 51, lastResult: 'India won by an innings and 64 runs', lastMet: 'March 2024' },
+    { opponent: 'South Africa', played: 44, won: 16, drawn: 10, lost: 18, lastResult: 'India won by 7 wickets', lastMet: 'January 2024' }
+  ];
+
+  const headToHead = athlete?.headToHeadData ?? (isClub ? defaultHeadToHead : []);
 
   // Athlete hub config
   const hubItems = [
@@ -634,7 +686,7 @@ export default function AthleteProfile({ athleteId }: Props) {
                 <span className="text-[10px] uppercase font-black tracking-widest text-pink-400">Welcome Message</span>
               </div>
 
-              <h4 className="text-lg sm:text-xl md:text-2xl lg:text-2xl xl:text-3xl font-black tracking-tight leading-snug text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-100 to-slate-400 drop-shadow-sm">
+              <h4 className="text-sm font-black tracking-tight leading-snug text-transparent bg-clip-text bg-gradient-to-br from-white via-slate-100 to-slate-400 drop-shadow-sm">
                 {athlete?.welcomeMessage ?? `A special video message from ${name} to the fans!`}
               </h4>
 
@@ -761,57 +813,59 @@ export default function AthleteProfile({ athleteId }: Props) {
         {/* 2026 Season & Performance Trend */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* 2026 Season */}
-          <div className="lg:col-span-5 bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">2026 Season</h3>
-                <button className="text-xs text-gray-400 hover:text-white flex items-center gap-0.5 font-semibold">
-                  View All <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+          {!isClub && (
+            <div className="lg:col-span-5 bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">2026 Season</h3>
+                  <button className="text-xs text-gray-400 hover:text-white flex items-center gap-0.5 font-semibold">
+                    View All <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
 
-              {/* Main dashboard list */}
-              <div className="grid grid-cols-4 gap-2 mb-4 bg-black/40 p-3 rounded-2xl border border-white/5 text-center">
-                <div>
-                  <span className="block text-[10px] text-gray-400 font-medium">Events</span>
-                  <span className="text-lg font-black text-white">{season?.events ?? "–"}</span>
+                {/* Main dashboard list */}
+                <div className="grid grid-cols-4 gap-2 mb-4 bg-black/40 p-3 rounded-2xl border border-white/5 text-center">
+                  <div>
+                    <span className="block text-[10px] text-gray-400 font-medium">Events</span>
+                    <span className="text-lg font-black text-white">{season?.events ?? "–"}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-gray-400 font-medium">Gold</span>
+                    <span className="text-lg font-black text-yellow-400">{season?.gold ?? "–"}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-gray-400 font-medium">Silver</span>
+                    <span className="text-lg font-black text-gray-300">{season?.silver ?? "–"}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-gray-400 font-medium">Bronze</span>
+                    <span className="text-lg font-black text-amber-600">{season?.bronze ?? "–"}</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="block text-[10px] text-gray-400 font-medium">Gold</span>
-                  <span className="text-lg font-black text-yellow-400">{season?.gold ?? "–"}</span>
-                </div>
-                <div>
-                  <span className="block text-[10px] text-gray-400 font-medium">Silver</span>
-                  <span className="text-lg font-black text-gray-300">{season?.silver ?? "–"}</span>
-                </div>
-                <div>
-                  <span className="block text-[10px] text-gray-400 font-medium">Bronze</span>
-                  <span className="text-lg font-black text-amber-600">{season?.bronze ?? "–"}</span>
-                </div>
-              </div>
 
-              {/* Extra season metrics */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
-                  <span className="text-xs font-semibold text-gray-300">Season Best</span>
-                  <span className="text-xs font-bold text-white">{season?.seasonBest ?? "–"}</span>
-                </div>
-                <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
-                  <span className="text-xs font-semibold text-gray-300">Season Average</span>
-                  <span className="text-xs font-bold text-white">{season?.averageThrow ?? "–"}</span>
-                </div>
-                <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
-                  <span className="text-xs font-semibold text-gray-300">Current Streak</span>
-                  <span className="text-xs font-bold text-orange-400 flex items-center gap-1">
-                    {season?.currentStreak ?? "–"} 🔥
-                  </span>
+                {/* Extra season metrics */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
+                    <span className="text-xs font-semibold text-gray-300">Season Best</span>
+                    <span className="text-xs font-bold text-white">{season?.seasonBest ?? "–"}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
+                    <span className="text-xs font-semibold text-gray-300">Season Average</span>
+                    <span className="text-xs font-bold text-white">{season?.averageThrow ?? "–"}</span>
+                  </div>
+                  <div className="flex items-center justify-between p-2.5 bg-white/5 rounded-xl border border-white/5">
+                    <span className="text-xs font-semibold text-gray-300">Current Streak</span>
+                    <span className="text-xs font-bold text-orange-400 flex items-center gap-1">
+                      {season?.currentStreak ?? "–"} 🔥
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Performance Trend */}
-          <div className="lg:col-span-7 bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md">
+          <div className={`${isClub ? "lg:col-span-12" : "lg:col-span-7"} bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md`}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">Performance Trend</h3>
               <button className="text-xs text-gray-400 hover:text-white flex items-center gap-0.5 font-semibold">
@@ -873,8 +927,101 @@ export default function AthleteProfile({ athleteId }: Props) {
           </div>
         </div>
 
+        {/* Head-to-Head Records Section (Clubs only) */}
+        {isClub && headToHead.length > 0 && (
+          <div className="bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-base">🥊</span>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">Head-to-Head Records</h3>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {headToHead.map((item: { opponent: string; played: number; won?: number; drawn?: number; lost?: number; lastResult?: string; lastMet?: string; }, idx: number) => {
+                const won = item.won ?? 0;
+                const drawn = item.drawn ?? 0;
+                const lost = item.lost ?? 0;
+                const played = item.played || (won + drawn + lost) || 1;
+                
+                const winPct = Math.round((won / played) * 100);
+                const drawPct = Math.round((drawn / played) * 100);
+                const lossPct = 100 - winPct - drawPct;
+
+                const oppInitials = item.opponent
+                  ?.trim()
+                  .split(/\s+/)
+                  .map((w: string) => w[0])
+                  .join("")
+                  .toUpperCase()
+                  .slice(0, 2) ?? "OP";
+
+                return (
+                  <div key={idx} className="bg-black/35 rounded-2xl p-4 border border-white/5 flex flex-col justify-between space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF7A00]/20 to-[#FF0055]/20 border border-white/10 flex items-center justify-center shrink-0">
+                          <span className="text-xs font-black text-orange-400 select-none">{oppInitials}</span>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-white leading-tight">{item.opponent}</h4>
+                          <span className="text-[10px] text-gray-500 font-semibold uppercase">Opponent</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className="block text-base font-black text-white leading-none">{played}</span>
+                        <span className="text-[9px] text-gray-500 font-bold uppercase">Played</span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar Distribution */}
+                    <div>
+                      <div className="h-2.5 w-full rounded-full overflow-hidden flex bg-white/5 mt-1 border border-white/5">
+                        <div style={{ width: `${winPct}%` }} className="bg-emerald-500 h-full" title={`Won: ${won} (${winPct}%)`} />
+                        <div style={{ width: `${drawPct}%` }} className="bg-slate-400 h-full" title={`Drawn: ${drawn} (${drawPct}%)`} />
+                        <div style={{ width: `${lossPct}%` }} className="bg-red-500 h-full" title={`Lost: ${lost} (${lossPct}%)`} />
+                      </div>
+                      
+                      {/* Legend and stats */}
+                      <div className="flex justify-between mt-2 text-[10px] font-bold text-gray-400">
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                          Won: {won} ({winPct}%)
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-slate-400 inline-block" />
+                          Drawn: {drawn} ({drawPct}%)
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                          Lost: {lost} ({lossPct}%)
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Last Met & Result Info */}
+                    <div className="flex flex-col sm:flex-row gap-2 justify-between pt-2 border-t border-white/5 text-[10px] text-gray-300">
+                      {item.lastMet && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500">Last Met:</span>
+                          <span className="font-semibold text-white bg-white/5 px-2 py-0.5 rounded border border-white/5">{item.lastMet}</span>
+                        </div>
+                      )}
+                      {item.lastResult && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-gray-500">Result:</span>
+                          <span className="font-semibold text-pink-400 bg-pink-500/10 px-2 py-0.5 rounded border border-pink-500/10 line-clamp-1">{item.lastResult}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Neeraj's Corner & Athlete Hub Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {!isClub && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Athlete's Corner */}
           <div className="lg:col-span-6 bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md flex flex-col justify-between">
             <div>
@@ -1041,10 +1188,12 @@ export default function AthleteProfile({ athleteId }: Props) {
             </div>
           </div>
         </div>
+        )}
 
 
         {/* Medal Cabinet */}
-        <div className="bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md">
+        {!isClub && (
+          <div className="bg-[#12121e]/80 border border-white/5 rounded-3xl p-5 backdrop-blur-md">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-pink-400">Medal Cabinet</h3>
             <button className="text-xs text-gray-400 hover:text-white flex items-center gap-0.5 font-semibold">
@@ -1090,6 +1239,7 @@ export default function AthleteProfile({ athleteId }: Props) {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );
