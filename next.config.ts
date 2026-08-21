@@ -674,6 +674,16 @@ const nextConfig = {
           destination: `${apiTarget}/api/ms_teams/:path*`,
         },
 
+        // MS Players
+          {
+          source: "/api/ms_players",
+          destination: `${apiTarget}/api/ms_players`,
+        },
+        {
+          source: "/api/ms_players/:path*",
+          destination: `${apiTarget}/api/ms_players/:path*`,
+        },
+
 
         // ── v2 APIs (Athlete Home / Store / Playbook / Articles / Records) ──
         { source: "/api/v2/health", destination: `${apiTarget}/api/v2/health` },

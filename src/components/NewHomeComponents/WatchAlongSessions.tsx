@@ -26,7 +26,7 @@ export default function WatchAlongSessions() {
         <div className="flex gap-3.5">
           <div className="relative w-[92px] h-[92px] rounded-2xl overflow-hidden shrink-0 border border-white/10">
             <img
-              src="/images/ind_vs_sl_room_dp.png"
+              src="/images/with_ananad_dp.png"
               alt="indvssl"
               className="w-full h-full object-cover"
             />
@@ -82,7 +82,7 @@ export default function WatchAlongSessions() {
           className="w-full mt-3 py-3.5 rounded-full font-extrabold text-white text-[14px]"
           style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
         >
-          <Link href="/MainModules/WatchAlong/room/acc569cd-831b-4f3c-ab7d-cf862b11be6a">
+          <Link href="/MainModules/WatchAlong/room/9caf8851-4ab2-4240-8e2d-b35238f3855c">
             Join Session
           </Link>
         

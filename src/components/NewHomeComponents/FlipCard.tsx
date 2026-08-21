@@ -122,7 +122,7 @@ export default function FlipCard() {
       {/* CTA */}
       <motion.button
         whileTap={{ scale: 0.97 }}
-        onClick={() => router.push("/MainModules/FlipCards")}
+        onClick={() => router.push("/MainModules/FlipCards/BuildFlip")}
         className="w-full py-3.5 rounded-full font-extrabold text-white text-[14px]"
         style={{ background: "linear-gradient(135deg,#1d4ed8,#3b82f6)" }}
       >
