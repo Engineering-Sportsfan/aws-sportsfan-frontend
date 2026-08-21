@@ -252,8 +252,9 @@ function LiveCricketCardView({ card }: { card: LiveCard }) {
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundColor: "#1a0b1e",
-      }}
-    >
+      }}>
+
+ 
       <div className="flex items-center gap-2 mb-4">
         <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -453,7 +454,7 @@ function IndiaStatsBar({
   data: IndiaStatsData;
   onAllSportsClick?: () => void;
 }) {
-   const router = useRouter();
+  const router = useRouter();
   const navItems = [
     { label: "All Sports", icon: Trophy },
     // { label: "India", icon: Flag },
@@ -527,7 +528,7 @@ function IndiaStatsBar({
               if (label === "All Sports" && onAllSportsClick) {
                 onAllSportsClick();
               }
-              if(label === "Record Explore" && onRecordsExplore){
+              if (label === "Record Explore" && onRecordsExplore) {
                 onRecordsExplore();
               }
             }}
@@ -797,21 +798,21 @@ export default function SportScoreSection({
       status: "LIVE",
       isFootball: false,
       competition: "India tour of Sri Lanka 2026",
-      matchLabel: "Test · Day 4",
+      matchLabel: "2nd Test · Day 1",
       teamAName: "India",
       teamAShort: "IND",
-      teamAScore: "200/4",
+      teamAScore: "-",
       teamBName: "Sri Lanka",
       teamBShort: "SL",
-      teamBScore: "284",
-      oversLabel: "79.4",
+      teamBScore: "-",
+      oversLabel: "-",
       overSummary: [],
-      result: "INDIA WON by 45 runs",
-      manOfMatch: "Bumrah 4/42",
-      bgImageUrl: "/images/ind_srl_homepage.png",
+      result: "TBD",
+      manOfMatch: "TBD",
+      bgImageUrl: "/images/with_ananad.png",
       fanCount: 0,
       ctaLabel: "Watch Along",
-      onJoin: () => router.push("/MainModules/WatchAlong/room/acc569cd-831b-4f3c-ab7d-cf862b11be6a"),
+      onJoin: () => router.push("/MainModules/WatchAlong/room/9caf8851-4ab2-4240-8e2d-b35238f3855c"),
     },
   ];
 
@@ -874,8 +875,8 @@ export default function SportScoreSection({
                           setIsAllSportsOpen(false);
                         }}
                         className={`w-full aspect-square rounded-2xl border flex flex-col items-center justify-center p-2 transition-all duration-200 ${isSelected
-                            ? "border-[#E91E8C] bg-[#E91E8C]/10 shadow-[0_0_15px_rgba(233,30,140,0.15)]"
-                            : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
+                          ? "border-[#E91E8C] bg-[#E91E8C]/10 shadow-[0_0_15px_rgba(233,30,140,0.15)]"
+                          : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
                           }`}
                       >
                         <span className="text-2xl mb-1">{sport.emoji}</span>

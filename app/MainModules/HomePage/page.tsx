@@ -264,7 +264,7 @@
 
 //         {/* <HeroCarousel cards={heroCards} /> */}
 
-      
+
 //         {/* <MyRoomsList
 //           openRoomId="NMryj1w7t8mJpGzEvF9q"
 //           onSeeAll={() => router.push("/MainModules/ROAR")}
@@ -277,7 +277,7 @@
 
 //         <IndiaHub />
 //         <StoreAndExperiences />
-        
+
 //         <DollyPanel
 //           isOpen={dollyOpen}
 //           onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
@@ -342,6 +342,8 @@
 //   );
 // }
 
+
+//MainModules/Homepage/page.tsx
 
 "use client";
 
@@ -691,7 +693,7 @@ function HomePageInner() {
 
         {/* <HeroCarousel cards={heroCards} /> */}
 
-      
+
         {/* <MyRoomsList
           openRoomId="NMryj1w7t8mJpGzEvF9q"
           onSeeAll={() => router.push("/MainModules/ROAR")}
@@ -700,17 +702,18 @@ function HomePageInner() {
 
         <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
         <FlipLine selectedSport={selectedSport} />
+        <WatchAlongSessions />
         {/* <AthleticsSpotlight sport={selectedSport} /> */}
         <RoarRooms />
         <PlaybookDrops />
-        <WatchAlongSessions />
+
         <AskFlip onAsk={handleAskFromFlip} matchContext={FEATURED_MATCH_CONTEXT} />
         <FlipCard />
-
+        <NewsCenter />
         <IndiaHub sport={selectedSport} />
-        
+
         {/* <StoreAndExperiences sport={selectedSport} /> */}
-        
+
         <DollyPanel
           isOpen={dollyOpen}
           onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}

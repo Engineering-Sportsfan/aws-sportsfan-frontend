@@ -548,7 +548,7 @@ function ExpertCard({
                         : { background: "#222", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }
                     }
                 >
-                    {isLive ? "📺 Join" : "Notify"}
+                    {isLive ? "📺 Join" : "Join"}
                 </button>
             </div>
         </div>
