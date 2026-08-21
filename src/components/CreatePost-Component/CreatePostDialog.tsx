@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { fliplineService } from "@/services/flipline.service";
+import { useAuth } from "@/context/AuthContext";
 
 export type FlipCard = {
   id: number;
@@ -36,6 +37,8 @@ export type FlipCard = {
   isUserPost?: boolean;
   hasAttachedImage?: boolean;
   hasAttachedVideo?: boolean;
+  userId?: string;
+  email?: string;
 };
 
 const POST_EMOJIS = [
@@ -75,9 +78,10 @@ const formatFileName = (name: string) => {
 
 export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: {
   onClose: () => void;
-  onPost: (card: FlipCard, imageFile: File | null, videoFile: File | null) => void;
+  onPost: (card: FlipCard, imageFile: File | null, videoFile: File | null) => Promise<void>;
   sport: FlipCard['sport'];
 }) {
+  const { user, getUserDisplayName, getUserName } = useAuth();
   const [tab, setTab] = useState<'write' | 'askflip'>('write');
   const [text, setText] = useState('');
   const [sport, setSport] = useState<FlipCard['sport']>(initialSport);
@@ -85,6 +89,8 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
   const [askPrompt, setAskPrompt] = useState('');
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Local storage upload states
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -96,11 +102,15 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
   const MAX = 280;
   const activeText = tab === 'askflip' ? generated : text;
   const remaining = MAX - activeText.length;
-  const canPost = activeText.trim().length > 0;
+  const canPost = activeText.trim().length > 0 && !submitting;
+
+  const MAX_FILE_SIZE_MB = 5.5;
+  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
   async function handleGenerate() {
     if (!askPrompt.trim()) return;
     setGenerating(true);
+    setErrorMsg(null);
     try {
       const res = await fetch("/api/ask-ai", {
         method: "POST",
@@ -123,7 +133,13 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
-      setImageFile(file);
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setErrorMsg(`Image exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB.`);
+        setImageFile(null);
+      } else {
+        setErrorMsg(null);
+        setImageFile(file);
+      }
     }
     e.target.value = "";
   }
@@ -131,47 +147,81 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
   function handleVideoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) {
-      setVideoFile(file);
+      if (file.size > MAX_FILE_SIZE_BYTES) {
+        setErrorMsg(`Video exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB.`);
+        setVideoFile(null);
+      } else {
+        setErrorMsg(null);
+        setVideoFile(file);
+      }
     }
     e.target.value = "";
   }
 
-  function handlePost() {
-    const now = new Date();
-    const h = now.getHours(), mn = now.getMinutes();
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 || 12;
-    const timeStr = `${h12}:${mn.toString().padStart(2, '0')} ${ampm}`;
-    const sportMeta: Record<FlipCard['sport'], { emoji: string; label: string }> = {
-      cricket: { emoji: '🏏', label: 'IND vs SL' },
-      football: { emoji: '⚽', label: 'IND vs JPN' },
-      athletics: { emoji: '🏃', label: 'Asian Athletics' },
-    };
-    onPost({
-      id: Date.now(),
-      type: 'fan',
-      sport,
-      sportEmoji: sportMeta[sport].emoji,
-      sportLabel: sportMeta[sport].label,
-      day: 'Just Now',
-      time: timeStr,
-      timeMs: 9000 + Date.now() % 1000,
-      author: 'You',
-      handle: '@you',
-      source: tab === 'askflip' ? 'Ask Flip' : 'ROAR Room',
-      content: activeText.trim(),
-      likes: 0,
-      isKey: false,
-      tags: [],
-      fomoMsg: '',
-      fomoCount: 0,
-      ctaType: 'room',
-      flipResponse: '',
-      isUserPost: true,
-      hasAttachedImage: !!imageFile,
-      hasAttachedVideo: !!videoFile,
-    }, imageFile, videoFile);
-    onClose();
+  async function handlePost() {
+    setErrorMsg(null);
+    if (imageFile && imageFile.size > MAX_FILE_SIZE_BYTES) {
+      setErrorMsg(`Image exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB.`);
+      return;
+    }
+    if (videoFile && videoFile.size > MAX_FILE_SIZE_BYTES) {
+      setErrorMsg(`Video exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB.`);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const now = new Date();
+      const h = now.getHours(), mn = now.getMinutes();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      const h12 = h % 12 || 12;
+      const timeStr = `${h12}:${mn.toString().padStart(2, '0')} ${ampm}`;
+      const sportMeta: Record<FlipCard['sport'], { emoji: string; label: string }> = {
+        cricket: { emoji: '🏏', label: 'IND vs SL' },
+        football: { emoji: '⚽', label: 'IND vs JPN' },
+        athletics: { emoji: '🏃', label: 'Asian Athletics' },
+      };
+
+      const activeUsername = getUserDisplayName();
+      const activeHandle = `@${getUserName()}`;
+      const currentUserId = user?.actualUserId || user?.userId || getUserName();
+      const currentUserEmail = user?.email || "";
+
+      await onPost({
+        id: Date.now(),
+        type: 'fan',
+        sport,
+        sportEmoji: sportMeta[sport].emoji,
+        sportLabel: sportMeta[sport].label,
+        day: 'Just Now',
+        time: timeStr,
+        timeMs: 9000 + Date.now() % 1000,
+        author: activeUsername,
+        handle: activeHandle,
+        source: tab === 'askflip' ? 'Ask Flip' : 'ROAR Room',
+        content: activeText.trim(),
+        likes: 0,
+        isKey: false,
+        tags: [],
+        fomoMsg: '',
+        fomoCount: 0,
+        ctaType: 'room',
+        flipResponse: '',
+        isUserPost: true,
+        hasAttachedImage: !!imageFile,
+        hasAttachedVideo: !!videoFile,
+        userId: currentUserId,
+        email: currentUserEmail,
+      }, imageFile, videoFile);
+
+      onClose();
+    } catch (e: any) {
+      console.error("Failed to post to FlipLine:", e);
+      const msg = e.response?.data?.error || e.message || "Failed to upload/post. File size may exceed AWS Lambda limit (6MB).";
+      setErrorMsg(msg);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const [mounted, setMounted] = useState(false);
@@ -196,7 +246,7 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
         </div>
 
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px 10px', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 16, fontWeight: 900, color: 'white', letterSpacing: -0.4 }}>New FlipLine Moment</span>
           <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
@@ -257,14 +307,14 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 9, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }}>
                       <span style={{ fontSize: 13 }}>📷</span>
                       <span style={{ fontSize: 10, fontWeight: 700, color: 'rgb(34,197,94)' }}>{formatFileName(imageFile.name)}</span>
-                      <button onClick={() => setImageFile(null)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>✕</button>
+                      <button onClick={() => { setImageFile(null); setErrorMsg(null); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>✕</button>
                     </div>
                   )}
                   {videoFile && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 9, background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.3)' }}>
                       <span style={{ fontSize: 13 }}>🎬</span>
                       <span style={{ fontSize: 10, fontWeight: 700, color: 'rgb(96,165,250)' }}>{formatFileName(videoFile.name)}</span>
-                      <button onClick={() => setVideoFile(null)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>✕</button>
+                      <button onClick={() => { setVideoFile(null); setErrorMsg(null); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>✕</button>
                     </div>
                   )}
                 </div>
@@ -302,7 +352,6 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
                   <button onClick={handleGenerate} disabled={!askPrompt.trim() || generating}
                     style={{ marginTop: 10, width: '100%', padding: '9px 0', borderRadius: 10, background: generating ? 'rgba(168,85,247,0.3)' : 'linear-gradient(90deg,rgb(168,85,247),rgb(233,30,140))', border: 'none', cursor: askPrompt.trim() && !generating ? 'pointer' : 'not-allowed', fontSize: 11.5, fontWeight: 900, color: 'white' }}>
                     {generating ? '✨ Generating...' : '✨ Generate with Flip'}
-
                   </button>
                 </div>
 
@@ -324,6 +373,14 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
           <div style={{ height: 12 }} />
         </div>
 
+        {/* Error Message Indicator */}
+        {errorMsg && (
+          <div style={{ margin: '0 16px 12px', padding: '10px 12px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>⚠️</span>
+            <span style={{ flex: 1 }}>{errorMsg}</span>
+          </div>
+        )}
+
         {/* Action bar */}
         <div style={{ flexShrink: 0, padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgb(12,14,24)' }}>
           {tab === 'write' && (
@@ -342,7 +399,8 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
                 onChange={handleImageChange}
               />
               <button onClick={() => imgInputRef.current?.click()}
-                style={{ width: 36, height: 36, borderRadius: '50%', background: imageFile ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.07)', border: `1px solid ${imageFile ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                disabled={submitting}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: imageFile ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.07)', border: `1px solid ${imageFile ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 📷
               </button>
 
@@ -355,7 +413,8 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
                 onChange={handleVideoChange}
               />
               <button onClick={() => vidInputRef.current?.click()}
-                style={{ width: 36, height: 36, borderRadius: '50%', background: videoFile ? 'rgba(96,165,250,0.12)' : 'rgba(255,255,255,0.07)', border: `1px solid ${videoFile ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                disabled={submitting}
+                style={{ width: 36, height: 36, borderRadius: '50%', background: videoFile ? 'rgba(96,165,250,0.12)' : 'rgba(255,255,255,0.07)', border: `1px solid ${videoFile ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 🎬
               </button>
 
@@ -372,7 +431,7 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
           )}
           <button onClick={handlePost} disabled={!canPost}
             style={{ width: '100%', padding: '13px 0', borderRadius: 14, background: canPost ? 'linear-gradient(90deg,rgb(233,30,140),rgb(255,107,53))' : 'rgba(255,255,255,0.08)', border: 'none', cursor: canPost ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 900, color: canPost ? 'white' : 'rgba(255,255,255,0.28)', letterSpacing: 0.2 }}>
-            {canPost ? 'Post to FlipLine ⚡' : 'Write something first...'}
+            {submitting ? 'Uploading & Posting... ⚡' : canPost ? 'Post to FlipLine ⚡' : 'Write something first...'}
           </button>
         </div>
       </div>
@@ -407,6 +466,7 @@ export default function CreatePostDialog({ isOpen, onClose }: Props) {
           }
         } catch (e) {
           console.error("Failed to post to FlipLine:", e);
+          throw e; // rethrow so that CreateFlipPostOverlay can display the error to the user
         }
       }}
     />

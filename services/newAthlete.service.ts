@@ -89,12 +89,23 @@ export interface AthleteProfile {
  * The frontend next.config.ts rewrites /api/athleteProfile/:id to the backend.
  */
 export async function getAthleteProfile(
-  athleteProfileId: string
+  athleteProfileId: string,
+  isClub?: boolean
 ): Promise<AthleteProfile> {
-  const url = `/api/athleteProfile/${athleteProfileId}`;
-  const res = await fetch(url, {
-    cache: "no-store",
-  });
+  let useTeam = isClub || athleteProfileId.startsWith("CLUB#") || athleteProfileId.toUpperCase() === athleteProfileId;
+  
+  let url = useTeam 
+    ? `/api/ms_teams/${athleteProfileId}` 
+    : `/api/ms_players/${athleteProfileId}`;
+    
+  let res = await fetch(url, { cache: "no-store" });
+  
+  // Fallback if not found and we didn't initially try team
+  if (!res.ok && res.status === 404 && !useTeam) {
+    url = `/api/ms_teams/${athleteProfileId}`;
+    res = await fetch(url, { cache: "no-store" });
+    useTeam = true;
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -103,7 +114,41 @@ export async function getAthleteProfile(
     );
   }
 
-  return res.json() as Promise<AthleteProfile>;
+  const data = await res.json();
+
+  if (useTeam) {
+    const team = data.team ?? {};
+    const record = data.record_highlight ?? {};
+    const analytics = data.analytics ?? {};
+    
+    return {
+      entityId: team.entityId ?? `CLUB#${athleteProfileId}`,
+      sk: team.sk ?? "CLUB#META",
+      sportId: team.sportId ?? "cricket",
+      welcomeVideoUrl: team.welcomeVideoUrl ?? undefined,
+      
+      coreInfo: {
+        name: team.clubName ?? team.shortName ?? "Team",
+        country: team.country ?? null,
+        flag: team.flag ?? null,
+        role: "Club / Team",
+        captain: team.captain ?? "–",
+        coach: team.headCoach ?? "–",
+        birthplace: team.homeGround ?? "–",
+        yearsActiveSince: team.founded ?? "–",
+        profileImage: team.logoUrl ?? null,
+        coverImage: team.teamPhotoUrl ?? null,
+        bio: team.bio ?? null,
+      },
+      
+      headToHeadData: team.headToHeadData ?? data.stints?.find((s: any) => s.sk?.endsWith("#STATS"))?.headToHeadData ?? [],
+      
+      record_highlight: record,
+      analytics: analytics,
+    } as any;
+  }
+
+  return data as AthleteProfile;
 }
 
 // ── Athlete List Item (for discovery/home page) ────────────────────────────
@@ -150,7 +195,8 @@ export interface AthleteListItem {
 
 /** Shape returned by GET /api/athleteProfile */
 interface GetAllAthletesResponse {
-  athletes: AthleteListItem[];
+  athletes?: AthleteListItem[];
+  players?: AthleteListItem[];
   count: number;
 }
 
@@ -160,7 +206,7 @@ interface GetAllAthletesResponse {
  * `athleteId` field derived from its entityId.
  */
 export async function getAllAthletes(): Promise<AthleteListItem[]> {
-  const url = `/api/athleteProfile`;
+  const url = `/api/ms_players`;
   const res = await fetch(url, { cache: "no-store" });
 
   if (!res.ok) {
@@ -171,10 +217,14 @@ export async function getAllAthletes(): Promise<AthleteListItem[]> {
   }
 
   const data: GetAllAthletesResponse = await res.json();
+  const list = data.players ?? data.athletes ?? [];
 
-  // Derive athleteId from entityId: "ATHLETE#<id>" → "<id>"
-  return (data.athletes ?? []).map((a) => ({
+  // Derive athleteId from entityId: "ATHLETE#<id>" or "PLAYER#<id>" → "<id>"
+  // and map fields to expected format (sportId -> sport, dateOfBirth -> dob)
+  return list.map((a) => ({
     ...a,
-    athleteId: a.entityId?.replace(/^ATHLETE#/, "") ?? a.athleteId ?? "",
+    athleteId: a.entityId?.replace(/^(ATHLETE|PLAYER)#/, "") ?? a.athleteId ?? (a as any).playerId ?? "",
+    sport: a.sport ?? (a.sportId ? a.sportId.charAt(0).toUpperCase() + a.sportId.slice(1) : "") ?? "",
+    dob: a.dob ?? (a as any).dateOfBirth ?? "",
   }));
 }

@@ -377,7 +377,6 @@ export default function AthleteHomePage() {
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   };
-
   const loadClubs = async () => {
     setClubsLoading(true);
     setClubsError(null);
@@ -406,6 +405,7 @@ export default function AthleteHomePage() {
   useEffect(() => {
     load();
   }, []);
+  console.log("Atheles", athletes);
 
   useEffect(() => {
     if (viewMode === "clubs" && clubs.length === 0) {
@@ -793,7 +793,7 @@ export default function AthleteHomePage() {
                     index={i}
                     onClick={() => {
                       const slug = club.entityId?.replace(/^CLUB#/, "") || club.team_id || "";
-                      router.push(`/MainModules/ClubsProfile/${slug}`);
+                      router.push(`/MainModules/NationsProfile/${slug}`);
                     }}
                   />
                 </div>
