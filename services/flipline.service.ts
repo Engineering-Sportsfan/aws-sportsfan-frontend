@@ -28,6 +28,8 @@ export const fliplineService = {
     formData.append("fomoCount", String(card.fomoCount || 0));
     formData.append("ctaType", card.ctaType || "room");
     if (card.flipResponse) formData.append("flipResponse", card.flipResponse);
+    if (card.userId) formData.append("userId", card.userId);
+    if (card.email) formData.append("email", card.email);
 
     if (imageFile) {
       formData.append("media", imageFile);
@@ -36,9 +38,7 @@ export const fliplineService = {
       formData.append("media", videoFile);
     }
 
-    const res = await axios.post<{ success: boolean; data: FlipCard }>("/api/flipline", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
+    const res = await axios.post<{ success: boolean; data: FlipCard }>("/api/flipline", formData);
     return res.data.data;
   },
 

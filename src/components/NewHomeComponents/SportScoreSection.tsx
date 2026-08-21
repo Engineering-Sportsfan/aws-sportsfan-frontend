@@ -125,50 +125,50 @@ const OV_DOT_COLOR: Record<LiveCard["overSummary"][number]["kind"], string> = {
 
 /* ---------------------------------- VIP / Event hero card (Image 1) ---------------------------------- */
 
-function VipCardView({ card }: { card: VipCard }) {
-  return (
-    <div
-      className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px] flex flex-col justify-between"
-      style={{
-        backgroundImage: `linear-gradient(180deg, rgba(10,4,20,0.55) 0%, rgba(10,4,20,0.85) 100%), url(${card.bgImageUrl ?? ""
-          })`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        background: card.bgImageUrl
-          ? undefined
-          : "linear-gradient(135deg,#1a0b1e,#12040f)",
-      }}
-    >
-      {card.dateRange && (
-        <div className="absolute top-4 right-4">
-          <span className="text-[11px] font-bold text-white bg-white/10 border border-white/15 px-3 py-1.5 rounded-full backdrop-blur-sm">
-            {card.dateRange}
-          </span>
-        </div>
-      )}
+// function VipCardView({ card }: { card: VipCard }) {
+//   return (
+//     <div
+//       className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px] flex flex-col justify-between"
+//       style={{
+//         backgroundImage: `linear-gradient(180deg, rgba(10,4,20,0.55) 0%, rgba(10,4,20,0.85) 100%), url(${card.bgImageUrl ?? ""
+//           })`,
+//         backgroundSize: "cover",
+//         backgroundPosition: "center",
+//         background: card.bgImageUrl
+//           ? undefined
+//           : "linear-gradient(135deg,#1a0b1e,#12040f)",
+//       }}
+//     >
+//       {card.dateRange && (
+//         <div className="absolute top-4 right-4">
+//           <span className="text-[11px] font-bold text-white bg-white/10 border border-white/15 px-3 py-1.5 rounded-full backdrop-blur-sm">
+//             {card.dateRange}
+//           </span>
+//         </div>
+//       )}
 
-      <div>
-        <p className="text-[11px] font-extrabold tracking-widest text-amber-400 mb-1.5">
-          {card.tag}
-        </p>
-        <h2 className="text-[28px] font-black text-white leading-[1.05] mb-2">
-          {card.title}
-        </h2>
-        <p className="text-[13px] font-medium text-white/70">{card.subtitle}</p>
-      </div>
+//       <div>
+//         <p className="text-[11px] font-extrabold tracking-widest text-amber-400 mb-1.5">
+//           {card.tag}
+//         </p>
+//         <h2 className="text-[28px] font-black text-white leading-[1.05] mb-2">
+//           {card.title}
+//         </h2>
+//         <p className="text-[13px] font-medium text-white/70">{card.subtitle}</p>
+//       </div>
 
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={card.onBook}
-        className="mt-4 self-start px-5 py-3 rounded-full font-extrabold text-white text-[13px] flex items-center gap-2"
-        style={{ background: "linear-gradient(135deg,#f59e0b,#ea580c)" }}
-      >
-        {card.ctaLabel}
-        <span>→</span>
-      </motion.button>
-    </div>
-  );
-}
+//       <motion.button
+//         whileTap={{ scale: 0.97 }}
+//         onClick={card.onBook}
+//         className="mt-4 self-start px-5 py-3 rounded-full font-extrabold text-white text-[13px] flex items-center gap-2"
+//         style={{ background: "linear-gradient(135deg,#f59e0b,#ea580c)" }}
+//       >
+//         {card.ctaLabel}
+//         <span>→</span>
+//       </motion.button>
+//     </div>
+//   );
+// }
 
 /* ---------------------------------- Live football card (Image 2) ---------------------------------- */
 
@@ -252,8 +252,9 @@ function LiveCricketCardView({ card }: { card: LiveCard }) {
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundColor: "#1a0b1e",
-      }}
-    >
+      }}>
+
+ 
       <div className="flex items-center gap-2 mb-4">
         <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -405,7 +406,7 @@ function HeroCarousel({ cards }: { cards: HeroCard[] }) {
             exit={{ opacity: 0, x: -40 }}
             transition={{ duration: 0.35, ease: "easeInOut" }}
           >
-            {active.type === "vip" && <VipCardView card={active} />}
+            {/* {active.type === "vip" && <VipCardView card={active} />} */}
             {/* {active.type === "live" && active.isFootball && (
               <LiveFootballCardView card={active} />
             )} */}
@@ -453,18 +454,23 @@ function IndiaStatsBar({
   data: IndiaStatsData;
   onAllSportsClick?: () => void;
 }) {
+  const router = useRouter();
   const navItems = [
     { label: "All Sports", icon: Trophy },
-    { label: "India", icon: Flag },
+    // { label: "India", icon: Flag },
     { label: "Schedule", icon: Calendar },
-    { label: "Medal Tally", icon: Award },
+    // { label: "Medal Tally", icon: Award },
     { label: "Record Explore", icon: BarChart3 },
-    { label: "News", icon: Newspaper },
+    // { label: "News", icon: Newspaper },
   ];
+
+  const onRecordsExplore = () => {
+    router.push("/MainModules/RecordsExplorer")
+  }
 
   return (
     <div className="w-full mt-3 rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06]">
-      <div className="flex items-center justify-between px-4 py-4">
+      {/* <div className="flex items-center justify-between px-4 py-4">
         <div className="flex items-center gap-2.5">
           {data.flagUrl ? (
             <img src={data.flagUrl} alt="India" className="w-9 h-6 rounded object-fit" />
@@ -511,9 +517,9 @@ function IndiaStatsBar({
             </p>
           </div>
         </div>
-      </div>
+      </div> */}
 
-      <div className="grid grid-cols-6 border-t border-white/[0.06]">
+      <div className="grid grid-cols-3 gap-2 justify-items-center border-t border-white/[0.06]">
         {navItems.map(({ label, icon: Icon }) => (
           <button
             key={label}
@@ -522,8 +528,11 @@ function IndiaStatsBar({
               if (label === "All Sports" && onAllSportsClick) {
                 onAllSportsClick();
               }
+              if (label === "Record Explore" && onRecordsExplore) {
+                onRecordsExplore();
+              }
             }}
-            className="flex flex-col items-center justify-center gap-1.5 py-3 hover:bg-white/[0.04] transition-colors"
+            className="flex flex-col items-center justify-between gap-1.5 py-3 hover:bg-white/[0.04] transition-colors w-full"
           >
             <Icon size={16} className="text-white/70" />
             <span className="text-[9px] font-semibold text-white/60 text-center leading-tight px-0.5">
@@ -722,16 +731,16 @@ const SPORTS_LIST = [
   { id: "mixed", label: "Mixed", emoji: "🏆" },
   { id: "athletics", label: "Athletics", emoji: "🏃" },
   { id: "cricket", label: "Cricket", emoji: "🏏" },
-  { id: "football", label: "Football", emoji: "⚽" },
-  { id: "badminton", label: "Badminton", emoji: "🏸" },
-  { id: "kabaddi", label: "Kabaddi", emoji: "🤼" },
-  { id: "lawn tennis", label: "Lawn Tennis", emoji: "🎾" },
-  { id: "hockey", label: "Hockey", emoji: "🏑" },
-  { id: "wrestling", label: "Wrestling", emoji: "🤼" },
-  { id: "shooting", label: "Shooting", emoji: "🎯" },
-  { id: "boxing", label: "Boxing", emoji: "🥊" },
-  { id: "swimming", label: "Swimming", emoji: "🏊" },
-  { id: "weightlifting", label: "Weightlifting", emoji: "🏋️" },
+  // { id: "football", label: "Football", emoji: "⚽" },
+  // { id: "badminton", label: "Badminton", emoji: "🏸" },
+  // { id: "kabaddi", label: "Kabaddi", emoji: "🤼" },
+  // { id: "lawn tennis", label: "Lawn Tennis", emoji: "🎾" },
+  // { id: "hockey", label: "Hockey", emoji: "🏑" },
+  // { id: "wrestling", label: "Wrestling", emoji: "🤼" },
+  // { id: "shooting", label: "Shooting", emoji: "🎯" },
+  // { id: "boxing", label: "Boxing", emoji: "🥊" },
+  // { id: "swimming", label: "Swimming", emoji: "🏊" },
+  // { id: "weightlifting", label: "Weightlifting", emoji: "🏋️" },
 ];
 
 export default function SportScoreSection({
@@ -749,17 +758,17 @@ export default function SportScoreSection({
   const setSelectedSport = onSelectSport ?? setLocalSelectedSport;
 
   const MOCK_HERO_CARDS: HeroCard[] = [
-    {
-      type: "vip",
-      id: "asian-games-2026",
-      tag: "AICHI-NAGOYA, JAPAN · 2026",
-      dateRange: "19 Sep – 4 Oct",
-      title: "ASIAN GAMES 2026",
-      subtitle: "India. Passion. Glory.",
-      bgImageUrl: "/images/asiangames.jpeg",
-      ctaLabel: "Explore Today's Action",
-      onBook: () => router.push('/MainModules/AsianGame'),
-    },
+    // {
+    //   type: "vip",
+    //   id: "asian-games-2026",
+    //   tag: "AICHI-NAGOYA, JAPAN · 2026",
+    //   dateRange: "19 Sep – 4 Oct",
+    //   title: "ASIAN GAMES 2026",
+    //   subtitle: "India. Passion. Glory.",
+    //   bgImageUrl: "/images/asiangames.jpeg",
+    //   ctaLabel: "Explore Today's Action",
+    //   onBook: () => router.push('/MainModules/AsianGame'),
+    // },
     // {
     //   type: "live",
     //   id: "porto-benfica",
@@ -789,21 +798,21 @@ export default function SportScoreSection({
       status: "LIVE",
       isFootball: false,
       competition: "India tour of Sri Lanka 2026",
-      matchLabel: "Test · Day 4",
+      matchLabel: "2nd Test · Day 1",
       teamAName: "India",
       teamAShort: "IND",
-      teamAScore: "200/4",
+      teamAScore: "-",
       teamBName: "Sri Lanka",
       teamBShort: "SL",
-      teamBScore: "284",
-      oversLabel: "79.4",
+      teamBScore: "-",
+      oversLabel: "-",
       overSummary: [],
-      result: "INDIA WON by 45 runs",
-      manOfMatch: "Bumrah 4/42",
-      bgImageUrl: "/images/ind_srl_homepage.png",
+      result: "TBD",
+      manOfMatch: "TBD",
+      bgImageUrl: "/images/with_ananad.png",
       fanCount: 0,
       ctaLabel: "Watch Along",
-      onJoin: () => router.push("/MainModules/WatchAlong/room/acc569cd-831b-4f3c-ab7d-cf862b11be6a"),
+      onJoin: () => router.push("/MainModules/WatchAlong/room/9caf8851-4ab2-4240-8e2d-b35238f3855c"),
     },
   ];
 
@@ -839,7 +848,7 @@ export default function SportScoreSection({
             >
               {/* Drag handle style */}
               <div className="w-12 h-1 bg-white/20 rounded-full mx-auto my-3" />
-              
+
               <div className="flex items-start justify-between px-6 pt-1 pb-4">
                 <div>
                   <h2 className="text-[22px] font-black text-white leading-tight">All Sports</h2>
@@ -854,7 +863,7 @@ export default function SportScoreSection({
                 </button>
               </div>
 
-              <div className="px-6 pb-8 grid grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto scrollbar-hide">
+              <div className="px-6 pb-15 grid grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto scrollbar-hide">
                 {SPORTS_LIST.map((sport) => {
                   const isSelected = selectedSport === sport.id;
                   return (
@@ -865,17 +874,15 @@ export default function SportScoreSection({
                           setSelectedSport(sport.id);
                           setIsAllSportsOpen(false);
                         }}
-                        className={`w-full aspect-square rounded-2xl border flex flex-col items-center justify-center p-2 transition-all duration-200 ${
-                          isSelected
-                            ? "border-[#E91E8C] bg-[#E91E8C]/10 shadow-[0_0_15px_rgba(233,30,140,0.15)]"
-                            : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
-                        }`}
+                        className={`w-full aspect-square rounded-2xl border flex flex-col items-center justify-center p-2 transition-all duration-200 ${isSelected
+                          ? "border-[#E91E8C] bg-[#E91E8C]/10 shadow-[0_0_15px_rgba(233,30,140,0.15)]"
+                          : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
+                          }`}
                       >
                         <span className="text-2xl mb-1">{sport.emoji}</span>
                         <span
-                          className={`text-[10px] font-bold text-center leading-tight transition-colors ${
-                            isSelected ? "text-[#E91E8C]" : "text-white/60"
-                          }`}
+                          className={`text-[10px] font-bold text-center leading-tight transition-colors ${isSelected ? "text-[#E91E8C]" : "text-white/60"
+                            }`}
                         >
                           {sport.label}
                         </span>

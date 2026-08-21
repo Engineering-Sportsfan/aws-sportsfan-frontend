@@ -38,7 +38,7 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
   }
 
   return (
-    <div className="w-full mt-5">
+    <div className="w-full mt-5 mb-15">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-[17px] font-extrabold text-white">{title}</h3>
         <button
@@ -68,10 +68,10 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
           </div>
 
           {/* AI Profiles */}
-          <div
+          {/* <div
             className="relative rounded-2xl p-4 min-h-[170px] flex flex-col justify-between"
             style={{ background: "linear-gradient(160deg,#2a1245,#170a2b)" }}
-          >
+           >
             <span className="absolute top-3.5 right-3.5 text-[10px] font-extrabold text-white bg-violet-500/60 px-2.5 py-1 rounded-full">
               AI
             </span>
@@ -80,13 +80,13 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
               <p className="text-[11px] text-white/45 font-medium">Created in seconds</p>
             </div>
             <span className="text-3xl leading-none">🤖</span>
-          </div>
+          </div> */}
 
           {/* Medal Center */}
-          <div
+          {/* <div
             className="rounded-2xl p-4 min-h-[170px] flex flex-col justify-between"
             style={{ background: "linear-gradient(160deg,#3a2408,#1c1204)" }}
-          >
+           >
             <div>
               <h4 className="text-[13px] font-extrabold text-white mb-1">MEDAL CENTER</h4>
               <p className="text-[11px] text-white/45 font-medium">Live Tally &amp; Chances</p>
@@ -103,14 +103,33 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
                 🥉 11
               </span>
             </div>
+          </div> */}
+
+
+           {/* Records Explorer */}
+          <div
+            onClick={() => router.push('/MainModules/RecordsExplorer')}
+            className="rounded-2xl hover:cursor-pointer p-4 min-h-[170px] flex flex-col justify-between"
+            style={{ background: "linear-gradient(160deg,#12213f,#0a1226)" }}
+          >
+            <div>
+              <h4 className="text-[13px] font-extrabold text-white mb-1">RECORDS EXPLORER</h4>
+              <p className="text-[11px] text-white/45 font-medium">View all records</p>
+            </div>
+            <p className="text-4xl font-black text-white/90 leading-none">RE</p>
           </div>
 
           {/* Match Center */}
           <div
-            className="rounded-2xl p-4 min-h-[170px] flex flex-col justify-between"
+            onClick={() => router.push('/MainModules/NewMatchCenter')}
+            className="rounded-2xl hover:cursor-pointer p-4 min-h-[170px] flex flex-col justify-between"
             style={{ background: "linear-gradient(160deg,#0c3323,#061a14)" }}
           >
-            <div>
+            <div
+
+
+            >
+
               <h4 className="text-[13px] font-extrabold text-white mb-1">MATCH CENTER</h4>
               <p className="text-[11px] text-white/45 font-medium">Live Scores, Stats &amp; Updates</p>
             </div>

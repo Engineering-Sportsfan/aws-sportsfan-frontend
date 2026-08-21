@@ -338,13 +338,13 @@ function ClubCard({ club, index, onClick }: ClubCardProps) {
 const SPORT_OPTIONS: { label: string; id: string }[] = [
   { label: "All Sports", id: "" },
   { label: "Athletics",    id: "athletics" },
-  { label: "Badminton",    id: "badminton" },
-  { label: "Boxing",       id: "boxing" },
+  // { label: "Badminton",    id: "badminton" },
+  // { label: "Boxing",       id: "boxing" },
   { label: "Cricket",      id: "cricket" },
-  { label: "Shooting",     id: "shooting" },
-  { label: "Wrestling",    id: "wrestling" },
-  { label: "Swimming",     id: "swimming" },
-  { label: "Weightlifting",id: "weightlifting" },
+  // { label: "Shooting",     id: "shooting" },
+  // { label: "Wrestling",    id: "wrestling" },
+  // { label: "Swimming",     id: "swimming" },
+  // { label: "Weightlifting",id: "weightlifting" },
 ];
 
 type GenderFilter = "All" | "Male" | "Female";
@@ -377,7 +377,6 @@ export default function AthleteHomePage() {
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
   };
-
   const loadClubs = async () => {
     setClubsLoading(true);
     setClubsError(null);
@@ -406,6 +405,7 @@ export default function AthleteHomePage() {
   useEffect(() => {
     load();
   }, []);
+  console.log("Atheles", athletes);
 
   useEffect(() => {
     if (viewMode === "clubs" && clubs.length === 0) {
@@ -583,7 +583,7 @@ export default function AthleteHomePage() {
                 : "bg-[#16161f] border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
               }`}
           >
-            🛡️ Clubs
+            🛡️ Nations
           </button>
 
           {/* Sport dropdown */}
@@ -793,7 +793,7 @@ export default function AthleteHomePage() {
                     index={i}
                     onClick={() => {
                       const slug = club.entityId?.replace(/^CLUB#/, "") || club.team_id || "";
-                      router.push(`/MainModules/ClubsProfile/${slug}`);
+                      router.push(`/MainModules/NationsProfile/${slug}`);
                     }}
                   />
                 </div>

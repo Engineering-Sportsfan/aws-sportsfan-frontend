@@ -4593,7 +4593,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         ) : (
                             <div className="absolute inset-0 w-full h-full">
                                 <img
-                                    src="/images/ind_vs_sl_room_dp.png"
+                                    src="/images/with_ananad.png"
                                     alt="Welcome to Watchalong!"
                                     className="w-full h-full object-fit"
                                 />
@@ -4616,7 +4616,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
                         )}
 
-                        {/* Live Camera Feed PiP */}
+
                         {userName && (
                             <LiveCameraFeed
                                 hostName={room.name?.split(" ")[0] || "Expert"}

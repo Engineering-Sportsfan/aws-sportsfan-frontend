@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { ChevronRight } from "lucide-react";
+import Link from "next/link";
 
 export default function WatchAlongSessions() {
   return (
@@ -25,23 +26,23 @@ export default function WatchAlongSessions() {
         <div className="flex gap-3.5">
           <div className="relative w-[92px] h-[92px] rounded-2xl overflow-hidden shrink-0 border border-white/10">
             <img
-              src="/images/hosts/rajaraman-g.jpg"
-              alt="Rajaraman G"
+              src="/images/with_ananad.png"
+              alt="indvssl"
               className="w-full h-full object-cover"
             />
-            <span className="absolute top-1.5 left-1.5 flex items-center gap-1 text-[9px] font-extrabold text-emerald-300 bg-black/50 px-1.5 py-0.5 rounded-full">
+            {/* <span className="absolute top-1.5 left-1.5 flex items-center gap-1 text-[9px] font-extrabold text-emerald-300 bg-black/50 px-1.5 py-0.5 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               LIVE
-            </span>
+            </span> */}
           </div>
 
           <div className="min-w-0">
             <h4 className="text-[16px] font-extrabold text-white leading-tight mb-1">
-              Watch India vs Japan (Hockey)
+              Watch India vs Sri Lanka 
             </h4>
-            <p className="text-[13px] font-bold text-violet-400 mb-2">With Rajaraman G</p>
+            <p className="text-[13px] font-bold text-violet-400 mb-2">With Anand Vasu</p>
             <p className="text-[12px] text-white/50 leading-snug">
-              Join expert Rajaraman G and thousands of fans. Live reactions, insights &amp; more!
+              Join expert Anand Vasu and hundreds of fans. Live reactions, insights &amp; more!
             </p>
           </div>
         </div>
@@ -49,11 +50,11 @@ export default function WatchAlongSessions() {
         <div className="flex items-center gap-1.5 mt-3">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           <span className="text-[11px] font-semibold text-white/50">
-            Starts in 15m · 7:00 PM
+            Starts on 23 Aug 2026
           </span>
         </div>
 
-        <div className="flex items-center justify-between mt-3">
+        {/* <div className="flex items-center justify-between mt-3">
           <div className="flex items-center gap-1.5">
             <div className="flex -space-x-2">
               <img
@@ -74,14 +75,17 @@ export default function WatchAlongSessions() {
             </div>
             <span className="text-[11px] font-semibold text-white/50">1.2K</span>
           </div>
-        </div>
+        </div> */}
 
         <motion.button
           whileTap={{ scale: 0.97 }}
           className="w-full mt-3 py-3.5 rounded-full font-extrabold text-white text-[14px]"
           style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
         >
-          Join Session
+          <Link href="/MainModules/WatchAlong/room/9caf8851-4ab2-4240-8e2d-b35238f3855c">
+            Join Session
+          </Link>
+        
         </motion.button>
       </div>
     </div>

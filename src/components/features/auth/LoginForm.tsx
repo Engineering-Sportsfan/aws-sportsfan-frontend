@@ -386,7 +386,7 @@ export default function LoginCard() {
                     if (response.data.user?.role === "host") {
                         router.push("/MainModules/HostDashboard");
                     } else {
-                        router.push("/MainModules/ROAR");
+                        router.push("/MainModules/HomePage");
                     }
                 }
             }
@@ -593,7 +593,7 @@ export default function LoginCard() {
                     onClick={() => {
                         const currentOrigin = window.location.origin;
                         signIn("google", {
-                            callbackUrl: `${currentOrigin}/MainModules/ROAR`
+                            callbackUrl: `${currentOrigin}/MainModules/HomePage`
                         });
                     }}
                     className="w-full bg-white text-black py-3 rounded-full font-medium flex items-center justify-center gap-2 mb-6 hover:bg-gray-100 transition"
