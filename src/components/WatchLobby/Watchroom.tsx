@@ -4593,7 +4593,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                         ) : (
                             <div className="absolute inset-0 w-full h-full">
                                 <img
-                                    src="/images/with_ananad_dp.png"
+                                    src="/images/with_ananad.png"
                                     alt="Welcome to Watchalong!"
                                     className="w-full h-full object-fit"
                                 />

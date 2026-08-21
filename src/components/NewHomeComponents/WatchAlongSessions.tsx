@@ -26,7 +26,7 @@ export default function WatchAlongSessions() {
         <div className="flex gap-3.5">
           <div className="relative w-[92px] h-[92px] rounded-2xl overflow-hidden shrink-0 border border-white/10">
             <img
-              src="/images/with_ananad_dp.png"
+              src="/images/with_ananad.png"
               alt="indvssl"
               className="w-full h-full object-cover"
             />
