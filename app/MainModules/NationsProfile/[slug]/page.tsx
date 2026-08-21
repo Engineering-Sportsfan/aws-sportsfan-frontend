@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { Suspense } from "react";
-import AthleteProfile from "../../AthleteProfile/AthleteProfile";
+import React, { Suspense } from "react";
 import { useParams } from "next/navigation";
+import AthleteProfile from "../../AthleteProfile/AthleteProfile";
 
-export default function ClubProfilePage() {
+export default function NationsProfilePage() {
   const params = useParams();
   const slug = params?.slug as string | undefined;
 
@@ -17,7 +17,7 @@ export default function ClubProfilePage() {
         </div>
       </div>
     }>
-      <AthleteProfile athleteId={slug} />
+      <AthleteProfile athleteId={slug} isClub={true} />
     </Suspense>
   );
 }

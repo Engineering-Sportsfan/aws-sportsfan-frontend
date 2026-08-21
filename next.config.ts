@@ -650,6 +650,14 @@ const nextConfig = {
           destination: `${apiTarget}/api/athleteProfile`,
         },
         {
+          source: "/api/ms_players",
+          destination: `${apiTarget}/api/ms_players`,
+        },
+        {
+          source: "/api/ms_players/:path*",
+          destination: `${apiTarget}/api/ms_players/:path*`,
+        },
+        {
           source: "/api/athleteProfile/:path*",
           destination: `${apiTarget}/api/athleteProfile/:path*`,
         },
