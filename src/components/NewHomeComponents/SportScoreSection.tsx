@@ -276,9 +276,11 @@ function LiveCricketCardView({ card }: { card: LiveCard }) {
             <span className="text-white/40">/{card.teamAScore.split("/")[1]}</span> */}
             {(card.teamAScore ?? "0/0").split("/")[0]}
             <span className="text-white/40">/{(card.teamAScore ?? "0/0").split("/")[1]}</span>
-            <span className="text-[11px] font-semibold text-white/40 ml-1">
-              ({card.oversLabel})
-            </span>
+            {card.oversLabel && (
+              <span className="text-[11px] font-semibold text-white/40 ml-1">
+                ({card.oversLabel})
+              </span>
+            )}
           </span>
         </div>
         <div className="flex items-center justify-between">
@@ -748,6 +750,59 @@ export default function SportScoreSection({
   const selectedSport = externalSelectedSport ?? localSelectedSport;
   const setSelectedSport = onSelectSport ?? setLocalSelectedSport;
 
+  const [roanuzHeroCards, setRoanuzHeroCards] = useState<HeroCard[]>([]);
+  const [roanuzMatches, setRoanuzMatches] = useState<MiniMatchCard[]>([]);
+
+  useEffect(() => {
+    fetch('/api/featured-matches')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success && data.items && data.items.length > 0) {
+           setRoanuzHeroCards(data.items);
+        }
+      })
+      .catch(e => console.error("Error fetching featured matches:", e));
+
+    if (selectedSport === "cricket") {
+      fetch('/api/cricket-feed')
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.liveAndUpcoming) {
+             const withActions = data.liveAndUpcoming.map((m: any) => ({
+               ...m,
+               buttonAction: () => console.log("Clicked match:", m.id)
+             }));
+             setRoanuzMatches(withActions);
+          }
+        })
+        .catch(e => console.error("Error fetching cricket feed:", e));
+    }
+  }, [selectedSport]);
+
+  const defaultDummyMatch: HeroCard = {
+    type: "live",
+    id: "porto-benfica",
+    status: "LIVE",
+    isFootball: true,
+    competition: "Liga Portugal",
+    matchLabel: "Football · O Clássico",
+    teamAName: "FC PORTO",
+    teamAShort: "POR",
+    teamBName: "S.L. BENFICA",
+    teamBShort: "SLB",
+    footballScoreA: 2,
+    footballScoreB: 1,
+    minute: "85'",
+    venue: "Estádio do Dragão",
+    scorers: "Evanilson 24', 67' · Di María 52'",
+    bgImageUrl: "/images/footballground.jpg",
+    overSummary: [],
+    oversLabel: "",
+    fanCount: 0,
+    ctaLabel: "Watch Live",
+    onJoin: () => console.log("Navigate to Porto vs Benfica room"),
+  };
+
   const MOCK_HERO_CARDS: HeroCard[] = [
     {
       type: "vip",
@@ -760,57 +815,18 @@ export default function SportScoreSection({
       ctaLabel: "Explore Today's Action",
       onBook: () => router.push('/MainModules/AsianGame'),
     },
-    // {
-    //   type: "live",
-    //   id: "porto-benfica",
-    //   status: "LIVE",
-    //   isFootball: true,
-    //   competition: "Liga Portugal",
-    //   matchLabel: "Football · O Clássico",
-    //   teamAName: "FC PORTO",
-    //   teamAShort: "POR",
-    //   teamBName: "S.L. BENFICA",
-    //   teamBShort: "SLB",
-    //   footballScoreA: 2,
-    //   footballScoreB: 1,
-    //   minute: "85'",
-    //   venue: "Estádio do Dragão",
-    //   scorers: "Evanilson 24', 67' · Di María 52'",
-    //   bgImageUrl: "/images/footballground.jpg",
-    //   overSummary: [],
-    //   oversLabel: "",
-    //   fanCount: 0,
-    //   ctaLabel: "Watch Live",
-    //   onJoin: () => console.log("Navigate to Porto vs Benfica room"),
-    // },
-    {
-      type: "live",
-      id: "ind-sl-test2026",
-      status: "LIVE",
-      isFootball: false,
-      competition: "India tour of Sri Lanka 2026",
-      matchLabel: "Test · Day 4",
-      teamAName: "India",
-      teamAShort: "IND",
-      teamAScore: "200/4",
-      teamBName: "Sri Lanka",
-      teamBShort: "SL",
-      teamBScore: "284",
-      oversLabel: "79.4",
-      overSummary: [],
-      result: "INDIA WON by 45 runs",
-      manOfMatch: "Bumrah 4/42",
-      bgImageUrl: "/images/ind_srl_homepage.png",
-      fanCount: 0,
-      ctaLabel: "Watch Along",
-      onJoin: () => router.push("/MainModules/WatchAlong/room/acc569cd-831b-4f3c-ab7d-cf862b11be6a"),
-    },
+    ...(roanuzHeroCards.length > 0 ? roanuzHeroCards.map((card: any) => ({
+      ...card,
+      onJoin: () => console.log("Navigate to", card.id)
+    }) as HeroCard) : [defaultDummyMatch]),
   ];
 
-  const filteredMatches = MOCK_MINI_MATCHES.filter((match) => {
-    if (selectedSport === "mixed") return true;
-    return match.sport.toLowerCase() === selectedSport;
-  });
+  const filteredMatches = selectedSport === "cricket" && roanuzMatches.length > 0 
+    ? roanuzMatches 
+    : MOCK_MINI_MATCHES.filter((match) => {
+        if (selectedSport === "mixed") return true;
+        return match.sport.toLowerCase() === selectedSport;
+      });
 
   return (
     <div className="w-full relative">
