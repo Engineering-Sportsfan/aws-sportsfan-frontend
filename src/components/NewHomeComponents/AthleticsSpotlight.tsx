@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -345,10 +346,25 @@ export default function AthleticsSpotlight({ sport = "mixed" }: { sport?: string
   }
 
   // Get highlights data
+  const [roanuzHighlights, setRoanuzHighlights] = React.useState<HighlightMatch[]>([]);
+
+  React.useEffect(() => {
+    if (isCricket) {
+      fetch('/api/cricket-feed')
+        .then(r => r.json())
+        .then(data => {
+          if (data.success && data.highlights) {
+            setRoanuzHighlights(data.highlights);
+          }
+        })
+        .catch(e => console.error("Error fetching cricket highlights:", e));
+    }
+  }, [isCricket]);
+
   let matchHighlights: HighlightMatch[] = [];
   if (!isMixed) {
     if (isCricket) {
-      matchHighlights = CRICKET_HIGHLIGHTS;
+      matchHighlights = roanuzHighlights.length > 0 ? roanuzHighlights : CRICKET_HIGHLIGHTS;
     } else if (isFootball) {
       matchHighlights = FOOTBALL_HIGHLIGHTS;
     } else {
@@ -439,8 +455,8 @@ export default function AthleticsSpotlight({ sport = "mixed" }: { sport?: string
           ))}
         </div>
       ) : (
-        /* The new match scorecards grid layout (matching screenshot) */
-        <div className="grid grid-cols-2 gap-3">
+        /* Match Highlights for specific sport */
+        <div className="flex gap-4 overflow-x-auto pb-3 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory mb-6">
           {matchHighlights.map((match) => {
             const isDone = match.status === "DONE";
             const isLive = match.status === "LIVE";
@@ -457,7 +473,7 @@ export default function AthleticsSpotlight({ sport = "mixed" }: { sport?: string
               <div
                 key={match.id}
                 onClick={() => router.push("/MainModules/AthleteHomePage")}
-                className={`rounded-[24px] hover:cursor-pointer p-4 min-h-[160px] flex flex-col justify-between transition-all duration-200 border border-white/[0.06]`}
+                className={`shrink-0 w-[260px] snap-start rounded-[24px] hover:cursor-pointer p-4 min-h-[160px] flex flex-col justify-between transition-all duration-200 border border-white/[0.06]`}
                 style={{
                   background: cardBgStyle,
                   borderColor: borderStrokeColor,

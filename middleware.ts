@@ -15,6 +15,9 @@ const publicRoutes = [
     '/api/auth/send-otp',
     '/api/auth/verify-otp',
     '/api/watch-along',
+    '/api/ticker',
+    '/api/featured-matches',
+    '/api/cricket-feed',
     '/images',
     '/ingest', // Allow PostHog tracking events to bypass login
 ];

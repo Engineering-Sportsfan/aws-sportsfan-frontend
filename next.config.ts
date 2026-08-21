@@ -536,6 +536,14 @@ const nextConfig = {
           destination: `${apiTarget}/api/post-preference/:path*`,
         },
 
+        {
+          source: "/api/featured-matches",
+          destination: `${apiTarget}/api/featured-matches`,
+        },
+        {
+          source: "/api/cricket-feed",
+          destination: `${apiTarget}/api/cricket-feed`,
+        },
         //Comments
         { source: "/api/comments", destination: `${apiTarget}/api/comments` },
 
