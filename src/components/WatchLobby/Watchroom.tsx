@@ -4616,7 +4616,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
                         )}
 
-                        {/* Live Camera Feed PiP */}
+
                         {userName && (
                             <LiveCameraFeed
                                 hostName={room.name?.split(" ")[0] || "Expert"}
