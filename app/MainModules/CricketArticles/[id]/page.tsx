@@ -1819,7 +1819,7 @@ export default function CricketArticleDetail() {
             {/* Back */}
             <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-400 hover:text-white mb-5 transition cursor-pointer">
                 <ArrowLeft size={16} />
-                <span className="text-sm">Back</span>
+                {/* <span className="text-sm">Back</span> */}
             </button>
 
             {/* Badge + Title */}

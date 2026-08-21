@@ -1,3 +1,5 @@
+
+
 // //src/components/HomeComponents/index.tsx
 
 // "use client";
@@ -6,6 +8,7 @@
 // import Link from 'next/link';
 // import { Heart, Share2, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 // import { NewsArticle } from '../../../../types/news';
+// import { useRouter } from 'next/navigation';
 
 // declare const process: {
 //   env: Record<string, string | undefined>;
@@ -20,6 +23,15 @@
 //   image?: string;
 //   cdn_url?: string;
 //   createdAt?: number | string;
+// };
+
+// type DebugInfo = {
+//   status: 'loading' | 'error' | 'empty' | 'ok';
+//   newsCount?: number;
+//   cricketCount?: number;
+//   error?: string;
+//   baseUrl?: string;
+//   newsStatusCode?: number;
 // };
 
 // const stripHtmlTags = (html: string) => {
@@ -75,6 +87,7 @@
 
 // export default function NewsCenter() {
 //   const [articles, setArticles] = useState<NewsArticle[]>([]);
+//   const [debugInfo, setDebugInfo] = useState<DebugInfo>({ status: 'loading' });
 //   const [startIndex, setStartIndex] = useState(0);
 //   const [isPaused, setIsPaused] = useState(false);
 //   const [sharedArticle, setSharedArticle] = useState<NewsArticle | null>(null);
@@ -145,7 +158,7 @@
 //     const articleRank = article.rank;
 //     const newUserLikes = new Set(userLikes);
 //     let newCount = currentLikes;
-    
+
 //     if (newUserLikes.has(articleRank)) {
 //       newUserLikes.delete(articleRank);
 //       newCount = Math.max(0, currentLikes - 1);
@@ -153,31 +166,31 @@
 //       newUserLikes.add(articleRank);
 //       newCount = currentLikes + 1;
 //     }
-    
+
 //     setUserLikes(newUserLikes);
 //     const newLikeCounts = { ...likeCounts, [articleRank]: newCount };
 //     setLikeCounts(newLikeCounts);
-    
+
 //     if (typeof window !== 'undefined') {
 //       window.localStorage.setItem(NEWS_USER_LIKES_KEY, JSON.stringify(Array.from(newUserLikes)));
 //       window.localStorage.setItem(NEWS_LIKES_KEY, JSON.stringify(newLikeCounts));
-      
+
 //       // Sync cricket article likes if this is a cricket article
 //       if (article.id && article.url.includes('/MainModules/CricketArticles/')) {
 //         const cricketLikeKey = `cricket_article_likes_${article.id}`;
 //         window.localStorage.setItem(cricketLikeKey, String(newCount));
-        
+
 //         // Track that this user liked this cricket article
 //         const cricketUserLikesData = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
 //         let cricketUserLikes: Record<string, boolean> = {};
 //         if (cricketUserLikesData) {
 //           try {
 //             cricketUserLikes = JSON.parse(cricketUserLikesData);
-//           } catch  {
+//           } catch {
 //             cricketUserLikes = {};
 //           }
 //         }
-        
+
 //         if (newUserLikes.has(articleRank)) {
 //           // User liked - track the article ID
 //           cricketUserLikes[article.id] = true;
@@ -185,7 +198,7 @@
 //           // User unliked - remove tracking
 //           delete cricketUserLikes[article.id];
 //         }
-        
+
 //         window.localStorage.setItem(CRICKET_USER_LIKES_KEY, JSON.stringify(cricketUserLikes));
 //       }
 //     }
@@ -194,29 +207,22 @@
 //   useEffect(() => {
 //     const fetchNews = async () => {
 //       try {
-//         // Append the ?date parameter with your absolute latest date
-//         const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
-//         const today = new Date()
-// .toISOString()
-// .split("T")[0]
+//         const cricketRes = await fetch('/api/cricket-articles');
+//         console.log('[NewsCenter] cricket-articles status:', cricketRes.status, cricketRes.ok);
 
-// const newsRes = await fetch(
-// `${baseUrl}/api/news-center?date=${today}`
-// );
-//         const newsData = await newsRes.json();
-//         const newsArticles = (newsData?.articles || []) as NewsArticle[];
-
-//         let cricketArticles: CricketApiArticle[] = [];
-//         try {
-//           const cricketRes = await fetch('/api/cricket-articles');
-//           if (cricketRes.ok) {
-//             const cricketData = await cricketRes.json();
-//             cricketArticles = cricketData?.articles || cricketData?.data || (Array.isArray(cricketData) ? cricketData : []);
-//             console.log('Cricket articles fetched:', cricketArticles.length);
-//           }
-//         } catch (error) {
-//           console.warn('Cricket articles fetch failed', error);
+//         if (!cricketRes.ok) {
+//           setDebugInfo({
+//             status: 'error',
+//             error: `cricket-articles returned HTTP ${cricketRes.status}`,
+//             newsStatusCode: cricketRes.status,
+//           });
+//           return;
 //         }
+
+//         const cricketData = await cricketRes.json();
+//         const cricketArticles: CricketApiArticle[] =
+//           cricketData?.articles || cricketData?.data || (Array.isArray(cricketData) ? cricketData : []);
+//         console.log('[NewsCenter] cricket articles fetched:', cricketArticles.length);
 
 //         const transformedCricket: NewsArticle[] = (Array.isArray(cricketArticles) ? cricketArticles : []).map(
 //           (article: CricketApiArticle) => ({
@@ -237,17 +243,25 @@
 //           })
 //         );
 
-//         const mergedArticles = [...newsArticles, ...transformedCricket];
-//         mergedArticles.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+//         transformedCricket.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-//         const rankedArticles = mergedArticles.map((article, index) => ({
+//         const rankedArticles = transformedCricket.map((article, index) => ({
 //           ...article,
 //           rank: index + 1,
 //         }));
 
 //         setArticles(rankedArticles);
-//       } catch (error) {
-//         console.error('Error loading news', error);
+//         setDebugInfo({
+//           status: rankedArticles.length === 0 ? 'empty' : 'ok',
+//           cricketCount: transformedCricket.length,
+//           newsStatusCode: cricketRes.status,
+//         });
+//       } catch (error: any) {
+//         console.error('[NewsCenter] Error loading news', error);
+//         setDebugInfo({
+//           status: 'error',
+//           error: error?.message || String(error),
+//         });
 //       }
 //     };
 
@@ -266,23 +280,66 @@
 //     }
 //   }, []);
 
-//   if (articles.length === 0) return null;
+//   // Instead of silently returning null (which made it impossible to tell
+//   // whether the component was loading, erroring, or genuinely had zero
+//   // articles), render a visible debug panel with whatever we know so far.
+//   if (articles.length === 0) {
+//     return (
+//       <div className="w-full p-4 rounded-xl border border-gray-800 bg-[#111111] text-sm">
+//         <p className="text-white font-semibold mb-2">
+//           News Center — {debugInfo.status === 'loading' ? 'loading…' : 'no articles to show'}
+//         </p>
+//         <div className="space-y-1 text-gray-400">
+//           <p>status: <span className="text-gray-200">{debugInfo.status}</span></p>
+//           {debugInfo.baseUrl !== undefined && (
+//             <p>NEXT_PUBLIC_BACKEND_URL: <span className="text-gray-200">"{debugInfo.baseUrl}"</span></p>
+//           )}
+//           {debugInfo.newsStatusCode !== undefined && (
+//             <p>news-center HTTP status: <span className="text-gray-200">{debugInfo.newsStatusCode}</span></p>
+//           )}
+//           {debugInfo.newsCount !== undefined && (
+//             <p>news articles fetched: <span className="text-gray-200">{debugInfo.newsCount}</span></p>
+//           )}
+//           {debugInfo.cricketCount !== undefined && (
+//             <p>cricket articles fetched: <span className="text-gray-200">{debugInfo.cricketCount}</span></p>
+//           )}
+//           {debugInfo.error && (
+//             <p className="text-red-400">error: {debugInfo.error}</p>
+//           )}
+//         </div>
+//       </div>
+//     );
+//   }
 
+//   const hasMultiple = articles.length > 1;
 //   const safeAnimationId = `news-scroll-${animationId.replace(/:/g, '')}`;
 //   const durationSeconds = Math.max(40, articles.length * 8);
 //   const rotatedArticles = [...articles.slice(startIndex), ...articles.slice(0, startIndex)];
-//   const duplicated = [...rotatedArticles, ...rotatedArticles];
+//   const duplicated = hasMultiple ? [...rotatedArticles, ...rotatedArticles] : rotatedArticles;
+//   const router = useRouter();
 
 //   return (
 //     <div className="w-full flex flex-col gap-4 py-4 rounded-xl">
 //       <div className="flex justify-between items-center px-2">
 //         <div>
-//           <h2 className="text-2xl font-bold text-white">News Center</h2>
-//           <p className="text-sm text-gray-400">Top stories, match previews & records from around the cricket world.</p>
+//           {/* <h2 className="text-2xl font-bold text-white">News Center</h2> */}
+         
+//           {/* <h2 className="text-[17px] font-bold text-white">Cricket Articles</h2> */}
+//            <h3 className="text-[17px] font-extrabold text-white">Cricket Articles</h3>
+//           {/* <p className="text-sm text-gray-400">Top stories, match previews & records from around the cricket world.</p> */}
 //         </div>
-//         <Link href="/news-center" className="flex items-center gap-2 px-4 py-2 border border-orange-500 text-orange-500 rounded-full hover:bg-orange-500 hover:text-white transition-all text-sm">
+//         {/* <Link href="/MainModules/CricketArticles" className="flex items-center gap-2 px-4 py-2 border border-orange-500 text-orange-500 rounded-full hover:bg-orange-500 hover:text-white transition-all text-sm shrink-0">
 //           View All <ArrowRight size={16} />
-//         </Link>
+//         </Link> */}
+//         <button
+//           type="button"
+//           onClick={() => router.push("/MainModules/CricketArticles")}
+//           className="flex items-center gap-0.5 text-[12px] font-bold"
+//           style={{ color: "#E91E8C" }}
+//         >
+//           View all
+//           <ChevronRight size={14} />
+//         </button>
 //       </div>
 
 //       <div
@@ -292,35 +349,43 @@
 //         onFocus={() => setIsPaused(true)}
 //         onBlur={() => setIsPaused(false)}
 //       >
-//         <button
-//           type="button"
-//           onClick={prevSlide}
-//           aria-label="Previous news articles"
-//           className="absolute left-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
-//         >
-//           <ChevronLeft size={20} />
-//         </button>
+//         {hasMultiple && (
+//           <button
+//             type="button"
+//             onClick={prevSlide}
+//             aria-label="Previous news articles"
+//             className="absolute left-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
+//           >
+//             <ChevronLeft size={20} />
+//           </button>
+//         )}
 
 //         <div className="overflow-hidden w-full px-4">
-//           <style>{`
-//             @keyframes ${safeAnimationId} {
-//               from { transform: translateX(0); }
-//               to { transform: translateX(-50%); }
-//             }
-//           `}</style>
+//           {hasMultiple && (
+//             <style>{`
+//               @keyframes ${safeAnimationId} {
+//                 from { transform: translateX(0); }
+//                 to { transform: translateX(-50%); }
+//               }
+//             `}</style>
+//           )}
 //           <div
 //             className="flex gap-2"
-//             style={{
-//               width: 'max-content',
-//               animationName: safeAnimationId,
-//               animationDuration: `${durationSeconds}s`,
-//               animationTimingFunction: 'linear',
-//               animationIterationCount: 'infinite',
-//               animationPlayState: isPaused ? 'paused' : 'running',
-//             }}
+//             style={
+//               hasMultiple
+//                 ? {
+//                     width: 'max-content',
+//                     animationName: safeAnimationId,
+//                     animationDuration: `${durationSeconds}s`,
+//                     animationTimingFunction: 'linear',
+//                     animationIterationCount: 'infinite',
+//                     animationPlayState: isPaused ? 'paused' : 'running',
+//                   }
+//                 : { width: '100%' }
+//             }
 //           >
 //             {duplicated.map((article: NewsArticle, index: number) => (
-//               <div key={`${article.rank}-${index}`} className="flex-none w-[calc(90vw-3rem)] sm:w-[calc(50vw-3rem)] max-w-[690px] flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2">
+//               <div key={`${article.rank}-${index}`} className={hasMultiple ? "flex-none w-[calc(90vw-3rem)] sm:w-[calc(50vw-3rem)] max-w-[690px] flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2" : "w-full flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2"}>
 //                 <div>
 //                   <div className="flex justify-between items-start mb-3 gap-2">
 //                     <div className="flex items-start gap-3">
@@ -336,11 +401,11 @@
 //                         {article.tag}
 //                       </span>
 //                     </div>
-//                     <span className="text-xs text-gray-400">{formatDate(article.createdAt)}</span>
+//                     {/* <span className="text-xs text-gray-400">{formatDate(article.createdAt)}</span> */}
 //                   </div>
-//                   <h3 className="text-lg font-bold text-white leading-tight mb-3 line-clamp-2">
+//                   {/* <h3 className="text-lg font-bold text-white leading-tight mb-3 line-clamp-2">
 //                     {article.title}
-//                   </h3>
+//                   </h3> */}
 //                   <p className="text-sm text-gray-400 line-clamp-2 mb-4">
 //                     {stripHtmlTags(article.summary)}
 //                   </p>
@@ -373,21 +438,25 @@
 //           </div>
 //         </div>
 
-//         <button
-//           type="button"
-//           onClick={nextSlide}
-//           aria-label="Next news articles"
-//           className="absolute right-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
-//         >
-//           <ChevronRight size={20} />
-//         </button>
+//         {hasMultiple && (
+//           <button
+//             type="button"
+//             onClick={nextSlide}
+//             aria-label="Next news articles"
+//             className="absolute right-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
+//           >
+//             <ChevronRight size={20} />
+//           </button>
+//         )}
 
-//         <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-//           <span className={`w-4 h-1 rounded-full ${startIndex === 0 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-//           <span className={`w-4 h-1 rounded-full ${startIndex === 1 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-//           <span className={`w-4 h-1 rounded-full ${startIndex === 2 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-//           <span className={`w-4 h-1 rounded-full ${startIndex >= 3 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-//         </div>
+//         {hasMultiple && (
+//           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+//             <span className={`w-4 h-1 rounded-full ${startIndex === 0 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
+//             <span className={`w-4 h-1 rounded-full ${startIndex === 1 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
+//             <span className={`w-4 h-1 rounded-full ${startIndex === 2 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
+//             <span className={`w-4 h-1 rounded-full ${startIndex >= 3 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
+//           </div>
+//         )}
 //       </div>
 
 //       {/* Share Dialog */}
@@ -464,6 +533,7 @@ import React, { useEffect, useId, useState } from 'react';
 import Link from 'next/link';
 import { Heart, Share2, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { NewsArticle } from '../../../../types/news';
+import { useRouter } from 'next/navigation';
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -551,6 +621,7 @@ export default function NewsCenter() {
   const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
   const [userLikes, setUserLikes] = useState<Set<number>>(new Set());
   const animationId = useId();
+  const router = useRouter();
 
   const openShareDialog = (article: NewsArticle) => {
     setSharedArticle(article);
@@ -735,53 +806,55 @@ export default function NewsCenter() {
     }
   }, []);
 
-  // Instead of silently returning null (which made it impossible to tell
-  // whether the component was loading, erroring, or genuinely had zero
-  // articles), render a visible debug panel with whatever we know so far.
+  // While the first fetch is in flight, keep the space quiet rather than
+  // flashing an empty-state message.
+  if (articles.length === 0 && debugInfo.status === 'loading') {
+    return null;
+  }
+
+  // Once loading has settled (empty or error) and there's still nothing to
+  // show, keep it simple: just say there are no articles available.
   if (articles.length === 0) {
     return (
-      <div className="w-full p-4 rounded-xl border border-gray-800 bg-[#111111] text-sm">
-        <p className="text-white font-semibold mb-2">
-          News Center — {debugInfo.status === 'loading' ? 'loading…' : 'no articles to show'}
-        </p>
-        <div className="space-y-1 text-gray-400">
-          <p>status: <span className="text-gray-200">{debugInfo.status}</span></p>
-          {debugInfo.baseUrl !== undefined && (
-            <p>NEXT_PUBLIC_BACKEND_URL: <span className="text-gray-200">"{debugInfo.baseUrl}"</span></p>
-          )}
-          {debugInfo.newsStatusCode !== undefined && (
-            <p>news-center HTTP status: <span className="text-gray-200">{debugInfo.newsStatusCode}</span></p>
-          )}
-          {debugInfo.newsCount !== undefined && (
-            <p>news articles fetched: <span className="text-gray-200">{debugInfo.newsCount}</span></p>
-          )}
-          {debugInfo.cricketCount !== undefined && (
-            <p>cricket articles fetched: <span className="text-gray-200">{debugInfo.cricketCount}</span></p>
-          )}
-          {debugInfo.error && (
-            <p className="text-red-400">error: {debugInfo.error}</p>
-          )}
+      <div className="w-full flex flex-col gap-2 py-4 rounded-xl">
+        <div className="flex justify-between items-center px-2">
+          <h3 className="text-[17px] font-extrabold text-white">Cricket Articles</h3>
+        </div>
+        <div className="w-full p-6 rounded-2xl border border-gray-800 bg-[#111111] text-center">
+          <p className="text-gray-400 text-sm">No articles available</p>
         </div>
       </div>
     );
   }
 
+  const hasMultiple = articles.length > 1;
   const safeAnimationId = `news-scroll-${animationId.replace(/:/g, '')}`;
   const durationSeconds = Math.max(40, articles.length * 8);
   const rotatedArticles = [...articles.slice(startIndex), ...articles.slice(0, startIndex)];
-  const duplicated = [...rotatedArticles, ...rotatedArticles];
+  const duplicated = hasMultiple ? [...rotatedArticles, ...rotatedArticles] : rotatedArticles;
 
   return (
     <div className="w-full flex flex-col gap-4 py-4 rounded-xl">
       <div className="flex justify-between items-center px-2">
         <div>
           {/* <h2 className="text-2xl font-bold text-white">News Center</h2> */}
-          <h2 className="text-[17px] font-bold text-white">Criclet Articles</h2>
-          <p className="text-sm text-gray-400">Top stories, match previews & records from around the cricket world.</p>
+         
+          {/* <h2 className="text-[17px] font-bold text-white">Cricket Articles</h2> */}
+           <h3 className="text-[17px] font-extrabold text-white">Cricket Articles</h3>
+          {/* <p className="text-sm text-gray-400">Top stories, match previews & records from around the cricket world.</p> */}
         </div>
-        {/* <Link href="/news-center" className="flex items-center gap-2 px-4 py-2 border border-orange-500 text-orange-500 rounded-full hover:bg-orange-500 hover:text-white transition-all text-sm">
+        {/* <Link href="/MainModules/CricketArticles" className="flex items-center gap-2 px-4 py-2 border border-orange-500 text-orange-500 rounded-full hover:bg-orange-500 hover:text-white transition-all text-sm shrink-0">
           View All <ArrowRight size={16} />
         </Link> */}
+        <button
+          type="button"
+          onClick={() => router.push("/MainModules/CricketArticles")}
+          className="flex items-center gap-0.5 text-[12px] font-bold"
+          style={{ color: "#E91E8C" }}
+        >
+          View all
+          <ChevronRight size={14} />
+        </button>
       </div>
 
       <div
@@ -791,35 +864,43 @@ export default function NewsCenter() {
         onFocus={() => setIsPaused(true)}
         onBlur={() => setIsPaused(false)}
       >
-        <button
-          type="button"
-          onClick={prevSlide}
-          aria-label="Previous news articles"
-          className="absolute left-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
-        >
-          <ChevronLeft size={20} />
-        </button>
+        {hasMultiple && (
+          <button
+            type="button"
+            onClick={prevSlide}
+            aria-label="Previous news articles"
+            className="absolute left-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
+          >
+            <ChevronLeft size={20} />
+          </button>
+        )}
 
         <div className="overflow-hidden w-full px-4">
-          <style>{`
-            @keyframes ${safeAnimationId} {
-              from { transform: translateX(0); }
-              to { transform: translateX(-50%); }
-            }
-          `}</style>
+          {hasMultiple && (
+            <style>{`
+              @keyframes ${safeAnimationId} {
+                from { transform: translateX(0); }
+                to { transform: translateX(-50%); }
+              }
+            `}</style>
+          )}
           <div
             className="flex gap-2"
-            style={{
-              width: 'max-content',
-              animationName: safeAnimationId,
-              animationDuration: `${durationSeconds}s`,
-              animationTimingFunction: 'linear',
-              animationIterationCount: 'infinite',
-              animationPlayState: isPaused ? 'paused' : 'running',
-            }}
+            style={
+              hasMultiple
+                ? {
+                    width: 'max-content',
+                    animationName: safeAnimationId,
+                    animationDuration: `${durationSeconds}s`,
+                    animationTimingFunction: 'linear',
+                    animationIterationCount: 'infinite',
+                    animationPlayState: isPaused ? 'paused' : 'running',
+                  }
+                : { width: '100%' }
+            }
           >
             {duplicated.map((article: NewsArticle, index: number) => (
-              <div key={`${article.rank}-${index}`} className="flex-none w-[calc(90vw-3rem)] sm:w-[calc(50vw-3rem)] max-w-[690px] flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2">
+              <div key={`${article.rank}-${index}`} className={hasMultiple ? "flex-none w-[calc(90vw-3rem)] sm:w-[calc(50vw-3rem)] max-w-[690px] flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2" : "w-full flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2"}>
                 <div>
                   <div className="flex justify-between items-start mb-3 gap-2">
                     <div className="flex items-start gap-3">
@@ -835,7 +916,7 @@ export default function NewsCenter() {
                         {article.tag}
                       </span>
                     </div>
-                    <span className="text-xs text-gray-400">{formatDate(article.createdAt)}</span>
+                    {/* <span className="text-xs text-gray-400">{formatDate(article.createdAt)}</span> */}
                   </div>
                   {/* <h3 className="text-lg font-bold text-white leading-tight mb-3 line-clamp-2">
                     {article.title}
@@ -872,21 +953,25 @@ export default function NewsCenter() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={nextSlide}
-          aria-label="Next news articles"
-          className="absolute right-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
-        >
-          <ChevronRight size={20} />
-        </button>
+        {hasMultiple && (
+          <button
+            type="button"
+            onClick={nextSlide}
+            aria-label="Next news articles"
+            className="absolute right-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
+          >
+            <ChevronRight size={20} />
+          </button>
+        )}
 
-        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-          <span className={`w-4 h-1 rounded-full ${startIndex === 0 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-          <span className={`w-4 h-1 rounded-full ${startIndex === 1 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-          <span className={`w-4 h-1 rounded-full ${startIndex === 2 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-          <span className={`w-4 h-1 rounded-full ${startIndex >= 3 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-        </div>
+        {hasMultiple && (
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+            <span className={`w-4 h-1 rounded-full ${startIndex === 0 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
+            <span className={`w-4 h-1 rounded-full ${startIndex === 1 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
+            <span className={`w-4 h-1 rounded-full ${startIndex === 2 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
+            <span className={`w-4 h-1 rounded-full ${startIndex >= 3 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
+          </div>
+        )}
       </div>
 
       {/* Share Dialog */}
