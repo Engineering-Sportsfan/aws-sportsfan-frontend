@@ -71,6 +71,15 @@ export interface AthleteProfile {
   bookingCount?: number;
   storeCount?: number;
   auctionCount?: number;
+  headToHeadData?: Array<{
+    opponent: string;
+    played: number;
+    won?: number;
+    drawn?: number;
+    lost?: number;
+    lastResult?: string;
+    lastMet?: string;
+  }>;
 }
 
 // ── API Helper ─────────────────────────────────────────────────────────────
