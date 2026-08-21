@@ -126,8 +126,8 @@ import { useAuth } from "@/context/AuthContext";
 // Add emails here to grant access to the floating Create Post button.
 const CREATE_POST_ALLOWED_EMAILS: string[] = [
   // "someone@sportsfan360.com",
-  "rahul.yadav@sportsfan360.com",
-  "chandu.srikakulam@sportsfan360.com"
+  // "rahul.yadav@sportsfan360.com",
+  // "chandu.srikakulam@sportsfan360.com"
 ];
 
 export default function GlobalActionBar() {
@@ -137,8 +137,9 @@ export default function GlobalActionBar() {
 
   const userEmail = user?.email?.toLowerCase();
   const isAllowed =
-    !!userEmail &&
-    CREATE_POST_ALLOWED_EMAILS.map((e) => e.toLowerCase()).includes(userEmail);
+    !!user &&
+    (user.role === "FlipLineAdmin" ||
+      (!!userEmail && CREATE_POST_ALLOWED_EMAILS.map((e) => e.toLowerCase()).includes(userEmail)));
 
   const handleCreatePost = async (
     formData: FormData,

@@ -121,10 +121,15 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
 
           {/* Match Center */}
           <div
-            className="rounded-2xl p-4 min-h-[170px] flex flex-col justify-between"
+            onClick={() => router.push('/MainModules/NewMatchCenter')}
+            className="rounded-2xl hover:cursor-pointer p-4 min-h-[170px] flex flex-col justify-between"
             style={{ background: "linear-gradient(160deg,#0c3323,#061a14)" }}
           >
-            <div>
+            <div
+
+
+            >
+
               <h4 className="text-[13px] font-extrabold text-white mb-1">MATCH CENTER</h4>
               <p className="text-[11px] text-white/45 font-medium">Live Scores, Stats &amp; Updates</p>
             </div>

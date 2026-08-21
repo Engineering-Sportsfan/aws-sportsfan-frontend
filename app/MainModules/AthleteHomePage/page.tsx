@@ -583,7 +583,7 @@ export default function AthleteHomePage() {
                 : "bg-[#16161f] border-white/10 text-gray-400 hover:border-white/20 hover:text-white"
               }`}
           >
-            🛡️ Clubs
+            🛡️ Nations
           </button>
 
           {/* Sport dropdown */}
