@@ -536,6 +536,14 @@ const nextConfig = {
           destination: `${apiTarget}/api/post-preference/:path*`,
         },
 
+        {
+          source: "/api/featured-matches",
+          destination: `${apiTarget}/api/featured-matches`,
+        },
+        {
+          source: "/api/cricket-feed",
+          destination: `${apiTarget}/api/cricket-feed`,
+        },
         //Comments
         { source: "/api/comments", destination: `${apiTarget}/api/comments` },
 
@@ -648,6 +656,14 @@ const nextConfig = {
         {
           source: "/api/athleteProfile",
           destination: `${apiTarget}/api/athleteProfile`,
+        },
+        {
+          source: "/api/ms_players",
+          destination: `${apiTarget}/api/ms_players`,
+        },
+        {
+          source: "/api/ms_players/:path*",
+          destination: `${apiTarget}/api/ms_players/:path*`,
         },
         {
           source: "/api/athleteProfile/:path*",

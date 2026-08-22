@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { Heart, Share2, Play, Volume2, Sparkles } from 'lucide-react';
 import { fliplineService } from '@/services/flipline.service';
+import { useAuth } from "@/context/AuthContext";
 import asianGamesHero from '../../../public/asian_games_banner.png';
 import rajaramanPhoto from '../../../public/image-21.png';
 import anandVasuPhoto from '../../../public/image-23.png';
@@ -16,12 +17,15 @@ type FlipCard = {
   authorPhoto?: any;
   content: string; emoji?: string; mediaType?: 'audio' | 'video';
   image?: any;
+  videoUrl?: string;
   likes: number; isKey: boolean; tags?: string[];
   scoreChip?: ScoreChip;
   fomoMsg: string; fomoCount: number;
   ctaType: 'room' | 'watchalong' | 'drop';
   flipResponse: string;
   sk?: string;
+  userId?: string;
+  email?: string;
 };
 /* ─── FlipLine shared data ─────────────────────────────────────────── */
 type ScoreChip = {
@@ -368,7 +372,7 @@ function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { select
 }
 
 /* ─── FlipLine full-page screen ─────────────────────────────────────── */
-function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loading }: { onBack: () => void; selectedSport?: string; cards: FlipCard[]; loading: boolean }) {
+export function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loading }: { onBack: () => void; selectedSport?: string; cards: FlipCard[]; loading: boolean }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [likedCards, setLikedCards] = useState<Set<number>>(new Set());
   const [askOpen, setAskOpen] = useState<number | null>(null);
@@ -390,9 +394,12 @@ function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loading }:
     <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', background: 'rgb(7,11,20)' }}>
       {/* Header */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px 11px', background: 'rgba(7,11,20,0.98)', borderBottom: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(20px)' }}>
-        <button onClick={onBack} style={{ width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', flexShrink: 0, cursor: 'pointer' }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-        </button>
+        <a href="/MainModules/HomePage">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
+          </svg>
+        </a>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 18, fontWeight: 900, color: 'white', letterSpacing: -0.5 }}>FlipLine</span>
@@ -486,9 +493,32 @@ export function FlipCardItem({
   handleShare: (card: FlipCard) => void;
   handleCtaClick: (ctaType: 'room' | 'watchalong' | 'drop') => void;
 }) {
+  const { user, getUserName } = useAuth();
+  const currentUserId = user?.actualUserId || user?.userId || getUserName();
+  const currentUserEmail = user?.email;
+  const isCurrentUser = (currentUserEmail && card.email && currentUserEmail.toLowerCase() === card.email.toLowerCase()) ||
+                         (card.userId && currentUserId && card.userId === currentUserId);
+  const displayAuthor = isCurrentUser ? "You" : (card.author === "You" ? "Fan" : card.author);
+  const displayHandle = isCurrentUser ? "@you" : (card.handle === "@you" ? "@fan" : card.handle);
+  const displayPhoto = isCurrentUser 
+    ? (user?.avatar || card.authorPhoto)
+    : card.authorPhoto;
+
+  console.log("FlipCardItem DEBUG:", {
+    cardId: card.id,
+    content: card.content?.substring(0, 20),
+    cardUserId: card.userId,
+    currentUserId,
+    isCurrentUser,
+    cardAuthor: card.author,
+    displayAuthor,
+    displayHandle
+  });
+
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState(card.flipResponse || "");
   const [loading, setLoading] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const handleAskFlip = async () => {
     if (!question.trim() || loading) return;
@@ -598,10 +628,10 @@ export function FlipCardItem({
 
           {/* Row 2: Author info */}
           <div className="flex items-center gap-2.5 w-full">
-            {card.authorPhoto ? (
+            {displayPhoto ? (
               <img 
-                src={typeof card.authorPhoto === 'object' ? card.authorPhoto.src : card.authorPhoto} 
-                alt={card.author} 
+                src={typeof displayPhoto === 'object' ? displayPhoto.src : displayPhoto} 
+                alt={displayAuthor} 
                 className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0" 
               />
             ) : (
@@ -611,15 +641,15 @@ export function FlipCardItem({
                   background: `linear-gradient(135deg, ${themeColor}, #0f172a)`
                 }}
               >
-                {card.author[0]}
+                {displayAuthor ? displayAuthor[0] : ''}
               </div>
             )}
             
             <div className="min-w-0 flex flex-col">
               <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-[13.5px] text-white leading-tight truncate">{card.author}</span>
-                {card.handle && (
-                  <span className="text-[11px] text-white/40 truncate">{card.handle}</span>
+                <span className="font-extrabold text-[13.5px] text-white leading-tight truncate">{displayAuthor}</span>
+                {displayHandle && (
+                  <span className="text-[11px] text-white/40 truncate">{displayHandle}</span>
                 )}
               </div>
               <div className="flex items-center gap-1.5 mt-0.5">
@@ -640,37 +670,109 @@ export function FlipCardItem({
           </p>
 
           {/* Inline Image or Video/Audio media */}
-          {card.image && (
-            <div className="relative rounded-xl overflow-hidden mt-1 max-h-[220px]">
-              <img 
-                src={typeof card.image === 'object' ? card.image.src : card.image} 
-                alt="Moment media" 
-                className="w-full h-full object-fill" 
-              />
-              
-              {card.mediaType === 'video' && (
-                <div className="absolute inset-0 bg-black/35 flex items-center justify-center cursor-pointer">
-                  <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white transition-transform hover:scale-105">
-                    <Play size={18} fill="currentColor" className="ml-0.5" />
+          {(card.image || card.videoUrl || card.mediaType === 'audio') && (
+            <div className="relative group rounded-xl overflow-hidden mt-1 max-h-[220px]">
+              {card.mediaType === 'video' && card.videoUrl ? (
+                <>
+                  <video
+                    src={card.videoUrl}
+                    controls
+                    preload="metadata"
+                    className="w-full max-h-[220px] object-cover"
+                  />
+                  {/* Floating Expand button for native videos */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsFullscreen(true);
+                    }}
+                    className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/85 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100"
+                    title="View Fullscreen (Actual Aspect Ratio)"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 3 21 3 21 9" />
+                      <polyline points="9 21 3 21 3 15" />
+                      <line x1="21" y1="3" x2="14" y2="10" />
+                      <line x1="3" y1="21" x2="10" y2="14" />
+                    </svg>
+                  </button>
+                </>
+              ) : card.mediaType === 'audio' && !card.image ? (
+                /* Audio-only layout */
+                <div className="w-full h-[64px] bg-gradient-to-r from-purple-950/50 via-slate-900 to-purple-950/50 relative flex items-center px-4 border border-white/5 rounded-xl">
+                  <div className="flex items-center gap-3 w-full">
+                    <div className="w-8 h-8 rounded-full bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 shrink-0">
+                      <Volume2 size={15} />
+                    </div>
+                    <div className="flex-1 flex items-center gap-[2.5px] h-4">
+                      {[30, 80, 45, 90, 60, 35, 75, 40, 65, 80, 50, 70, 45, 85, 30, 60, 45, 90, 55, 35].map((h, i) => (
+                        <div
+                          key={i}
+                          className="flex-1 bg-white/30 rounded-full"
+                          style={{ height: `${h}%` }}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
-              )}
-              
-              {card.mediaType === 'audio' && (
-                <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 p-2 flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white cursor-pointer">
-                    <Volume2 size={13} />
-                  </div>
-                  <div className="flex-1 flex items-center gap-[2px] h-3 px-1">
-                    {[30, 80, 45, 90, 60, 35, 75, 40, 65, 80, 50, 70, 45, 85].map((h, i) => (
-                      <div 
-                        key={i} 
-                        className="flex-1 bg-white/40 rounded-full" 
-                        style={{ height: `${h}%` }}
-                      />
-                    ))}
-                  </div>
-                </div>
+              ) : (
+                <>
+                      {card.image && (
+                        <img
+                          src={typeof card.image === 'object' ? card.image.src : card.image}
+                          alt="Moment media" 
+                          className="w-full h-full object-fill cursor-zoom-in"
+                          onClick={() => setIsFullscreen(true)}
+                        />
+                      )}
+
+                      {card.mediaType === 'video' && (
+                        <div
+                          onClick={() => setIsFullscreen(true)}
+                          className="absolute inset-0 bg-black/35 flex items-center justify-center cursor-pointer"
+                        >
+                          <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white transition-transform hover:scale-105">
+                            <Play size={18} fill="currentColor" className="ml-0.5" />
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Floating Expand button for image/legacy video */}
+                      {(card.image || card.mediaType === 'video') && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setIsFullscreen(true);
+                          }}
+                          className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/85 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100"
+                          title="View Fullscreen (Actual Aspect Ratio)"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="15 3 21 3 21 9" />
+                            <polyline points="9 21 3 21 3 15" />
+                            <line x1="21" y1="3" x2="14" y2="10" />
+                            <line x1="3" y1="21" x2="10" y2="14" />
+                          </svg>
+                        </button>
+                      )}
+
+                      {card.mediaType === 'audio' && (
+                        <div className="absolute bottom-2 left-2 right-2 rounded-lg bg-black/60 backdrop-blur-sm border border-white/10 p-2 flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-white cursor-pointer">
+                            <Volume2 size={13} />
+                          </div>
+                          <div className="flex-1 flex items-center gap-[2px] h-3 px-1">
+                            {[30, 80, 45, 90, 60, 35, 75, 40, 65, 80, 50, 70, 45, 85].map((h, i) => (
+                              <div
+                                key={i}
+                                className="flex-1 bg-white/40 rounded-full"
+                                style={{ height: `${h}%` }}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                </>
               )}
             </div>
           )}
@@ -803,6 +905,57 @@ export function FlipCardItem({
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Fullscreen Lightbox Overlay */}
+      {isFullscreen && (
+        <div
+          className="fixed inset-0 z-[99999] bg-black/95 flex flex-col items-center justify-center p-4 backdrop-blur-md"
+          onClick={() => setIsFullscreen(false)}
+        >
+          {/* Close button */}
+          <button
+            onClick={() => setIsFullscreen(false)}
+            className="absolute top-4 right-4 z-50 w-10 h-10 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-white/20 transition-all active:scale-95 cursor-pointer"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+
+          {/* Media container */}
+          <div
+            className="relative w-full max-w-4xl max-h-[80vh] flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking media itself
+          >
+            {card.mediaType === 'video' && card.videoUrl ? (
+              <video
+                src={card.videoUrl}
+                controls
+                autoPlay
+                preload="metadata"
+                className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+              />
+            ) : card.image ? (
+              <img
+                src={typeof card.image === 'object' ? card.image.src : card.image}
+                alt="Fullscreen media"
+                className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl"
+              />
+            ) : null}
+          </div>
+
+          {/* Details text at the bottom */}
+          <div className="mt-6 text-center max-w-2xl px-4" onClick={(e) => e.stopPropagation()}>
+            <p className="text-[14.5px] font-medium text-white/95 leading-relaxed">
+              {card.content}
+            </p>
+            <p className="text-[11px] text-white/40 mt-2">
+              Posted by {displayAuthor} {displayHandle ? displayHandle : ''} · {card.time} · via {card.source}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -916,7 +1069,7 @@ export function FlipTimeline({
 }
 
 export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: string }) {
-  const [showFull, setShowFull] = useState(false);
+  const router = useRouter();
   const [cards, setCards] = useState<FlipCard[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -949,21 +1102,10 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
     };
   }, []);
 
-  if (showFull) {
-    return (
-      <FlipLineFullScreen
-        onBack={() => setShowFull(false)}
-        selectedSport={selectedSport}
-        cards={cards}
-        loading={loading}
-      />
-    );
-  }
-
   return (
     <FlipLineSection
       selectedSport={selectedSport}
-      onViewFull={() => setShowFull(true)}
+      onViewFull={() => router.push('/MainModules/FlipLine')}
       cards={cards}
       loading={loading}
     />
