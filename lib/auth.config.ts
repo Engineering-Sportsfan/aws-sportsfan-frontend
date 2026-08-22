@@ -328,8 +328,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             else if (new URL(url).origin === baseUrl) {
                 return url;
             }
-            // Default fallback - go to ROAR page on the same domain
-            return `${baseUrl}/MainModules/ROAR`;
+            // Default fallback - go to HomePage page on the same domain
+            return `${baseUrl}/MainModules/HomePage`;
         },
     },
 
