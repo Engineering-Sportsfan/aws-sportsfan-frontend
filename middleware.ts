@@ -42,7 +42,7 @@ export async function middleware(request: NextRequest) {
 
     const authPages = ['/auth/login', '/auth/register'];
     if (isLoggedIn && authPages.some(p => pathname.startsWith(p))) {
-        return NextResponse.redirect(new URL('/MainModules/ROAR', request.url));
+        return NextResponse.redirect(new URL('/MainModules/HomePage', request.url));
     }
 
     return NextResponse.next();
