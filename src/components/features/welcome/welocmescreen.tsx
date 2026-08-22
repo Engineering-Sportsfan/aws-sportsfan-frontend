@@ -40,9 +40,11 @@ export default function WelcomeCard() {
             </button>
           </Link>
 
-          <button className="w-full text-white mt-4 py-3 border rounded-full font-medium hover:bg-white/10 transition cursor-pointer">
-            Use as Guest
-          </button>
+          <Link href="/auth/login">
+            <button className="w-full text-white mt-4 py-3 border rounded-full font-medium hover:bg-white/10 transition cursor-pointer">
+              Use as Guest
+            </button>
+          </Link>
 
           <div className="text-xs text-gray-400 mt-6">
             <span className="cursor-pointer hover:text-white">Privacy Policy</span>
