@@ -15,6 +15,7 @@ const publicRoutes = [
     '/api/auth/register',
     '/api/auth/send-otp',
     '/api/auth/verify-otp',
+    '/api/auth/forgot-password',
     '/api/watch-along',
     '/api/ticker',
     '/api/featured-matches',

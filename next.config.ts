@@ -54,9 +54,13 @@ const nextConfig = {
           source: "/api/auth/host/:path*",
           destination: `${apiTarget}/api/auth/host/:path*`,
         },
+        // {
+        //   source: "/api/auth/forgot-password",
+        //   destination: `${apiTarget}/api/auth/forgot-password`,
+        // },
         {
-          source: "/api/auth/forgot-password",
-          destination: `${apiTarget}/api/auth/forgot-password`,
+          source: "/api/auth/forgot-password/:path*",
+          destination: `${apiTarget}/api/auth/forgot-password/:path*`,
         },
       ],
 
@@ -691,7 +695,7 @@ const nextConfig = {
         },
 
         // MS Players
-          {
+        {
           source: "/api/ms_players",
           destination: `${apiTarget}/api/ms_players`,
         },
