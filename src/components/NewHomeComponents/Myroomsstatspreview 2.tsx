@@ -96,7 +96,9 @@ export function MyRoomsList({
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-[13px] font-extrabold text-white truncate">{room.name}</p>
+                  {/* <p className="text-[13px] font-extrabold text-white truncate">{room.name}</p> */}
+                   <p className="text-[13px] font-extrabold text-white truncate">Pulse Room</p>
+                  <p className="text-[9px] font-bold text-white whitespace-normal">Your Space to Post and Talk About Any Sport</p>
                   {isLive && (
                     <span className="flex items-center gap-1 text-[9px] font-extrabold text-emerald-300 bg-black/20 px-1.5 py-0.5 rounded-full shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse" />

@@ -4293,18 +4293,34 @@ export default function WatchRoom({ room, onBack }: Props) {
     const totalQuizCount = quizQuestions?.length || 0;
 
     // Merge jitsi names + chat users to calculate total participant count dynamically
-    const jitsiNames = new Set((jitsiParticipants || []).map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
-    const chatUsersList = Array.from(
-        new Set(
-            (chats || [])
-                .filter((c) => c.user && c.user.trim() !== "")
-                .map((c) => c.user)
-        )
-    ).filter((u) => u !== userName);
-    const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
+    // const jitsiNames = new Set((jitsiParticipants || []).map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
+    // const chatUsersList = Array.from(
+    //     new Set(
+    //         (chats || [])
+    //             .filter((c) => c.user && c.user.trim() !== "")
+    //             .map((c) => c.user)
+    //     )
+    // ).filter((u) => u !== userName);
+    // const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
 
-    const currentUserInJitsi = userName ? jitsiNames.has(userName.toLowerCase()) : false;
-    const dynamicParticipantsCount = (currentUserInJitsi ? 0 : 1) + (jitsiParticipants?.length || 0) + chatOnlyUsers.length;
+    // const currentUserInJitsi = userName ? jitsiNames.has(userName.toLowerCase()) : false;
+    // const dynamicParticipantsCount = (currentUserInJitsi ? 0 : 1) + (jitsiParticipants?.length || 0) + chatOnlyUsers.length;
+    const normalizedSelfName = (userName || "").trim().toLowerCase();
+const realJitsiParticipantsTop = (jitsiParticipants || []).filter((p: any) => {
+    const displayName = (p.displayName || p.formattedDisplayName || "").trim().toLowerCase();
+    return displayName && displayName !== normalizedSelfName;
+});
+const jitsiNames = new Set(realJitsiParticipantsTop.map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
+const chatUsersList = Array.from(
+    new Set(
+        (chats || [])
+            .filter((c) => c.user && c.user.trim() !== "")
+            .map((c) => c.user)
+    )
+).filter((u) => u !== userName);
+const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
+
+const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyUsers.length;
 
     const sidebarTabs = [
         { id: 'liveChat', label: 'Live Chat' },
