@@ -7,7 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export type FlipCard = {
   id: number;
-  type: 'analyst' | 'fan' | 'official';
+  type: string;
   sport: 'cricket' | 'football' | 'athletics';
   sportEmoji: string;
   sportLabel: string;
@@ -39,6 +39,8 @@ export type FlipCard = {
   hasAttachedVideo?: boolean;
   userId?: string;
   email?: string;
+  isVerified?: boolean;
+  adminPhoto?: string;
 };
 
 const POST_EMOJIS = [
@@ -176,6 +178,7 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
       const ampm = h >= 12 ? 'PM' : 'AM';
       const h12 = h % 12 || 12;
       const timeStr = `${h12}:${mn.toString().padStart(2, '0')} ${ampm}`;
+      const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); // "Aug 24, 2026"
       const sportMeta: Record<FlipCard['sport'], { emoji: string; label: string }> = {
         cricket: { emoji: '🏏', label: 'IND vs SL' },
         football: { emoji: '⚽', label: 'IND vs JPN' },
@@ -187,15 +190,20 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
       const currentUserId = user?.actualUserId || user?.userId || getUserName();
       const currentUserEmail = user?.email || "";
 
+      const isAdmin = user?.role === 'FlipLineAdmin';
+      const postType = isAdmin ? (user?.title || 'FlipLineAdmin') : 'fan';
+      const isVerified = isAdmin ? !!user?.verifiedFlipLineAdmin : false;
+      const adminPhoto = isAdmin ? (user?.addfliplineAdminPhoto || '') : '';
+
       await onPost({
         id: Date.now(),
-        type: 'fan',
+        type: postType,
         sport,
         sportEmoji: sportMeta[sport].emoji,
         sportLabel: sportMeta[sport].label,
-        day: 'Just Now',
+        day: dateStr,
         time: timeStr,
-        timeMs: 9000 + Date.now() % 1000,
+        timeMs: Date.now(),
         author: activeUsername,
         handle: activeHandle,
         source: tab === 'askflip' ? 'Ask Flip' : 'ROAR Room',
@@ -212,6 +220,8 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
         hasAttachedVideo: !!videoFile,
         userId: currentUserId,
         email: currentUserEmail,
+        isVerified,
+        adminPhoto: adminPhoto || undefined,
       }, imageFile, videoFile);
 
       onClose();

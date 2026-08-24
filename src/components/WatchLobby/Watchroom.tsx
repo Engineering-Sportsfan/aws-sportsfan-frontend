@@ -2568,6 +2568,7 @@ import { useWatchAlong, Room, Match } from "@/context/WatchAlongContext";
 import Prediction from "@/src/components/WatchLobby/Prediction";
 import FlashQuiz from "@/src/components/WatchLobby/Flashquiz";
 import LiveChat from "@/src/components/WatchLobby/LiveChat";
+import LiveTicker from "@/src/components/Ticker/LiveTicker";
 import DiscussionRoom from "@/src/components/NewROARComponent/screens/DiscussionRoom";
 import ComposeModal from "@/src/components/NewROARComponent/components/ComposeModal";
 import EmojiStorm from "@/src/components/WatchLobby/Emojistorm";
@@ -2978,8 +2979,8 @@ function LiveCameraFeed({
                                 type="button"
                                 onClick={toggleRecording}
                                 className={`w-6 h-6 rounded-md flex items-center justify-center transition-all hover:scale-110 ${customRecordingState === 'recording'
-                                        ? "bg-red-600 text-white animate-pulse"
-                                        : "bg-white/20 text-white hover:bg-white/30"
+                                    ? "bg-red-600 text-white animate-pulse"
+                                    : "bg-white/20 text-white hover:bg-white/30"
                                     }`}
                                 title={customRecordingState === 'recording' ? "Stop Recording" : "Start Recording Options"}
                             >
@@ -3272,10 +3273,10 @@ function TabContent({
                                     <div
                                         key={q.id}
                                         className={`p-4 rounded-2xl border transition-all ${isBeingAnswered
-                                                ? 'bg-pink-950/20 border-pink-500/50 shadow-[0_4px_15px_rgba(219,39,119,0.2)]'
-                                                : q.answered
-                                                    ? 'bg-black/40 border-white/5 opacity-50'
-                                                    : 'bg-[#18181b] border-white/5 hover:border-white/10'
+                                            ? 'bg-pink-950/20 border-pink-500/50 shadow-[0_4px_15px_rgba(219,39,119,0.2)]'
+                                            : q.answered
+                                                ? 'bg-black/40 border-white/5 opacity-50'
+                                                : 'bg-[#18181b] border-white/5 hover:border-white/10'
                                             }`}
                                     >
                                         <div className="flex items-center justify-between gap-2 mb-2.5">
@@ -3308,8 +3309,8 @@ function TabContent({
                                                         }
                                                     }}
                                                     className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${isBeingAnswered
-                                                            ? 'bg-gray-700 hover:bg-gray-600 text-white'
-                                                            : 'bg-pink-600 hover:bg-pink-500 text-white shadow-md shadow-pink-500/20'
+                                                        ? 'bg-gray-700 hover:bg-gray-600 text-white'
+                                                        : 'bg-pink-600 hover:bg-pink-500 text-white shadow-md shadow-pink-500/20'
                                                         }`}
                                                 >
                                                     {isBeingAnswered ? "Stop Answering" : "🎙️ Answer Live"}
@@ -3342,175 +3343,182 @@ function TabContent({
                 </div>
             );
         }
-        case 'participants': {
-            // Build real participant list:
-            // 1. Jitsi participants (people actually in the video call)
-            // 2. Anyone who has sent a chat message (backend-synced)
-            const chatUsers = Array.from(
-                new Set(
-                    chats
-                        .filter((m: any) => m.user && m.user !== 'System' && !m.text?.startsWith('[SYSTEM_REACTION]'))
-                        .map((m: any) => m.user as string)
-                )
-            ).filter((u) => u !== userName); // exclude current user (shown separately)
+       case 'participants': {
+    // Build real participant list:
+    // 1. Jitsi participants (people actually in the video call) — excluding self
+    // 2. Anyone who has sent a chat message (backend-synced)
+    const normalizedUserName = (userName || "").trim().toLowerCase();
 
-            // Merge jitsi names + chat users, deduplicate by display name
-            const jitsiNames = new Set((jitsiParticipants || []).map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
-            const chatOnlyUsers = chatUsers.filter(u => !jitsiNames.has(u.toLowerCase()));
+    const realJitsiParticipants = (jitsiParticipants || []).filter((p: any) => {
+        const displayName = (p.displayName || p.formattedDisplayName || "").trim().toLowerCase();
+        return displayName && displayName !== normalizedUserName;
+    });
 
-            const totalCount = 1 + (jitsiParticipants?.length || 0) + chatOnlyUsers.length;
+    const chatUsers = Array.from(
+        new Set(
+            chats
+                .filter((m: any) => m.user && m.user !== 'System' && !m.text?.startsWith('[SYSTEM_REACTION]'))
+                .map((m: any) => m.user as string)
+        )
+    ).filter((u) => u !== userName);
 
-            return (
-                <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
-                    <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        Live Participants ({totalCount})
-                    </h2>
-                    <div className="flex flex-col gap-3">
-                        {/* Current User (You) */}
-                        <div className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-pink-500/30">
-                            <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-pink-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
-                                    {userName?.charAt(0).toUpperCase() || 'U'}
-                                </div>
-                                <div>
-                                    <p className="text-white text-sm font-bold">{userName} <span className="text-gray-500 font-normal">(You)</span></p>
-                                    <p className="text-xs text-pink-400 uppercase tracking-wide">{userRole}</p>
-                                </div>
-                            </div>
+    // Merge jitsi names + chat users, deduplicate by display name
+    const jitsiNames = new Set(realJitsiParticipants.map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
+    const chatOnlyUsers = chatUsers.filter(u => !jitsiNames.has(u.toLowerCase()));
+
+    const totalCount = 1 + realJitsiParticipants.length + chatOnlyUsers.length;
+
+    return (
+        <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
+            <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                Live Participants ({totalCount})
+            </h2>
+            <div className="flex flex-col gap-3">
+                {/* Current User (You) */}
+                <div className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-pink-500/30">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-pink-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
+                            {userName?.charAt(0).toUpperCase() || 'U'}
                         </div>
-
-                        {/* Real Jitsi Participants (in video call) */}
-                        {jitsiParticipants && jitsiParticipants.map((p: any) => {
-                            const displayName = p.displayName || p.formattedDisplayName || 'Viewer';
-                            const initial = displayName.charAt(0).toUpperCase() || '?';
-                            const isHostUser = displayName.toLowerCase().includes('host') ||
-                                (room?.hostUserId && (
-                                    displayName.toLowerCase() === room.hostUserId.toLowerCase() ||
-                                    p.email?.toLowerCase() === room.hostUserId.toLowerCase()
-                                )) ||
-                                displayName.toLowerCase() === room?.name?.split(' ')[0]?.toLowerCase();
-
-                            const coHostsList = room?.coHostUserId
-                                ? room.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
-                                : [];
-                            const isCoHostUser = coHostsList.some(
-                                (id: string) =>
-                                    displayName.toLowerCase() === id ||
-                                    p.email?.toLowerCase() === id
-                            );
-                            const role = isHostUser ? 'Host' : (isCoHostUser ? 'Co-Host' : 'Viewer');
-                            return (
-                                <div key={p.id || p.displayName || Math.random()} className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
-                                            {initial}
-                                        </div>
-                                        <div>
-                                            <p className="text-white text-sm font-bold">{displayName}</p>
-                                            <p className="text-xs text-blue-400 uppercase tracking-wide">{role}</p>
-                                        </div>
-                                    </div>
-                                    {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
-                                        <div className="flex gap-1.5">
-                                            {(userRole === 'Host' || userRole === 'Co-Host') && (
-                                                <button
-                                                    onClick={async () => {
-                                                        try {
-                                                            const fd = new FormData();
-                                                            const currentCoHosts = room.coHostUserId
-                                                                ? room.coHostUserId.split(",").map((id: string) => id.trim())
-                                                                : [];
-                                                            const userKey = (p.email && !p.email.toLowerCase().endsWith('@sportsfan360.com')) ? p.email : displayName;
-
-                                                            const isAlreadyCoHost = currentCoHosts.some(
-                                                                (id: string) => id.toLowerCase() === userKey.toLowerCase()
-                                                            );
-
-                                                            let newCoHosts: string[];
-                                                            if (isAlreadyCoHost) {
-                                                                newCoHosts = currentCoHosts.filter(
-                                                                    (id: string) => id.toLowerCase() !== userKey.toLowerCase()
-                                                                );
-                                                            } else {
-                                                                newCoHosts = [...currentCoHosts, userKey];
-                                                            }
-
-                                                            const targetValue = newCoHosts.join(",");
-                                                            fd.set('coHostUserId', targetValue);
-                                                            const res = await fetch(`/api/watch-along/${room.id}`, {
-                                                                method: 'PUT',
-                                                                body: fd
-                                                            });
-                                                            if (res.ok) {
-                                                                alert(isAlreadyCoHost ? `${displayName} is no longer Co-Host!` : `${displayName} is now Co-Host!`);
-                                                                if (room.id) await fetchRoomById(room.id);
-                                                            }
-                                                        } catch (err) { console.error('Toggle Co-Host failed:', err); }
-                                                    }}
-                                                    className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all flex items-center gap-1 ${isCoHostUser
-                                                            ? 'bg-yellow-600 border-yellow-500 text-white'
-                                                            : 'bg-[#222] hover:bg-yellow-600 border-[#444] text-white'
-                                                        }`}
-                                                    title={isCoHostUser ? "Remove Co-Host" : "Make Co-Host"}
-                                                >
-                                                    <Crown size={10} /> {isCoHostUser ? "Co-Host" : "Make Co-Host"}
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={async () => {
-                                                    if (jitsiApi) {
-                                                        try {
-                                                            jitsiApi.executeCommand('kickParticipant', p.id);
-                                                        } catch (err) {
-                                                            console.error('Jitsi kick failed:', err);
-                                                        }
-                                                    }
-                                                    if (sendChatMessage && room?.liveMatchId) {
-                                                        try {
-                                                            await sendChatMessage(room.liveMatchId, "System", `[SYSTEM_REACTION]:KICK:${displayName}`, "text-red-500");
-                                                        } catch (err) {
-                                                            console.error('Broadcast kick failed:', err);
-                                                        }
-                                                    }
-                                                }}
-                                                className="px-3 py-1 bg-[#222] hover:bg-red-600 text-white text-xs font-semibold rounded-full border border-[#444] transition-all"
-                                            >
-                                                Kick
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
-
-                        {/* Chat-derived participants (joined but not in Jitsi video) */}
-                        {chatOnlyUsers.map((name: string) => (
-                            <div key={name} className="flex items-center gap-3 bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
-                                <div className="w-8 h-8 bg-green-700 rounded-full flex items-center justify-center font-bold text-white text-xs">
-                                    {name.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                    <p className="text-white text-sm font-bold">{name}</p>
-                                    <p className="text-xs text-green-400 uppercase tracking-wide">Viewer</p>
-                                </div>
-                            </div>
-                        ))}
-
-                        {/* Empty state — only shown if truly alone */}
-                        {jitsiParticipants.length === 0 && chatOnlyUsers.length === 0 && (
-                            <div className="flex flex-col items-center justify-center py-8 text-center">
-                                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3">
-                                    <span className="text-2xl">👥</span>
-                                </div>
-                                <p className="text-gray-400 text-sm font-medium">Waiting for others to join...</p>
-                                <p className="text-gray-600 text-xs mt-1">Share the room link to invite people</p>
-                            </div>
-                        )}
+                        <div>
+                            <p className="text-white text-sm font-bold">{userName} <span className="text-gray-500 font-normal">(You)</span></p>
+                            <p className="text-xs text-pink-400 uppercase tracking-wide">{userRole}</p>
+                        </div>
                     </div>
                 </div>
-            );
-        }
+
+                {/* Real Jitsi Participants (in video call) — filtered, self excluded */}
+                {realJitsiParticipants.map((p: any) => {
+                    const displayName = p.displayName || p.formattedDisplayName || 'Viewer';
+                    const initial = displayName.charAt(0).toUpperCase() || '?';
+                    const isHostUser = displayName.toLowerCase().includes('host') ||
+                        (room?.hostUserId && (
+                            displayName.toLowerCase() === room.hostUserId.toLowerCase() ||
+                            p.email?.toLowerCase() === room.hostUserId.toLowerCase()
+                        )) ||
+                        displayName.toLowerCase() === room?.name?.split(' ')[0]?.toLowerCase();
+
+                    const coHostsList = room?.coHostUserId
+                        ? room.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
+                        : [];
+                    const isCoHostUser = coHostsList.some(
+                        (id: string) =>
+                            displayName.toLowerCase() === id ||
+                            p.email?.toLowerCase() === id
+                    );
+                    const role = isHostUser ? 'Host' : (isCoHostUser ? 'Co-Host' : 'Viewer');
+                    return (
+                        <div key={p.id || p.displayName || Math.random()} className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
+                                    {initial}
+                                </div>
+                                <div>
+                                    <p className="text-white text-sm font-bold">{displayName}</p>
+                                    <p className="text-xs text-blue-400 uppercase tracking-wide">{role}</p>
+                                </div>
+                            </div>
+                            {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
+                                <div className="flex gap-1.5">
+                                    {(userRole === 'Host' || userRole === 'Co-Host') && (
+                                        <button
+                                            onClick={async () => {
+                                                try {
+                                                    const fd = new FormData();
+                                                    const currentCoHosts = room.coHostUserId
+                                                        ? room.coHostUserId.split(",").map((id: string) => id.trim())
+                                                        : [];
+                                                    const userKey = (p.email && !p.email.toLowerCase().endsWith('@sportsfan360.com')) ? p.email : displayName;
+
+                                                    const isAlreadyCoHost = currentCoHosts.some(
+                                                        (id: string) => id.toLowerCase() === userKey.toLowerCase()
+                                                    );
+
+                                                    let newCoHosts: string[];
+                                                    if (isAlreadyCoHost) {
+                                                        newCoHosts = currentCoHosts.filter(
+                                                            (id: string) => id.toLowerCase() !== userKey.toLowerCase()
+                                                        );
+                                                    } else {
+                                                        newCoHosts = [...currentCoHosts, userKey];
+                                                    }
+
+                                                    const targetValue = newCoHosts.join(",");
+                                                    fd.set('coHostUserId', targetValue);
+                                                    const res = await fetch(`/api/watch-along/${room.id}`, {
+                                                        method: 'PUT',
+                                                        body: fd
+                                                    });
+                                                    if (res.ok) {
+                                                        alert(isAlreadyCoHost ? `${displayName} is no longer Co-Host!` : `${displayName} is now Co-Host!`);
+                                                        if (room.id) await fetchRoomById(room.id);
+                                                    }
+                                                } catch (err) { console.error('Toggle Co-Host failed:', err); }
+                                            }}
+                                            className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all flex items-center gap-1 ${isCoHostUser
+                                                    ? 'bg-yellow-600 border-yellow-500 text-white'
+                                                    : 'bg-[#222] hover:bg-yellow-600 border-[#444] text-white'
+                                                }`}
+                                            title={isCoHostUser ? "Remove Co-Host" : "Make Co-Host"}
+                                        >
+                                            <Crown size={10} /> {isCoHostUser ? "Co-Host" : "Make Co-Host"}
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={async () => {
+                                            if (jitsiApi) {
+                                                try {
+                                                    jitsiApi.executeCommand('kickParticipant', p.id);
+                                                } catch (err) {
+                                                    console.error('Jitsi kick failed:', err);
+                                                }
+                                            }
+                                            if (sendChatMessage && room?.liveMatchId) {
+                                                try {
+                                                    await sendChatMessage(room.liveMatchId, "System", `[SYSTEM_REACTION]:KICK:${displayName}`, "text-red-500");
+                                                } catch (err) {
+                                                    console.error('Broadcast kick failed:', err);
+                                                }
+                                            }
+                                        }}
+                                        className="px-3 py-1 bg-[#222] hover:bg-red-600 text-white text-xs font-semibold rounded-full border border-[#444] transition-all"
+                                    >
+                                        Kick
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
+
+                {/* Chat-derived participants (joined but not in Jitsi video) */}
+                {chatOnlyUsers.map((name: string) => (
+                    <div key={name} className="flex items-center gap-3 bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
+                        <div className="w-8 h-8 bg-green-700 rounded-full flex items-center justify-center font-bold text-white text-xs">
+                            {name.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                            <p className="text-white text-sm font-bold">{name}</p>
+                            <p className="text-xs text-green-400 uppercase tracking-wide">Viewer</p>
+                        </div>
+                    </div>
+                ))}
+
+                {/* Empty state — only shown if truly alone */}
+                {realJitsiParticipants.length === 0 && chatOnlyUsers.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                            <span className="text-2xl">👥</span>
+                        </div>
+                        <p className="text-gray-400 text-sm font-medium">Waiting for others to join...</p>
+                        <p className="text-gray-600 text-xs mt-1">Share the room link to invite people</p>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
         default: return null;
     }
 }
@@ -4285,18 +4293,34 @@ export default function WatchRoom({ room, onBack }: Props) {
     const totalQuizCount = quizQuestions?.length || 0;
 
     // Merge jitsi names + chat users to calculate total participant count dynamically
-    const jitsiNames = new Set((jitsiParticipants || []).map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
-    const chatUsersList = Array.from(
-        new Set(
-            (chats || [])
-                .filter((c) => c.user && c.user.trim() !== "")
-                .map((c) => c.user)
-        )
-    ).filter((u) => u !== userName);
-    const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
+    // const jitsiNames = new Set((jitsiParticipants || []).map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
+    // const chatUsersList = Array.from(
+    //     new Set(
+    //         (chats || [])
+    //             .filter((c) => c.user && c.user.trim() !== "")
+    //             .map((c) => c.user)
+    //     )
+    // ).filter((u) => u !== userName);
+    // const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
 
-    const currentUserInJitsi = userName ? jitsiNames.has(userName.toLowerCase()) : false;
-    const dynamicParticipantsCount = (currentUserInJitsi ? 0 : 1) + (jitsiParticipants?.length || 0) + chatOnlyUsers.length;
+    // const currentUserInJitsi = userName ? jitsiNames.has(userName.toLowerCase()) : false;
+    // const dynamicParticipantsCount = (currentUserInJitsi ? 0 : 1) + (jitsiParticipants?.length || 0) + chatOnlyUsers.length;
+    const normalizedSelfName = (userName || "").trim().toLowerCase();
+const realJitsiParticipantsTop = (jitsiParticipants || []).filter((p: any) => {
+    const displayName = (p.displayName || p.formattedDisplayName || "").trim().toLowerCase();
+    return displayName && displayName !== normalizedSelfName;
+});
+const jitsiNames = new Set(realJitsiParticipantsTop.map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
+const chatUsersList = Array.from(
+    new Set(
+        (chats || [])
+            .filter((c) => c.user && c.user.trim() !== "")
+            .map((c) => c.user)
+    )
+).filter((u) => u !== userName);
+const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
+
+const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyUsers.length;
 
     const sidebarTabs = [
         { id: 'liveChat', label: 'Live Chat' },
@@ -4409,6 +4433,13 @@ export default function WatchRoom({ room, onBack }: Props) {
                 </div>
 
             </div>
+
+            {/* ── Match Specific Live Ticker ── */}
+            {room.name && (
+                <div className="w-full border-b border-[#222]">
+                    <LiveTicker roomNameFilter={room.name} matchIdFilter={room.liveMatchId} />
+                </div>
+            )}
 
             {/* ── Score bar ── */}
             {/* <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2 border-b border-[#222]">
@@ -4593,7 +4624,8 @@ export default function WatchRoom({ room, onBack }: Props) {
                         ) : (
                             <div className="absolute inset-0 w-full h-full">
                                 <img
-                                    src="/images/with_ananad.png"
+                                    // src="/images/with_ananad.png"
+                                    src={room.displayPicture}
                                     alt="Welcome to Watchalong!"
                                     className="w-full h-full object-fit"
                                 />
@@ -4682,8 +4714,8 @@ export default function WatchRoom({ room, onBack }: Props) {
                                     type="button"
                                     onClick={toggleMic}
                                     className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${micOn
-                                            ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
-                                            : "bg-red-600 border-red-500 text-white hover:bg-red-700"
+                                        ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
+                                        : "bg-red-600 border-red-500 text-white hover:bg-red-700"
                                         }`}
                                 >
                                     {micOn ? <Mic size={12} /> : <MicOff size={12} />}
@@ -4695,8 +4727,8 @@ export default function WatchRoom({ room, onBack }: Props) {
                                         type="button"
                                         onClick={toggleVid}
                                         className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${vidOn
-                                                ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
-                                                : "bg-red-600 border-red-500 text-white hover:bg-red-700"
+                                            ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
+                                            : "bg-red-600 border-red-500 text-white hover:bg-red-700"
                                             }`}
                                     >
                                         {vidOn ? <Video size={12} /> : <VideoOff size={12} />}
@@ -4749,8 +4781,8 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 <button
                                     onClick={() => triggerMoment("TEL_TOGGLE:" + (!isTelestratorActive).toString())}
                                     className={`flex-shrink-0 flex items-center gap-1.5 border rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold ${isTelestratorActive
-                                            ? 'bg-green-600/20 border-green-500 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse'
-                                            : 'bg-[#202023] hover:bg-[#2a2a2e] border-white/5 text-gray-200'
+                                        ? 'bg-green-600/20 border-green-500 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse'
+                                        : 'bg-[#202023] hover:bg-[#2a2a2e] border-white/5 text-gray-200'
                                         }`}
                                 >
                                     <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center text-[10px] text-white">✏️</div>
@@ -4854,8 +4886,8 @@ export default function WatchRoom({ room, onBack }: Props) {
                                     key={tab.id}
                                     onClick={() => setActiveTab(tab.id as any)}
                                     className={`flex-shrink-0 text-xs px-3.5 py-1.5 rounded-full font-bold transition-all ${activeTab === tab.id
-                                            ? "bg-pink-600 text-white shadow-lg"
-                                            : "bg-[#202023] text-gray-400 hover:bg-[#2a2a2e]"
+                                        ? "bg-pink-600 text-white shadow-lg"
+                                        : "bg-[#202023] text-gray-400 hover:bg-[#2a2a2e]"
                                         }`}
                                 >
                                     {tab.label}
@@ -4902,8 +4934,8 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 key={tab.id}
                                 onClick={() => setActiveTab(tab.id as any)}
                                 className={`flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1.5 rounded-lg font-bold tracking-wide transition-all ${activeTab === tab.id
-                                        ? "bg-pink-600/10 text-pink-400 border border-pink-500/20"
-                                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                                    ? "bg-pink-600/10 text-pink-400 border border-pink-500/20"
+                                    : "text-gray-400 hover:text-white hover:bg-white/5"
                                     }`}
                             >
                                 {tab.label}
@@ -5342,8 +5374,8 @@ export default function WatchRoom({ room, onBack }: Props) {
             {/* TIMED FULL-SCREEN EMOJI STORM OVERLAY */}
             {stormState !== 'idle' && (
                 <div className={`fixed inset-0 z-[9999] flex flex-col justify-between ${stormState === 'countdown' ? 'bg-black/95 backdrop-blur-xl pointer-events-auto' :
-                        stormState === 'active' ? 'bg-black/60 pointer-events-none' :
-                            'bg-black/95 backdrop-blur-2xl pointer-events-auto'
+                    stormState === 'active' ? 'bg-black/60 pointer-events-none' :
+                        'bg-black/95 backdrop-blur-2xl pointer-events-auto'
                     } transition-all duration-500`}>
 
                     {/* Countdown Screen */}

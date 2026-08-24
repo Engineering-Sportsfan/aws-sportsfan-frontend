@@ -7,7 +7,7 @@ import LiveTicker from "@/src/components/Ticker/LiveTicker";
 import BottomNav from "@/src/components/HomeComponents/Bottomnav";
 import InviteFriendModal from "@/src/components/InviteFriendModal";
 import axios from "axios";
-import { UserPlus } from "lucide-react";
+import { Home, UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -146,7 +146,7 @@ function UserSidebar() {
   // const isMatchIntelligence = user?.email?.endsWith("@sportsfan360.com");
 
   const sidebarItems: SidebarItem[] = [
-    { name: "Home", icon: "/images/feed.png", href: "/MainModules/HomePage" },
+    { name: "Home", icon: <Home className="w-5 h-5 text-gradient" />, href: "/MainModules/HomePage" },
 
     // { name: "Fantasy", icon: "/images/battle.png", href: "/MainModules/Fantasy" },
     {
@@ -249,30 +249,30 @@ export default function MainModulesLayout({
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [isSidebarHovered, setIsSidebarHovered] = useState(false); 
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const bottomNavRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-  const el = bottomNavRef.current;
-  if (!el) return;
+    const el = bottomNavRef.current;
+    if (!el) return;
 
-  const setVar = () => {
-    const height = el.getBoundingClientRect().height;
-    document.documentElement.style.setProperty("--roar-bottom-nav-height", `${height}px`);
-  };
+    const setVar = () => {
+      const height = el.getBoundingClientRect().height;
+      document.documentElement.style.setProperty("--roar-bottom-nav-height", `${height}px`);
+    };
 
-  setVar();
-  const ro = new ResizeObserver(setVar);
-  ro.observe(el);
-  window.addEventListener("resize", setVar);
-  window.addEventListener("orientationchange", setVar);
+    setVar();
+    const ro = new ResizeObserver(setVar);
+    ro.observe(el);
+    window.addEventListener("resize", setVar);
+    window.addEventListener("orientationchange", setVar);
 
-  return () => {
-    ro.disconnect();
-    window.removeEventListener("resize", setVar);
-    window.removeEventListener("orientationchange", setVar);
-  };
-}, []);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", setVar);
+      window.removeEventListener("orientationchange", setVar);
+    };
+  }, []);
 
   useEffect(() => {
     async function fetchCurrentUser() {
@@ -371,7 +371,7 @@ export default function MainModulesLayout({
 
   //             <UserPlus className="text-white w-3 h-3 md:w-4 md:h-4 lg:w-6 lg:h-6" />
   //           </button> */}
- 
+
   //         {/* </div> */}
 
   //         {/* BottomNav hidden for now — You and Alerts will integrate into global app profile/alerts */}
@@ -393,8 +393,8 @@ export default function MainModulesLayout({
 
   return (
     <>
-     <NotificationToast />
-    <GlobalActionBar /> 
+      <NotificationToast />
+      <GlobalActionBar />
       <style>{`
   body.roar-room-active .roar-bottom-nav { 
     display: none !important; 
@@ -406,19 +406,19 @@ export default function MainModulesLayout({
 
       <div className="h-screen w-full bg-black text-white flex flex-col lg:flex-row overflow-hidden">
         {/* {renderSidebar()} */}
-         <div
-      onMouseEnter={() => setIsSidebarHovered(true)}
-      onMouseLeave={() => setIsSidebarHovered(false)}
-      className="contents"
-    >
-      {renderSidebar()}
-    </div>
+        <div
+          onMouseEnter={() => setIsSidebarHovered(true)}
+          onMouseLeave={() => setIsSidebarHovered(false)}
+          className="contents"
+        >
+          {renderSidebar()}
+        </div>
 
         {/* <main className="flex-1 min-w-0 w-full h-full flex flex-col overflow-hidden lg:pb-0"> */}
         <main
-  className="flex-1 min-w-0 w-full h-full flex flex-col overflow-hidden lg:pb-0"
-  style={{ ["--sidebar-width" as any]: isSidebarHovered ? "248px" : "84px" }}
->
+          className="flex-1 min-w-0 w-full h-full flex flex-col overflow-hidden lg:pb-0"
+          style={{ ["--sidebar-width" as any]: isSidebarHovered ? "248px" : "84px" }}
+        >
           {!isProfilePath && !isAskAIPath && !isWatchAlongPath && !isFanszonePath && (
             // <div className="relative z-60">
 
@@ -432,7 +432,7 @@ export default function MainModulesLayout({
             //       #live-ticker-container {
             //         position: fixed !important;
             //         top: 0 !important;
-            //         left: 0 !important;
+            //         left: 0 !important;f
             //         right: 0 !important;
             //         z-index: 101 !important;
             //       }
@@ -447,11 +447,11 @@ export default function MainModulesLayout({
             //   </style>
             // </div>
             <div className="relative z-60 md:static fixed top-0 left-0 right-0 z-[102] md:z-60">
-  <Header />
-  <div id="live-ticker-container">
-    <LiveTicker />
-  </div>
-</div>
+              <Header />
+              <div id="live-ticker-container">
+                <LiveTicker />
+              </div>
+            </div>
           )}
 
           {/* <div 
