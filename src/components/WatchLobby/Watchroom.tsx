@@ -2568,6 +2568,7 @@ import { useWatchAlong, Room, Match } from "@/context/WatchAlongContext";
 import Prediction from "@/src/components/WatchLobby/Prediction";
 import FlashQuiz from "@/src/components/WatchLobby/Flashquiz";
 import LiveChat from "@/src/components/WatchLobby/LiveChat";
+import LiveTicker from "@/src/components/Ticker/LiveTicker";
 import DiscussionRoom from "@/src/components/NewROARComponent/screens/DiscussionRoom";
 import ComposeModal from "@/src/components/NewROARComponent/components/ComposeModal";
 import EmojiStorm from "@/src/components/WatchLobby/Emojistorm";
@@ -4409,6 +4410,13 @@ export default function WatchRoom({ room, onBack }: Props) {
                 </div>
 
             </div>
+
+            {/* ── Match Specific Live Ticker ── */}
+            {room.name && (
+                <div className="w-full border-b border-[#222]">
+                    <LiveTicker roomNameFilter={room.name} matchIdFilter={room.liveMatchId} />
+                </div>
+            )}
 
             {/* ── Score bar ── */}
             {/* <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2 border-b border-[#222]">
