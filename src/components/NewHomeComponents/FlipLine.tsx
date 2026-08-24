@@ -4,12 +4,9 @@ import { useRouter } from 'next/navigation';
 import { Heart, Share2, Play, Volume2, Sparkles } from 'lucide-react';
 import { fliplineService } from '@/services/flipline.service';
 import { useAuth } from "@/context/AuthContext";
-import asianGamesHero from '../../../public/asian_games_banner.png';
-import rajaramanPhoto from '../../../public/image-21.png';
-import anandVasuPhoto from '../../../public/image-23.png';
-import gallePhoto from '../../../public/image30.png';
+
 type FlipCard = {
-  id: number; type: 'analyst' | 'fan' | 'official';
+  id: number; type: string;
   sport: 'cricket' | 'football' | 'athletics';
   sportEmoji: string; sportLabel: string;
   day: string; time: string; timeMs: number;
@@ -26,6 +23,8 @@ type FlipCard = {
   sk?: string;
   userId?: string;
   email?: string;
+  isVerified?: boolean;
+  adminPhoto?: string;
 };
 /* ─── FlipLine shared data ─────────────────────────────────────────── */
 type ScoreChip = {
@@ -34,283 +33,7 @@ type ScoreChip = {
   statusType: 'live' | 'final' | 'break' | 'upcoming' | 'delay' | 'info';
 };
 
-const FL_CARDS: FlipCard[] = [
-  { id: 1, type: 'analyst', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-    day: 'Day 1 · Morning', timeMs: 642, time: '10:42 AM',
-    author: 'Anand Vasu', handle: '@anandvasu', source: 'Watch Along', authorPhoto: anandVasuPhoto,
-    content: "Rohit Sharma looks in excellent touch at the top. His intent to attack the spinners early is exactly what India need on this Galle surface. Watch that sweep shot — he's been working on it.",
-    emoji: '🎙️', likes: 1243, isKey: true, tags: ['#RohitSharma', '#IndvsSL'],
-    scoreChip: { score: 'IND 48/0 (11 ov)', status: 'Live', statusType: 'live' },
-    fomoMsg: "Anand's analysis is getting wild reactions — 312 fans debating in Watch Along right now",
-    fomoCount: 312, ctaType: 'watchalong',
-    flipResponse: "Rohit's sweep has been his go-to at Galle historically — 68% of his runs against spin here come through that shot. India are targeting the left-arm spinner gap at mid-wicket. Teams batting first here score 15–20% more on Day 1 than Day 3 📊" },
 
-  { id: 2, type: 'fan', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-    day: 'Day 1 · Morning', timeMs: 655, time: '10:55 AM',
-    author: 'CricketCrazy_Rohan', handle: '@rohancric22', source: 'ROAR Room',
-    content: '🔥🔥 BUMRAH IS UNREAL!!!! That inswinger to dismiss Karunaratne was CINEMA. Someone get this man an Oscar 😤',
-    emoji: '😤', likes: 892, isKey: true, tags: [],
-    scoreChip: { score: 'SL 22/1 (6.3 ov)', status: 'Live — Wicket!', statusType: 'live' },
-    fomoMsg: "892 fans are celebrating Bumrah's wicket right now — the room is going insane",
-    fomoCount: 892, ctaType: 'room',
-    flipResponse: "Bumrah's inswinger to left-handers has a 78% success rate in Asia over the last 3 years. He pitched it on a perfect 7.5m length from over the wicket — Karunaratne had no answer. This is why he's ranked #1 in Test bowling 🎯" },
-
-  { id: 3, type: 'official', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-    day: 'Day 1 · Morning', timeMs: 675, time: '11:15 AM',
-    author: 'SF360', source: 'Official Drop',
-    content: "Bumrah's 5th wicket — a classic inswinger that shattered the stumps. Watch the full clip.",
-    emoji: '🎬', mediaType: 'video', likes: 5671, isKey: true, tags: [],
-    scoreChip: { score: 'SL 76/5 (24 ov)', status: 'Live', statusType: 'live' },
-    fomoMsg: "5.6K fans watched this drop in 10 mins — you're missing out on the conversation",
-    fomoCount: 5671, ctaType: 'drop',
-    flipResponse: "Bumrah's 5-wicket hauls at Galle: this is his 2nd. Historically when India bowl out the opposition under 180 here, they win 89% of the time. Sri Lanka are in serious trouble heading to lunch 📊" },
-
-  { id: 13, type: 'analyst', sport: 'athletics', sportEmoji: '🏃', sportLabel: 'Delhi State Athletics',
-    day: 'Day 1 · Morning', timeMs: 676, time: '11:15 AM',
-    author: 'Rajaraman G', handle: '@g_rajaraman', source: 'via X', authorPhoto: rajaramanPhoto,
-    content: "The Jawaharlal Nehru Stadium was bereft of spectators, media & influences who throng international sports events. But it was heartening to watch athletes combat the elements – rain on Friday & humidity on Sunday – to deliver their best in the Delhi State Athletics Championships",
-    emoji: '🏟️', likes: 1876, isKey: false, tags: ['#DelhiAthletics', '#Athletics'],
-    scoreChip: { score: 'Delhi State Athletics', status: 'Completed', statusType: 'final' },
-    fomoMsg: "Rajaraman's ground report from JN Stadium is resonating with 245 fans in Athletics room",
-    fomoCount: 245, ctaType: 'watchalong',
-    flipResponse: "Delhi State Athletics is the breeding ground for national-level talent. Competing in rain and humidity builds mental toughness. Several athletes here will represent India in the Asian Athletics Championships next month 🏆" },
-
-  { id: 8, type: 'analyst', sport: 'athletics', sportEmoji: '🏃', sportLabel: 'Asian Athletics',
-    day: 'Day 1 · Morning', timeMs: 677, time: '11:16 AM',
-    author: 'Rajaraman G', handle: '@g_rajaraman', source: 'Watch Along', authorPhoto: rajaramanPhoto,
-    content: "Neeraj Chopra is warming up and he looks incredibly focused. His approach run has a different energy today — that step count adjustment he made in training is visible. This could be a massive throw.",
-    emoji: '🏟️', likes: 677, isKey: false, tags: ['#NeerajChopra', '#AsianAthletics'],
-    scoreChip: { score: 'Javelin Final · Attempt 1', status: 'Upcoming', statusType: 'upcoming' },
-    fomoMsg: "Rajaraman's preview is pulling 200+ fans into the Athletics Watch Along — join the room",
-    fomoCount: 200, ctaType: 'watchalong',
-    flipResponse: "Neeraj's personal best is 89.94m. At this venue, athletes have thrown 1.8% better on average due to altitude. His 2026 form: 3 competitions, 3 wins, avg 87.6m. If he hits 88m+ today, he's on World Championship medal pace 🏆" },
-
-  { id: 4, type: 'analyst', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-    day: 'Day 1 · Morning', timeMs: 690, time: '11:30 AM',
-    author: 'Anand Vasu', handle: '@anandvasu', source: 'via X', authorPhoto: anandVasuPhoto,
-    content: 'Sri Lanka 87/4 at lunch. India bowling has been clinical but the pitch has eased. Second session crucial — Chandimal and Dickwella could change this match.',
-    emoji: '📊', likes: 2109, isKey: true, tags: ['#GalleTest'],
-    scoreChip: { score: 'SL 87/4 (30 ov)', status: 'Lunch Break', statusType: 'break' },
-    fomoMsg: "Anand's lunch take sparked a huge debate — 400+ fans arguing about it in Watch Along",
-    fomoCount: 400, ctaType: 'watchalong',
-    flipResponse: 'Chandimal has a 58 average in the second session at Galle — he thrives when the pitch eases. India need 2 more wickets before tea or Sri Lanka could come back. The key battle: Bumrah vs Chandimal in the first over post-lunch 🎯' },
-
-  { id: 14, type: 'official', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-    day: 'Day 1 · Afternoon', timeMs: 800, time: '1:20 PM',
-    author: 'SF360', source: 'Official Drop',
-    content: "India's fielding masterclass — Jadeja's direct hit run-out off just 1 stump visible. Sri Lanka 115/5. Watch the full throw →",
-    emoji: '🎬', mediaType: 'video', likes: 4102, isKey: true, tags: [],
-    scoreChip: { score: 'SL 115/5 (38 ov)', status: 'Live', statusType: 'live' },
-    fomoMsg: "4.1K fans are replaying this run-out on loop — join the Watch Along for Jadeja breakdown",
-    fomoCount: 4102, ctaType: 'watchalong',
-    flipResponse: "Jadeja's direct hit: estimated throw distance of 38m, hit the single stump at 85kph. He only has 1 stump to aim at and still nails it. His run-out rate this year: 7 direct hits from 14 attempts (50%) — elite standard 🎯" },
-
-  { id: 5, type: 'fan', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-    day: 'Day 1 · Afternoon', timeMs: 850, time: '2:10 PM',
-    author: 'SriLankaPride', handle: '@sl_superfan', source: 'ROAR Room',
-    content: 'Chandimal bhai keeping the ship steady 💪 40 off 88 balls is exactly what they need right now.',
-    emoji: '🫡', likes: 344, isKey: false, tags: [],
-    scoreChip: { score: 'SL 142/5 (44 ov)', status: 'Live', statusType: 'live' },
-    fomoMsg: 'SL fans and India fans are going at it hard in the ROAR Room — 267 fans live',
-    fomoCount: 267, ctaType: 'room',
-    flipResponse: "Chandimal's 40 off 88 is actually above his usual SR at Galle (39.2). He's converting at 45.4 SR right now — if he stays till tea, Sri Lanka could push 220+. India need to break this partnership in the next 8 overs 📊" },
-
-  { id: 9, type: 'fan', sport: 'football', sportEmoji: '⚽', sportLabel: 'IND vs JPN',
-    day: 'Day 1 · Afternoon', timeMs: 851, time: '2:10 PM',
-    author: 'GoalMachine_Dev', handle: '@dev_football', source: 'ROAR Room',
-    content: 'SUNIL CHHETRI IS BACK AND HE JUST SCORED 😭😭😭 India 1-0 Japan!! The crowd is ERUPTING!! ⚽🇮🇳🔥',
-    emoji: '⚽', likes: 1893, isKey: true, tags: ['#IndiaFootball', '#Chhetri'],
-    scoreChip: { score: 'IND 1 – 0 JPN', status: 'Live · 67\'', statusType: 'live' },
-    fomoMsg: "1.8K fans are going absolutely wild in Football ROAR Room — massive goal!!",
-    fomoCount: 1893, ctaType: 'room',
-    flipResponse: "Chhetri's 91st international goal! At 41, scoring in a competitive fixture is remarkable. India's win probability just jumped from 28% to 61%. Japan haven't conceded to India since 2019 — this is historic ⚽🏆" },
-
-//   { id: 12, type: 'analyst', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-//     day: 'Day 1 · Afternoon', timeMs: 940, time: '3:40 PM',
-//     author: 'Anand Vasu', handle: '@anandvasu', source: 'via X', authorPhoto: anandVasuPhoto,
-//     content: "A wall of dark cloud comes off the sea and with it the covers are on. The end of the Sri Lanka innings may well be the end of the day's play. #INDvSL",
-//     emoji: '🌧️', likes: 3421, isKey: true, tags: ['#INDvSL'],
-//     image: galleRainPhoto,
-//     scoreChip: { score: 'SL 180/9 (48.3 ov)', status: 'Rain Delay ⛈', statusType: 'delay' },
-//     fomoMsg: "Rain delay! 600+ fans discussing DLS & what happens next in Watch Along right now",
-//     fomoCount: 600, ctaType: 'watchalong',
-//     flipResponse: "DLS method may come into play if play is abandoned. Sri Lanka at 180/9 with 2 balls left — they're essentially all out. India's revised target if DLS applies will depend on overs remaining. Weather radar shows 2-3 hours of rain — game-changing situation 🌧️" },
-
-  { id: 6, type: 'official', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-    day: 'Day 1 · Afternoon', timeMs: 945, time: '3:45 PM',
-    author: 'SF360', source: 'Official Drop',
-    content: 'Shami breaks through with a sharp off-cutter. Sri Lanka 142/6. India firmly in control. Listen to Shami explain the dismissal himself.',
-    emoji: '🎙️', mediaType: 'audio', likes: 3211, isKey: false, tags: [],
-    scoreChip: { score: 'SL 142/6 (44.2 ov)', status: 'Live', statusType: 'live' },
-    fomoMsg: '3.2K fans reacted to this drop in 4 minutes — join the conversation before it dies',
-    fomoCount: 3211, ctaType: 'drop',
-    flipResponse: "Shami's off-cutter: released at 134kph, pitched on a good length, cut back sharply. Dickwella went for a drive — classic dismissal. At 142/6, Sri Lanka are likely under 200. India batting target: expect 190–205 💯" },
-
-  { id: 10, type: 'analyst', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-    day: 'Day 1 · Afternoon', timeMs: 946, time: '3:45 PM',
-    author: 'Anand Vasu', handle: '@anandvasu', source: 'Watch Along', authorPhoto: anandVasuPhoto,
-    content: "Shami's off-cutter is simply magnificent. The way he disguises it from his outswinger grip — Dickwella never picked it. India's pace attack now has 6 wickets between them. Complete bowling performance.",
-    emoji: '📊', likes: 1876, isKey: true, tags: ['#Shami', '#IndvsSL'],
-    scoreChip: { score: 'SL 142/6 (44.2 ov)', status: 'Live', statusType: 'live' },
-    fomoMsg: "Anand's breakdown of Shami's grip is causing a riot — 500 fans live in Watch Along",
-    fomoCount: 500, ctaType: 'watchalong',
-    flipResponse: "Shami's off-cutter is the same one he used to dismantle NZ in 2021. He only bowls it after prepping the batsman with 3 outswingers — pure chess. His off-cutter success rate this year: 4 wickets from 9 attempts (44%) 🎯" },
-
-  { id: 11, type: 'official', sport: 'athletics', sportEmoji: '🏃', sportLabel: 'Asian Athletics',
-    day: 'Day 1 · Afternoon', timeMs: 947, time: '3:45 PM',
-    author: 'SF360', source: 'Official Drop',
-    content: "NEERAJ CHOPRA THROWS 88.72M! 🏆 NEW ASIAN GAMES RECORD! India's golden boy does it again. Watch the throw →",
-    emoji: '🏆', mediaType: 'video', likes: 8934, isKey: true, tags: ['#NeerajChopra'],
-    image: asianGamesHero,
-    scoreChip: { score: 'Neeraj · 88.72m 🥇', status: 'Asian Games Record!', statusType: 'final' },
-    fomoMsg: "8.9K fans reacted to Neeraj's record throw — biggest Athletics moment of the year",
-    fomoCount: 8934, ctaType: 'drop',
-    flipResponse: "88.72m is Neeraj's 3rd-best throw ever! This betters the previous Asian Games record by 1.24m. His next target: 90m at Worlds. Release angle was 33.2° — near-perfect for javelin at this altitude. Absolute specimen 🏆" },
-
-  { id: 15, type: 'fan', sport: 'football', sportEmoji: '⚽', sportLabel: 'IND vs JPN',
-    day: 'Day 1 · Evening', timeMs: 1020, time: '5:00 PM',
-    author: 'BlueTigers_Fan', handle: '@bluetigers_in', source: 'ROAR Room',
-    content: "FULL TIME. INDIA 1-0 JAPAN. I can't believe what I just witnessed 😭🇮🇳 Chhetri you absolute LEGEND. History made tonight!",
-    emoji: '🏆', likes: 4291, isKey: true, tags: ['#BlueTigers', '#INDvJPN'],
-    scoreChip: { score: 'IND 1 – 0 JPN', status: 'Full Time', statusType: 'final' },
-    fomoMsg: "4.2K fans celebrating in Football ROAR — biggest India football moment in years",
-    fomoCount: 4291, ctaType: 'room',
-    flipResponse: "India's first competitive win over Japan since 2011. Chhetri's goal was India's 91st international goal. Full-time stats: India 38% possession, 6 shots, 3 on target. A classic counter-attack performance by Igor Stimac's men 🏆" },
-
-  { id: 16, type: 'official', sport: 'cricket', sportEmoji: '🏏', sportLabel: 'IND vs SL',
-    day: 'Day 1 · Evening', timeMs: 1080, time: '6:00 PM',
-    author: 'SF360', source: 'Official Drop',
-    content: 'SRI LANKA ALL OUT FOR 183. India need 184 to win the Galle Test. Play resumes tomorrow 9:30 AM. Key stat: India have never lost chasing under 200 at Galle. SF360 full scorecard →',
-    emoji: '📋', likes: 6543, isKey: true, tags: ['#GalleTest', '#INDvSL'],
-    scoreChip: { score: 'SL 183 All Out', status: 'Innings Complete', statusType: 'final' },
-    fomoMsg: "6.5K fans digesting the scorecard — Anand Vasu's post-day analysis is LIVE in Watch Along",
-    fomoCount: 6543, ctaType: 'drop',
-    flipResponse: "India's chase of 184 at Galle — historical record: 4 wins from 4 chases under 200. Rohit and Gill open tomorrow. Expected DLS target if rain returns: 165 from 40 overs. The pitch will have more variable bounce on Day 2 📊" },
-
-  {
-    id: 17,
-    type: 'analyst',
-    sport: 'cricket',
-    sportEmoji: '🏏',
-    sportLabel: 'IND vs SL',
-    day: 'Day 1 · Evening',
-    timeMs: 1110,
-    time: '6:30 PM',
-    author: 'Anand Vasu',
-    handle: '@anandvasu',
-    source: 'Watch Along',
-    authorPhoto: anandVasuPhoto,
-    content: "Right. And now this one is hitting the stumps apparently. Gill sweeps and misses. He's bending as he plays the shot. And is hit in the stomach/midriff. But ball tracking shows it's low enough to not go over the stumps. Even Prabhat Jayasuriya has a wry smile after watching the...",
-    emoji: '🎙️',
-    likes: 205,
-    isKey: true,
-    tags: ['#INDvSL', '#Gill', '#Jayasuriya'],
-    scoreChip: { score: 'IND vs SL', status: 'Live', statusType: 'live' },
-    fomoMsg: "Anand's live DRS analysis is drawing big reactions — fans debating in Watch Along right now",
-    fomoCount: 205,
-    ctaType: 'watchalong',
-    flipResponse: "Ball-tracking confirms height was low enough despite hitting him high on the midriff during the sweep shot bending forward. Jayasuriya continues to create problems."
-  },
-  {
-    id: 18,
-    type: 'analyst',
-    sport: 'cricket',
-    sportEmoji: '🏏',
-    sportLabel: 'IND vs SL',
-    day: 'Day 1 · Evening',
-    timeMs: 1140,
-    time: '7:00 PM',
-    author: 'Anand Vasu',
-    handle: '@anandvasu',
-    source: 'Watch Along',
-    authorPhoto: anandVasuPhoto,
-    content: "No review can reprieve Rahul this time. Comes down the track and looks to clear mid on. Doesn't get to the pitch. Prabhat Jayasuriya has the last laugh and the wicket. #INDvSL",
-    emoji: '☝️',
-    likes: 197,
-    isKey: true,
-    tags: ['#INDvSL', '#KLRahul', '#Wicket'],
-    scoreChip: { score: 'IND vs SL', status: 'Live', statusType: 'live' },
-    fomoMsg: "Fans are reacting to KL Rahul's dismissal — Join the breakdown in Watch Along",
-    fomoCount: 197,
-    ctaType: 'watchalong',
-    flipResponse: "KL Rahul tried stepping down to break the pressure against Jayasuriya, but failed to reach the pitch of the ball, leading to a simple catch at mid-on."
-  },
-  {
-    id: 19,
-    type: 'analyst',
-    sport: 'cricket',
-    sportEmoji: '🏏',
-    sportLabel: 'IND vs SL',
-    day: 'Day 1 · Evening',
-    timeMs: 1150,
-    time: '7:10 PM',
-    author: 'Anand Vasu',
-    handle: '@anandvasu',
-    source: 'Watch Along',
-    authorPhoto: anandVasuPhoto,
-    content: "That looked like it was out for all the money in the world. KL Rahul looked set to walk off when Devdutt Padikkal stopped him and told him to review. In the dressing-room Shubman Gill had pulled his gloves on and was ready to walk out. And technology says the ball would have gone...",
-    emoji: '📺',
-    likes: 1200,
-    isKey: true,
-    tags: ['#INDvSL', '#DRS', '#KLRahul'],
-    scoreChip: { score: 'IND vs SL', status: 'Live', statusType: 'live' },
-    fomoMsg: "Over 1.2K fans reacting to that dramatic DRS call saved by Padikkal",
-    fomoCount: 1200,
-    ctaType: 'watchalong',
-    flipResponse: "Padikkal's intervention saved Rahul after he was given out on-field. Replays showed missing, prompting Gill to unpack his gloves back in the pavilion."
-  },
-  {
-    id: 20,
-    type: 'analyst',
-    sport: 'cricket',
-    sportEmoji: '🏏',
-    sportLabel: 'IND vs SL',
-    day: 'Day 1 · Evening',
-    timeMs: 1169,
-    time: '7:29 PM',
-    author: 'Anand Vasu',
-    handle: '@anandvasu',
-    source: 'Watch Along',
-    authorPhoto: anandVasuPhoto,
-    content: "Another day where the weather has defied prediction and the cricket has followed suit. Bright sunshine and Yashasvi Jaiswal gives it away early, nicking off. He plays only one format -- not out of choice -- and Jaiswal would have wanted time out in the middle. The runs would have...",
-    emoji: '☀️',
-    likes: 540,
-    isKey: true,
-    tags: ['#INDvSL', '#Jaiswal', '#EarlyWicket'],
-    scoreChip: { score: 'IND vs SL', status: 'Live', statusType: 'live' },
-    fomoMsg: "540 fans discussing Jaiswal's early dismissal in Watch Along",
-    fomoCount: 540,
-    ctaType: 'watchalong',
-    flipResponse: "Clear weather conditions didn't prevent an early setback as Jaiswal edged behind early in the session, missing out on valuable time at the crease."
-  },
-  {
-    id: 21,
-    type: 'analyst',
-    sport: 'cricket',
-    sportEmoji: '🏏',
-    sportLabel: 'Galle Travel',
-    day: 'Day 1 · Evening',
-    timeMs: 1180,
-    time: '7:40 PM',
-    author: 'Anand Vasu',
-    handle: '@anandvasu',
-    source: 'Watch Along',
-    authorPhoto: anandVasuPhoto,
-    content: "There is no shortage of places to visit in Galle. Allow me to add The South Ceylon Bakery. It's owned by Athula Samarasekara, a hard-hitting batsman and handy medium pacer who played 4 Tests and 39 ODIs for Sri Lanka from 1988-1994. Ironic that he should run a bakery given this...",
-    image: gallePhoto,
-    emoji: '🥐',
-    likes: 161,
-    isKey: false,
-    tags: ['#Galle', '#CricketHistory', '#SriLanka'],
-    scoreChip: { score: 'Galle Spotlight', status: 'Pinned', statusType: 'info' },
-    fomoMsg: "161 fans loving Anand's recommendation on Galle heritage spot",
-    fomoCount: 161,
-    ctaType: 'watchalong',
-    flipResponse: "Athula Samarasekara played for Sri Lanka between 1988-1994, known for aggressive hitting. He now runs The South Ceylon Bakery in Galle."
-  }
-
-
-];
 
 function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { selectedSport: string; onViewFull: () => void; cards: FlipCard[]; loading: boolean }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
@@ -498,11 +221,14 @@ export function FlipCardItem({
   const currentUserEmail = user?.email;
   const isCurrentUser = (currentUserEmail && card.email && currentUserEmail.toLowerCase() === card.email.toLowerCase()) ||
                          (card.userId && currentUserId && card.userId === currentUserId);
-  const displayAuthor = isCurrentUser ? "You" : (card.author === "You" ? "Fan" : card.author);
+  const rawAuthor = isCurrentUser ? "You" : (card.author === "You" ? "Fan" : card.author);
+  const displayAuthor = rawAuthor 
+    ? rawAuthor.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
+    : '';
   const displayHandle = isCurrentUser ? "@you" : (card.handle === "@you" ? "@fan" : card.handle);
-  const displayPhoto = isCurrentUser 
+  const displayPhoto = card.adminPhoto || (isCurrentUser 
     ? (user?.avatar || card.authorPhoto)
-    : card.authorPhoto;
+    : card.authorPhoto);
 
   console.log("FlipCardItem DEBUG:", {
     cardId: card.id,
@@ -544,7 +270,7 @@ export function FlipCardItem({
   };
 
   const isExpanded = askOpen === card.id;
-  const themeColor = typeColorMap[card.type] || 'rgba(255, 255, 255, 0.4)';
+  const themeColor = typeColorMap[card.type] || '#3b82f6';
   const themeLabel = typeLabelMap[card.type] || card.type;
 
   return (
@@ -592,39 +318,25 @@ export function FlipCardItem({
 
       {/* Right card container */}
       <div className="flex-1 pr-4 pb-2 min-w-0">
-        <div className="transition-all duration-300 relative flex flex-col gap-3.5 w-full">
-          
+        <div className="transition-all duration-300 relative flex flex-col gap-3.5 w-full bg-[#161b22]/40 border border-[#21262d] rounded-2xl p-4 shadow-md">
+
           {/* Row 1: Score & Sport Tag */}
-          <div className="flex items-center justify-between w-full min-h-[24px]">
-            {card.scoreChip ? (
+          {/* {card.scoreChip && (
+            <div className="flex items-center justify-between w-full min-h-[24px]">
               <div className="flex items-center gap-2">
-                <div 
+                <div
                   className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold text-[#10b981] bg-[#10b981]/12 border border-[#10b981]/20"
                 >
                   {card.scoreChip.score}
                 </div>
-                <span 
+                <span
                   className="text-[11px] font-extrabold text-[#10b981]"
                 >
                   {card.scoreChip.status}
                 </span>
               </div>
-            ) : (
-              <div />
-            )}
-            
-            <div 
-              className="px-2.5 py-1 rounded-full text-[10.5px] font-bold flex items-center gap-1.5"
-              style={{
-                background: 'rgba(15, 23, 42, 0.7)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                color: 'rgba(255, 255, 255, 0.7)'
-              }}
-            >
-              <span>{card.sportEmoji}</span>
-              <span>{card.sportLabel}</span>
             </div>
-          </div>
+          )} */}
 
           {/* Row 2: Author info */}
           <div className="flex items-center gap-2.5 w-full">
@@ -636,18 +348,27 @@ export function FlipCardItem({
               />
             ) : (
               <div 
-                className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[14px] shrink-0"
+                className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[12px] shrink-0 uppercase tracking-wider"
                 style={{
                   background: `linear-gradient(135deg, ${themeColor}, #0f172a)`
                 }}
               >
-                {displayAuthor ? displayAuthor[0] : ''}
+                {displayAuthor 
+                  ? displayAuthor.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase()
+                  : ''}
               </div>
             )}
             
             <div className="min-w-0 flex flex-col">
               <div className="flex items-center gap-1.5">
                 <span className="font-extrabold text-[13.5px] text-white leading-tight truncate">{displayAuthor}</span>
+                {card.isVerified && (
+                  <span className="inline-flex items-center justify-center bg-[#1d9bf0] text-white rounded-full shrink-0" style={{ width: 14, height: 14 }} title="Verified Admin">
+                    <svg className="w-2.5 h-2.5 fill-none stroke-current" strokeWidth="3" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </span>
+                )}
                 {displayHandle && (
                   <span className="text-[11px] text-white/40 truncate">{displayHandle}</span>
                 )}
@@ -659,7 +380,7 @@ export function FlipCardItem({
                 >
                   {themeLabel}
                 </span>
-                <span className="text-[9.5px] text-white/30 font-medium">via {card.source}</span>
+                {/* <span className="text-[9.5px] text-white/30 font-medium">via {card.source}</span> */}
               </div>
             </div>
           </div>
@@ -1040,30 +761,56 @@ export function FlipTimeline({
     official: 'SF360 Drop',
   };
 
+  // Group cards by day (date) preserving chronological order
+  const dateGroups: { date: string; cards: FlipCard[] }[] = [];
+  finalCards.forEach((card) => {
+    const date = card.day || "Today";
+    let group = dateGroups.find((g) => g.date === date);
+    if (!group) {
+      group = { date, cards: [] };
+      dateGroups.push(group);
+    }
+    group.cards.push(card);
+  });
+
   return (
     <div className="flex flex-col w-full relative">
-      {finalCards.map((card, index) => {
-        const isLiked = likedCards.has(card.id);
-        return (
-          <FlipCardItem
-            key={card.id}
-            card={card}
-            index={index}
-            totalCards={finalCards.length}
-            isLiked={isLiked}
-            likedCards={likedCards}
-            setLikedCards={setLikedCards}
-            askOpen={askOpen}
-            setAskOpen={setAskOpen}
-            typeColorMap={typeColorMap}
-            typeLabelMap={typeLabelMap}
-            router={router}
-            handleLike={handleLike}
-            handleShare={handleShare}
-            handleCtaClick={handleCtaClick}
-          />
-        );
-      })}
+      {dateGroups.map((group) => (
+        <div key={group.date} className="w-full flex flex-col mb-6">
+          {/* Centered Date Header at the top of the group */}
+          <div className="flex justify-center mb-6 mt-2">
+            <span className="px-4 py-1.5 rounded-full text-xs font-black text-white bg-white/10 backdrop-blur-sm border border-white/10 shadow-lg uppercase tracking-wider">
+              {group.date}
+            </span>
+          </div>
+
+          {/* Group's cards list */}
+          <div className="flex flex-col w-full relative">
+            {group.cards.map((card, index) => {
+              const isLiked = likedCards.has(card.id);
+              return (
+                <FlipCardItem
+                  key={card.id}
+                  card={card}
+                  index={index}
+                  totalCards={group.cards.length}
+                  isLiked={isLiked}
+                  likedCards={likedCards}
+                  setLikedCards={setLikedCards}
+                  askOpen={askOpen}
+                  setAskOpen={setAskOpen}
+                  typeColorMap={typeColorMap}
+                  typeLabelMap={typeLabelMap}
+                  router={router}
+                  handleLike={handleLike}
+                  handleShare={handleShare}
+                  handleCtaClick={handleCtaClick}
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
