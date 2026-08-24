@@ -1,7 +1,8 @@
 // components\NewHomeComponents\IndiaHub.tsx
 
-import { ChevronRight } from "lucide-react";
+import { BarChart3, ChevronRight } from "lucide-react";
 import { useRouter } from 'next/navigation'; // Note: 'next/navigation'
+import ReactCountryFlag from "react-country-flag";
 
 export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
   const router = useRouter();
@@ -64,7 +65,12 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
               <h4 className="text-[13px] font-extrabold text-white mb-1">INDIAN SQUAD</h4>
               <p className="text-[11px] text-white/45 font-medium">View all athletes</p>
             </div>
-            <p className="text-4xl font-black text-white/90 leading-none">IN</p>
+            {/* <p className="text-4xl font-black text-white/90 leading-none">IN</p> */}
+            <ReactCountryFlag
+              countryCode="IN"
+              svg
+              className="text-3xl"
+            />
           </div>
 
           {/* AI Profiles */}
@@ -106,7 +112,7 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
           </div> */}
 
 
-           {/* Records Explorer */}
+          {/* Records Explorer */}
           <div
             onClick={() => router.push('/MainModules/RecordsExplorer')}
             className="rounded-2xl hover:cursor-pointer p-4 min-h-[170px] flex flex-col justify-between"
@@ -116,7 +122,8 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
               <h4 className="text-[13px] font-extrabold text-white mb-1">RECORDS EXPLORER</h4>
               <p className="text-[11px] text-white/45 font-medium">View all records</p>
             </div>
-            <p className="text-4xl font-black text-white/90 leading-none">RE</p>
+            {/* <p className="text-4xl font-black text-white/90 leading-none">RE</p> */}
+            <BarChart3 className="text-3xl" />
           </div>
 
           {/* Match Center */}
@@ -153,10 +160,10 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
                 {isCricket
                   ? "Rohit · Kohli · Bumrah"
                   : isFootball
-                  ? "Ronaldo · Messi · Neymar"
-                  : "Champions & Challengers"}
+                    ? "Ronaldo · Messi · Neymar"
+                    : "Champions & Challengers"}
               </p>
-              
+
               {/* Squad circles */}
               <div className="flex gap-1.5 items-center">
                 {isCricket ? (
@@ -184,7 +191,7 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
                 )}
               </div>
             </div>
-            
+
             <div className="flex items-center gap-1.5 mt-2">
               <span className="text-[11px] font-bold text-white bg-white/10 px-1.5 py-0.5 rounded leading-none">IN</span>
               <p className="text-[10px] text-white/40 font-medium truncate">
@@ -210,10 +217,10 @@ export default function IndiaHub({ sport = "mixed" }: { sport?: string }) {
                 {isCricket
                   ? "IND vs SL · Galle Test · Day 2"
                   : isFootball
-                  ? "FC Porto vs Benfica · Liga"
-                  : "India vs World · Final"}
+                    ? "FC Porto vs Benfica · Liga"
+                    : "India vs World · Final"}
               </p>
-              
+
               <div className="flex items-baseline gap-2">
                 <span className={`text-2xl font-black ${accentTextColor} leading-none`}>
                   {isCricket ? "IN 284/6" : isFootball ? "POR 2 - 1 SLB" : "IN Leads"}
