@@ -300,15 +300,17 @@ function LiveCricketCardView({ card }: { card: LiveCard }) {
         </div>
       )} */}
 
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={card.onJoin}
-        className="w-full py-3 rounded-full font-extrabold text-white text-[13px] flex items-center justify-center gap-2"
-        style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
-      >
-        {card.ctaLabel ?? "Wtch Along"}
-        <span>→</span>
-      </motion.button>
+      {card.ctaLabel !== "View Highlights" && (
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={card.onJoin}
+          className="w-full mt-3 py-3 rounded-full font-extrabold text-white text-[13px] flex items-center justify-center gap-2"
+          style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
+        >
+          {card.ctaLabel ?? "Watch Along"}
+          <span>→</span>
+        </motion.button>
+      )}
     </div>
   );
 }
@@ -621,14 +623,16 @@ function MiniMatchCardView({ card }: { card: MiniMatchCard }) {
         )}
       </div>
 
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={card.onAction}
-        className="w-full py-2.5 rounded-full font-extrabold text-white text-[11px]"
-        style={{ background: card.ctaGradient }}
-      >
-        {card.ctaLabel}
-      </motion.button>
+      {card.ctaLabel !== "View Highlights" && (
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={card.onAction}
+          className="w-full mt-auto py-2.5 rounded-full font-extrabold text-white text-[11px]"
+          style={{ background: card.ctaGradient }}
+        >
+          {card.ctaLabel}
+        </motion.button>
+      )}
     </div>
   );
 }
@@ -754,30 +758,70 @@ export default function SportScoreSection({
   const [roanuzMatches, setRoanuzMatches] = useState<MiniMatchCard[]>([]);
 
   useEffect(() => {
-    fetch('/api/featured-matches')
-      .then(r => r.json())
-      .then(data => {
-        if (data.success && data.items && data.items.length > 0) {
-           setRoanuzHeroCards(data.items);
+    const fetchData = async () => {
+      let watchAlongRoomId = "acc569cd-831b-4f3c-ab7d-cf862b11be6a"; // Fallback
+      try {
+        const roomsRes = await fetch('/api/watch-along');
+        const roomsData = await roomsRes.json();
+        if (roomsData.success && roomsData.rooms) {
+          // Prioritize the "Day 2" room since it's today's specific match room, otherwise fallback to any Sri Lanka room
+          const matchRoom = roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka") && r.name?.toLowerCase().includes("day 2")) 
+                         || roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka"));
+          if (matchRoom) {
+            watchAlongRoomId = matchRoom.id;
+          }
         }
-      })
-      .catch(e => console.error("Error fetching featured matches:", e));
+      } catch (e) {
+        console.error("Error fetching watch along rooms", e);
+      }
 
-    if (selectedSport === "cricket") {
-      fetch('/api/cricket-feed')
+      fetch('/api/featured-matches')
         .then(r => r.json())
         .then(data => {
-          if (data.success && data.liveAndUpcoming) {
-             const withActions = data.liveAndUpcoming.map((m: any) => ({
-               ...m,
-               buttonAction: () => console.log("Clicked match:", m.id)
-             }));
-             setRoanuzMatches(withActions);
+          if (data.success && data.items && data.items.length > 0) {
+             const processedCards = data.items.map((item: any) => {
+               const nameA = (item.teamAName || "").toLowerCase();
+               const nameB = (item.teamBName || "").toLowerCase();
+               const isIndSlMatch = (nameA.includes("india") && nameB.includes("sri lanka")) || (nameA.includes("sri lanka") && nameB.includes("india"));
+               
+               return {
+                 ...item,
+                 bgImageUrl: isIndSlMatch ? "/images/ind_srl_homepage.png" : item.bgImageUrl,
+                 onJoin: () => {
+                   if (isIndSlMatch) {
+                     window.location.href = `/MainModules/WatchAlong/room/${watchAlongRoomId}`;
+                   } else {
+                     window.location.href = `/MainModules/WatchAlong/room/${item.id}`;
+                   }
+                 }
+               };
+             });
+             setRoanuzHeroCards(processedCards);
           }
         })
-        .catch(e => console.error("Error fetching cricket feed:", e));
-    }
-  }, [selectedSport]);
+        .catch(e => console.error("Error fetching featured matches:", e));
+
+      if (selectedSport === "cricket") {
+        fetch('/api/cricket-feed')
+          .then(r => r.json())
+          .then(data => {
+            if (data.success && data.liveAndUpcoming) {
+               const withActions = data.liveAndUpcoming.map((m: any) => ({
+                 ...m,
+                 onAction: () => console.log("Clicked match:", m.id)
+               }));
+               setRoanuzMatches(withActions);
+            }
+          })
+          .catch(e => console.error("Error fetching cricket feed:", e));
+      }
+    };
+
+    fetchData(); // Fetch immediately
+    const interval = setInterval(fetchData, 15000); // Poll every 15s
+
+    return () => clearInterval(interval);
+  }, [selectedSport, router]);
 
   const defaultDummyMatch: HeroCard = {
     type: "live",
@@ -799,7 +843,7 @@ export default function SportScoreSection({
     bgImageUrl: "/images/ind_srl_homepage.png",
     fanCount: 0,
     ctaLabel: "Watch Along",
-    onJoin: () => router.push("/MainModules/WatchAlong/room/acc569cd-831b-4f3c-ab7d-cf862b11be6a"),
+    onJoin: () => { window.location.href = "/MainModules/WatchAlong/room/9caf8851-4ab2-4240-8e2d-b35238f3855c"; }
   };
 
   const MOCK_HERO_CARDS: HeroCard[] = [
@@ -814,10 +858,7 @@ export default function SportScoreSection({
       ctaLabel: "Explore Today's Action",
       onBook: () => router.push('/MainModules/AsianGame'),
     },
-    ...(roanuzHeroCards.length > 0 ? roanuzHeroCards.map((card: any) => ({
-      ...card,
-      onJoin: () => console.log("Navigate to", card.id)
-    }) as HeroCard) : [defaultDummyMatch]),
+    ...(roanuzHeroCards.length > 0 ? roanuzHeroCards : [defaultDummyMatch]),
   ];
 
   const filteredMatches = selectedSport === "cricket" && roanuzMatches.length > 0 
