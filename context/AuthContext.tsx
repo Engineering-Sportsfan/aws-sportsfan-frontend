@@ -166,6 +166,9 @@ interface User {
     photoURL?: string;
     firstName?: string;
     actualUserId?: string;
+    title?: string;
+    verifiedFlipLineAdmin?: boolean;
+    addfliplineAdminPhoto?: string;
 }
 
 interface AuthContextType {
@@ -225,6 +228,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             userId: u.userId || session.user.email,
                             avatar: u.avatar || "",
                             photoURL: u.photoURL || "",
+                            title: u.title || "",
+                            verifiedFlipLineAdmin: !!u.verifiedFlipLineAdmin,
+                            addfliplineAdminPhoto: u.addfliplineAdminPhoto || "",
                         };
                         setUser(normalised);
                         console.log("Google user verified via backend, user set:", normalised);
@@ -271,6 +277,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                         name: fullName,
                         role: u.role || "user",
                         userId: u.userId,
+                        title: u.title || "",
+                        verifiedFlipLineAdmin: !!u.verifiedFlipLineAdmin,
+                        addfliplineAdminPhoto: u.addfliplineAdminPhoto || "",
                     };
                     setUser(normalised);
                     console.log("JWT user detected, user set:", normalised);
