@@ -320,11 +320,18 @@ export default function PlaybookDrops() {
     fetchMedia();
   }, []);
 
+  // const handleCardClick = (drop: PlaybookDrop) => {
+  //   const isAudio = drop.type === "AUDIO";
+  //   const route = isAudio ? "/MainModules/AudioDrop" : "/MainModules/VideoDrop";
+  //   router.push(`${route}?url=${encodeURIComponent(drop.mediaUrl)}`);
+  // };
   const handleCardClick = (drop: PlaybookDrop) => {
-    const isAudio = drop.type === "AUDIO";
-    const route = isAudio ? "/MainModules/AudioDrop" : "/MainModules/VideoDrop";
-    router.push(`${route}?url=${encodeURIComponent(drop.mediaUrl)}`);
-  };
+  const isAudio = drop.type === "AUDIO";
+  const route = isAudio ? "/MainModules/AudioDrop" : "/MainModules/VideoDrop";
+  router.push(
+    `${route}?url=${encodeURIComponent(drop.mediaUrl)}&title=${encodeURIComponent(drop.title)}`
+  );
+};
 
   if (loading) {
     return (
