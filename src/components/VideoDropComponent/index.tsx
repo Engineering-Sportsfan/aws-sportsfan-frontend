@@ -87,10 +87,10 @@ const findVideoDropByUrl = (playlists: Playlist[], url: string): { drop: VideoDr
 export default function VideoDropCard() {
   const searchParams = useSearchParams();
   const urlParam = searchParams.get("url");
+  const titleParam = searchParams.get("title");
   const playlistId = searchParams.get("playlistId");
   const videoIndex = parseInt(searchParams.get("videoIndex") || "0");
   const shortId = searchParams.get("shortId"); // New parameter for short ID
-  
   const [playing, setPlaying] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [videoDrop, setVideoDrop] = useState<VideoDrop | null>(null);
@@ -108,10 +108,10 @@ export default function VideoDropCard() {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Fetch all playlists
       const response = await axios.get<ApiResponse>("/api/team360-playlist");
-      
+
       if (!response.data.success || response.data.playlists.length === 0) {
         setError("No playlists available");
         setLoading(false);
@@ -119,7 +119,7 @@ export default function VideoDropCard() {
       }
 
       const playlists = response.data.playlists;
-      
+
       // Case 1: Short ID provided (new approach)
       if (shortId) {
         const decoded = decodeShortId(shortId);
@@ -142,12 +142,12 @@ export default function VideoDropCard() {
           }
         }
       }
-      
+
       // Case 2: URL parameter provided - find the video drop by URL
       if (urlParam) {
         const decodedUrl = decodeURIComponent(urlParam);
         const { drop, playlist } = findVideoDropByUrl(playlists, decodedUrl);
-        
+
         if (drop && playlist) {
           const durationSecs = parseDurationToSeconds(drop.duration);
           setVideoDrop({
@@ -161,8 +161,20 @@ export default function VideoDropCard() {
           });
         } else {
           // If not found in playlists, still show with basic info
+          // setVideoDrop({
+          //   title: "Video Track",
+          //   description: "",
+          //   views: 0,
+          //   signals: 0,
+          //   duration: "0:00",
+          //   durationSecs: 0,
+          //   engagement: 0,
+          //   mediaUrl: decodedUrl,
+          //   videoUrl: decodedUrl,
+          //   subtitle: "Video Drops"
+          // });
           setVideoDrop({
-            title: "Video Track",
+            title: titleParam ? decodeURIComponent(titleParam) : "Video Track",
             description: "",
             views: 0,
             signals: 0,
@@ -177,16 +189,16 @@ export default function VideoDropCard() {
         setLoading(false);
         return;
       }
-      
+
       // Case 3: Playlist ID and index provided (legacy support)
       let targetPlaylist: Playlist | undefined;
-      
+
       if (playlistId) {
         targetPlaylist = playlists.find(p => p.id === playlistId);
       } else {
         targetPlaylist = playlists.find(p => p.videoDrops.length > 0) || playlists[0];
       }
-      
+
       if (targetPlaylist && targetPlaylist.videoDrops[videoIndex]) {
         const drop = targetPlaylist.videoDrops[videoIndex];
         const durationSecs = parseDurationToSeconds(drop.duration);
@@ -215,7 +227,7 @@ export default function VideoDropCard() {
       } else {
         setError("No video drops available");
       }
-      
+
     } catch (err) {
       console.error("Error fetching video:", err);
       setError("Failed to load video");
@@ -232,8 +244,8 @@ export default function VideoDropCard() {
         const minutes = Math.floor(duration / 60);
         const seconds = Math.floor(duration % 60);
         const formattedDuration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-        setVideoDrop(prev => prev ? { 
-          ...prev, 
+        setVideoDrop(prev => prev ? {
+          ...prev,
           duration: formattedDuration,
           durationSecs: duration
         } : null);
@@ -267,7 +279,7 @@ export default function VideoDropCard() {
   // Handle play/pause
   const togglePlay = () => {
     if (!videoRef.current) return;
-    
+
     if (playing) {
       videoRef.current.pause();
       setPlaying(false);
@@ -303,7 +315,7 @@ export default function VideoDropCard() {
       <div className="flex justify-center items-center bg-[#0d0d10] min-h-screen">
         <div className="text-center">
           <p className="text-red-400 mb-4">{error || "Video not found"}</p>
-          <button 
+          <button
             onClick={() => window.history.back()}
             className="bg-pink-500 px-4 py-2 rounded text-white hover:bg-pink-600"
           >
@@ -322,7 +334,8 @@ export default function VideoDropCard() {
   const engPct = playing ? pct : videoDrop.engagement;
 
   return (
-    <div className="flex justify-center bg-[#0d0d10] min-h-screen p-4 sm:p-6 lg:p-10">
+    // <div className="flex justify-center bg-[#0d0d10] min-h-screen p-4 sm:p-6 lg:p-10">
+    <div className="flex justify-center bg-[#0d0d10] min-h-dvh p-4 sm:p-6 lg:p-10 pb-[calc(1rem+env(safe-area-inset-bottom))]">
       {/* Card - Fully responsive width */}
       <div className="w-full max-w-[360px] sm:max-w-[480px] md:max-w-[560px] lg:max-w-[640px] xl:max-w-[720px] bg-[#111114] rounded-[24px] overflow-hidden border border-[#222226]">
 
@@ -331,20 +344,20 @@ export default function VideoDropCard() {
           <div className="flex items-center gap-2 sm:gap-3">
             <button onClick={() => window.history.back()} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition">
               <svg className="w-3 h-3 sm:w-[13px] sm:h-[13px]" viewBox="0 0 13 13" fill="none">
-                <path d="M8.5 2L4 6.5L8.5 11" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M8.5 2L4 6.5L8.5 11" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
             <div>
-              <p className="text-white text-[14px] sm:text-[15px] md:text-[16px] font-medium leading-tight">{videoDrop.title.split(":")[0]}</p>
+              {/* <p className="text-white text-[14px] sm:text-[15px] md:text-[16px] font-medium leading-tight">{videoDrop.title.split(":")[0]}</p> */}
               <p className="text-[#777] text-[11px] sm:text-[12px] mt-0.5">{videoDrop.subtitle || "Video Drops"}</p>
             </div>
           </div>
           <button className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition">
             <svg className="w-[13px] h-[13px] sm:w-[15px] sm:h-[15px]" viewBox="0 0 15 15" fill="none">
-              <circle cx="11.5" cy="2.5" r="1.7" stroke="#aaa" strokeWidth="1.3"/>
-              <circle cx="11.5" cy="12.5" r="1.7" stroke="#aaa" strokeWidth="1.3"/>
-              <circle cx="3.5" cy="7.5" r="1.7" stroke="#aaa" strokeWidth="1.3"/>
-              <path d="M9.9 3.3L5.1 6.7M9.9 11.7L5.1 8.3" stroke="#aaa" strokeWidth="1.3" strokeLinecap="round"/>
+              <circle cx="11.5" cy="2.5" r="1.7" stroke="#aaa" strokeWidth="1.3" />
+              <circle cx="11.5" cy="12.5" r="1.7" stroke="#aaa" strokeWidth="1.3" />
+              <circle cx="3.5" cy="7.5" r="1.7" stroke="#aaa" strokeWidth="1.3" />
+              <path d="M9.9 3.3L5.1 6.7M9.9 11.7L5.1 8.3" stroke="#aaa" strokeWidth="1.3" strokeLinecap="round" />
             </svg>
           </button>
         </div>
@@ -360,7 +373,7 @@ export default function VideoDropCard() {
             {videoDrop.thumbnail && !playing && !videoError && (
               <img src={videoDrop.thumbnail} alt={videoDrop.title} className="absolute inset-0 w-full h-full object-cover opacity-60" />
             )}
-            
+
             {/* Video element */}
             {videoDrop.videoUrl && (
               <video
@@ -368,6 +381,7 @@ export default function VideoDropCard() {
                 src={videoDrop.videoUrl}
                 className="absolute inset-0 w-full h-full object-contain"
                 onLoadedMetadata={handleLoadedMetadata}
+                onDurationChange={handleLoadedMetadata}
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={handleVideoEnd}
                 onError={handleVideoError}
@@ -375,7 +389,7 @@ export default function VideoDropCard() {
                 preload="metadata"
               />
             )}
-            
+
             {/* Error message */}
             {videoError && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/80">
@@ -385,19 +399,19 @@ export default function VideoDropCard() {
                 </p>
               </div>
             )}
-            
+
             <button
               onClick={e => { e.stopPropagation(); togglePlay(); }}
               className="relative z-10 w-[48px] h-[48px] sm:w-[54px] sm:h-[54px] md:w-[60px] md:h-[60px] rounded-full bg-[#888888] hover:bg-[#666666] flex items-center justify-center border-none cursor-pointer transition"
             >
               {playing ? (
                 <svg className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" viewBox="0 0 22 22" fill="none">
-                  <rect x="6" y="4" width="3" height="14" rx="1" fill="#fff"/>
-                  <rect x="13" y="4" width="3" height="14" rx="1" fill="#fff"/>
+                  <rect x="6" y="4" width="3" height="14" rx="1" fill="#fff" />
+                  <rect x="13" y="4" width="3" height="14" rx="1" fill="#fff" />
                 </svg>
               ) : (
                 <svg className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" viewBox="0 0 22 22" fill="none">
-                  <path d="M8 5L18 11L8 17V5Z" fill="#fff"/>
+                  <path d="M8 5L18 11L8 17V5Z" fill="#fff" />
                 </svg>
               )}
             </button>
@@ -419,7 +433,8 @@ export default function VideoDropCard() {
         </div>
 
         {/* Body - Responsive padding and text sizes */}
-        <div className="px-4 sm:px-5 md:px-6 pt-3.5 sm:pt-4 md:pt-5 pb-4 sm:pb-5 md:pb-6">
+        {/* <div className="px-4 sm:px-5 md:px-6 pt-3.5 sm:pt-4 md:pt-5 pb-4 sm:pb-5 md:pb-6"> */}
+        <div className="px-4 sm:px-5 md:px-6 pt-3.5 sm:pt-4 md:pt-5 pb-6 sm:pb-7 md:pb-8">
           <h1 className="text-white text-[18px] sm:text-[20px] md:text-[22px] lg:text-[24px] font-medium leading-snug mb-2 sm:mb-3">
             {videoDrop.title}
           </h1>
@@ -439,16 +454,16 @@ export default function VideoDropCard() {
                   <svg className="w-[11px] h-[11px] sm:w-[13px] sm:h-[13px]" viewBox="0 0 13 13" fill="none">
                     {s.label === "Duration" ? (
                       <>
-                        <circle cx="6.5" cy="6.5" r="5" stroke={s.color} strokeWidth="1.2"/>
-                        <path d="M6.5 4v2.5l1.5 1.5" stroke={s.color} strokeWidth="1.2" strokeLinecap="round"/>
+                        <circle cx="6.5" cy="6.5" r="5" stroke={s.color} strokeWidth="1.2" />
+                        <path d="M6.5 4v2.5l1.5 1.5" stroke={s.color} strokeWidth="1.2" strokeLinecap="round" />
                       </>
                     ) : s.label === "Views" ? (
                       <>
-                        <path d="M2 6.5C2 6.5 4 3 6.5 3S11 6.5 11 6.5 9 10 6.5 10 2 6.5 2 6.5z" stroke={s.color} strokeWidth="1.2" strokeLinejoin="round"/>
-                        <circle cx="6.5" cy="6.5" r="1.5" fill={s.color}/>
+                        <path d="M2 6.5C2 6.5 4 3 6.5 3S11 6.5 11 6.5 9 10 6.5 10 2 6.5 2 6.5z" stroke={s.color} strokeWidth="1.2" strokeLinejoin="round" />
+                        <circle cx="6.5" cy="6.5" r="1.5" fill={s.color} />
                       </>
                     ) : (
-                      <path d="M6.5 2C4.3 2 2.5 3.6 2.5 5.5c0 1 .5 2 1.4 2.7L3.5 10l2-.7c.3.1.6.2 1 .2C8.7 9.5 10.5 7.9 10.5 6S8.7 2 6.5 2z" stroke={s.color} strokeWidth="1.2" strokeLinejoin="round"/>
+                      <path d="M6.5 2C4.3 2 2.5 3.6 2.5 5.5c0 1 .5 2 1.4 2.7L3.5 10l2-.7c.3.1.6.2 1 .2C8.7 9.5 10.5 7.9 10.5 6S8.7 2 6.5 2z" stroke={s.color} strokeWidth="1.2" strokeLinejoin="round" />
                     )}
                   </svg>
                   {s.label}
@@ -464,15 +479,15 @@ export default function VideoDropCard() {
           <div className="flex items-center gap-2 sm:gap-3.5 text-[11px] sm:text-[12px] text-[#666] mb-3 sm:mb-4">
             <div className="flex items-center gap-1 sm:gap-1.5">
               <svg className="w-[11px] h-[11px] sm:w-[13px] sm:h-[13px]" viewBox="0 0 13 13" fill="none">
-                <rect x="1.5" y="2.5" width="10" height="9" rx="1.5" stroke="#666" strokeWidth="1.2"/>
-                <path d="M1.5 5.5h10M4.5 1v3M8.5 1v3" stroke="#666" strokeWidth="1.2" strokeLinecap="round"/>
+                <rect x="1.5" y="2.5" width="10" height="9" rx="1.5" stroke="#666" strokeWidth="1.2" />
+                <path d="M1.5 5.5h10M4.5 1v3M8.5 1v3" stroke="#666" strokeWidth="1.2" strokeLinecap="round" />
               </svg>
               {videoDrop.date || "Recent"}
             </div>
             <div className="flex items-center gap-1 sm:gap-1.5">
               <svg className="w-[11px] h-[11px] sm:w-[13px] sm:h-[13px]" viewBox="0 0 13 13" fill="none">
-                <circle cx="6.5" cy="4.5" r="2.5" stroke="#666" strokeWidth="1.2"/>
-                <path d="M2 11c0-2 2-3 4.5-3s4.5 1 4.5 3" stroke="#666" strokeWidth="1.2" strokeLinecap="round"/>
+                <circle cx="6.5" cy="4.5" r="2.5" stroke="#666" strokeWidth="1.2" />
+                <path d="M2 11c0-2 2-3 4.5-3s4.5 1 4.5 3" stroke="#666" strokeWidth="1.2" strokeLinecap="round" />
               </svg>
               {videoDrop.room || "Video Room"}
             </div>
@@ -490,10 +505,11 @@ export default function VideoDropCard() {
           </div>
 
           {/* Send Signal - Responsive button */}
-          <button className="w-full bg-[#1a1a1a] border border-[#888888] rounded-[12px] sm:rounded-[14px] py-[12px] sm:py-[14px] md:py-[16px] flex items-center justify-center gap-1.5 sm:gap-2 text-[#888888] text-[13px] sm:text-[15px] md:text-[16px] font-medium hover:bg-[#222222] transition cursor-pointer">
+          {/* <button className="w-full bg-[#1a1a1a] border border-[#888888] rounded-[12px] sm:rounded-[14px] py-[20px] pb-[30px] sm:py-[15px] md:py-[20px] flex items-center justify-center gap-1.5 sm:gap-2 text-[#888888] text-[13px] sm:text-[15px] md:text-[16px] font-medium hover:bg-[#222222] transition cursor-pointer"> */}
+          <button className="w-full bg-[#1a1a1a] mb-10 border border-[#888888] rounded-[12px] sm:rounded-[14px] py-[14px] sm:py-[15px] md:py-[16px] flex items-center justify-center gap-1.5 sm:gap-2 text-[#888888] text-[13px] sm:text-[15px] md:text-[16px] font-medium hover:bg-[#222222] transition cursor-pointer">
             <svg className="w-[14px] h-[14px] sm:w-[17px] sm:h-[17px]" viewBox="0 0 17 17" fill="none">
-              <path d="M8.5 1.5C5.5 1.5 3 3.8 3 6.5c0 1.4.6 2.6 1.7 3.5L4 14l3.2-1.1c.4.1.8.1 1.3.1C11.5 13 14 10.7 14 8s-2.5-6.5-5.5-6.5z" stroke="#888888" strokeWidth="1.3" strokeLinejoin="round"/>
-              <path d="M6 8h5M8.5 5.5v5" stroke="#888888" strokeWidth="1.3" strokeLinecap="round"/>
+              <path d="M8.5 1.5C5.5 1.5 3 3.8 3 6.5c0 1.4.6 2.6 1.7 3.5L4 14l3.2-1.1c.4.1.8.1 1.3.1C11.5 13 14 10.7 14 8s-2.5-6.5-5.5-6.5z" stroke="#888888" strokeWidth="1.3" strokeLinejoin="round" />
+              <path d="M6 8h5M8.5 5.5v5" stroke="#888888" strokeWidth="1.3" strokeLinecap="round" />
             </svg>
             Send Signal
           </button>
