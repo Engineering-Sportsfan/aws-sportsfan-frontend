@@ -806,6 +806,7 @@ export default function SportScoreSection({
                    ...item,
                    isIndSlMatch,
                    bgImageUrl: isIndSlMatch ? "/images/ind_srl_homepage.png" : item.bgImageUrl,
+                   ctaLabel: isIndSlMatch ? "Watch Along" : item.ctaLabel,
                    onJoin: () => {
                      if (isIndSlMatch) {
                        window.location.href = `/MainModules/WatchAlong/room/${watchAlongRoomId}`;
