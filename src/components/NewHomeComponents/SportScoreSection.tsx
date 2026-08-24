@@ -468,6 +468,7 @@ function IndiaStatsBar({
 
   return (
     <div className="w-full mt-3 rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06]">
+      {/* 
       <div className="flex items-center justify-between px-4 py-4">
         <div className="flex items-center gap-2.5">
           {data.flagUrl ? (
@@ -516,8 +517,9 @@ function IndiaStatsBar({
           </div>
         </div>
       </div>
+      */}
 
-      <div className="grid grid-cols-6 border-t border-white/[0.06]">
+      <div className="grid grid-cols-6">
         {navItems.map(({ label, icon: Icon }) => (
           <button
             key={label}
@@ -779,23 +781,26 @@ export default function SportScoreSection({
         .then(r => r.json())
         .then(data => {
           if (data.success && data.items && data.items.length > 0) {
-             const processedCards = data.items.map((item: any) => {
-               const nameA = (item.teamAName || "").toLowerCase();
-               const nameB = (item.teamBName || "").toLowerCase();
-               const isIndSlMatch = (nameA.includes("india") && nameB.includes("sri lanka")) || (nameA.includes("sri lanka") && nameB.includes("india"));
-               
-               return {
-                 ...item,
-                 bgImageUrl: isIndSlMatch ? "/images/ind_srl_homepage.png" : item.bgImageUrl,
-                 onJoin: () => {
-                   if (isIndSlMatch) {
-                     window.location.href = `/MainModules/WatchAlong/room/${watchAlongRoomId}`;
-                   } else {
-                     window.location.href = `/MainModules/WatchAlong/room/${item.id}`;
+             const processedCards = data.items
+               .map((item: any) => {
+                 const nameA = (item.teamAName || "").toLowerCase();
+                 const nameB = (item.teamBName || "").toLowerCase();
+                 const isIndSlMatch = (nameA.includes("india") && nameB.includes("sri lanka")) || (nameA.includes("sri lanka") && nameB.includes("india"));
+                 
+                 return {
+                   ...item,
+                   isIndSlMatch,
+                   bgImageUrl: isIndSlMatch ? "/images/ind_srl_homepage.png" : item.bgImageUrl,
+                   onJoin: () => {
+                     if (isIndSlMatch) {
+                       window.location.href = `/MainModules/WatchAlong/room/${watchAlongRoomId}`;
+                     } else {
+                       window.location.href = `/MainModules/WatchAlong/room/${item.id}`;
+                     }
                    }
-                 }
-               };
-             });
+                 };
+               })
+               .filter((card: any) => card.isIndSlMatch);
              setRoanuzHeroCards(processedCards);
           }
         })
@@ -847,17 +852,6 @@ export default function SportScoreSection({
   };
 
   const MOCK_HERO_CARDS: HeroCard[] = [
-    {
-      type: "vip",
-      id: "asian-games-2026",
-      tag: "AICHI-NAGOYA, JAPAN · 2026",
-      dateRange: "19 Sep – 4 Oct",
-      title: "ASIAN GAMES 2026",
-      subtitle: "India. Passion. Glory.",
-      bgImageUrl: "/images/asiangames.jpeg",
-      ctaLabel: "Explore Today's Action",
-      onBook: () => router.push('/MainModules/AsianGame'),
-    },
     ...(roanuzHeroCards.length > 0 ? roanuzHeroCards : [defaultDummyMatch]),
   ];
 
