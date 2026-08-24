@@ -4311,10 +4311,17 @@ const realJitsiParticipantsTop = (jitsiParticipants || []).filter((p: any) => {
     return displayName && displayName !== normalizedSelfName;
 });
 const jitsiNames = new Set(realJitsiParticipantsTop.map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
+// const chatUsersList = Array.from(
+//     new Set(
+//         (chats || [])
+//             .filter((c) => c.user && c.user.trim() !== "")
+//             .map((c) => c.user)
+//     )
+// ).filter((u) => u !== userName);
 const chatUsersList = Array.from(
     new Set(
         (chats || [])
-            .filter((c) => c.user && c.user.trim() !== "")
+            .filter((c) => c.user && c.user.trim() !== "" && c.user !== 'System' && !c.text?.startsWith('[SYSTEM_REACTION]'))
             .map((c) => c.user)
     )
 ).filter((u) => u !== userName);
