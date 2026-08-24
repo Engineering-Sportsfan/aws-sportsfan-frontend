@@ -457,15 +457,24 @@ function IndiaStatsBar({
   data: IndiaStatsData;
   onAllSportsClick?: () => void;
 }) {
+  const router = useRouter();
   const navItems = [
     { label: "All Sports", icon: Trophy },
-    { label: "India", icon: Flag },
+    // { label: "India", icon: Flag },
     { label: "Schedule", icon: Calendar },
-    { label: "Medal Tally", icon: Award },
+    // { label: "Medal Tally", icon: Award },
     { label: "Record Explore", icon: BarChart3 },
-    { label: "News", icon: Newspaper },
+    // { label: "News", icon: Newspaper },
   ];
 
+  const onRecordsExplore = () => {
+    router.push("/MainModules/RecordsExplorer")
+  }
+
+   const onSchedule = () => {
+    router.push("/MainModules/NewMatchCenter")
+  }
+  
   return (
     <div className="w-full mt-3 rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06]">
       {/* 
@@ -519,7 +528,7 @@ function IndiaStatsBar({
       </div>
       */}
 
-      <div className="grid grid-cols-6">
+      <div className="grid grid-cols-3">
         {navItems.map(({ label, icon: Icon }) => (
           <button
             key={label}
@@ -527,6 +536,12 @@ function IndiaStatsBar({
             onClick={() => {
               if (label === "All Sports" && onAllSportsClick) {
                 onAllSportsClick();
+              }
+               if (label === "Record Explore" && onRecordsExplore) {
+                onRecordsExplore();
+              }
+              if (label === "Schedule" && onSchedule) {
+                onSchedule();
               }
             }}
             className="flex flex-col items-center justify-center gap-1.5 py-3 hover:bg-white/[0.04] transition-colors"

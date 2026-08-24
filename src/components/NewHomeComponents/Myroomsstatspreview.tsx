@@ -275,11 +275,13 @@ function RoarRoomCardView({ card }: { card: RoarRoomCard }) {
     <div className="shrink-0 w-[220px] rounded-2xl bg-[#12101c] border border-white/[0.06] p-4 flex flex-col">
       <div className="flex items-center gap-2.5 mb-3">
         <span className="text-xl leading-none shrink-0">{card.emoji}</span>
-        <h4 className="text-[15px] font-extrabold text-white leading-tight">{card.title}</h4>
-      </div>
+        {/* <h4 className="text-[15px] font-extrabold text-white leading-tight">{card.title}</h4> */}
+            <p className="text-[13px] font-extrabold text-white whitespace-normal">Pulse Room</p>
 
+      </div>
+                  <div className="text-[9px] font-bold text-white whitespace-normal">Your Space to Post and Talk About Any Sport</div>
       <p className="text-[11px] text-white/45 font-medium mb-3">
-        {card.fansCount} Fans · {card.messagesCount} Messages
+      · {card.messagesCount} Messages
       </p>
 
       <div className="flex items-center gap-1.5 mb-4">
