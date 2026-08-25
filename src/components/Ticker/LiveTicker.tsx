@@ -19,10 +19,12 @@ const SPEED_MULTIPLIER_MAP: Record<SpeedType, number> = {
   "3x": 36,
 };
 
-export default function LiveTicker() {
+export default function LiveTicker({ matchIdFilter, roomNameFilter }: { matchIdFilter?: string, roomNameFilter?: string }) {
   const [selectedSports, setSelectedSports] = useState<SportType[]>(["Cricket", "Football"]);
   const [selectedTypes, setSelectedTypes] = useState<ContentType[]>([
     "live_score",
+    "ball_by_ball",
+    "over_summary",
     "sports_update",
     "moments",
   ]);
@@ -35,6 +37,29 @@ export default function LiveTicker() {
 
   const fetchTickerData = async () => {
     try {
+      let actualMatchId = matchIdFilter;
+      
+      // If we have a room name, try to dynamically resolve the real Roanuz match ID
+      if (roomNameFilter) {
+          try {
+            const fmRes = await fetch('/api/featured-matches');
+            const fmData = await fmRes.json();
+            if (fmData.success && fmData.items) {
+               const lowerRoomName = roomNameFilter.toLowerCase();
+               const isIndSl = lowerRoomName.includes("india") && lowerRoomName.includes("sri lanka");
+               
+               const match = fmData.items.find((item: any) => {
+                 const nameA = (item.teamAName || "").toLowerCase();
+                 const nameB = (item.teamBName || "").toLowerCase();
+                 return isIndSl && ((nameA.includes("india") && nameB.includes("sri lanka")) || (nameA.includes("sri lanka") && nameB.includes("india")));
+               });
+               if (match) {
+                 actualMatchId = match.id;
+               }
+            }
+          } catch(e) { console.warn("Failed to resolve Roanuz match ID", e); }
+      }
+
       const sportsParam = selectedSports.map((s) => s.toLowerCase()).join(",");
       const typesParam = selectedTypes.join(",");
       const url = `/api/ticker?sports=${sportsParam}&types=${typesParam}&limit=20`;
@@ -42,7 +67,11 @@ export default function LiveTicker() {
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
-        setItems(data.items);
+        let fetchedItems = data.items;
+        if (actualMatchId) {
+          fetchedItems = fetchedItems.filter((i: any) => i.id?.includes(actualMatchId) || i.matchId?.includes(actualMatchId));
+        }
+        setItems(fetchedItems);
       }
     } catch (e) {
       console.warn("LiveTicker fetch error:", e);
@@ -84,9 +113,9 @@ export default function LiveTicker() {
         {/* Marquee Wrapper */}
         <div className="flex-1 overflow-hidden relative h-full flex items-center">
           {loading ? (
-            <div className="text-xs text-gray-500 pl-4 animate-pulse">
-              Syncing with Sportradar live feeds...
-            </div>
+            <span className="text-xs text-gray-500 pl-4 italic">
+              Syncing with Roanuz live feeds...
+            </span>
           ) : (
             <div
               key={`${speed}-${items.length}`}

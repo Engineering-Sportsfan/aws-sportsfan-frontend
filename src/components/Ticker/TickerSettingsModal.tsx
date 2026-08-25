@@ -4,7 +4,7 @@ import React from "react";
 import { X } from "lucide-react";
 
 export type SportType = "Cricket" | "Football";
-export type ContentType = "live_score" | "sports_update" | "moments";
+export type ContentType = "live_score" | "sports_update" | "moments" | "ball_by_ball" | "over_summary";
 export type SpeedType = "Normal" | "2x" | "3x";
 
 interface TickerSettingsModalProps {
@@ -22,6 +22,8 @@ interface TickerSettingsModalProps {
 const SPORTS_OPTIONS: SportType[] = ["Cricket", "Football"];
 const CONTENT_OPTIONS: { label: string; value: ContentType }[] = [
   { label: "Live Scores", value: "live_score" },
+  { label: "Ball by Ball", value: "ball_by_ball" },
+  { label: "Over Summary", value: "over_summary" },
   { label: "Sports Update", value: "sports_update" },
   { label: "Moments", value: "moments" },
 ];

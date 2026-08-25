@@ -7,7 +7,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useAuth } from "@/context/AuthContext";
-
+import LiveTicker from "@/src/components/Ticker/LiveTicker";
 type Props = {
     onEnterRoom: (roomId: string) => void;
 };
@@ -235,6 +235,11 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                 </div>
                 {/* Spacer */}
                 <div style={{ height: 68 }} />
+
+                {/* Global Live Ticker */}
+                <div className="w-full mb-4">
+                    <LiveTicker />
+                </div>
 
                 {/* Filter pills */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 mt-3 mb-5" style={{ scrollbarWidth: "none" }}>
