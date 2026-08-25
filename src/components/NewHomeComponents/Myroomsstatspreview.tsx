@@ -445,7 +445,7 @@ export default function RoarRooms() {
   // flag, which the destination page may or may not read on mount).
   const handleEnterRoom = (room: Room) => {
     try { localStorage.setItem("roar_auto_join_room_id", room.roomId); } catch { /* ignore */ }
-    router.push(`/MainModules/ROAR?room=${room.roomId}`);
+    router.push(`/MainModules/ROAR`);
   };
 
   const liveCards: RoarRoomCard[] = rooms.map((room) => {
