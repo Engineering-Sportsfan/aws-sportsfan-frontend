@@ -152,92 +152,51 @@ function AthleteCard({ athlete, index, onClick }: AthleteCardProps) {
   const name = getName(athlete);
   const sport = getSport(athlete);
   const dob = getDob(athlete);
-  const gender = getGender(athlete);
-  const rank = getWorldRank(athlete);
-  const profileImage = getProfileImage(athlete);
   const initials = getInitials(name);
-  const cardGrad = CARD_GRADIENTS[index % CARD_GRADIENTS.length];
-  const avatarGrad = AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
-  const genderIcon = GENDER_ICONS[gender] ?? "";
-  const countryCode =
-    (athlete as any)?.countryCode ??
-    (athlete as any)?.coreInfo?.countryCode ??
-    null;
+  const profileImage = getProfileImage(athlete);
+  const rank = getWorldRank(athlete);
+
+  // Format DOB if available, e.g. "5 Nov 1991"
+  const formattedDob = dob ? formatDob(dob) : "";
+
+  // Combine details: "Cricket / DOB: 5 Nov 1991" or "Cricket / Rank: #1"
+  const details = [
+    sport,
+    formattedDob ? `DOB: ${formattedDob}` : "",
+    rank ? `Rank: #${rank}` : ""
+  ].filter(Boolean).join(" / ");
 
   return (
     <div
       onClick={onClick}
-      className={`relative rounded-2xl overflow-hidden cursor-pointer border border-white/5 bg-gradient-to-br ${cardGrad}
-        transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/50 hover:border-white/12 active:scale-[0.98] group`}
+      className="flex items-center gap-3.5 p-3 rounded-2xl cursor-pointer border border-[#ff2d55]/15 bg-gradient-to-r from-[#210915] to-[#12040b] hover:from-[#351426] hover:to-[#1e0a14] transition-all duration-300 hover:-translate-y-[2px] active:scale-[0.98] group"
+      style={{
+        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)"
+      }}
     >
-      {/* Card Hero area */}
-      <div className="relative h-[168px] flex items-center justify-center overflow-hidden">
-        {/* Subtle radial glow */}
-        <div
-          className={`absolute inset-0 opacity-25 bg-gradient-to-br ${avatarGrad} blur-3xl scale-150`}
-        />
-
-        {/* Gender icon - top left */}
-        {genderIcon && (
-          <div className="absolute top-3 left-3 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 flex items-center justify-center text-[11px] text-gray-300 font-bold z-10">
-            {genderIcon}
-          </div>
+      {/* Avatar Circle with Pink Border */}
+      <div className="w-12 h-12 rounded-full border-2 border-[#ff2d55] flex-shrink-0 bg-black flex items-center justify-center overflow-hidden relative">
+        {profileImage ? (
+          <img
+            src={profileImage}
+            alt={name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className="text-[13px] font-black text-white tracking-tight uppercase select-none">
+            {initials}
+          </span>
         )}
-
-        {/* Country - top right */}
-        {countryCode && (
-          <div className="absolute top-3 right-3 text-[11px] font-black text-white/80 tracking-wide z-10">
-            {countryCode}
-          </div>
-        )}
-
-        {/* Avatar */}
-        <div className="relative z-10">
-          <div
-            className={`w-[88px] h-[88px] rounded-full p-[2.5px] bg-gradient-to-br ${avatarGrad} shadow-2xl group-hover:scale-105 transition-transform duration-300`}
-          >
-            <div className="w-full h-full rounded-full overflow-hidden bg-[#0f0f1a] flex items-center justify-center">
-              {profileImage ? (
-                <img
-                  src={profileImage}
-                  alt={name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-2xl font-black tracking-tight select-none text-white">
-                  {initials}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Card Body */}
-      <div className="px-4 pt-3 pb-4">
-        <h3 className="text-[15px] font-extrabold text-white leading-tight truncate group-hover:text-[#FF7A00] transition-colors">
+      {/* Texts Stacked Vertically */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <h3 className="text-[14.5px] font-bold text-white leading-tight truncate group-hover:text-[#ff2d55] transition-colors">
           {name}
         </h3>
-        <p className="text-[11px] text-gray-400 font-medium mt-0.5 truncate">
-          {sport}
+        <p className="text-[11px] text-white/50 mt-0.5 truncate leading-tight">
+          {details}
         </p>
-        {dob && (
-          <p className="text-[10px] text-gray-500 font-medium mt-1">
-            <span className="text-gray-600 uppercase text-[9px] tracking-wider font-bold">
-              DOB:{" "}
-            </span>
-            {formatDob(dob)}
-          </p>
-        )}
-
-        {/* World Rank badge */}
-        {rank && (
-          <div className="mt-2.5 inline-flex items-center gap-1.5 bg-[#FF0055]/15 border border-[#FF0055]/25 rounded-full px-2.5 py-1">
-            <span className="text-[10px] font-extrabold text-[#FF7A00]">
-              World #{rank}
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -256,76 +215,45 @@ function ClubCard({ club, index, onClick }: ClubCardProps) {
   const sport = club.sportId || "–";
   const logo = club.logoUrl || null;
   const initials = getInitials(name);
-  const cardGrad = CARD_GRADIENTS[index % CARD_GRADIENTS.length];
-  const avatarGrad = AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length];
   const country = club.country || "";
+
+  // Combine details: "Football / England"
+  const details = [
+    sport,
+    country ? country.toUpperCase() : ""
+  ].filter(Boolean).join(" / ");
 
   return (
     <div
       onClick={onClick}
-      className={`relative rounded-2xl overflow-hidden cursor-pointer border border-white/5 bg-gradient-to-br ${cardGrad}
-        transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-black/50 hover:border-white/12 active:scale-[0.98] group`}
+      className="flex items-center gap-3.5 p-3 rounded-2xl cursor-pointer border border-[#ff2d55]/15 bg-gradient-to-r from-[#210915] to-[#12040b] hover:from-[#351426] hover:to-[#1e0a14] transition-all duration-300 hover:-translate-y-[2px] active:scale-[0.98] group"
+      style={{
+        boxShadow: "0 4px 20px rgba(0, 0, 0, 0.3)"
+      }}
     >
-      {/* Card Hero area */}
-      <div className="relative h-[168px] flex items-center justify-center overflow-hidden">
-        {/* Subtle radial glow */}
-        <div
-          className={`absolute inset-0 opacity-25 bg-gradient-to-br ${avatarGrad} blur-3xl scale-150`}
-        />
-
-        {/* Country - top right */}
-        {country && (
-          <div className="absolute top-3 right-3 text-[11px] font-black text-white/80 tracking-wide z-10 uppercase">
-            {country}
-          </div>
+      {/* Avatar Circle with Pink Border */}
+      <div className="w-12 h-12 rounded-full border-2 border-[#ff2d55] flex-shrink-0 bg-black flex items-center justify-center overflow-hidden relative">
+        {logo ? (
+          <img
+            src={logo}
+            alt={name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <span className="text-[13px] font-black text-white tracking-tight uppercase select-none">
+            {initials}
+          </span>
         )}
-
-        {/* Avatar */}
-        <div className="relative z-10">
-          <div
-            className={`w-[88px] h-[88px] rounded-full p-[2.5px] bg-gradient-to-br ${avatarGrad} shadow-2xl group-hover:scale-105 transition-transform duration-300`}
-          >
-            <div className="w-full h-full rounded-full overflow-hidden bg-[#0f0f1a] flex items-center justify-center">
-              {logo ? (
-                <img
-                  src={logo}
-                  alt={name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="text-2xl font-black tracking-tight select-none text-white">
-                  {initials}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* Card Body */}
-      <div className="px-4 pt-3 pb-4">
-        <h3 className="text-[15px] font-extrabold text-white leading-tight truncate group-hover:text-[#FF7A00] transition-colors">
+      {/* Texts Stacked Vertically */}
+      <div className="flex-1 min-w-0 flex flex-col justify-center">
+        <h3 className="text-[14.5px] font-bold text-white leading-tight truncate group-hover:text-[#ff2d55] transition-colors">
           {name}
         </h3>
-        <p className="text-[11px] text-gray-400 font-medium mt-0.5 truncate uppercase">
-          {sport}
+        <p className="text-[11px] text-white/50 mt-0.5 truncate leading-tight uppercase">
+          {details}
         </p>
-        {club.headCoach && (
-          <p className="text-[10px] text-gray-500 font-medium mt-1">
-            <span className="text-gray-600 uppercase text-[9px] tracking-wider font-bold">
-              Coach:{" "}
-            </span>
-            {club.headCoach}
-          </p>
-        )}
-        {club.homeGround && (
-          <p className="text-[10px] text-gray-500 font-medium mt-0.5 truncate">
-            <span className="text-gray-600 uppercase text-[9px] tracking-wider font-bold">
-              Venue:{" "}
-            </span>
-            {club.homeGround}
-          </p>
-        )}
       </div>
     </div>
   );
@@ -494,7 +422,7 @@ export default function AthleteHomePage() {
 
       {/* ── Top Nav ──────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-30 bg-[#0a0a10]/90 backdrop-blur-xl border-b border-white/5">
-        <div className="flex items-center justify-between px-4 py-3 max-w-2xl mx-auto">
+        <div className="flex items-center justify-between px-4 py-1 max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
@@ -528,9 +456,9 @@ export default function AthleteHomePage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 pb-10">
+      <div className="max-w-2xl mx-auto px-4">
         {/* ── Search Bar ─────────────────────────────────────────────── */}
-        <div className="mt-5 relative">
+        <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
           <input
             id="athlete-search-input"
@@ -552,7 +480,7 @@ export default function AthleteHomePage() {
         </div>
 
         {/* ── Filter Row ─────────────────────────────────────────────── */}
-        <div className="flex items-center gap-2 mt-4 flex-wrap relative">
+        <div className="flex items-center gap-2 pt-2 flex-wrap relative">
           {/* Gender filters */}
           {(["All", "Male", "Female"] as GenderFilter[]).map((g) => (
             <button
@@ -680,7 +608,7 @@ export default function AthleteHomePage() {
         )}
 
         {/* ── Content ────────────────────────────────────────────────── */}
-        <div className="mt-5">
+        <div className="mt-2">
           {/* Loading State */}
           {((viewMode === "athletes" && loading) || (viewMode === "clubs" && clubsLoading)) && (
             <div className="grid grid-cols-2 gap-3.5">
