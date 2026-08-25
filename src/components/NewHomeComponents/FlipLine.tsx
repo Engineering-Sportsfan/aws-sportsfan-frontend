@@ -252,20 +252,18 @@ export function FlipCardItem({
     ? rawAuthor.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
     : '';
   const displayHandle = isCurrentUser ? "@you" : (card.handle === "@you" ? "@fan" : card.handle);
-  const displayPhoto = card.adminPhoto || (isCurrentUser 
-    ? (user?.avatar || card.authorPhoto)
-    : card.authorPhoto);
+  const displayPhoto = card.adminPhoto || card.authorPhoto || (isCurrentUser ? user?.avatar : undefined);
 
-  console.log("FlipCardItem DEBUG:", {
-    cardId: card.id,
-    content: card.content?.substring(0, 20),
-    cardUserId: card.userId,
-    currentUserId,
-    isCurrentUser,
-    cardAuthor: card.author,
-    displayAuthor,
-    displayHandle
-  });
+  // console.log("FlipCardItem DEBUG:", {
+  //   cardId: card.id,
+  //   content: card.content?.substring(0, 20),
+  //   cardUserId: card.userId,
+  //   currentUserId,
+  //   isCurrentUser,
+  //   cardAuthor: card.author,
+  //   displayAuthor,
+  //   displayHandle
+  // });
 
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState(card.flipResponse || "");

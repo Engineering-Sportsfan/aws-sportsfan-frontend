@@ -89,6 +89,7 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
   const [sport, setSport] = useState<FlipCard['sport']>(initialSport);
   const [showEmojis, setShowEmojis] = useState(false);
   const [askPrompt, setAskPrompt] = useState('');
+  // console.log("userlogo", user);
   const [generating, setGenerating] = useState(false);
   const [generated, setGenerated] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -222,6 +223,7 @@ export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: 
         email: currentUserEmail,
         isVerified,
         adminPhoto: adminPhoto || undefined,
+        authorPhoto: user?.avatar || undefined,
       }, imageFile, videoFile);
 
       onClose();

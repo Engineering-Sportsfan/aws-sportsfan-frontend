@@ -34,6 +34,7 @@ export const fliplineService = {
     if (card.time) formData.append("time", card.time);
     if (card.isVerified !== undefined) formData.append("isVerified", String(card.isVerified));
     if (card.adminPhoto) formData.append("adminPhoto", card.adminPhoto);
+    if (card.authorPhoto) formData.append("authorPhoto", card.authorPhoto);
 
     if (imageFile) {
       formData.append("media", imageFile);
