@@ -271,6 +271,23 @@ export function FlipCardItem({
   const [answer, setAnswer] = useState(card.flipResponse || "");
   const [loading, setLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [wasInitiallyLiked, setWasInitiallyLiked] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sf360_liked_fliplines');
+      if (stored) {
+        try {
+          const likedSet = new Set<number>(JSON.parse(stored));
+          if (likedSet.has(card.id)) {
+            setWasInitiallyLiked(true);
+          }
+        } catch (e) {
+          console.error('Failed to parse liked fliplines:', e);
+        }
+      }
+    }
+  }, [card.id]);
 
   const handleAskFlip = async () => {
     if (!question.trim() || loading) return;
@@ -577,7 +594,11 @@ export function FlipCardItem({
                   fill={isLiked ? 'rgb(244, 63, 94)' : 'none'} 
                   className={`transition-all duration-200 ${isLiked ? 'text-rose-500 scale-110' : ''}`} 
                 />
-                <span className="text-[12.5px] font-extrabold leading-none">{card.likes + (isLiked ? 1 : 0)}</span>
+                <span className="text-[12.5px] font-extrabold leading-none">
+                  {wasInitiallyLiked 
+                    ? card.likes + (isLiked ? 0 : -1) 
+                    : card.likes + (isLiked ? 1 : 0)}
+                </span>
               </button>
               
               <button 
