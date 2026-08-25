@@ -433,13 +433,13 @@ export default function AthleteHomePage() {
             </button>
             <div>
               <h1 className="text-[18px] font-black text-white tracking-tight leading-none">
-                Athlete Discovery
+                Player Discovery
               </h1>
               <p className="text-[11px] text-gray-500 font-medium mt-0.5">
                 {viewMode === "athletes" ? (
                   loading
-                    ? "Loading athletes…"
-                    : `${filtered.length} athlete${filtered.length !== 1 ? "s" : ""} found`
+                    ? "Loading players…"
+                    : `${filtered.length} Player${filtered.length !== 1 ? "s" : ""} found`
                 ) : (
                   clubsLoading
                     ? "Loading clubs…"
@@ -650,9 +650,9 @@ export default function AthleteHomePage() {
           {viewMode === "athletes" && !loading && !error && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
               <span className="text-5xl">🔍</span>
-              <p className="text-white font-bold">No athletes found</p>
+              <p className="text-white font-bold">No Players found</p>
               <p className="text-gray-500 text-xs max-w-[240px]">
-                Try adjusting your search or filters to find athletes.
+                Try adjusting your search or filters to find players.
               </p>
               <button
                 onClick={() => {
