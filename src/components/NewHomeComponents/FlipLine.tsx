@@ -40,6 +40,19 @@ function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { select
   const [likedCards, setLikedCards] = useState<Set<number>>(new Set());
   const [askOpen, setAskOpen] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sf360_liked_fliplines');
+      if (stored) {
+        try {
+          setLikedCards(new Set(JSON.parse(stored)));
+        } catch (e) {
+          console.error('Failed to parse liked fliplines:', e);
+        }
+      }
+    }
+  }, []);
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 150 }}>
@@ -99,6 +112,19 @@ export function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loa
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [likedCards, setLikedCards] = useState<Set<number>>(new Set());
   const [askOpen, setAskOpen] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sf360_liked_fliplines');
+      if (stored) {
+        try {
+          setLikedCards(new Set(JSON.parse(stored)));
+        } catch (e) {
+          console.error('Failed to parse liked fliplines:', e);
+        }
+      }
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -226,25 +252,40 @@ export function FlipCardItem({
     ? rawAuthor.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') 
     : '';
   const displayHandle = isCurrentUser ? "@you" : (card.handle === "@you" ? "@fan" : card.handle);
-  const displayPhoto = card.adminPhoto || (isCurrentUser 
-    ? (user?.avatar || card.authorPhoto)
-    : card.authorPhoto);
+  const displayPhoto = card.adminPhoto || card.authorPhoto || (isCurrentUser ? user?.avatar : undefined);
 
-  console.log("FlipCardItem DEBUG:", {
-    cardId: card.id,
-    content: card.content?.substring(0, 20),
-    cardUserId: card.userId,
-    currentUserId,
-    isCurrentUser,
-    cardAuthor: card.author,
-    displayAuthor,
-    displayHandle
-  });
+  // console.log("FlipCardItem DEBUG:", {
+  //   cardId: card.id,
+  //   content: card.content?.substring(0, 20),
+  //   cardUserId: card.userId,
+  //   currentUserId,
+  //   isCurrentUser,
+  //   cardAuthor: card.author,
+  //   displayAuthor,
+  //   displayHandle
+  // });
 
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState(card.flipResponse || "");
   const [loading, setLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [wasInitiallyLiked, setWasInitiallyLiked] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sf360_liked_fliplines');
+      if (stored) {
+        try {
+          const likedSet = new Set<number>(JSON.parse(stored));
+          if (likedSet.has(card.id)) {
+            setWasInitiallyLiked(true);
+          }
+        } catch (e) {
+          console.error('Failed to parse liked fliplines:', e);
+        }
+      }
+    }
+  }, [card.id]);
 
   const handleAskFlip = async () => {
     if (!question.trim() || loading) return;
@@ -551,7 +592,11 @@ export function FlipCardItem({
                   fill={isLiked ? 'rgb(244, 63, 94)' : 'none'} 
                   className={`transition-all duration-200 ${isLiked ? 'text-rose-500 scale-110' : ''}`} 
                 />
-                <span className="text-[12.5px] font-extrabold leading-none">{card.likes + (isLiked ? 1 : 0)}</span>
+                <span className="text-[12.5px] font-extrabold leading-none">
+                  {wasInitiallyLiked 
+                    ? card.likes + (isLiked ? 0 : -1) 
+                    : card.likes + (isLiked ? 1 : 0)}
+                </span>
               </button>
               
               <button 
@@ -702,6 +747,9 @@ export function FlipTimeline({
       } else {
         next.add(card.id);
       }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('sf360_liked_fliplines', JSON.stringify(Array.from(next)));
+      }
       return next;
     });
 
@@ -716,6 +764,9 @@ export function FlipTimeline({
           next.delete(card.id);
         } else {
           next.add(card.id);
+        }
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('sf360_liked_fliplines', JSON.stringify(Array.from(next)));
         }
         return next;
       });

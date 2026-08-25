@@ -11,18 +11,33 @@ export default function FlipLinePage() {
   const [cards, setCards] = useState<FlipCard[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const fetchCards = async () => {
+    try {
+      const fetched = await fliplineService.fetchFlipCards();
+      setCards(fetched);
+    } catch (e) {
+      console.error("Failed to fetch FlipLine cards:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchCards = async () => {
-      try {
-        const fetched = await fliplineService.fetchFlipCards();
-        setCards(fetched);
-      } catch (e) {
-        console.error("Failed to fetch FlipLine cards:", e);
-      } finally {
-        setLoading(false);
+    fetchCards();
+
+    const handleNewPost = () => {
+      fetchCards();
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("flipline-post-created", handleNewPost);
+    }
+
+    return () => {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("flipline-post-created", handleNewPost);
       }
     };
-    fetchCards();
   }, []);
 
   return (

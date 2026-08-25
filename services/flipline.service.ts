@@ -10,7 +10,7 @@ export const fliplineService = {
 
   /** Create a new FlipLine card (includes file upload support) */
   createFlipCard: async (
-    card: Omit<FlipCard, "id" | "time" | "timeMs">,
+    card: Omit<FlipCard, "id" | "timeMs">,
     imageFile: File | null,
     videoFile: File | null
   ): Promise<FlipCard> => {
@@ -31,8 +31,10 @@ export const fliplineService = {
     if (card.userId) formData.append("userId", card.userId);
     if (card.email) formData.append("email", card.email);
     if (card.day) formData.append("day", card.day);
+    if (card.time) formData.append("time", card.time);
     if (card.isVerified !== undefined) formData.append("isVerified", String(card.isVerified));
     if (card.adminPhoto) formData.append("adminPhoto", card.adminPhoto);
+    if (card.authorPhoto) formData.append("authorPhoto", card.authorPhoto);
 
     if (imageFile) {
       formData.append("media", imageFile);
