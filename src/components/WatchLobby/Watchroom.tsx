@@ -2578,7 +2578,7 @@ import ConfettiWrapper from "./ConfettiWrapper";
 import Telestrator, { Stroke } from "./Telestrator";
 // Live camera feed via native getUserMedia API
 import Link from "next/link";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown, TrendingUp, Flame, MoreHorizontal } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown, TrendingUp, Flame, MoreHorizontal, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, MessageSquare, Users } from "lucide-react";
 
 
 const JitsiMeeting = dynamic(
@@ -2602,7 +2602,8 @@ function LiveCameraFeed({
     onTelestratorStrokeAdded,
     onTelestratorUndo,
     onTelestratorClear,
-    onTelestratorToggleActive
+    onTelestratorToggleActive,
+    isSidebarCollapsed = false,
 }: {
     hostName: string;
     roomName: string;
@@ -2619,6 +2620,7 @@ function LiveCameraFeed({
     onTelestratorUndo?: () => void;
     onTelestratorClear?: () => void;
     onTelestratorToggleActive?: () => void;
+    isSidebarCollapsed?: boolean;
 }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const apiRef = useRef<any>(null);
@@ -2847,8 +2849,8 @@ function LiveCameraFeed({
     }, []);
 
     return (
-        <div className={`absolute transition-all overflow-hidden bg-[#000] shadow-2xl z-20 
-            ${isExpanded
+        <div className={`absolute transition-all duration-300 overflow-hidden bg-[#000] shadow-2xl z-20 
+            ${isExpanded || isSidebarCollapsed
                 ? 'inset-0 w-full h-full rounded-none z-45'
                 : 'bottom-2.5 right-3 w-[140px] h-[95px] lg:w-[240px] lg:h-[160px] rounded-xl border border-white/20 hover:scale-105'
             }`}>
@@ -2883,11 +2885,28 @@ function LiveCameraFeed({
                             logoImageUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
                             logoClickUrl: '',
                             disableUnsupportedBrowserPage: true,
+                            disableJoinLeaveSounds: true,
+                            disabledSounds: ['TALK_WHILE_MUTED_SOUND', 'INCOMING_MSG_SOUND', 'PARTICIPANT_JOINED_SOUND', 'PARTICIPANT_LEFT_SOUND', 'REACTIONS_SOUND'],
+                            disabledNotifications: [
+                                'notify.connected',
+                                'notify.disconnected',
+                                'notify.left',
+                                'notify.joined',
+                                'notify.participantLeft',
+                                'notify.participantJoined',
+                                'notify.invited',
+                                'notify.screenSharing',
+                                'notify.startSilent',
+                                'notify.grantModerator',
+                                'notify.raisedHand'
+                            ],
                         }}
                         interfaceConfigOverwrite={{
                             SHOW_JITSI_WATERMARK: false,
                             SHOW_BRAND_WATERMARK: false,
                             SHOW_POWERED_BY: false,
+                            DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+                            DISABLE_NOTIFICATIONS: true,
                             DEFAULT_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
                             DEFAULT_WELCOME_PAGE_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
                             BRAND_WATERMARK_LINK: '',
@@ -3542,6 +3561,7 @@ export default function WatchRoom({ room, onBack }: Props) {
     const [isLoadingMatch, setIsLoadingMatch] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
     const [activeTab, setActiveTab] = useState<'prediction' | 'polls' | 'flashQuiz' | 'liveChat' | 'emojiStorm' | 'participants' | 'qna'>('liveChat');
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
 
     // Real-time Jitsi states
     const [jitsiParticipants, setJitsiParticipants] = useState<any[]>([]);
@@ -4428,6 +4448,29 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                     <span className="text-sm font-bold truncate">{room.name || "Watch Room"}</span>
                 </div>
                 <div className="flex items-center gap-2">
+                    {/* <button
+                        onClick={() => setIsSidebarCollapsed(prev => !prev)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 cursor-pointer ${
+                            isSidebarCollapsed
+                                ? "bg-pink-600/10 border-pink-500/30 text-pink-400 hover:bg-pink-600/20 shadow-[0_0_15px_rgba(236,72,153,0.15)]"
+                                : "bg-[#202023] border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
+                        }`}
+                        title={isSidebarCollapsed ? "Expand Chat & Participants" : "Collapse Chat & Participants (More space for video & members)"}
+                    >
+                        {isSidebarCollapsed ? (
+                            <>
+                                <PanelRightOpen size={13} className="text-pink-400" />
+                                <span className="hidden sm:inline">Show Chat & Members</span>
+                                <span className="sm:hidden">Show Chat</span>
+                            </>
+                        ) : (
+                            <>
+                                <PanelRightClose size={13} className="text-gray-400" />
+                                <span className="hidden sm:inline">Hide Chat & Members</span>
+                                <span className="sm:hidden">Hide Chat</span>
+                            </>
+                        )}
+                    </button> */}
 
                     <button
                         onClick={handleShare}
@@ -4580,10 +4623,10 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
             <div className="flex flex-col lg:flex-row flex-1 min-h-0">
 
                 {/* ── LEFT: video + action tabs ── */}
-                <div className="flex flex-col flex-1 lg:min-w-0 overflow-y-auto">
+                <div className={`flex flex-col flex-1 lg:min-w-0 ${isSidebarCollapsed ? 'h-full overflow-hidden' : 'overflow-y-auto'}`}>
 
                     {/* Video player */}
-                    <div className="relative w-full aspect-video bg-[#1a0a14] overflow-hidden shrink-0">
+                    <div className={`relative w-full overflow-hidden ${isSidebarCollapsed ? 'flex-1 min-h-0 bg-[#0c0c0e]' : 'aspect-video bg-[#1a0a14] shrink-0'}`}>
                         {liveMatch?.videoUrl ? (
                             <>
                                 <VideoPlayer
@@ -4667,6 +4710,7 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                                 telestratorActive={isTelestratorActive}
                                 telestratorStrokes={telestratorStrokes}
                                 onTelestratorStrokeAdded={(stroke) => triggerMoment("TEL_DRAW:" + JSON.stringify(stroke))}
+                                isSidebarCollapsed={isSidebarCollapsed}
                                 onApiReady={async (api) => {
                                     jitsiApiRef.current = api;
                                     setJitsiApi(api);
@@ -4707,269 +4751,387 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                         </div>
                     </div>
 
-                    {/* HTML Audio/Video Control Panel (100% click-reliable on all devices, no overlap) */}
-                    {userName && (
-                        <div className="flex flex-row items-center justify-between gap-3 bg-[#141416] border border-white/5 rounded-xl p-2 lg:p-3 mt-1.5 lg:mt-3 mx-2 sm:mx-4 lg:mx-6 shadow-2xl">
-                            <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${micOn ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
-                                <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300">
-                                    {micOn ? "Mic Active" : "Mic Muted"}
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <button
-                                    type="button"
-                                    onClick={toggleMic}
-                                    className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${micOn
-                                        ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
-                                        : "bg-red-600 border-red-500 text-white hover:bg-red-700"
-                                        }`}
-                                >
-                                    {micOn ? <Mic size={12} /> : <MicOff size={12} />}
-                                    <span>{micOn ? "Mute" : "Unmute"}</span>
-                                </button>
-
-                                {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
+                    {isSidebarCollapsed ? (
+                        /* ── BOTTOM TOOLBAR: Clean pinned bar at bottom when chat is hidden ── */
+                        <div className="shrink-0 mt-auto bg-[#141416] border-t border-white/10 px-3 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xl z-30">
+                            {/* Left: Audio/Video Controls */}
+                            {userName && (
+                                <div className="flex items-center gap-2">
+                                    <div className="hidden sm:flex items-center gap-1.5 mr-1">
+                                        <span className={`w-2 h-2 rounded-full ${micOn ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300">
+                                            {micOn ? "Mic Active" : "Mic Muted"}
+                                        </span>
+                                    </div>
                                     <button
                                         type="button"
-                                        onClick={toggleVid}
-                                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${vidOn
+                                        onClick={toggleMic}
+                                        className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${micOn
                                             ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
                                             : "bg-red-600 border-red-500 text-white hover:bg-red-700"
                                             }`}
                                     >
-                                        {vidOn ? <Video size={12} /> : <VideoOff size={12} />}
-                                        <span>{vidOn ? "Stop Cam" : "Start Cam"}</span>
+                                        {micOn ? <Mic size={12} /> : <MicOff size={12} />}
+                                        <span>{micOn ? "Mute" : "Unmute"}</span>
                                     </button>
+
+                                    {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
+                                        <button
+                                            type="button"
+                                            onClick={toggleVid}
+                                            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${vidOn
+                                                ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
+                                                : "bg-red-600 border-red-500 text-white hover:bg-red-700"
+                                                }`}
+                                        >
+                                            {vidOn ? <Video size={12} /> : <VideoOff size={12} />}
+                                            <span>{vidOn ? "Stop Cam" : "Start Cam"}</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* Center: Quick Reactions */}
+                            <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-hide py-0.5">
+                                {(userRole === 'Co-Host' || userRole === 'Moderator') ? (
+                                    <>
+                                        <button onClick={() => triggerMoment("WICKET")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span>🏏</span>
+                                            <span className="hidden md:inline">Wicket</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("SIX")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span className="font-black text-purple-400">6</span>
+                                            <span className="hidden md:inline">Six</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("FOUR")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span className="font-black text-blue-400">4</span>
+                                            <span className="hidden md:inline">Four</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("TEL_TOGGLE:" + (!isTelestratorActive).toString())} className={`flex-shrink-0 flex items-center gap-1 border rounded-full px-2.5 py-1 text-[10px] font-semibold hover:scale-105 active:scale-95 transition-all ${isTelestratorActive ? 'bg-green-600/20 border-green-500 text-green-400' : 'bg-[#202023] hover:bg-[#2a2a2e] border-white/5 text-gray-200'}`}>
+                                            <span>✏️</span>
+                                            <span className="hidden md:inline">{isTelestratorActive ? 'Drawing' : 'Draw'}</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("GOAL")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span>⚽</span>
+                                            <span className="hidden md:inline">Goal</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("FIRE")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span>🔥</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("CLAP")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span>👏</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("HEART")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span>❤️</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("DRUMROLL")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span>🥁</span>
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button onClick={() => triggerMoment("FIRE")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span>🔥</span>
+                                            <span className="hidden sm:inline">Fire</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("CLAP")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span>👏</span>
+                                            <span className="hidden sm:inline">Clap</span>
+                                        </button>
+                                        <button onClick={() => triggerMoment("HEART")} className="flex-shrink-0 flex items-center gap-1 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 text-[10px] font-semibold text-gray-200 hover:scale-105 active:scale-95 transition-all">
+                                            <span>❤️</span>
+                                            <span className="hidden sm:inline">Heart</span>
+                                        </button>
+                                    </>
                                 )}
                             </div>
+
+                            {/* Right: Expand Chat Button */}
+                            <button
+                                onClick={() => setIsSidebarCollapsed(false)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-600/15 border border-pink-500/30 hover:bg-pink-600/25 text-pink-400 hover:text-pink-300 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_0_15px_rgba(236,72,153,0.15)] cursor-pointer"
+                                title="Expand Chat & Participants"
+                            >
+                                <PanelRightOpen size={13} />
+                                <span className="hidden sm:inline">Chat & Members</span>
+                                <span className="sm:hidden">Chat</span>
+                            </button>
                         </div>
-                    )}
+                    ) : (
+                        /* ── NORMAL STACKED LAYOUT: controls and reactions below video ── */
+                        <>
+                            {/* HTML Audio/Video Control Panel (100% click-reliable on all devices, no overlap) */}
+                            {userName && (
+                                <div className="flex flex-row items-center justify-between gap-3 bg-[#141416] border border-white/5 rounded-xl p-2 lg:p-3 mt-1.5 lg:mt-3 mx-2 sm:mx-4 lg:mx-6 shadow-2xl">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`w-2 h-2 rounded-full ${micOn ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
+                                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-gray-300">
+                                            {micOn ? "Mic Active" : "Mic Muted"}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={toggleMic}
+                                            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${micOn
+                                                ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
+                                                : "bg-red-600 border-red-500 text-white hover:bg-red-700"
+                                                }`}
+                                        >
+                                            {micOn ? <Mic size={12} /> : <MicOff size={12} />}
+                                            <span>{micOn ? "Mute" : "Unmute"}</span>
+                                        </button>
 
-                    {/* Zoom-style Host Reactions */}
-                    {(userRole === 'Co-Host' || userRole === 'Moderator') && (
-                        <div className="flex flex-col gap-1.5 lg:gap-2.5 bg-[#141416] border border-white/5 rounded-xl p-1.5 lg:p-3.5 mt-1 lg:mt-3 mx-2 sm:mx-4 lg:mx-6">
-                            <div className="flex items-center gap-1.5 text-gray-400 text-xs">
-                                <span className="font-extrabold uppercase tracking-widest text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-white">Host Reactions</span>
-                                <span className="opacity-60 cursor-help flex items-center justify-center animate-pulse" title="Click to trigger animated reaction effects for everyone!">
-                                    <Info size={12} />
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide py-1">
+                                        {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
+                                            <button
+                                                type="button"
+                                                onClick={toggleVid}
+                                                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${vidOn
+                                                    ? "bg-green-600/10 border-green-500/30 text-green-400 hover:bg-green-600/20"
+                                                    : "bg-red-600 border-red-500 text-white hover:bg-red-700"
+                                                    }`}
+                                            >
+                                                {vidOn ? <Video size={12} /> : <VideoOff size={12} />}
+                                                <span>{vidOn ? "Stop Cam" : "Start Cam"}</span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
 
-                                {/* WICKET */}
-                                <button
-                                    onClick={() => triggerMoment("WICKET")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-pink-600 flex items-center justify-center text-[10px] text-white">🏏</div>
-                                    <span>Wicket</span>
-                                </button>
+                            {/* Zoom-style Host Reactions */}
+                            {(userRole === 'Co-Host' || userRole === 'Moderator') && (
+                                <div className="flex flex-col gap-1.5 lg:gap-2.5 bg-[#141416] border border-white/5 rounded-xl p-1.5 lg:p-3.5 mt-1 lg:mt-3 mx-2 sm:mx-4 lg:mx-6">
+                                    <div className="flex items-center gap-1.5 text-gray-400 text-xs">
+                                        <span className="font-extrabold uppercase tracking-widest text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-white">Host Reactions</span>
+                                        <span className="opacity-60 cursor-help flex items-center justify-center animate-pulse" title="Click to trigger animated reaction effects for everyone!">
+                                            <Info size={12} />
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide py-1">
 
-                                {/* SIX */}
-                                <button
-                                    onClick={() => triggerMoment("SIX")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center text-[10px] font-black text-white">6</div>
-                                    <span>Six</span>
-                                </button>
+                                        {/* WICKET */}
+                                        <button
+                                            onClick={() => triggerMoment("WICKET")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-pink-600 flex items-center justify-center text-[10px] text-white">🏏</div>
+                                            <span>Wicket</span>
+                                        </button>
 
-                                {/* FOUR */}
-                                <button
-                                    onClick={() => triggerMoment("FOUR")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white">4</div>
-                                    <span>Four</span>
-                                </button>
+                                        {/* SIX */}
+                                        <button
+                                            onClick={() => triggerMoment("SIX")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-purple-600 flex items-center justify-center text-[10px] font-black text-white">6</div>
+                                            <span>Six</span>
+                                        </button>
 
-                                {/* TELESTRATOR / CHALKBOARD DRAW */}
-                                <button
-                                    onClick={() => triggerMoment("TEL_TOGGLE:" + (!isTelestratorActive).toString())}
-                                    className={`flex-shrink-0 flex items-center gap-1.5 border rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold ${isTelestratorActive
-                                        ? 'bg-green-600/20 border-green-500 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse'
-                                        : 'bg-[#202023] hover:bg-[#2a2a2e] border-white/5 text-gray-200'
-                                        }`}
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center text-[10px] text-white">✏️</div>
-                                    <span>{isTelestratorActive ? 'Drawing Live...' : 'Draw Live'}</span>
-                                </button>
+                                        {/* FOUR */}
+                                        <button
+                                            onClick={() => triggerMoment("FOUR")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[10px] font-black text-white">4</div>
+                                            <span>Four</span>
+                                        </button>
 
-                                {/* GOAL */}
-                                <button
-                                    onClick={() => triggerMoment("GOAL")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center text-[10px] text-white">⚽</div>
-                                    <span>Goal</span>
-                                </button>
+                                        {/* TELESTRATOR / CHALKBOARD DRAW */}
+                                        <button
+                                            onClick={() => triggerMoment("TEL_TOGGLE:" + (!isTelestratorActive).toString())}
+                                            className={`flex-shrink-0 flex items-center gap-1.5 border rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold ${isTelestratorActive
+                                                ? 'bg-green-600/20 border-green-500 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.3)] animate-pulse'
+                                                : 'bg-[#202023] hover:bg-[#2a2a2e] border-white/5 text-gray-200'
+                                                }`}
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center text-[10px] text-white">✏️</div>
+                                            <span>{isTelestratorActive ? 'Drawing Live...' : 'Draw Live'}</span>
+                                        </button>
 
-                                {/* FIRE */}
-                                <button
-                                    onClick={() => triggerMoment("FIRE")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-[10px] text-white">🔥</div>
-                                    <span>Fire</span>
-                                </button>
+                                        {/* GOAL */}
+                                        <button
+                                            onClick={() => triggerMoment("GOAL")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center text-[10px] text-white">⚽</div>
+                                            <span>Goal</span>
+                                        </button>
 
-                                {/* CLAP */}
-                                <button
-                                    onClick={() => triggerMoment("CLAP")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center text-[10px] text-white">👏</div>
-                                    <span>Clap</span>
-                                </button>
+                                        {/* FIRE */}
+                                        <button
+                                            onClick={() => triggerMoment("FIRE")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-[10px] text-white">🔥</div>
+                                            <span>Fire</span>
+                                        </button>
 
-                                {/* HEART */}
-                                <button
-                                    onClick={() => triggerMoment("HEART")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-red-600 flex items-center justify-center text-[10px] text-white">❤️</div>
-                                    <span>Heart</span>
-                                </button>
+                                        {/* CLAP */}
+                                        <button
+                                            onClick={() => triggerMoment("CLAP")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center text-[10px] text-white">👏</div>
+                                            <span>Clap</span>
+                                        </button>
 
-                                {/* DRUMROLL */}
-                                <button
-                                    onClick={() => triggerMoment("DRUMROLL")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-yellow-600 flex items-center justify-center text-[10px] text-white">🥁</div>
-                                    <span>Drumroll</span>
-                                </button>
+                                        {/* HEART */}
+                                        <button
+                                            onClick={() => triggerMoment("HEART")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-red-600 flex items-center justify-center text-[10px] text-white">❤️</div>
+                                            <span>Heart</span>
+                                        </button>
 
-                            </div>
-                        </div>
-                    )}
+                                        {/* DRUMROLL */}
+                                        <button
+                                            onClick={() => triggerMoment("DRUMROLL")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-yellow-600 flex items-center justify-center text-[10px] text-white">🥁</div>
+                                            <span>Drumroll</span>
+                                        </button>
 
-                    {/* Zoom-style Viewer Reactions */}
-                    {!(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
-                        <div className="flex flex-col gap-1.5 lg:gap-2.5 bg-[#141416] border border-white/5 rounded-xl p-1.5 lg:p-3.5 mt-1 lg:mt-3 mx-2 sm:mx-4 lg:mx-6">
-                            <div className="flex items-center gap-1.5 text-gray-400 text-xs">
-                                <span className="font-extrabold uppercase tracking-widest text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-white">Viewer Reactions</span>
-                                <span className="opacity-60 cursor-help flex items-center justify-center animate-pulse" title="Click to trigger animated reaction effects for everyone!">
-                                    <Info size={12} />
-                                </span>
-                            </div>
-                            <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide py-1">
-                                {/* FIRE */}
-                                <button
-                                    onClick={() => triggerMoment("FIRE")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-[10px] text-white">🔥</div>
-                                    <span>Fire</span>
-                                </button>
+                                    </div>
+                                </div>
+                            )}
 
-                                {/* CLAP */}
-                                <button
-                                    onClick={() => triggerMoment("CLAP")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center text-[10px] text-white">👏</div>
-                                    <span>Clap</span>
-                                </button>
+                            {/* Zoom-style Viewer Reactions */}
+                            {!(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
+                                <div className="flex flex-col gap-1.5 lg:gap-2.5 bg-[#141416] border border-white/5 rounded-xl p-1.5 lg:p-3.5 mt-1 lg:mt-3 mx-2 sm:mx-4 lg:mx-6">
+                                    <div className="flex items-center gap-1.5 text-gray-400 text-xs">
+                                        <span className="font-extrabold uppercase tracking-widest text-[9px] bg-white/5 px-1.5 py-0.5 rounded text-white">Viewer Reactions</span>
+                                        <span className="opacity-60 cursor-help flex items-center justify-center animate-pulse" title="Click to trigger animated reaction effects for everyone!">
+                                            <Info size={12} />
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2.5 overflow-x-auto scrollbar-hide py-1">
+                                        {/* FIRE */}
+                                        <button
+                                            onClick={() => triggerMoment("FIRE")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-orange-600 flex items-center justify-center text-[10px] text-white">🔥</div>
+                                            <span>Fire</span>
+                                        </button>
 
-                                {/* HEART */}
-                                <button
-                                    onClick={() => triggerMoment("HEART")}
-                                    className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
-                                >
-                                    <div className="w-5 h-5 rounded-full bg-red-600 flex items-center justify-center text-[10px] text-white">❤️</div>
-                                    <span>Heart</span>
-                                </button>
-                            </div>
-                        </div>
+                                        {/* CLAP */}
+                                        <button
+                                            onClick={() => triggerMoment("CLAP")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-yellow-500 flex items-center justify-center text-[10px] text-white">👏</div>
+                                            <span>Clap</span>
+                                        </button>
+
+                                        {/* HEART */}
+                                        <button
+                                            onClick={() => triggerMoment("HEART")}
+                                            className="flex-shrink-0 flex items-center gap-1.5 bg-[#202023] hover:bg-[#2a2a2e] border border-white/5 rounded-full px-2.5 py-1 lg:px-3.5 lg:py-1.5 transition-all hover:scale-105 active:scale-95 text-[10px] lg:text-xs font-semibold text-gray-200"
+                                        >
+                                            <div className="w-5 h-5 rounded-full bg-red-600 flex items-center justify-center text-[10px] text-white">❤️</div>
+                                            <span>Heart</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {/* Mobile/tablet: tab content inline below tabs */}
                     <div className="relative z-20 flex flex-col gap-1.5 px-2 sm:px-6 py-1.5 border-b border-[#222] lg:hidden">
-                        <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1">
-                            {sidebarTabs.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as any)}
-                                    className={`flex-shrink-0 text-xs px-3.5 py-1.5 rounded-full font-bold transition-all ${activeTab === tab.id
-                                        ? "bg-pink-600 text-white shadow-lg"
-                                        : "bg-[#202023] text-gray-400 hover:bg-[#2a2a2e]"
-                                        }`}
-                                >
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
-                        {/* {pinnedMessage && (
-                            <div className="bg-pink-600/10 border border-pink-500/25 px-3 py-2 flex items-center justify-between gap-3 text-xs rounded-xl mt-1">
-                                <div className="flex items-center gap-2 text-pink-400 overflow-hidden">
-                                    <Pin size={12} className="shrink-0 animate-bounce" />
-                                    <span className="font-extrabold uppercase tracking-wider text-[8px] bg-pink-500/15 px-1 py-0.5 rounded shrink-0">Pinned</span>
-                                    <p className="text-gray-200 truncate font-semibold">{pinnedMessage}</p>
-                                </div>
-                                {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
-                                    <button onClick={() => setPinnedMessage(null)} className="text-gray-400 hover:text-white transition-colors shrink-0">
-                                        <X size={12} />
+                        <div className="flex items-center justify-between gap-2">
+                            <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 flex-1">
+                                {sidebarTabs.map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => {
+                                            setActiveTab(tab.id as any);
+                                            setIsSidebarCollapsed(false);
+                                        }}
+                                        className={`flex-shrink-0 text-xs px-3.5 py-1.5 rounded-full font-bold transition-all ${activeTab === tab.id && !isSidebarCollapsed
+                                            ? "bg-pink-600 text-white shadow-lg"
+                                            : "bg-[#202023] text-gray-400 hover:bg-[#2a2a2e]"
+                                            }`}
+                                    >
+                                        {tab.label}
                                     </button>
-                                )}
+                                ))}
                             </div>
-                        )} */}
+                            <button
+                                onClick={() => setIsSidebarCollapsed(prev => !prev)}
+                                className="flex items-center gap-1 px-2.5 py-1.5 bg-[#1e1e24] border border-white/10 hover:bg-white/10 rounded-xl text-[11px] font-bold text-gray-300 hover:text-white shrink-0 transition-all cursor-pointer"
+                                title={isSidebarCollapsed ? "Expand Chat & Participants" : "Collapse Chat & Participants"}
+                            >
+                                {isSidebarCollapsed ? (
+                                    <>
+                                        <ChevronDown size={14} className="text-pink-400" />
+                                        <span className="text-[10px] uppercase tracking-wider">Show</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <ChevronUp size={14} className="text-gray-400" />
+                                        <span className="text-[10px] uppercase tracking-wider">Hide</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
-                    <div className="flex-1 flex flex-col min-h-[300px] lg:min-h-0 lg:hidden relative">
-                        <TabContent isMobile={true} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
-                    </div>
+                    {!isSidebarCollapsed && (
+                        <div className="flex-1 flex flex-col min-h-[300px] lg:min-h-0 lg:hidden relative">
+                            <TabContent isMobile={true} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
+                        </div>
+                    )}
                 </div>
 
                 {/* ── RIGHT: tab content sidebar — desktop only ── */}
-                <div
-                    onMouseDown={startResize}
-                    className={`hidden lg:block w-1.5 hover:w-2 bg-[#1a1a1c] hover:bg-pink-500/80 cursor-col-resize select-none transition-all duration-150 relative group ${isResizing ? 'bg-pink-500 w-2' : ''}`}
-                    style={{ height: '100%', zIndex: 30 }}
-                >
-                    <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-white/10 group-hover:bg-white/30 transition-colors pointer-events-none" />
-                </div>
-
-                <div
-                    className="hidden lg:flex lg:flex-col border-l border-[#222] min-h-0 bg-[#0e0e10]"
-                    style={{ width: `${sidebarWidth}px` }}
-                >
-                    {/* Tab Header row */}
-                    <div className="flex border-b border-[#222] px-2 py-1.5 gap-1 overflow-x-auto scrollbar-hide bg-[#121214]">
-                        {sidebarTabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id as any)}
-                                className={`flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1.5 rounded-lg font-bold tracking-wide transition-all ${activeTab === tab.id
-                                    ? "bg-pink-600/10 text-pink-400 border border-pink-500/20"
-                                    : "text-gray-400 hover:text-white hover:bg-white/5"
-                                    }`}
-                            >
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Pinned Message Ribbon inside sidebar */}
-                    {/* {pinnedMessage && (
-                        <div className="bg-pink-600/10 border-b border-pink-500/25 px-4 py-2 flex items-center justify-between gap-3 text-xs">
-                            <div className="flex items-center gap-2 text-pink-400 overflow-hidden">
-                                <Pin size={12} className="shrink-0 animate-bounce" />
-                                <span className="font-extrabold uppercase tracking-wider text-[8px] bg-pink-500/15 px-1 py-0.5 rounded shrink-0">Pinned</span>
-                                <p className="text-gray-200 truncate font-semibold">{pinnedMessage}</p>
-                            </div>
-                            {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
-                                <button onClick={() => setPinnedMessage(null)} className="text-gray-400 hover:text-white transition-colors shrink-0">
-                                    <X size={12} />
-                                </button>
-                            )}
+                {!isSidebarCollapsed && (
+                    <>
+                        <div
+                            onMouseDown={startResize}
+                            className={`hidden lg:block w-1.5 hover:w-2 bg-[#1a1a1c] hover:bg-pink-500/80 cursor-col-resize select-none transition-all duration-150 relative group ${isResizing ? 'bg-pink-500 w-2' : ''}`}
+                            style={{ height: '100%', zIndex: 30 }}
+                        >
+                            <div className="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[1px] bg-white/10 group-hover:bg-white/30 transition-colors pointer-events-none" />
                         </div>
-                    )} */}
 
-                    <div className="flex-1 flex flex-col min-h-0 relative">
-                        <TabContent isMobile={false} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
-                    </div>
-                </div>
+                        <div
+                            className="hidden lg:flex lg:flex-col border-l border-[#222] min-h-0 bg-[#0e0e10]"
+                            style={{ width: `${sidebarWidth}px` }}
+                        >
+                            {/* Tab Header row */}
+                            <div className="flex items-center border-b border-[#222] px-2 py-1.5 gap-1 bg-[#121214]">
+                                <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-1">
+                                    {sidebarTabs.map((tab) => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id as any)}
+                                            className={`flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1.5 rounded-lg font-bold tracking-wide transition-all ${activeTab === tab.id
+                                                ? "bg-pink-600/10 text-pink-400 border border-pink-500/20"
+                                                : "text-gray-400 hover:text-white hover:bg-white/5"
+                                                }`}
+                                        >
+                                            {tab.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={() => setIsSidebarCollapsed(true)}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors cursor-pointer shrink-0"
+                                    title="Collapse sidebar to maximize video and members"
+                                >
+                                    <PanelRightClose size={15} />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 flex flex-col min-h-0 relative">
+                                <TabContent isMobile={false} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
+                            </div>
+                        </div>
+                    </>
+                )}
 
             </div>
 

@@ -500,14 +500,14 @@ export default function Onboarding({ onComplete }: Props) {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-50 bg-black flex items-center justify-center">
+      <div className="fixed inset-0 z-[1050] bg-black flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-gray-700 border-t-orange-500 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[1050] bg-black overflow-hidden flex flex-col">
       {/* Progress bar — 3 segments */}
       <div className="flex gap-1.5 px-6 pt-6">
         {[1, 2, 3].map((i) => (
