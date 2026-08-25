@@ -213,7 +213,7 @@ export default function WatchAlongSessions() {
       </div>
 
       {loading ? (
-        <div className="flex gap-3 overflow-x-hidden">
+        <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 no-scrollbar">
           <WatchAlongSkeleton />
           <WatchAlongSkeleton />
         </div>
@@ -222,101 +222,67 @@ export default function WatchAlongSessions() {
           {rooms.map((room) => (
             <div
               key={room.id}
-              className="rounded-2xl overflow-hidden p-4 shrink-0 w-[280px]"
+              className="rounded-2xl overflow-hidden p-4 shrink-0 w-[calc(100vw-32px)] sm:w-[360px] md:w-[380px] flex flex-col justify-between"
               style={{ background: "linear-gradient(160deg,#2a0f3d,#12071f)" }}
             >
               <div className="flex gap-3.5">
-                {/* <div className="relative w-[92px] h-[92px] rounded-2xl overflow-hidden shrink-0 border border-white/10">
-                  <img
-                    src={room.displayPicture || "/images/with_ananad.png"}
-                    alt={room.name}
-                    className="w-full h-full object-cover"
-                  />
-                  {room.isLive && (
-                    <span className="absolute top-1.5 left-1.5 flex items-center gap-1 text-[9px] font-extrabold text-emerald-300 bg-black/50 px-1.5 py-0.5 rounded-full">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      LIVE
+                <div className="w-[92px] shrink-0">
+                  <div className="relative w-[92px] h-[92px] rounded-2xl overflow-hidden border border-white/10">
+                    <img
+                      src={room.displayPicture || "/images/with_ananad.png"}
+                      alt={room.name}
+                      className="w-full h-full object-cover"
+                    />
+                    {room.isLive && (
+                      <span className="absolute top-1.5 left-1.5 flex items-center gap-1 text-[9px] font-extrabold text-emerald-300 bg-black/50 px-1.5 py-0.5 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        LIVE
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                        room.isLive ? "bg-emerald-400" : "bg-white/30"
+                      }`}
+                    />
+                    <span className="text-[10px] font-semibold text-white/50 whitespace-normal">
+                      {canJoin(room)
+                        ? "Live now"
+                        : formatStartTime(room.startTime)
+                          ? `Starts ${formatStartTime(room.startTime)}`
+                          : "Starting soon"}
+                    </span>
+                  </div>
+
+                  {typeof room.totalJoinCount === "number" && room.totalJoinCount > 0 && (
+                    <span className="block text-[10px] font-semibold text-white/50 mt-1 truncate">
+                      {room.totalJoinCount} joined
                     </span>
                   )}
-                </div> */}
-
-                <div className="flex gap-3.5">
-                  <div className="w-[92px] shrink-0">
-                    <div className="relative w-[92px] h-[92px] rounded-2xl overflow-hidden border border-white/10">
-                      <img
-                        src={room.displayPicture || "/images/with_ananad.png"}
-                        alt={room.name}
-                        className="w-full h-full object-cover"
-                      />
-                      {room.isLive && (
-                        <span className="absolute top-1.5 left-1.5 flex items-center gap-1 text-[9px] font-extrabold text-emerald-300 bg-black/50 px-1.5 py-0.5 rounded-full">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          LIVE
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1.5 mt-2">
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full shrink-0 ${room.isLive ? "bg-emerald-400" : "bg-white/30"
-                          }`}
-                      />
-                      {/* <span className="text-[10px] font-semibold text-white/50 whitespace-normal">
-                        {room.isLive
-                          ? "Live now"
-                          : formatStartTime(room.startTime)
-                            ? `Starts ${formatStartTime(room.startTime)}`
-                            : "Starting soon"}
-                      </span> */}
-                      <span className="text-[10px] font-semibold text-white/50 whitespace-normal">
-                        {canJoin(room)
-                          ? "Live now"
-                          : formatStartTime(room.startTime)
-                            ? `Starts ${formatStartTime(room.startTime)}`
-                            : "Starting soon"}
-                      </span>
-                    </div>
-
-                    {typeof room.totalJoinCount === "number" && room.totalJoinCount > 0 && (
-                      <span className="block text-[10px] font-semibold text-white/50 mt-1 truncate">
-                        {room.totalJoinCount} joined
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <h4 className="text-[16px] font-extrabold text-white leading-tight mb-1 whitespace-normal">
-                      {room.name}
-                    </h4>
-                    {room.role && (
-                      <p className="text-[13px] font-bold text-violet-400 mb-2 truncate">
-                        With {room.role}
-                      </p>
-                    )}
-                    <p className="text-[12px] text-white/50 leading-snug line-clamp-3">
-                      Join {room.role || "our expert"} and hundreds of fans. Live reactions, insights &amp; more!
-                    </p>
-                  </div>
                 </div>
 
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-[16px] font-extrabold text-white leading-tight mb-1 whitespace-normal">
+                    {room.name}
+                  </h4>
+                  {room.role && (
+                    <p className="text-[13px] font-bold text-violet-400 mb-2 truncate">
+                      With {room.role}
+                    </p>
+                  )}
+                  <p className="text-[12px] text-white/50 leading-snug line-clamp-3">
+                    Join {room.role || "our expert"} and hundreds of fans. Live reactions, insights &amp; more!
+                  </p>
+                </div>
               </div>
 
-
-
-              {/* <Link href={`/MainModules/WatchAlong/room/${room.id}`}>
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  className="w-full mt-3 py-3.5 rounded-full font-extrabold text-white text-[14px]"
-                  style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
-                >
-                  {room.isLive ? "Join Live Session" : "Join Session"}
-                </motion.button>
-              </Link> */}
               {canJoin(room) && (
                 <Link href={`/MainModules/WatchAlong/room/${room.id}`}>
                   <motion.button
                     whileTap={{ scale: 0.97 }}
-                    className="w-full mt-3 py-3.5 rounded-full font-extrabold text-white text-[14px]"
+                    className="w-full mt-4 py-3.5 rounded-full font-extrabold text-white text-[14px]"
                     style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
                   >
                     Join Live Session
@@ -333,7 +299,7 @@ export default function WatchAlongSessions() {
 
 function WatchAlongSkeleton() {
   return (
-    <div className="rounded-2xl p-4 shrink-0 w-[280px] bg-white/5 animate-pulse">
+    <div className="rounded-2xl p-4 shrink-0 w-[calc(100vw-32px)] sm:w-[360px] md:w-[380px] bg-white/5 animate-pulse">
       <div className="flex gap-3.5">
         <div className="w-[92px] h-[92px] rounded-2xl bg-white/10 shrink-0" />
         <div className="flex-1 space-y-2 py-1">

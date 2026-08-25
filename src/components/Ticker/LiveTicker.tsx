@@ -14,9 +14,9 @@ interface TickerItem {
 }
 
 const SPEED_MULTIPLIER_MAP: Record<SpeedType, number> = {
-  Normal: 12,
-  "2x": 24,
-  "3x": 36,
+  Normal: 3.5,
+  "2x": 7,
+  "3x": 12,
 };
 
 export default function LiveTicker({ matchIdFilter, roomNameFilter }: { matchIdFilter?: string, roomNameFilter?: string }) {
@@ -96,7 +96,7 @@ export default function LiveTicker({ matchIdFilter, roomNameFilter }: { matchIdF
     : "No live sports events currently scheduled.";
 
   // Dynamically calculate speed based on content length
-  const animDuration = Math.max(25, Math.round(marqueeText.length / SPEED_MULTIPLIER_MAP[speed]));
+  const animDuration = Math.max(60, Math.round(marqueeText.length / SPEED_MULTIPLIER_MAP[speed]));
 
   return (
     <>

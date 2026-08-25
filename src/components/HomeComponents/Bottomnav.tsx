@@ -235,7 +235,7 @@ export default function BottomNav() {
     //   url: "/MainModules/AtheleteHome" 
     // },
     {
-      name: "Athlete",
+      name: "Profile",
       logoInactive: <AthleteIcon />,
       logoActive: <AthleteIcon />,
       url: "/MainModules/Profile"
