@@ -40,6 +40,19 @@ function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { select
   const [likedCards, setLikedCards] = useState<Set<number>>(new Set());
   const [askOpen, setAskOpen] = useState<number | null>(null);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sf360_liked_fliplines');
+      if (stored) {
+        try {
+          setLikedCards(new Set(JSON.parse(stored)));
+        } catch (e) {
+          console.error('Failed to parse liked fliplines:', e);
+        }
+      }
+    }
+  }, []);
+
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 150 }}>
@@ -99,6 +112,19 @@ export function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loa
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [likedCards, setLikedCards] = useState<Set<number>>(new Set());
   const [askOpen, setAskOpen] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('sf360_liked_fliplines');
+      if (stored) {
+        try {
+          setLikedCards(new Set(JSON.parse(stored)));
+        } catch (e) {
+          console.error('Failed to parse liked fliplines:', e);
+        }
+      }
+    }
+  }, []);
 
   if (loading) {
     return (
@@ -702,6 +728,9 @@ export function FlipTimeline({
       } else {
         next.add(card.id);
       }
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('sf360_liked_fliplines', JSON.stringify(Array.from(next)));
+      }
       return next;
     });
 
@@ -716,6 +745,9 @@ export function FlipTimeline({
           next.delete(card.id);
         } else {
           next.add(card.id);
+        }
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('sf360_liked_fliplines', JSON.stringify(Array.from(next)));
         }
         return next;
       });
