@@ -95,18 +95,24 @@ useEffect(() => {
               localStorage.setItem("roar_username", u.username || "RoarUser");
               if (u.avatarUrl) localStorage.setItem("roar_avatar_url", u.avatarUrl);
             } catch { }
+            setOnboarded(true);
+            setChecking(false);
+          } else {
+            setOnboarded(false);
+            setChecking(false);
+            router.replace("/MainModules/HomePage");
           }
-          setOnboarded(completed);
-          setChecking(false);
         } else {
           setOnboarded(false);
           setChecking(false);
+          router.replace("/MainModules/HomePage");
         }
       } catch (err: any) {
         const status = err.response?.status;
         if (status === 404 || status === 401) {
           setOnboarded(false);
           setChecking(false);
+          router.replace("/MainModules/HomePage");
         } else {
           let hasLocal = false; let badge = "RISING_FAN";
           try {
@@ -116,11 +122,14 @@ useEffect(() => {
           setOnboarded(hasLocal);
           setUserBadge(badge);
           setChecking(false);
+          if (!hasLocal) {
+            router.replace("/MainModules/HomePage");
+          }
         }
       }
     };
     checkProfile();
-  }, [authReady]);
+  }, [authReady, router]);
 
   useEffect(() => {
     if (phog) {
@@ -742,13 +751,6 @@ const openRecapForRoom = useCallback(async (room: Room) => {
         <div style={{ position: "absolute", bottom: 88, right: 0, left: 0, textAlign: "right", paddingRight: 12, fontFamily: "'Bebas Neue',sans-serif", fontSize: 72, color: "white", opacity: 0.04, pointerEvents: "none", zIndex: 0, letterSpacing: "0.1em" }}>ROAR</div>
 
         <Toast message={toast.message} visible={toast.visible} />
-
-        {!onboarded && (
-          <>
-            <style dangerouslySetInnerHTML={{ __html: `#global-header-desktop,#global-header-tablet,#global-header-mobile,.roar-header-spacer{display:none!important}` }} />
-            <Onboarding onComplete={completeOnboarding} />
-          </>
-        )}
 
         {onboarded && (
           <div style={{ position: "relative", zIndex: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>

@@ -92,7 +92,7 @@ export type IndiaStatsData = {
   flagUrl?: string;
 };
 
-const AUTO_ADVANCE_MS = 5000;
+const AUTO_ADVANCE_MS = 20000;
 
 function useCountdown(targetMs: number) {
   const [label, setLabel] = useState("");
@@ -371,43 +371,85 @@ function UpcomingCardView({ card }: { card: UpcomingCard }) {
   );
 }
 
-/* ---------------------------------- Carousel (images 1-3): 5s autoplay + dots ---------------------------------- */
+/* ---------------------------------- Hero card carousel ---------------------------------- */
 
-function HeroCarousel({ cards }: { cards: HeroCard[] }) {
+export function HeroCardSkeleton() {
+  return (
+    <div className="w-full pt-3">
+      <div className="relative w-full rounded-2xl overflow-hidden p-5 min-h-[220px] bg-[#12101c] border border-white/[0.06] flex flex-col justify-between animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="h-5 w-28 bg-white/10 rounded-full" />
+          <div className="h-5 w-16 bg-white/10 rounded-full" />
+        </div>
+        <div className="my-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="h-6 w-36 bg-white/10 rounded-md" />
+            <div className="h-6 w-20 bg-white/10 rounded-md" />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="h-6 w-36 bg-white/10 rounded-md" />
+            <div className="h-6 w-20 bg-white/10 rounded-md" />
+          </div>
+        </div>
+        <div className="flex items-center justify-between pt-3 border-t border-white/[0.06]">
+          <div className="h-4 w-32 bg-white/10 rounded" />
+          <div className="h-8 w-28 bg-gradient-to-r from-pink-500/30 to-purple-600/30 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HeroCarousel({ cards, loading }: { cards: HeroCard[]; loading?: boolean }) {
   const [index, setIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    if (cards.length <= 1) return;
+    if (cards.length <= 1 || isPaused) {
+      if (timerRef.current) clearInterval(timerRef.current);
+      return;
+    }
     timerRef.current = setInterval(() => {
       setIndex((i) => (i + 1) % cards.length);
     }, AUTO_ADVANCE_MS);
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [cards.length]);
+  }, [cards.length, isPaused]);
+
+  if (loading) {
+    return <HeroCardSkeleton />;
+  }
 
   if (cards.length === 0) return null;
-  const active = cards[index];
+  const active = cards[Math.min(index, cards.length - 1)];
+  if (!active) return null;
 
   const restartTimer = () => {
     if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => {
-      setIndex((i) => (i + 1) % cards.length);
-    }, AUTO_ADVANCE_MS);
+    if (!isPaused) {
+      timerRef.current = setInterval(() => {
+        setIndex((i) => (i + 1) % cards.length);
+      }, AUTO_ADVANCE_MS);
+    }
   };
 
   return (
-    <div className="w-full pt-3">
+    <div 
+      className="w-full pt-3"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+    >
       <div className="relative overflow-hidden rounded-2xl">
         <AnimatePresence mode="wait">
           <motion.div
             key={active.id}
-            initial={{ opacity: 0, x: 40 }}
+            initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -40 }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
+            exit={{ opacity: 0, x: -30 }}
+            transition={{ duration: 0.55, ease: "easeInOut" }}
           >
             {active.type === "vip" && <VipCardView card={active} />}
             {/* {active.type === "live" && active.isFootball && (
@@ -773,6 +815,8 @@ export default function SportScoreSection({
 
   const [roanuzHeroCards, setRoanuzHeroCards] = useState<HeroCard[]>([]);
   const [roanuzMatches, setRoanuzMatches] = useState<MiniMatchCard[]>([]);
+  const [heroLoading, setHeroLoading] = useState(true);
+  const [matchesLoading, setMatchesLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -783,7 +827,8 @@ export default function SportScoreSection({
         if (roomsData.success && roomsData.rooms) {
           // Prioritize the "Day 2" room since it's today's specific match room, otherwise fallback to any Sri Lanka room
           const matchRoom = roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka") && r.name?.toLowerCase().includes("day 2")) 
-                         || roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka"));
+                         || roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka"))
+                         || roomsData.rooms[0];
           if (matchRoom) {
             watchAlongRoomId = matchRoom.id;
           }
@@ -795,8 +840,8 @@ export default function SportScoreSection({
       fetch('/api/featured-matches')
         .then(r => r.json())
         .then(data => {
-          if (data.success && data.items && data.items.length > 0) {
-             const processedCards = data.items
+          if (data.success && Array.isArray(data.items) && data.items.length > 0) {
+             const processedCards: HeroCard[] = data.items
                .map((item: any) => {
                  const nameA = (item.teamAName || "").toLowerCase();
                  const nameB = (item.teamBName || "").toLowerCase();
@@ -804,37 +849,70 @@ export default function SportScoreSection({
                  
                  return {
                    ...item,
-                   isIndSlMatch,
-                   bgImageUrl: isIndSlMatch ? "/images/ind_srl_homepage.png" : item.bgImageUrl,
-                   ctaLabel: isIndSlMatch ? "Watch Along" : item.ctaLabel,
+                   bgImageUrl: isIndSlMatch ? (item.bgImageUrl || "/images/ind_srl_homepage.png") : item.bgImageUrl,
+                   ctaLabel: item.ctaLabel || (item.status === "LIVE" ? "Watch Along" : "View Match"),
                    onJoin: () => {
-                     if (isIndSlMatch) {
+                     if (item.watchAlongRoomId) {
+                       window.location.href = `/MainModules/WatchAlong/room/${item.watchAlongRoomId}`;
+                     } else if (isIndSlMatch && watchAlongRoomId) {
                        window.location.href = `/MainModules/WatchAlong/room/${watchAlongRoomId}`;
-                     } else {
+                     } else if (item.id) {
                        window.location.href = `/MainModules/WatchAlong/room/${item.id}`;
                      }
                    }
                  };
-               })
-               .filter((card: any) => card.isIndSlMatch);
-             setRoanuzHeroCards(processedCards);
+               });
+              const indSlCards = processedCards.filter((item: any) => {
+                const nameA = (item.teamAName || "").toLowerCase();
+                const nameB = (item.teamBName || "").toLowerCase();
+                const comp = (item.competition || "").toLowerCase();
+                const shortA = (item.teamAShort || "").toLowerCase();
+                const shortB = (item.teamBShort || "").toLowerCase();
+
+                const hasIndia = nameA.includes("india") || nameB.includes("india") || shortA === "ind" || shortB === "ind" || comp.includes("india");
+                const hasSriLanka = nameA.includes("sri lanka") || nameB.includes("sri lanka") || shortA === "sl" || shortB === "sl" || comp.includes("sri lanka");
+
+                return hasIndia && hasSriLanka;
+              });
+              setRoanuzHeroCards(indSlCards);
+          } else {
+             setRoanuzHeroCards([]);
           }
         })
-        .catch(e => console.error("Error fetching featured matches:", e));
+        .catch(e => {
+          console.error("Error fetching featured matches:", e);
+        })
+        .finally(() => {
+          setHeroLoading(false);
+        });
 
-      if (selectedSport === "cricket") {
+      if (selectedSport === "cricket" || selectedSport === "mixed") {
         fetch('/api/cricket-feed')
           .then(r => r.json())
           .then(data => {
-            if (data.success && data.liveAndUpcoming) {
+            if (data.success && Array.isArray(data.liveAndUpcoming)) {
                const withActions = data.liveAndUpcoming.map((m: any) => ({
                  ...m,
-                 onAction: () => console.log("Clicked match:", m.id)
+                 onAction: () => {
+                   if (m.id) {
+                     router.push(`/MainModules/WatchAlong/room/${m.id}`);
+                   }
+                 }
                }));
                setRoanuzMatches(withActions);
+            } else {
+               setRoanuzMatches([]);
             }
           })
-          .catch(e => console.error("Error fetching cricket feed:", e));
+          .catch(e => {
+            console.error("Error fetching cricket feed:", e);
+          })
+          .finally(() => {
+            setMatchesLoading(false);
+          });
+      } else {
+        setRoanuzMatches([]);
+        setMatchesLoading(false);
       }
     };
 
@@ -844,43 +922,9 @@ export default function SportScoreSection({
     return () => clearInterval(interval);
   }, [selectedSport, router]);
 
-  const defaultDummyMatch: HeroCard = {
-    type: "live",
-    id: "ind-sl-watchalong",
-    status: "LIVE",
-    isFootball: false,
-    competition: "India tour of Sri Lanka 2026",
-    matchLabel: "Test · Watch Along",
-    teamAName: "India",
-    teamAShort: "IND",
-    teamBName: "Sri Lanka",
-    teamBShort: "SL",
-    teamAScore: "200/4",
-    teamBScore: "284",
-    oversLabel: "79.4",
-    overSummary: [],
-    result: "INDIA WON by 45 runs",
-    manOfMatch: "Bumrah 4/42",
-    bgImageUrl: "/images/ind_srl_homepage.png",
-    fanCount: 0,
-    ctaLabel: "Watch Along",
-    onJoin: () => { window.location.href = "/MainModules/WatchAlong/room/9caf8851-4ab2-4240-8e2d-b35238f3855c"; }
-  };
-
-  const MOCK_HERO_CARDS: HeroCard[] = [
-    ...(roanuzHeroCards.length > 0 ? roanuzHeroCards : [defaultDummyMatch]),
-  ];
-
-  const filteredMatches = selectedSport === "cricket" && roanuzMatches.length > 0 
-    ? roanuzMatches 
-    : MOCK_MINI_MATCHES.filter((match) => {
-        if (selectedSport === "mixed") return true;
-        return match.sport.toLowerCase() === selectedSport;
-      });
-
   return (
     <div className="w-full relative">
-      <HeroCarousel cards={MOCK_HERO_CARDS} />
+      <HeroCarousel cards={roanuzHeroCards} loading={heroLoading} />
       <IndiaStatsBar data={MOCK_INDIA_STATS} onAllSportsClick={() => setIsAllSportsOpen(true)} />
       {/* <MatchesStrip cards={filteredMatches} /> */}
 

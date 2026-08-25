@@ -381,10 +381,15 @@ import AthleticsSpotlight from "@/src/components/NewHomeComponents/AthleticsSpot
 import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
 import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
 import FlipLine from "@/src/components/NewHomeComponents/FlipLine";
+import Onboarding from "@/src/components/NewROARComponent/screens/Onboarding";
+import { useAuth } from "@/context/AuthContext";
 
 function HomePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, authReady, isAuthenticated } = useAuth();
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [selectedSport, setSelectedSport] = useState("mixed");
   const REQUEST_TIMEOUT_MS = 12000;
   const DOLLY_ROOM_ID = "NMryj1w7t8mJpGzEvF9q"; // same "Open Room" used as openRoomId below
@@ -406,6 +411,67 @@ function HomePageInner() {
   // opened — avoids a race where askDolly() fires before DollyPanel has
   // mounted/settled, which was silently swallowing the ask.
   const pendingFlipAskRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!authReady) return;
+
+    if (!isAuthenticated || !user) {
+      setCheckingOnboarding(false);
+      setShowOnboarding(false);
+      return;
+    }
+
+    const checkOnboarding = async () => {
+      try {
+        const res = await axios.get("/api/roar/onboarding");
+        const completed = Boolean(res.data?.onboardingCompleted);
+        if (completed) {
+          try {
+            localStorage.setItem("roar_v2_complete", "1");
+          } catch {}
+          setShowOnboarding(false);
+        } else {
+          try {
+            localStorage.removeItem("roar_v2_complete");
+          } catch {}
+          setShowOnboarding(true);
+        }
+      } catch (err) {
+        console.error("Failed to check onboarding status on HomePage:", err);
+        let localComplete = false;
+        try {
+          localComplete = localStorage.getItem("roar_v2_complete") === "1";
+        } catch {}
+        setShowOnboarding(!localComplete);
+      } finally {
+        setCheckingOnboarding(false);
+      }
+    };
+
+    checkOnboarding();
+  }, [authReady, isAuthenticated, user]);
+
+  useEffect(() => {
+    if (showOnboarding) {
+      document.body.classList.add("roar-room-active");
+    } else {
+      document.body.classList.remove("roar-room-active");
+    }
+    return () => document.body.classList.remove("roar-room-active");
+  }, [showOnboarding]);
+
+  const completeOnboarding = (prefs: any) => {
+    try {
+      localStorage.setItem("roar_v2_complete", "1");
+      if (prefs?.username) localStorage.setItem("roar_username", prefs.username);
+      if (prefs?.badge) localStorage.setItem("roar_badge", prefs.badge);
+    } catch {}
+    setShowOnboarding(false);
+    if (prefs?.sports && prefs.sports.length > 0) {
+      const firstSport = String(prefs.sports[0]).toLowerCase();
+      setSelectedSport(firstSport);
+    }
+  };
 
   useEffect(() => {
     dollyActiveSessionIdRef.current = dollyActiveSessionId;
@@ -670,6 +736,23 @@ function HomePageInner() {
     router.replace("/MainModules/HomePage");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  if (showOnboarding) {
+    return (
+      <div className="w-full min-h-screen bg-black relative">
+        <style dangerouslySetInnerHTML={{ __html: `#global-header-desktop,#global-header-tablet,#global-header-mobile,#live-ticker-container,.roar-header-spacer{display:none!important}` }} />
+        <Onboarding onComplete={completeOnboarding} />
+      </div>
+    );
+  }
+
+  if (checkingOnboarding && isAuthenticated) {
+    return (
+      <div className="w-full min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-gray-700 border-t-[#E91E8C] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col w-full min-h-screen">

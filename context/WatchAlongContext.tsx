@@ -684,6 +684,7 @@ export const WatchAlongProvider = ({ children }: { children: ReactNode }) => {
 
     const fetchRooms = useCallback(async () => {
         try {
+            setLoading(true);
             const res = await axios.get("/api/watch-along");
             if (res.data.success) {
                 setRooms(res.data.rooms);
@@ -691,6 +692,8 @@ export const WatchAlongProvider = ({ children }: { children: ReactNode }) => {
         } catch (err) {
             // Non-critical – don't surface as a global error
             console.warn("Fetch rooms error (non-critical):", err instanceof Error ? err.message : err);
+        } finally {
+            setLoading(false);
         }
     }, []);
 

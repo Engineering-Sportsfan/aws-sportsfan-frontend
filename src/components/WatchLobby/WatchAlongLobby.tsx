@@ -19,6 +19,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [newRoomName, setNewRoomName] = useState("");
     const [isCreating, setIsCreating] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true);
 
     const { data: session } = useSession();
     const { user: authUser } = useAuth();
@@ -34,8 +35,19 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
     } = useWatchAlong();
 
     useEffect(() => {
-        fetchRooms();
-        fetchMatches();
+        let isMounted = true;
+        const load = async () => {
+            setInitialLoading(true);
+            try {
+                await Promise.allSettled([fetchRooms(), fetchMatches()]);
+            } finally {
+                if (isMounted) setInitialLoading(false);
+            }
+        };
+        load();
+        return () => {
+            isMounted = false;
+        };
     }, [fetchRooms, fetchMatches]);
 
     const getMatchForRoom = (liveMatchId: string) => {
@@ -123,7 +135,9 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
         setTimeout(() => setCopied(false), 1600);
     };
 
-    if (loading && rooms.length === 0) {
+    const isRoomLoading = (initialLoading || loading) && rooms.length === 0;
+
+    if (isRoomLoading) {
         return (
             <div className="min-h-screen bg-[#111] text-white font-sans flex items-center justify-center">
                 <div className="text-center">
@@ -209,7 +223,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                         transition: "left 0.3s ease-out",
                     }}
                 >
-                    <Link href="/MainModules/ROAR" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "white" }}>
+                    <Link href="/MainModules/HomePage" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "white" }}>
                         <button style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}>
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M15 18l-6-6 6-6" />
@@ -351,10 +365,17 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                 )}
 
                 {/* Empty state */}
-                {rooms.length === 0 && (
+                {!isRoomLoading && rooms.length === 0 && (
                     <div className="text-center py-12">
                         <p className="text-gray-400">No watch along rooms available.</p>
                         <p className="text-sm text-gray-600 mt-2">Check back later for live expert sessions!</p>
+                    </div>
+                )}
+
+                {!isRoomLoading && rooms.length > 0 && filteredRooms.length === 0 && (
+                    <div className="text-center py-12">
+                        <p className="text-gray-400">No rooms found in this category.</p>
+                        <p className="text-sm text-gray-600 mt-2">Try switching to the ALL or LIVE tab.</p>
                     </div>
                 )}
 
