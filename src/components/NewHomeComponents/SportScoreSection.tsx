@@ -867,7 +867,7 @@ export default function SportScoreSection({
                  
                  return {
                    ...item,
-                   bgImageUrl: isIndSlMatch ? (item.bgImageUrl || "/images/ind_srl_homepage.png") : item.bgImageUrl,
+                   bgImageUrl: isIndSlMatch ? ("/images/with_ananad.png") : item.bgImageUrl,
                    ctaLabel: item.ctaLabel || (item.status === "LIVE" ? "Watch Along" : "View Match"),
                    onJoin: () => {
                      if (item.watchAlongRoomId) {
