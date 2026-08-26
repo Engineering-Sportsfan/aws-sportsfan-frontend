@@ -1,5 +1,6 @@
 "use client";
 // components\NewHomeComponents\SportScoreSection.tsx
+import ReactCountryFlag from "react-country-flag";
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -500,10 +501,21 @@ function IndiaStatsBar({
   onAllSportsClick?: () => void;
 }) {
   const router = useRouter();
+  const IndianFlagIcon = () => (
+    <ReactCountryFlag
+      countryCode="IN"
+      svg
+      style={{
+        width: "16px",
+        height: "16px",
+      }}
+    />
+  );
   const navItems = [
     { label: "All Sports", icon: Trophy },
     // { label: "India", icon: Flag },
-    { label: "Schedule", icon: Calendar },
+    { label: "Match Center", icon: Calendar },
+    { label: "Indian Hub", icon: IndianFlagIcon },
     // { label: "Medal Tally", icon: Award },
     { label: "Record Explore", icon: BarChart3 },
     // { label: "News", icon: Newspaper },
@@ -513,8 +525,11 @@ function IndiaStatsBar({
     router.push("/MainModules/RecordsExplorer")
   }
 
-   const onSchedule = () => {
+  const onMatchCenter = () => {
     router.push("/MainModules/NewMatchCenter")
+  }
+  const onIndianHub = () => {
+    router.push("/MainModules/AthleteHomePage")
   }
   
   return (
@@ -582,8 +597,11 @@ function IndiaStatsBar({
                if (label === "Record Explore" && onRecordsExplore) {
                 onRecordsExplore();
               }
-              if (label === "Schedule" && onSchedule) {
-                onSchedule();
+              if (label === "Indian Hub" && onIndianHub) {
+                onIndianHub();
+              }
+              if (label === "Match Center" && onMatchCenter) {
+                onMatchCenter();
               }
             }}
             className="flex flex-col items-center justify-center gap-1.5 py-3 hover:bg-white/[0.04] transition-colors"

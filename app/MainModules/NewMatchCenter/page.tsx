@@ -15,9 +15,11 @@ import {
   Trophy,
   X,
   TrendingUp,
-  Sparkles
+  Sparkles,
+  ChevronLeft
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 // ── SVG Inline Flags ────────────────────────────────────────────────────────
 const IndiaFlag = ({ className = "w-6 h-6" }: { className?: string }) => (
@@ -247,6 +249,8 @@ const MOCK_MATCHES: Match[] = [
 ];
 
 export default function NewMatchCenterPage() {
+  const router = useRouter();
+
   const [activeTab, setActiveTab] = useState<"all" | "completed" | "upcoming">("all");
   const [remindedMatches, setRemindedMatches] = useState<Set<string>>(new Set());
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
@@ -291,41 +295,59 @@ export default function NewMatchCenterPage() {
       )}
 
       {/* Premium Hero Banner */}
-      <div className="relative overflow-hidden h-[180px] sm:h-[220px] bg-gradient-to-r from-indigo-950/60 via-[#08080c] to-[#08080c] border-b border-white/5 flex items-center">
+      <div className="relative overflow-hidden py-6 sm:py-0 sm:h-[220px] bg-gradient-to-r from-indigo-950/60 via-[#08080c] to-[#08080c] border-b border-white/5 flex items-center">
         {/* Background glow meshes */}
         <div className="absolute top-0 left-1/4 w-[250px] h-[250px] rounded-full bg-pink-500/10 blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 right-1/4 w-[300px] h-[300px] rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
 
-        <div className="max-w-[1200px] w-full mx-auto px-4 md:px-8 relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="space-y-1 md:space-y-2">
-            <div className="inline-flex items-center gap-1 bg-gradient-to-r from-amber-600/30 to-orange-600/30 border border-orange-500/40 rounded-full px-3 py-1">
-              <Trophy className="w-3.5 h-3.5 text-yellow-400" />
-              <span className="text-[10px] uppercase font-black text-orange-400 tracking-wider">IND vs SL Test Series</span>
+        <div className="max-w-[1200px] w-full mx-auto px-4 md:px-8 relative z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+
+          {/* Left Side: Button + Text Content (Stays side-by-side on mobile) */}
+          <div className="flex items-start gap-3 sm:gap-4 w-full">
+            {/* Back Button */}
+            <button
+              onClick={() => router.back()}
+              className="w-9 h-9 shrink-0 rounded-xl bg-white/5 border border-white/8 flex items-center justify-center text-gray-300 hover:bg-white/10 transition-colors active:scale-95 mt-0.5"
+              aria-label="Go back"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            {/* Text Content */}
+            <div className="space-y-1 md:space-y-2 flex-1 min-w-0">
+              <div className="inline-flex items-center gap-1 bg-gradient-to-r from-amber-600/30 to-orange-600/30 border border-orange-500/40 rounded-full px-3 py-1">
+                <Trophy className="w-3.5 h-3.5 text-yellow-400" />
+                <span className="text-[10px] uppercase font-black text-orange-400 tracking-wider">
+                  IND vs SL Test Series
+                </span>
+              </div>
+              <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-gray-400 truncate">
+                Match Center
+              </h1>
+              <p className="text-xs text-gray-400 font-medium leading-relaxed">
+                Live updates, fixture lists, and premium scorecards for the 2026 Bilateral Series.
+              </p>
             </div>
-            <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-gray-400">
-              Match Center
-            </h1>
-            <p className="text-xs text-gray-400 font-medium">
-              Live updates, fixture lists, and premium scorecards for the 2026 Bilateral Series.
-            </p>
           </div>
 
-          {/* Quick Series Status Card */}
-          <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/5 p-3 sm:p-4 shrink-0 flex items-center gap-4">
-            <div className="text-center">
+          {/* Right Side: Quick Series Status Card */}
+          <div className="bg-white/5 backdrop-blur-md rounded-2xl border border-white/5 p-3 sm:p-4 shrink-0 flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
+            <div className="text-left sm:text-center">
               <span className="block text-[8px] text-gray-400 font-bold uppercase tracking-wider">Series Standings</span>
               <span className="text-sm font-black text-emerald-400">IND leads 2-0</span>
               <span className="block text-[9px] text-gray-500 font-medium mt-0.5">2 matches played</span>
             </div>
             <div className="w-px h-8 bg-white/10" />
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 items-center">
               <IndiaFlag className="w-8 h-5" />
               <span className="text-xs font-bold text-gray-300">vs</span>
               <SriLankaFlag className="w-8 h-5" />
             </div>
           </div>
+
         </div>
       </div>
+
 
       {/* Main Content Area */}
       <div className="max-w-[1200px] mx-auto px-4 md:px-8 mt-6 grid grid-cols-1 lg:grid-cols-12 gap-6">

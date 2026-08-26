@@ -800,8 +800,8 @@ function HomePageInner() {
 
         <AskFlip onAsk={handleAskFromFlip} matchContext={FEATURED_MATCH_CONTEXT} />
         <FlipCard />
-        <NewsCenter />
-        <IndiaHub sport={selectedSport} />
+
+        {/* <IndiaHub sport={selectedSport} /> */}
 
         {/* <StoreAndExperiences sport={selectedSport} /> */}
 

@@ -87,7 +87,7 @@ function getDob(a: AthleteListItem): string {
 
 function getGender(a: AthleteListItem): string {
   const raw = a.gender || a.coreInfo?.gender || "";
-  return raw ? normalizeGender(raw) : "";
+  return raw ? normalizeGender(raw) : "Male";
 }
 
 function getWorldRank(a: AthleteListItem): string | null {
