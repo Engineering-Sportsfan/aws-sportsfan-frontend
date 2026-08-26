@@ -383,10 +383,31 @@ export default function LoginCard() {
                     setTempPassword(password);
                     setShowChangePassword(true);
                 } else {
+                    try {
+                        localStorage.removeItem("roar_v2_complete");
+                        if (response.data.user) {
+                            const u = response.data.user;
+                            const fullName =
+                                u.name ||
+                                [u.firstName, u.lastName].filter(Boolean).join(" ").trim() ||
+                                "";
+                            const normalised = {
+                                email: u.email,
+                                name: fullName,
+                                role: u.role || "user",
+                                userId: u.userId,
+                                title: u.title || "",
+                                verifiedFlipLineAdmin: !!u.verifiedFlipLineAdmin,
+                                addfliplineAdminPhoto: u.addfliplineAdminPhoto || "",
+                            };
+                            localStorage.setItem("auth_user", JSON.stringify(normalised));
+                        }
+                    } catch {}
+
                     if (response.data.user?.role === "host") {
-                        router.push("/MainModules/HostDashboard");
+                        window.location.href = "/MainModules/HostDashboard";
                     } else {
-                        router.push("/MainModules/HomePage");
+                        window.location.href = "/MainModules/HomePage";
                     }
                 }
             }

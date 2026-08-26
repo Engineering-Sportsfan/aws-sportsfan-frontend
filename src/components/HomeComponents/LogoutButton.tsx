@@ -60,6 +60,10 @@ export default function LogoutButton({ className, children }: { className?: stri
 
     // 4. Clear localStorage
     localStorage.removeItem("watchalong_user_name");
+    localStorage.removeItem("roar_v2_complete");
+    localStorage.removeItem("roar_username");
+    localStorage.removeItem("roar_badge");
+    localStorage.removeItem("auth_user");
 
     // 5. Hard redirect
     window.location.replace("/auth/login");
