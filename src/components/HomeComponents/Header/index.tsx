@@ -1600,7 +1600,7 @@ export default function Header() {
         id="global-header-tablet"
         className="hidden md:flex xl:hidden w-full items-center gap-2 px-3 py-1.5 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100"
       >
-        <Link href="/MainModules/ROAR" className="flex-shrink-0">
+        <Link href="/MainModules/HomePage" className="flex-shrink-0">
           <Image
             src="/images/Logo.png"
             alt="SportsFan360 logo"
@@ -1686,7 +1686,7 @@ export default function Header() {
         {/* Row 1: Logo + text on the left, notifications + avatar on the right */}
         <div className="flex items-center justify-between gap-1.5 px-2.5 pt-2 pb-1.5 w-full">
           <Link
-            href="/MainModules/ROAR"
+            href="/MainModules/HomePage"
             className="flex items-center gap-1.5 flex-shrink-0 min-w-0"
           >
             <Image

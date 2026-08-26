@@ -611,7 +611,7 @@ export default function AthleteHomePage() {
         <div className="mt-2">
           {/* Loading State */}
           {((viewMode === "athletes" && loading) || (viewMode === "clubs" && clubsLoading)) && (
-            <div className="grid grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {Array.from({ length: 6 }).map((_, i) => (
                 <SkeletonCard key={i} />
               ))}
@@ -690,7 +690,7 @@ export default function AthleteHomePage() {
 
           {/* Athlete Grid */}
           {viewMode === "athletes" && !loading && !error && filtered.length > 0 && (
-            <div className="grid grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {filtered.map((athlete, i) => (
                 <div
                   key={athlete.entityId ?? i}
@@ -709,7 +709,7 @@ export default function AthleteHomePage() {
 
           {/* Clubs Grid */}
           {viewMode === "clubs" && !clubsLoading && !clubsError && filteredClubs.length > 0 && (
-            <div className="grid grid-cols-2 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {filteredClubs.map((club, i) => (
                 <div
                   key={club.entityId ?? i}
