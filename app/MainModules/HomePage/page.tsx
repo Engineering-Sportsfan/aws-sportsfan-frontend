@@ -411,11 +411,18 @@ function HomePageInner() {
   // opened — avoids a race where askDolly() fires before DollyPanel has
   // mounted/settled, which was silently swallowing the ask.
   const pendingFlipAskRef = useRef<string | null>(null);
+  const justCompletedRef = useRef(false);
 
   useEffect(() => {
     if (!authReady) return;
 
     if (!isAuthenticated || !user) {
+      setCheckingOnboarding(false);
+      setShowOnboarding(false);
+      return;
+    }
+
+    if (justCompletedRef.current) {
       setCheckingOnboarding(false);
       setShowOnboarding(false);
       return;
@@ -431,23 +438,26 @@ function HomePageInner() {
           } catch {}
           setShowOnboarding(false);
         } else {
+          try {
+            localStorage.removeItem("roar_v2_complete");
+          } catch {}
+          setShowOnboarding(true);
+        }
+      } catch (err: any) {
+        console.error("Failed to check onboarding status on HomePage:", err);
+        const status = err?.response?.status;
+        if (status === 404 || status === 401) {
+          try {
+            localStorage.removeItem("roar_v2_complete");
+          } catch {}
+          setShowOnboarding(true);
+        } else {
           let localComplete = false;
           try {
             localComplete = localStorage.getItem("roar_v2_complete") === "1";
           } catch {}
-          if (!localComplete) {
-            setShowOnboarding(true);
-          } else {
-            setShowOnboarding(false);
-          }
+          setShowOnboarding(!localComplete);
         }
-      } catch (err) {
-        console.error("Failed to check onboarding status on HomePage:", err);
-        let localComplete = false;
-        try {
-          localComplete = localStorage.getItem("roar_v2_complete") === "1";
-        } catch {}
-        setShowOnboarding(!localComplete);
       } finally {
         setCheckingOnboarding(false);
       }
@@ -466,6 +476,7 @@ function HomePageInner() {
   }, [showOnboarding]);
 
   const completeOnboarding = (prefs: any) => {
+    justCompletedRef.current = true;
     try {
       localStorage.setItem("roar_v2_complete", "1");
       if (prefs?.username) localStorage.setItem("roar_username", prefs.username);
