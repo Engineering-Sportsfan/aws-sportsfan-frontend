@@ -486,11 +486,11 @@ export default function Onboarding({ onComplete }: Props) {
     const payload = { sports, followEntities, engagementPrefs };
     try {
       await axios.post("/api/roar/onboarding", payload);
-      onComplete(payload);
     } catch (err) {
-      console.error(err);
+      console.warn("Could not save onboarding preferences to server, applying locally:", err);
     } finally {
       setSubmitting(false);
+      onComplete(payload);
     }
   };
 

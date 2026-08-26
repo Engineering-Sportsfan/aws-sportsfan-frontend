@@ -88,7 +88,12 @@ useEffect(() => {
             console.error("Failed to check onboarding status:", obErr);
           }
 
-          if (completed) {
+          let hasLocalComplete = false;
+          try {
+            hasLocalComplete = localStorage.getItem("roar_v2_complete") === "1";
+          } catch { }
+
+          if (completed || hasLocalComplete) {
             try {
               localStorage.setItem("roar_v2_complete", "1");
               localStorage.setItem("roar_badge", u.badge || "RISING_FAN");

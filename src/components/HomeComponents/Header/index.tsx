@@ -1578,7 +1578,7 @@ export default function Header() {
                     {displayName}
                   </span>
                 )}
-                <span className="text-pink-400 text-[10px]">{userRole}</span>
+                {/* <span className="text-pink-400 text-[10px]">{userRole}</span> */}
               </div>
               <ChevronDown
                 size={12}
