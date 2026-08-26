@@ -431,10 +431,15 @@ function HomePageInner() {
           } catch {}
           setShowOnboarding(false);
         } else {
+          let localComplete = false;
           try {
-            localStorage.removeItem("roar_v2_complete");
+            localComplete = localStorage.getItem("roar_v2_complete") === "1";
           } catch {}
-          setShowOnboarding(true);
+          if (!localComplete) {
+            setShowOnboarding(true);
+          } else {
+            setShowOnboarding(false);
+          }
         }
       } catch (err) {
         console.error("Failed to check onboarding status on HomePage:", err);
@@ -470,6 +475,9 @@ function HomePageInner() {
     if (prefs?.sports && prefs.sports.length > 0) {
       const firstSport = String(prefs.sports[0]).toLowerCase();
       setSelectedSport(firstSport);
+    }
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
