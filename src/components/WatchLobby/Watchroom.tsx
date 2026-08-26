@@ -3570,6 +3570,76 @@ export default function WatchRoom({ room, onBack }: Props) {
     const [micOn, setMicOn] = useState(true);
     const [vidOn, setVidOn] = useState(true);
 
+    // Custom recording state
+    const [isRecording, setIsRecording] = useState(false);
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const recordedChunksRef = useRef<Blob[]>([]);
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+            
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunksRef.current.push(event.data);
+                }
+            };
+            
+            mediaRecorder.onstop = async () => {
+                // Instantly update the UI so the button reverts to "Record Session"
+                setIsRecording(false);
+
+                const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+                
+                // Alert the user that the background upload is starting
+                alert("Recording stopped! Uploading to Google Drive in the background...");
+                
+                const formData = new FormData();
+                formData.append('video', blob, 'recording.webm');
+                
+                try {
+                    const response = await fetch('/api/upload-recording', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        alert("Video successfully saved to Google Drive!");
+                    } else {
+                        console.error("Upload failed:", data.error);
+                        alert("Failed to upload to Google Drive: " + data.error);
+                    }
+                } catch (err) {
+                    console.error("Upload network error:", err);
+                    alert("Network error while uploading.");
+                }
+
+                recordedChunksRef.current = [];
+            };
+            
+            mediaRecorderRef.current = mediaRecorder;
+            mediaRecorder.start();
+            setIsRecording(true);
+            
+            // Stop recording when user stops sharing via browser bar
+            stream.getVideoTracks()[0].onended = () => {
+                stopRecording();
+            };
+        } catch (err) {
+            console.error("Error starting screen record:", err);
+            alert("Could not start screen recording.");
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+        }
+    };
+
     const toggleMic = () => {
         const api = jitsiApiRef.current || jitsiApi;
         if (api) {
@@ -4673,12 +4743,13 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                             </>
                         ) : (
                             <div className="absolute inset-0 w-full h-full">
-                                <img
-                                    // src="/images/with_ananad.png"
-                                    src={room.displayPicture}
-                                    alt="Welcome to Watchalong!"
-                                    className="w-full h-full object-fit"
-                                />
+                                {room.displayPicture && (
+                                    <img
+                                        src={room.displayPicture}
+                                        alt="Welcome to Watchalong!"
+                                        className="w-full h-full object-fit"
+                                    />
+                                )}
                             </div>
                         )}
 
@@ -4788,6 +4859,19 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                                             <span>{vidOn ? "Stop Cam" : "Start Cam"}</span>
                                         </button>
                                     )}
+                                    {(userRole === 'Host' || userRole === 'Co-Host') && (
+                                        <button
+                                            type="button"
+                                            onClick={isRecording ? stopRecording : startRecording}
+                                            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${isRecording
+                                                ? "bg-red-600 border-red-500 text-white animate-pulse"
+                                                : "bg-[#202023] border-white/10 text-gray-300 hover:bg-[#2a2a2e]"
+                                                }`}
+                                        >
+                                            <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
+                                            <span>{isRecording ? "Stop Record" : "Record"}</span>
+                                        </button>
+                                    )}
                                 </div>
                             )}
 
@@ -4893,6 +4977,19 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                                             >
                                                 {vidOn ? <Video size={12} /> : <VideoOff size={12} />}
                                                 <span>{vidOn ? "Stop Cam" : "Start Cam"}</span>
+                                            </button>
+                                        )}
+                                        {(userRole === 'Host' || userRole === 'Co-Host') && (
+                                            <button
+                                                type="button"
+                                                onClick={isRecording ? stopRecording : startRecording}
+                                                className={`flex items-center justify-center gap-1.5 px-3 py-1.5 border rounded-xl text-[10px] font-black uppercase tracking-wider transition-all duration-200 active:scale-95 cursor-pointer ${isRecording
+                                                    ? "bg-red-600 border-red-500 text-white animate-pulse"
+                                                    : "bg-[#202023] border-white/10 text-gray-300 hover:bg-[#2a2a2e]"
+                                                    }`}
+                                            >
+                                                <div className={`w-2 h-2 rounded-full ${isRecording ? 'bg-white' : 'bg-red-500'}`} />
+                                                <span>{isRecording ? "Stop Record" : "Record Session"}</span>
                                             </button>
                                         )}
                                     </div>
