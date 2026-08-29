@@ -25,6 +25,8 @@ type FlipCard = {
   email?: string;
   isVerified?: boolean;
   adminPhoto?: string;
+  overLabel?: string;
+  runSymbol?: string;
 };
 /* ─── FlipLine shared data ─────────────────────────────────────────── */
 type ScoreChip = {
@@ -380,56 +382,106 @@ export function FlipCardItem({
           )} */}
 
           {/* Row 2: Author info */}
-          <div className="flex items-center gap-2.5 w-full">
-            {displayPhoto ? (
-              <img 
-                src={typeof displayPhoto === 'object' ? displayPhoto.src : displayPhoto} 
-                alt={displayAuthor} 
-                className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0" 
-              />
-            ) : (
-              <div 
-                className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[12px] shrink-0 uppercase tracking-wider"
-                style={{
-                  background: `linear-gradient(135deg, ${themeColor}, #0f172a)`
-                }}
-              >
-                {displayAuthor 
-                  ? displayAuthor.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase()
-                  : ''}
-              </div>
-            )}
-            
-            <div className="min-w-0 flex flex-col">
-              <div className="flex items-center gap-1.5">
-                <span className="font-extrabold text-[13.5px] text-white leading-tight truncate">{displayAuthor}</span>
-                {card.isVerified && (
-                  <span className="inline-flex items-center justify-center bg-[#1d9bf0] text-white rounded-full shrink-0" style={{ width: 14, height: 14 }} title="Verified Admin">
-                    <svg className="w-2.5 h-2.5 fill-none stroke-current" strokeWidth="3" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  </span>
-                )}
-                {displayHandle && (
-                  <span className="text-[11px] text-white/40 truncate">{displayHandle}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span 
-                  className="text-[8.5px] font-black tracking-wider px-1.5 py-0.5 rounded uppercase"
-                  style={{ background: `${themeColor}1f`, color: themeColor }}
+          <div className="flex items-center justify-between w-full">
+            <div className="flex items-center gap-2.5 min-w-0">
+              {card.type === 'bot' ? (
+                <img 
+                  src="/images/dolly.png" 
+                  alt="Flip BOT" 
+                  className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0 bg-blue-500/10" 
+                />
+              ) : displayPhoto ? (
+                <img 
+                  src={typeof displayPhoto === 'object' ? displayPhoto.src : displayPhoto} 
+                  alt={displayAuthor} 
+                  className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0" 
+                />
+              ) : (
+                <div 
+                  className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[12px] shrink-0 uppercase tracking-wider"
+                  style={{
+                    background: `linear-gradient(135deg, ${themeColor}, #0f172a)`
+                  }}
                 >
-                  {themeLabel}
-                </span>
-                {/* <span className="text-[9.5px] text-white/30 font-medium">via {card.source}</span> */}
+                  {displayAuthor 
+                    ? displayAuthor.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase()
+                    : ''}
+                </div>
+              )}
+              
+              <div className="min-w-0 flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-extrabold text-[13.5px] text-white leading-tight truncate">
+                    {card.type === 'bot' ? 'Flip' : displayAuthor}
+                  </span>
+                  {card.type === 'bot' ? (
+                    <span className="inline-flex items-center justify-center bg-blue-600 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded tracking-wide uppercase shrink-0">
+                      BOT
+                    </span>
+                  ) : (
+                    card.isVerified && (
+                      <span className="inline-flex items-center justify-center bg-[#1d9bf0] text-white rounded-full shrink-0" style={{ width: 14, height: 14 }} title="Verified Admin">
+                        <svg className="w-2.5 h-2.5 fill-none stroke-current" strokeWidth="3" viewBox="0 0 24 24" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      </span>
+                    )
+                  )}
+                  {card.type !== 'bot' && displayHandle && (
+                    <span className="text-[11px] text-white/40 truncate">{displayHandle}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span 
+                    className="text-[8.5px] font-black tracking-wider px-1.5 py-0.5 rounded uppercase"
+                    style={{ 
+                      background: card.type === 'bot' ? 'rgba(59, 130, 246, 0.15)' : `${themeColor}1f`, 
+                      color: card.type === 'bot' ? 'rgb(96, 165, 250)' : themeColor 
+                    }}
+                  >
+                    {card.type === 'bot' ? 'Live Updates' : themeLabel}
+                  </span>
+                </div>
               </div>
             </div>
+
+            {/* Run / Wicket badge circle on the right */}
+            {card.runSymbol && (
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center font-black text-white text-[14px] shrink-0 shadow-lg"
+                style={{
+                  background: card.runSymbol === '4' 
+                    ? 'radial-gradient(circle, #2563eb, #1d4ed8)' // Blue for 4
+                    : card.runSymbol === '6'
+                    ? 'radial-gradient(circle, #16a34a, #15803d)' // Green for 6
+                    : card.runSymbol === 'W'
+                    ? 'radial-gradient(circle, #dc2626, #b91c1c)' // Red for W
+                    : 'radial-gradient(circle, #ea580c, #c2410c)', // Orange for runs like 2
+                  boxShadow: card.runSymbol === '4'
+                    ? '0 0 8px rgba(37, 99, 235, 0.6)'
+                    : card.runSymbol === '6'
+                    ? '0 0 8px rgba(22, 163, 74, 0.6)'
+                    : card.runSymbol === 'W'
+                    ? '0 0 8px rgba(220, 38, 38, 0.6)'
+                    : '0 0 8px rgba(234, 88, 12, 0.6)'
+                }}
+              >
+                {card.runSymbol}
+              </div>
+            )}
           </div>
 
           {/* Row 3: Card Content */}
           <p className="text-[14px] font-medium text-white/90 leading-relaxed break-words whitespace-pre-line">
             {card.content}
           </p>
+
+          {/* If the card is a bot live update, render the over and time footer */}
+          {card.type === 'bot' && card.overLabel && (
+            <p className="text-[11px] font-bold text-white/35 mt-0.5">
+              {card.overLabel} · {card.time}
+            </p>
+          )}
 
           {/* Inline Image or Video/Audio media */}
           {(card.image || card.videoUrl || card.mediaType === 'audio') && (
@@ -868,13 +920,113 @@ export function FlipTimeline({
 
 export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: string }) {
   const router = useRouter();
-  const [cards, setCards] = useState<FlipCard[]>([]);
+  const [dbCards, setDbCards] = useState<FlipCard[]>([]);
+  const [liveCards, setLiveCards] = useState<FlipCard[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchLiveTickerUpdates = async (): Promise<FlipCard[]> => {
+    try {
+      const res = await fetch("/api/ticker?sports=cricket&types=ball_by_ball&limit=30");
+      const data = await res.json();
+      if (data.success && data.items) {
+        // Filter: keep only ball_by_ball updates where is_four, is_six, or is_wicket is true
+        const filtered = data.items.filter((item: any) => 
+          item.type === "ball_by_ball" && (item.is_four || item.is_six || item.is_wicket)
+        );
+
+        // Map filtered ball-by-ball commentary to Flip BOT FlipCard objects
+        const mapped: FlipCard[] = filtered.map((item: any, index: number) => {
+          let hash = 0;
+          for (let i = 0; i < item.id.length; i++) {
+            hash = (hash << 5) - hash + item.id.charCodeAt(i);
+            hash |= 0;
+          }
+          const numericId = Math.abs(hash);
+
+          // Extract over number
+          const parts = item.id.split('_');
+          const overNum = parts[parts.length - 1];
+          const overLabel = overNum && overNum.includes('.') ? `Over ${overNum}` : 'Live';
+
+          // Clean commentary text
+          let cleanComment = item.text || "";
+          cleanComment = cleanComment.replace(/^[🏏🔴🔵💥💥\s]*(WICKET!|FOUR!|SIX!)\s*/i, '').trim();
+
+          let formattedContent = "";
+          let runSymbol = "";
+          if (item.is_four) {
+            formattedContent = `Hye! It's a FOUR! 🎉\n${cleanComment}`;
+            runSymbol = "4";
+          } else if (item.is_six) {
+            formattedContent = `That's a SIX! 💥\n${cleanComment}`;
+            runSymbol = "6";
+          } else if (item.is_wicket) {
+            formattedContent = `WICKET! 🏏\n${cleanComment}`;
+            runSymbol = "W";
+          } else {
+            formattedContent = cleanComment;
+          }
+
+          // Use mock timestamps for demo items to match design timeline exactly
+          let itemTimeMs = new Date(data.fetched_at || Date.now()).getTime() - index * 1000;
+          let timeStr = new Date(data.fetched_at || Date.now()).toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true
+          });
+
+          // Override for demo cards so they line up with the screenshots' timestamps
+          if (item.id === "demo_bbb_1_20.5") {
+            timeStr = "11:03 AM";
+            itemTimeMs = 1793310000000; // specific mock timestamp
+          } else if (item.id === "demo_bbb_2_20.2") {
+            timeStr = "11:00 AM";
+            itemTimeMs = 1793309820000;
+          } else if (item.id === "demo_bbb_3_19.6") {
+            timeStr = "10:57 AM";
+            itemTimeMs = 1793309640000;
+          } else if (item.id === "demo_bbb_5_19.1") {
+            timeStr = "10:49 AM";
+            itemTimeMs = 1793309160000;
+          }
+
+          return {
+            id: numericId,
+            type: 'bot',
+            sport: 'cricket',
+            sportEmoji: '🏏',
+            sportLabel: 'Cricket',
+            day: 'Today',
+            time: timeStr,
+            timeMs: itemTimeMs,
+            author: 'Flip',
+            handle: '@flip_bot',
+            source: 'Roanuz Live Feed',
+            content: formattedContent,
+            likes: 0,
+            isKey: true,
+            fomoMsg: '',
+            fomoCount: 0,
+            ctaType: 'room',
+            flipResponse: '',
+            isVerified: true,
+            overLabel,
+            runSymbol
+          } as FlipCard;
+        });
+
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Failed to fetch live updates for FlipLine:", err);
+    }
+    return [];
+  };
 
   const fetchCards = async () => {
     try {
       const fetched = await fliplineService.fetchFlipCards();
-      setCards(fetched);
+      setDbCards(fetched);
     } catch (e) {
       console.error("Failed to fetch FlipLine cards:", e);
     } finally {
@@ -882,8 +1034,16 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
     }
   };
 
+  const updateLiveUpdates = async () => {
+    const live = await fetchLiveTickerUpdates();
+    setLiveCards(live);
+  };
+
   useEffect(() => {
     fetchCards();
+    updateLiveUpdates();
+
+    const interval = setInterval(updateLiveUpdates, 15000);
 
     const handleNewPost = () => {
       fetchCards();
@@ -894,17 +1054,28 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
     }
 
     return () => {
+      clearInterval(interval);
       if (typeof window !== "undefined") {
         window.removeEventListener("flipline-post-created", handleNewPost);
       }
     };
   }, []);
 
+  const combinedCards = React.useMemo(() => {
+    const seenIds = new Set<string | number>();
+    const all = [...liveCards, ...dbCards];
+    return all.filter(c => {
+      if (seenIds.has(c.id)) return false;
+      seenIds.add(c.id);
+      return true;
+    });
+  }, [dbCards, liveCards]);
+
   return (
     <FlipLineSection
       selectedSport={selectedSport}
       onViewFull={() => router.push('/MainModules/FlipLine')}
-      cards={cards}
+      cards={combinedCards}
       loading={loading}
     />
   );

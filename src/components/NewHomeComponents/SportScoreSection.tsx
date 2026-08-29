@@ -585,7 +585,7 @@ function IndiaStatsBar({
       </div>
       */}
 
-      <div className="grid grid-cols-3">
+      <div className="grid grid-cols-4">
         {navItems.map(({ label, icon: Icon }) => (
           <button
             key={label}

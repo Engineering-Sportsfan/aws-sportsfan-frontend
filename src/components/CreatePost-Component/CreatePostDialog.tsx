@@ -41,6 +41,8 @@ export type FlipCard = {
   email?: string;
   isVerified?: boolean;
   adminPhoto?: string;
+  overLabel?: string;
+  runSymbol?: string;
 };
 
 const POST_EMOJIS = [
