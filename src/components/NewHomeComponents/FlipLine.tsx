@@ -4,6 +4,8 @@ import { useRouter } from 'next/navigation';
 import { Heart, Share2, Play, Volume2, Sparkles } from 'lucide-react';
 import { fliplineService } from '@/services/flipline.service';
 import { useAuth } from "@/context/AuthContext";
+import FlipArena from './FlipArena';
+
 
 type FlipCard = {
   id: number; type: string;
@@ -71,19 +73,15 @@ function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { select
   return (
     <div className="mb-5">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 mb-3">
-        <div className="flex items-center gap-2">
-          <span style={{ fontSize: 16, fontWeight: 900, color: 'rgb(245,245,250)', letterSpacing: -0.4 }}>FlipLine</span>
-          <span style={{ fontSize: 8, fontWeight: 900, background: 'linear-gradient(90deg,rgb(255,45,85),rgb(255,122,0))', color: 'white', padding: '2px 8px', borderRadius: 99, letterSpacing: 0.5 }}>LIVE</span>
-        </div>
-        <div className="flex items-center rounded-full p-[2px]" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)' }}>
+      <div className="flex items-center justify-end px-4 mb-3">
+        {/* <div className="flex items-center rounded-full p-[2px]" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.09)' }}>
           {(['full', 'key'] as const).map(d => (
             <button key={d} onClick={() => setDensity(d)} className="px-[10px] py-[3px] rounded-full transition-all cursor-pointer"
               style={{ fontSize: 9.5, fontWeight: 800, background: density === d ? 'rgba(168,85,247,0.85)' : 'transparent', color: density === d ? 'white' : 'rgba(255,255,255,0.38)', border: 'none' }}>
               {d === 'full' ? 'Full' : 'Key Moments'}
             </button>
           ))}
-        </div>
+        </div> */}
       </div>
       {/* Multi-sport legend */}
       <div className="flex items-center gap-4 px-4 mb-4">
@@ -923,6 +921,7 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
   const [dbCards, setDbCards] = useState<FlipCard[]>([]);
   const [liveCards, setLiveCards] = useState<FlipCard[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'flipline' | 'fliparena'>('flipline');
 
   const fetchLiveTickerUpdates = async (): Promise<FlipCard[]> => {
     try {
@@ -1072,11 +1071,51 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
   }, [dbCards, liveCards]);
 
   return (
-    <FlipLineSection
-      selectedSport={selectedSport}
-      onViewFull={() => router.push('/MainModules/FlipLine')}
-      cards={combinedCards}
-      loading={loading}
-    />
+    <div className="w-full">
+      {/* Main Toggle Button Row */}
+      <div className="px-4 mb-4">
+        <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] shadow-inner">
+          <button
+            onClick={() => setActiveTab("flipline")}
+            className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer"
+            style={{
+              background: activeTab === "flipline" ? "linear-gradient(90deg, #FF3D57, #FF7B02)" : "transparent",
+              color: activeTab === "flipline" ? "#fff" : "rgba(255,255,255,0.4)",
+              boxShadow: activeTab === "flipline" ? "0 4px 15px rgba(255, 61, 87, 0.25)" : "none",
+              border: "none",
+            }}
+          >
+            <span className="text-sm">⚡</span> FlipLine
+          </button>
+          <button
+            onClick={() => setActiveTab("fliparena")}
+            className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer"
+            style={{
+              background: activeTab === "fliparena" ? "linear-gradient(90deg, #FF3D57, #FF7B02)" : "transparent",
+              color: activeTab === "fliparena" ? "#fff" : "rgba(255,255,255,0.4)",
+              boxShadow: activeTab === "fliparena" ? "0 4px 15px rgba(255, 61, 87, 0.25)" : "none",
+              border: "none",
+            }}
+          >
+            <span className="text-sm">🏟️</span> Flip Arena
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'fliparena' ? (
+        <FlipArena
+          selectedSport={selectedSport}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+        />
+      ) : (
+          <FlipLineSection
+            selectedSport={selectedSport}
+            onViewFull={() => router.push('/MainModules/FlipLine')}
+            cards={combinedCards}
+            loading={loading}
+          />
+      )}
+    </div>
   );
 }
