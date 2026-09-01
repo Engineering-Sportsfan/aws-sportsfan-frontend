@@ -57,14 +57,44 @@ function DynamicFanBattleCard({
     votes: 0,
   };
 
-  // Check saved like state
+  // Check like state and vote status from Database / API
   useEffect(() => {
-    const localLiked = localStorage.getItem(`sf360_eng_like_${item.id}`);
-    if (localLiked === "true") setLiked(true);
-    engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-      if (isLiked) setLiked(true);
-    });
-  }, [item.id, userId]);
+    // Like status from DB
+    if (item.userLiked) {
+      setLiked(true);
+    } else if (userId) {
+      engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+        if (isLiked) setLiked(true);
+      });
+    }
+
+    // Vote status from DB
+    if (item.userVoted && item.userVote) {
+      const side = item.userVote as "left" | "right";
+      setSelectedSide(side);
+      const total = (left.votes || 0) + (right.votes || 0) || 1;
+      const leftPct = Math.round(((left.votes || 0) / total) * 100);
+      setResult({
+        leftPercentage: leftPct,
+        rightPercentage: 100 - leftPct,
+        totalVotes: total,
+      });
+    } else if (userId) {
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res.hasVoted && res.selectedOptionId) {
+          const side = res.selectedOptionId as "left" | "right";
+          setSelectedSide(side);
+          const total = (left.votes || 0) + (right.votes || 0) || 1;
+          const leftPct = Math.round(((left.votes || 0) / total) * 100);
+          setResult({
+            leftPercentage: leftPct,
+            rightPercentage: 100 - leftPct,
+            totalVotes: total,
+          });
+        }
+      });
+    }
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, left.votes, right.votes]);
 
   const handleVote = async (side: "left" | "right") => {
     if (selectedSide || loading) return;
@@ -74,18 +104,19 @@ function DynamicFanBattleCard({
 
     try {
       const res: any = await engagementService.voteEngagement(item.id, side, userId);
-      if (res?.success) {
-        setResult({
-          leftPercentage: res.leftPercentage ?? (side === "left" ? 68 : 32),
-          rightPercentage: res.rightPercentage ?? (side === "right" ? 68 : 32),
-          totalVotes: res.totalVotes ?? (left.votes + right.votes + 1),
-        });
-      }
-    } catch {
-      // Optimistic fallback
+      const calculatedResult = {
+        leftPercentage: res?.leftPercentage ?? (side === "left" ? 68 : 32),
+        rightPercentage: res?.rightPercentage ?? (side === "right" ? 68 : 32),
+        totalVotes: res?.totalVotes ?? (left.votes + right.votes + 1),
+      };
+      setResult(calculatedResult);
+    } catch (err: any) {
+      // Handle already voted from DB or network fallback
+      const prevOption = (err?.response?.data?.selectedOptionId || side) as "left" | "right";
       const total = (left.votes || 0) + (right.votes || 0) + 1;
-      const leftV = (left.votes || 0) + (side === "left" ? 1 : 0);
+      const leftV = (left.votes || 0) + (prevOption === "left" ? 1 : 0);
       const leftPct = Math.round((leftV / total) * 100);
+      setSelectedSide(prevOption);
       setResult({
         leftPercentage: leftPct,
         rightPercentage: 100 - leftPct,
@@ -101,7 +132,6 @@ function DynamicFanBattleCard({
     const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
     setLiked(nextLiked);
     setLikesCount(nextCount);
-    localStorage.setItem(`sf360_eng_like_${item.id}`, String(nextLiked));
 
     try {
       const res = await engagementService.toggleLikeEngagement(item.id, userId);
@@ -282,13 +312,34 @@ function DynamicQuizCard({
     explanation: "Virat Kohli has scored 30 Test centuries.",
   };
 
+  // Check like state and answered status from Database / API
   useEffect(() => {
-    const localLiked = localStorage.getItem(`sf360_eng_like_${item.id}`);
-    if (localLiked === "true") setLiked(true);
-    engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-      if (isLiked) setLiked(true);
-    });
-  }, [item.id, userId]);
+    // Like status from DB
+    if (item.userLiked) {
+      setLiked(true);
+    } else if (userId) {
+      engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+        if (isLiked) setLiked(true);
+      });
+    }
+
+    // Answer status check from DB
+    if (item.userVoted && item.userVote) {
+      setSelectedId(item.userVote);
+      setAnswered(true);
+      const isRight = item.userVote.toUpperCase() === (item.quizData?.correctOptionId || "C").toUpperCase();
+      setIsCorrect(isRight);
+    } else if (userId) {
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res.hasVoted && res.selectedOptionId) {
+          setSelectedId(res.selectedOptionId);
+          setAnswered(true);
+          const isRight = res.selectedOptionId.toUpperCase() === (item.quizData?.correctOptionId || "C").toUpperCase();
+          setIsCorrect(isRight);
+        }
+      });
+    }
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, item.quizData]);
 
   const handleOptionSelect = async (optId: string) => {
     if (answered) return;
@@ -298,14 +349,15 @@ function DynamicQuizCard({
 
     try {
       const res: any = await engagementService.voteEngagement(item.id, optId, userId);
-      if (res?.success) {
-        setIsCorrect(res.isCorrect);
-        if (res.correctOptionId) setCorrectOptionId(res.correctOptionId);
-        if (res.explanation) setExplanation(res.explanation);
-        if (res.pointsAwarded) setPointsReward(res.pointsAwarded);
-      }
-    } catch {
-      const isRight = optId.toUpperCase() === quiz.correctOptionId.toUpperCase();
+      const isRight = res?.isCorrect !== undefined ? res.isCorrect : (optId.toUpperCase() === quiz.correctOptionId.toUpperCase());
+      setIsCorrect(isRight);
+      if (res?.correctOptionId) setCorrectOptionId(res.correctOptionId);
+      if (res?.explanation) setExplanation(res.explanation);
+      if (res?.pointsAwarded) setPointsReward(res.pointsAwarded);
+    } catch (err: any) {
+      const prevOpt = err?.response?.data?.selectedOptionId || optId;
+      const isRight = prevOpt.toUpperCase() === quiz.correctOptionId.toUpperCase();
+      setSelectedId(prevOpt);
       setIsCorrect(isRight);
     }
   };
@@ -315,7 +367,6 @@ function DynamicQuizCard({
     const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
     setLiked(nextLiked);
     setLikesCount(nextCount);
-    localStorage.setItem(`sf360_eng_like_${item.id}`, String(nextLiked));
 
     try {
       const res = await engagementService.toggleLikeEngagement(item.id, userId);
@@ -473,13 +524,31 @@ function DynamicPollCard({
 
   const totalVotes = options.reduce((sum, o) => sum + (o.votes || 0), 0) || 1;
 
+  // Check saved like state and voted status
+  // Check like state and voted status from Database / API
   useEffect(() => {
-    const localLiked = localStorage.getItem(`sf360_eng_like_${item.id}`);
-    if (localLiked === "true") setLiked(true);
-    engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-      if (isLiked) setLiked(true);
-    });
-  }, [item.id, userId]);
+    // Like status from DB
+    if (item.userLiked) {
+      setLiked(true);
+    } else if (userId) {
+      engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+        if (isLiked) setLiked(true);
+      });
+    }
+
+    // Voted status check from DB
+    if (item.userVoted && item.userVote) {
+      setSelectedId(item.userVote);
+      setVoted(true);
+    } else if (userId) {
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res.hasVoted && res.selectedOptionId) {
+          setSelectedId(res.selectedOptionId);
+          setVoted(true);
+        }
+      });
+    }
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
 
   const handleVote = async (optId: string) => {
     if (voted || loading) return;
@@ -497,9 +566,11 @@ function DynamicPollCard({
           prev.map((o) => (o.id === optId ? { ...o, votes: (o.votes || 0) + 1 } : o))
         );
       }
-    } catch {
+    } catch (err: any) {
+      const prevOpt = err?.response?.data?.selectedOptionId || optId;
+      setSelectedId(prevOpt);
       setOptions((prev) =>
-        prev.map((o) => (o.id === optId ? { ...o, votes: (o.votes || 0) + 1 } : o))
+        prev.map((o) => (o.id === prevOpt ? { ...o, votes: (o.votes || 0) + 1 } : o))
       );
     } finally {
       setLoading(false);
@@ -511,7 +582,6 @@ function DynamicPollCard({
     const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
     setLiked(nextLiked);
     setLikesCount(nextCount);
-    localStorage.setItem(`sf360_eng_like_${item.id}`, String(nextLiked));
 
     try {
       const res = await engagementService.toggleLikeEngagement(item.id, userId);
@@ -653,13 +723,44 @@ function DynamicPredictionCard({
     status: "open",
   };
 
+  // Check like state and prediction status from Database / API
   useEffect(() => {
-    const localLiked = localStorage.getItem(`sf360_eng_like_${item.id}`);
-    if (localLiked === "true") setLiked(true);
-    engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-      if (isLiked) setLiked(true);
-    });
-  }, [item.id, userId]);
+    // Like status from DB
+    if (item.userLiked) {
+      setLiked(true);
+    } else if (userId) {
+      engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+        if (isLiked) setLiked(true);
+      });
+    }
+
+    // Prediction vote check from DB
+    if (item.userVoted && item.userVote) {
+      const choice = item.userVote as "left" | "right";
+      setSelectedChoice(choice);
+      setPredicted(true);
+      const computedResult = {
+        leftPercentage: choice === "left" ? 71 : 29,
+        rightPercentage: choice === "right" ? 71 : 29,
+        coinsLocked: pred.coinStake || 25,
+      };
+      setResult(computedResult);
+    } else if (userId) {
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res.hasVoted && res.selectedOptionId) {
+          const choice = res.selectedOptionId as "left" | "right";
+          setSelectedChoice(choice);
+          setPredicted(true);
+          const computedResult = {
+            leftPercentage: choice === "left" ? 71 : 29,
+            rightPercentage: choice === "right" ? 71 : 29,
+            coinsLocked: pred.coinStake || 25,
+          };
+          setResult(computedResult);
+        }
+      });
+    }
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, pred.coinStake]);
 
   const handlePredict = async (choice: "left" | "right") => {
     if (predicted || loading) return;
@@ -670,17 +771,18 @@ function DynamicPredictionCard({
 
     try {
       const res: any = await engagementService.voteEngagement(item.id, choice, userId);
-      if (res?.success) {
-        setResult({
-          leftPercentage: res.leftPercentage ?? (choice === "left" ? 71 : 29),
-          rightPercentage: res.rightPercentage ?? (choice === "right" ? 71 : 29),
-          coinsLocked: res.coinsLocked || pred.coinStake || 25,
-        });
-      }
-    } catch {
+      const computedResult = {
+        leftPercentage: res?.leftPercentage ?? (choice === "left" ? 71 : 29),
+        rightPercentage: res?.rightPercentage ?? (choice === "right" ? 71 : 29),
+        coinsLocked: res?.coinsLocked || pred.coinStake || 25,
+      };
+      setResult(computedResult);
+    } catch (err: any) {
+      const prevChoice = (err?.response?.data?.selectedOptionId || choice) as "left" | "right";
+      setSelectedChoice(prevChoice);
       setResult({
-        leftPercentage: choice === "left" ? 71 : 29,
-        rightPercentage: choice === "right" ? 71 : 29,
+        leftPercentage: prevChoice === "left" ? 71 : 29,
+        rightPercentage: prevChoice === "right" ? 71 : 29,
         coinsLocked: pred.coinStake || 25,
       });
     } finally {
@@ -693,7 +795,6 @@ function DynamicPredictionCard({
     const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
     setLiked(nextLiked);
     setLikesCount(nextCount);
-    localStorage.setItem(`sf360_eng_like_${item.id}`, String(nextLiked));
 
     try {
       const res = await engagementService.toggleLikeEngagement(item.id, userId);
@@ -822,6 +923,7 @@ export default function FlipArena({
   isPreview = true,
 }: FlipArenaProps) {
   const { user } = useAuth();
+  const activeUserId = user?.userId || (user as any)?.actualUserId || user?.email;
   const [engagements, setEngagements] = useState<EngagementItem[]>(FALLBACK_ENGAGEMENTS);
   const [loadingEngagements, setLoadingEngagements] = useState(true);
   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle">("all");
@@ -843,6 +945,7 @@ export default function FlipArena({
       const liveItems = await engagementService.getEngagements({
         sport: selectedSport !== "mixed" ? selectedSport : undefined,
         status: "active",
+        userId: activeUserId,
       });
 
       if (liveItems && liveItems.length > 0) {
@@ -857,7 +960,7 @@ export default function FlipArena({
     } finally {
       setLoadingEngagements(false);
     }
-  }, [selectedSport]);
+  }, [selectedSport, activeUserId]);
 
   useEffect(() => {
     fetchEngagements();
@@ -1020,7 +1123,7 @@ export default function FlipArena({
                       <DynamicFanBattleCard
                         key={item.id}
                         item={item}
-                        userId={user?.userId}
+                        userId={activeUserId}
                         onToast={showToast}
                       />
                     );
@@ -1030,7 +1133,7 @@ export default function FlipArena({
                       <DynamicQuizCard
                         key={item.id}
                         item={item}
-                        userId={user?.userId}
+                        userId={activeUserId}
                         onToast={showToast}
                       />
                     );
@@ -1040,7 +1143,7 @@ export default function FlipArena({
                       <DynamicPollCard
                         key={item.id}
                         item={item}
-                        userId={user?.userId}
+                        userId={activeUserId}
                         onToast={showToast}
                       />
                     );
@@ -1050,7 +1153,7 @@ export default function FlipArena({
                       <DynamicPredictionCard
                         key={item.id}
                         item={item}
-                        userId={user?.userId}
+                        userId={activeUserId}
                         onToast={showToast}
                       />
                     );

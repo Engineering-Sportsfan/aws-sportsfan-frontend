@@ -84,6 +84,11 @@ export interface EngagementItem {
   shares: number;
   totalEngaged: number;
 
+  // Hydrated user state
+  userLiked?: boolean;
+  userVoted?: boolean;
+  userVote?: string | null;
+
   createdAt: number;
   updatedAt: number;
   expiresAt?: number | null;

@@ -13,6 +13,7 @@ export interface GetEngagementsParams {
   sport?: string;
   status?: string;
   limit?: number;
+  userId?: string;
 }
 
 export const engagementService = {
@@ -26,6 +27,7 @@ export const engagementService = {
       if (params.sport && params.sport !== "all" && params.sport !== "mixed") queryParams.append("sport", params.sport);
       if (params.status && params.status !== "all") queryParams.append("status", params.status);
       if (params.limit) queryParams.append("limit", String(params.limit));
+      if (params.userId) queryParams.append("userId", params.userId);
 
       const queryString = queryParams.toString();
       const url = `/api/engagements${queryString ? `?${queryString}` : ""}`;
@@ -69,6 +71,28 @@ export const engagementService = {
       }
     );
     return res.data;
+  },
+
+  /**
+   * Check if current user has already voted / attempted an engagement
+   */
+  checkVoteStatus: async (
+    id: string,
+    userId?: string
+  ): Promise<{ hasVoted: boolean; selectedOptionId: string | null; vote?: any }> => {
+    try {
+      const url = `/api/engagements/${encodeURIComponent(id)}/vote${
+        userId ? `?userId=${encodeURIComponent(userId)}` : ""
+      }`;
+      const res = await axios.get<{ hasVoted: boolean; selectedOptionId: string | null; vote?: any }>(url);
+      return {
+        hasVoted: Boolean(res.data?.hasVoted),
+        selectedOptionId: res.data?.selectedOptionId || null,
+        vote: res.data?.vote,
+      };
+    } catch {
+      return { hasVoted: false, selectedOptionId: null };
+    }
   },
 
   /**
