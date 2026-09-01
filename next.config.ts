@@ -684,6 +684,16 @@ const nextConfig = {
           destination: `${apiTarget}/api/flipline/:path*`,
         },
 
+        // Engagements (Fan Battles, Quizzes, Polls, Predictions)
+        {
+          source: "/api/engagements",
+          destination: `${apiTarget}/api/engagements`,
+        },
+        {
+          source: "/api/engagements/:path*",
+          destination: `${apiTarget}/api/engagements/:path*`,
+        },
+
         // MS Teams / Clubs API
         {
           source: "/api/ms_teams",

@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Poll } from "@/types/Polls";
+import { EngagementItem } from "@/types/engagements";
+import { engagementService } from "@/services/engagement.service";
 import PollsSection from "@/src/components/Polls-component/PollsSection";
 import PredictionCard from "@/src/components/Prediction-component/PredictionCard";
 import ChallengesSection from "@/src/components/FanBattle-Component/Challengessection";
 import FanBattleCard from "@/src/components/FanBattle-Component/Fanbattlearena";
-import { ArrowLeft, Heart, Share2, Sparkles, Trophy } from "lucide-react";
+import { ArrowLeft, Heart, Share2, Sparkles, Trophy, Check, Zap, CheckCircle2, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface FlipArenaProps {
@@ -17,41 +19,851 @@ interface FlipArenaProps {
   isPreview?: boolean;
 }
 
-export default function FlipArena({ selectedSport, activeTab = "fliparena", setActiveTab, isPreview = true }: FlipArenaProps) {
-  const { user } = useAuth();
-  const [polls, setPolls] = useState<Poll[]>([]);
-  const [loadingPolls, setLoadingPolls] = useState(true);
-  const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle">("all");
+// ─── Initial Fallback Seed Engagements ──────────────────────────────────────
+const FALLBACK_ENGAGEMENTS: EngagementItem[] = [];
+// ─── 1. Fan Battle Card Component ───────────────────────────────────────────
+function DynamicFanBattleCard({
+  item,
+  userId,
+  onToast,
+}: {
+  item: EngagementItem;
+  userId?: string;
+  onToast: (msg: string) => void;
+}) {
+  const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+  const [result, setResult] = useState<{
+    leftPercentage: number;
+    rightPercentage: number;
+    totalVotes: number;
+  } | null>(null);
 
-  // Interaction States for Mock Cards
-  const [fanBattleVote, setFanBattleVote] = useState<"left" | "right" | null>(null);
-  const [quizSelected, setQuizSelected] = useState<string | null>(null);
-  const [pollVote, setPollVote] = useState<string | null>(null);
-  const [predictionVote, setPredictionVote] = useState<string | null>(null);
-  const [contestEntered, setContestEntered] = useState(false);
-
-  // Likes and Engagement states
-  const [likes, setLikes] = useState({
-    battle: 1524,
-    quiz: 856,
-    poll: 2185,
-    pred: 781,
-  });
-  const [liked, setLiked] = useState({
-    battle: false,
-    quiz: false,
-    poll: false,
-    pred: false,
-  });
-
-  const handleLike = (card: keyof typeof likes) => {
-    setLiked((prev) => {
-      const newStatus = !prev[card];
-      setLikes((l) => ({ ...l, [card]: newStatus ? l[card] + 1 : l[card] - 1 }));
-      return { ...prev, [card]: newStatus };
-    });
+  const left = item.fanBattleData?.leftCompetitor || {
+    code: "IN",
+    name: "Virat Kohli",
+    stat: "Avg 58.6 in Tests",
+    votes: 0,
   };
 
+  const right = item.fanBattleData?.rightCompetitor || {
+    code: "PK",
+    name: "Babar Azam",
+    stat: "Avg 44.8 in Tests",
+    votes: 0,
+  };
+
+  // Check saved like state
+  useEffect(() => {
+    const localLiked = localStorage.getItem(`sf360_eng_like_${item.id}`);
+    if (localLiked === "true") setLiked(true);
+    engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+      if (isLiked) setLiked(true);
+    });
+  }, [item.id, userId]);
+
+  const handleVote = async (side: "left" | "right") => {
+    if (selectedSide || loading) return;
+    setSelectedSide(side);
+    setLoading(true);
+    setTotalEngaged((prev) => prev + 1);
+
+    try {
+      const res: any = await engagementService.voteEngagement(item.id, side, userId);
+      if (res?.success) {
+        setResult({
+          leftPercentage: res.leftPercentage ?? (side === "left" ? 68 : 32),
+          rightPercentage: res.rightPercentage ?? (side === "right" ? 68 : 32),
+          totalVotes: res.totalVotes ?? (left.votes + right.votes + 1),
+        });
+      }
+    } catch {
+      // Optimistic fallback
+      const total = (left.votes || 0) + (right.votes || 0) + 1;
+      const leftV = (left.votes || 0) + (side === "left" ? 1 : 0);
+      const leftPct = Math.round((leftV / total) * 100);
+      setResult({
+        leftPercentage: leftPct,
+        rightPercentage: 100 - leftPct,
+        totalVotes: total,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLike = async () => {
+    const nextLiked = !liked;
+    const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
+    setLiked(nextLiked);
+    setLikesCount(nextCount);
+    localStorage.setItem(`sf360_eng_like_${item.id}`, String(nextLiked));
+
+    try {
+      const res = await engagementService.toggleLikeEngagement(item.id, userId);
+      if (res?.likesCount !== undefined) {
+        setLikesCount(res.likesCount);
+        setLiked(res.liked);
+      }
+    } catch { }
+  };
+
+  const handleShare = async () => {
+    setSharesCount((prev) => prev + 1);
+    setTotalEngaged((prev) => prev + 1);
+    engagementService.shareEngagement(item.id).catch(() => { });
+
+    const text = `⚔️ ${item.title} — ${left.name} vs ${right.name}! Vote now on SportsFan360.`;
+    if (navigator.share) {
+      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      onToast("Challenge link copied to clipboard! 📋");
+    }
+  };
+
+  const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl"
+    >
+      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[#FF3D57]">⚔️ FAN BATTLE</span>
+          <span>•</span>
+          <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 TRENDING</span>
+        </div>
+        <span>{formattedTime}</span>
+      </div>
+
+      <h3 className="text-sm font-black mb-4">{item.title}</h3>
+
+      <div className="grid grid-cols-7 items-center gap-3 mb-4">
+        {/* Left Competitor */}
+        <button
+          onClick={() => handleVote("left")}
+          disabled={loading || selectedSide !== null}
+          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${selectedSide === "left"
+            ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
+            : selectedSide === "right"
+              ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+              : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
+            }`}
+        >
+          <span className="text-2xl font-black block">{left.code}</span>
+          <span className="text-xs font-black block mt-2 text-white">{left.name}</span>
+          <span className="text-[9px] text-white/40 block mt-1 font-semibold">{left.stat}</span>
+          {result && (
+            <motion.span
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="text-xs font-black block mt-2 text-[#FF3D57]"
+            >
+              {result.leftPercentage}% Voted {selectedSide === "left" && "✓"}
+            </motion.span>
+          )}
+        </button>
+
+        {/* VS Badge */}
+        <div className="col-span-1 flex items-center justify-center">
+          <span className="w-8 h-8 rounded-full bg-white/[0.06] border border-white/[0.1] text-[10px] font-black text-white/50 flex items-center justify-center">
+            VS
+          </span>
+        </div>
+
+        {/* Right Competitor */}
+        <button
+          onClick={() => handleVote("right")}
+          disabled={loading || selectedSide !== null}
+          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${selectedSide === "right"
+            ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
+            : selectedSide === "left"
+              ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+              : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
+            }`}
+        >
+          <span className="text-2xl font-black block">{right.code}</span>
+          <span className="text-xs font-black block mt-2 text-white">{right.name}</span>
+          <span className="text-[9px] text-white/40 block mt-1 font-semibold">{right.stat}</span>
+          {result && (
+            <motion.span
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="text-xs font-black block mt-2 text-[#FF7B02]"
+            >
+              {result.rightPercentage}% Voted {selectedSide === "right" && "✓"}
+            </motion.span>
+          )}
+        </button>
+      </div>
+
+      {/* Challenge Button */}
+      <button
+        onClick={handleShare}
+        className="w-full py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] font-black text-xs flex items-center justify-center gap-2 active:scale-[0.99] transition-all cursor-pointer text-white/90"
+      >
+        <span>🫱🏼‍🫲🏾</span> Challenge a Friend
+      </button>
+
+      {/* Footer Counters */}
+      <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
+        <div className="flex gap-4">
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
+          >
+            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+            <span>{likesCount.toLocaleString()}</span>
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
+          >
+            <Share2 size={13} />
+            <span>Share {sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+          </button>
+        </div>
+        <span>{totalEngaged.toLocaleString()} engaged</span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── 2. Quiz Card Component ────────────────────────────────────────────────
+function DynamicQuizCard({
+  item,
+  userId,
+  onToast,
+}: {
+  item: EngagementItem;
+  userId?: string;
+  onToast: (msg: string) => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [answered, setAnswered] = useState(false);
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [correctOptionId, setCorrectOptionId] = useState<string>(
+    item.quizData?.correctOptionId || "C"
+  );
+  const [explanation, setExplanation] = useState<string>(
+    item.quizData?.explanation || ""
+  );
+  const [pointsReward, setPointsReward] = useState<number>(
+    item.quizData?.pointsReward || 50
+  );
+
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+
+  const quiz = item.quizData || {
+    question: "How many Test centuries has Virat Kohli scored?",
+    options: [
+      { id: "A", text: "27" },
+      { id: "B", text: "29" },
+      { id: "C", text: "30" },
+      { id: "D", text: "32" },
+    ],
+    correctOptionId: "C",
+    pointsReward: 50,
+    explanation: "Virat Kohli has scored 30 Test centuries.",
+  };
+
+  useEffect(() => {
+    const localLiked = localStorage.getItem(`sf360_eng_like_${item.id}`);
+    if (localLiked === "true") setLiked(true);
+    engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+      if (isLiked) setLiked(true);
+    });
+  }, [item.id, userId]);
+
+  const handleOptionSelect = async (optId: string) => {
+    if (answered) return;
+    setSelectedId(optId);
+    setAnswered(true);
+    setTotalEngaged((prev) => prev + 1);
+
+    try {
+      const res: any = await engagementService.voteEngagement(item.id, optId, userId);
+      if (res?.success) {
+        setIsCorrect(res.isCorrect);
+        if (res.correctOptionId) setCorrectOptionId(res.correctOptionId);
+        if (res.explanation) setExplanation(res.explanation);
+        if (res.pointsAwarded) setPointsReward(res.pointsAwarded);
+      }
+    } catch {
+      const isRight = optId.toUpperCase() === quiz.correctOptionId.toUpperCase();
+      setIsCorrect(isRight);
+    }
+  };
+
+  const handleLike = async () => {
+    const nextLiked = !liked;
+    const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
+    setLiked(nextLiked);
+    setLikesCount(nextCount);
+    localStorage.setItem(`sf360_eng_like_${item.id}`, String(nextLiked));
+
+    try {
+      const res = await engagementService.toggleLikeEngagement(item.id, userId);
+      if (res?.likesCount !== undefined) {
+        setLikesCount(res.likesCount);
+        setLiked(res.liked);
+      }
+    } catch { }
+  };
+
+  const handleShare = async () => {
+    setSharesCount((prev) => prev + 1);
+    setTotalEngaged((prev) => prev + 1);
+    engagementService.shareEngagement(item.id).catch(() => { });
+
+    const text = `🧠 Cricket Quiz: "${quiz.question}" — Can you answer? Play on SportsFan360!`;
+    if (navigator.share) {
+      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      onToast("Quiz link copied to clipboard! 📋");
+    }
+  };
+
+  const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl"
+    >
+      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
+        <div className="flex items-center gap-1.5 uppercase">
+          <span className="text-purple-400">🧠 QUIZ</span>
+          <span>•</span>
+          <span className="text-amber-400">⭐ {pointsReward} PTS</span>
+        </div>
+        <span>{formattedTime}</span>
+      </div>
+
+      <h3 className="text-sm font-black mb-1">{item.title}</h3>
+      <p className="text-xs font-semibold text-white/70 mb-4">{quiz.question}</p>
+
+      <div className="grid grid-cols-2 gap-3.5 mb-4">
+        {quiz.options.map((opt) => {
+          const letter = opt.id;
+          const isThisCorrect = letter.toUpperCase() === correctOptionId.toUpperCase();
+          const isSelected = selectedId === letter;
+
+          let cardStyle = "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white/90";
+          if (answered) {
+            if (isThisCorrect) {
+              cardStyle = "bg-emerald-500/15 border-emerald-500 text-emerald-400 font-black";
+            } else if (isSelected && !isThisCorrect) {
+              cardStyle = "bg-red-500/15 border-red-500 text-red-400";
+            } else {
+              cardStyle = "opacity-35 border-white/[0.04]";
+            }
+          }
+
+          return (
+            <button
+              key={letter}
+              onClick={() => handleOptionSelect(letter)}
+              disabled={answered}
+              className={`rounded-xl p-3 border font-bold text-xs text-left transition-all cursor-pointer flex items-center justify-between ${cardStyle}`}
+            >
+              <span>
+                <span className="text-white/40 mr-1.5 font-bold">{letter}.</span>
+                {opt.text}
+              </span>
+              {answered && isThisCorrect && <Check size={14} className="text-emerald-400 shrink-0" />}
+              {answered && isSelected && !isThisCorrect && <XCircle size={14} className="text-red-400 shrink-0" />}
+            </button>
+          );
+        })}
+      </div>
+
+      {answered && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`text-[11px] font-black text-center p-2.5 rounded-xl border mb-2 flex items-center justify-center gap-2 ${isCorrect
+            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+            : "bg-red-500/10 border-red-500/30 text-red-400"
+            }`}
+        >
+          {isCorrect ? (
+            <>
+              <span>🎉</span>
+              <span>Correct! You earned {pointsReward} PTS!</span>
+            </>
+          ) : (
+            <>
+              <span>❌</span>
+              <span>{explanation || `Incorrect. Correct answer is ${correctOptionId}`}</span>
+            </>
+          )}
+        </motion.div>
+      )}
+
+      <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
+        <div className="flex gap-4">
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
+          >
+            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+            <span>{likesCount.toLocaleString()}</span>
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
+          >
+            <Share2 size={13} />
+            <span>Share {sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+          </button>
+        </div>
+        <span>{totalEngaged.toLocaleString()} engaged</span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── 3. Poll Card Component ────────────────────────────────────────────────
+function DynamicPollCard({
+  item,
+  userId,
+  onToast,
+}: {
+  item: EngagementItem;
+  userId?: string;
+  onToast: (msg: string) => void;
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [voted, setVoted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [options, setOptions] = useState(
+    item.pollData?.options || [
+      { id: "1", text: "Jasprit Bumrah 🏏", votes: 420 },
+      { id: "2", text: "Maheesh Theekshana 🌀", votes: 195 },
+      { id: "3", text: "Ravindra Jadeja 🍌", votes: 240 },
+    ]
+  );
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+
+  const totalVotes = options.reduce((sum, o) => sum + (o.votes || 0), 0) || 1;
+
+  useEffect(() => {
+    const localLiked = localStorage.getItem(`sf360_eng_like_${item.id}`);
+    if (localLiked === "true") setLiked(true);
+    engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+      if (isLiked) setLiked(true);
+    });
+  }, [item.id, userId]);
+
+  const handleVote = async (optId: string) => {
+    if (voted || loading) return;
+    setSelectedId(optId);
+    setVoted(true);
+    setLoading(true);
+    setTotalEngaged((prev) => prev + 1);
+
+    try {
+      const res: any = await engagementService.voteEngagement(item.id, optId, userId);
+      if (res?.success && res.options) {
+        setOptions(res.options);
+      } else {
+        setOptions((prev) =>
+          prev.map((o) => (o.id === optId ? { ...o, votes: (o.votes || 0) + 1 } : o))
+        );
+      }
+    } catch {
+      setOptions((prev) =>
+        prev.map((o) => (o.id === optId ? { ...o, votes: (o.votes || 0) + 1 } : o))
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLike = async () => {
+    const nextLiked = !liked;
+    const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
+    setLiked(nextLiked);
+    setLikesCount(nextCount);
+    localStorage.setItem(`sf360_eng_like_${item.id}`, String(nextLiked));
+
+    try {
+      const res = await engagementService.toggleLikeEngagement(item.id, userId);
+      if (res?.likesCount !== undefined) {
+        setLikesCount(res.likesCount);
+        setLiked(res.liked);
+      }
+    } catch { }
+  };
+
+  const handleShare = async () => {
+    setSharesCount((prev) => prev + 1);
+    setTotalEngaged((prev) => prev + 1);
+    engagementService.shareEngagement(item.id).catch(() => { });
+
+    const text = `📊 Vote on this poll: "${item.pollData?.question || item.title}" on SportsFan360!`;
+    if (navigator.share) {
+      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      onToast("Poll link copied to clipboard! 📋");
+    }
+  };
+
+  const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl"
+    >
+      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
+        <span className="text-blue-400 uppercase font-black">📊 POLL</span>
+        <span>{formattedTime}</span>
+      </div>
+
+      <h3 className="text-sm font-black mb-4">{item.pollData?.question || item.title}</h3>
+
+      <div className="space-y-3 mb-4">
+        {options.map((opt) => {
+          const isSelected = selectedId === opt.id;
+          const percentage =
+            opt.percentage !== undefined
+              ? opt.percentage
+              : Math.round(((opt.votes || 0) / totalVotes) * 100);
+
+          return (
+            <button
+              key={opt.id}
+              onClick={() => handleVote(opt.id)}
+              disabled={voted}
+              className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${isSelected
+                ? "border-blue-500/60 bg-blue-500/[0.07]"
+                : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
+                }`}
+            >
+              {voted && (
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${percentage}%` }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                  className={`absolute left-0 top-0 bottom-0 z-0 ${
+                    isSelected ? "bg-blue-500/20" : "bg-white/[0.04]"
+                    }`}
+                />
+              )}
+              <span className="relative z-10 text-white/90 font-bold">{opt.text}</span>
+              {voted && (
+                <span
+                  className={`relative z-10 text-[11px] font-black ${isSelected ? "text-blue-400" : "text-white/60"
+                    }`}
+                >
+                  {percentage}% {isSelected && "✓"}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
+        <div className="flex gap-4">
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
+          >
+            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+            <span>{likesCount.toLocaleString()}</span>
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
+          >
+            <Share2 size={13} />
+            <span>Share {sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+          </button>
+        </div>
+        <span>{totalEngaged.toLocaleString()} engaged</span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── 4. Prediction Card Component ──────────────────────────────────────────
+function DynamicPredictionCard({
+  item,
+  userId,
+  onToast,
+}: {
+  item: EngagementItem;
+  userId?: string;
+  onToast: (msg: string) => void;
+}) {
+  const [selectedChoice, setSelectedChoice] = useState<"left" | "right" | null>(null);
+  const [predicted, setPredicted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+  const [result, setResult] = useState<{
+    leftPercentage: number;
+    rightPercentage: number;
+    coinsLocked: number;
+  } | null>(null);
+
+  const pred = item.predictionData || {
+    question: "India win the 1st Galle Test?",
+    leftChoice: { id: "left", text: "Yes, India win", code: "IN", votes: 640 },
+    rightChoice: { id: "right", text: "SL hold / win", code: "LK", votes: 260 },
+    coinStake: 25,
+    totalVotes: 900,
+    status: "open",
+  };
+
+  useEffect(() => {
+    const localLiked = localStorage.getItem(`sf360_eng_like_${item.id}`);
+    if (localLiked === "true") setLiked(true);
+    engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+      if (isLiked) setLiked(true);
+    });
+  }, [item.id, userId]);
+
+  const handlePredict = async (choice: "left" | "right") => {
+    if (predicted || loading) return;
+    setSelectedChoice(choice);
+    setPredicted(true);
+    setLoading(true);
+    setTotalEngaged((prev) => prev + 1);
+
+    try {
+      const res: any = await engagementService.voteEngagement(item.id, choice, userId);
+      if (res?.success) {
+        setResult({
+          leftPercentage: res.leftPercentage ?? (choice === "left" ? 71 : 29),
+          rightPercentage: res.rightPercentage ?? (choice === "right" ? 71 : 29),
+          coinsLocked: res.coinsLocked || pred.coinStake || 25,
+        });
+      }
+    } catch {
+      setResult({
+        leftPercentage: choice === "left" ? 71 : 29,
+        rightPercentage: choice === "right" ? 71 : 29,
+        coinsLocked: pred.coinStake || 25,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLike = async () => {
+    const nextLiked = !liked;
+    const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
+    setLiked(nextLiked);
+    setLikesCount(nextCount);
+    localStorage.setItem(`sf360_eng_like_${item.id}`, String(nextLiked));
+
+    try {
+      const res = await engagementService.toggleLikeEngagement(item.id, userId);
+      if (res?.likesCount !== undefined) {
+        setLikesCount(res.likesCount);
+        setLiked(res.liked);
+      }
+    } catch { }
+  };
+
+  const handleShare = async () => {
+    setSharesCount((prev) => prev + 1);
+    setTotalEngaged((prev) => prev + 1);
+    engagementService.shareEngagement(item.id).catch(() => { });
+
+    const text = `🎯 Predict: "${pred.question}" on SportsFan360!`;
+    if (navigator.share) {
+      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      onToast("Prediction link copied to clipboard! 📋");
+    }
+  };
+
+  const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl"
+    >
+      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
+        <div className="flex items-center gap-1.5 uppercase">
+          <span className="text-amber-400">🎯 PREDICTION</span>
+          <span>•</span>
+          <span className="text-indigo-400">💎 POINTS</span>
+        </div>
+        <span>{formattedTime}</span>
+      </div>
+
+      <h3 className="text-sm font-black mb-1">{item.title || "Predict the outcome!"}</h3>
+      <p className="text-xs font-semibold text-white/70 mb-4">{pred.question}</p>
+
+      <div className="grid grid-cols-2 gap-3.5 mb-4">
+        {/* Left Choice */}
+        <button
+          onClick={() => handlePredict("left")}
+          disabled={predicted}
+          className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "left"
+            ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+            : predicted
+              ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+              : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+            }`}
+        >
+          <span className="text-xs font-black">{pred.leftChoice.text}</span>
+          <span className="text-[10px] font-black mt-1 text-white/50">
+            {result ? `${result.leftPercentage}%` : "2X multiplier"}
+          </span>
+        </button>
+
+        {/* Right Choice */}
+        <button
+          onClick={() => handlePredict("right")}
+          disabled={predicted}
+          className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
+            selectedChoice === "right"
+              ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+              : predicted
+                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+            }`}
+        >
+          <span className="text-xs font-black">{pred.rightChoice.text}</span>
+          <span className="text-[10px] font-black mt-1 text-white/50">
+            {result ? `${result.rightPercentage}%` : "5X multiplier"}
+          </span>
+        </button>
+      </div>
+
+      {predicted && (
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl mb-2 flex items-center justify-center gap-1.5"
+        >
+          <span>🔒</span>
+          <span>+{result?.coinsLocked || pred.coinStake || 25} FlipCoins locked in · Results after match</span>
+        </motion.div>
+      )}
+
+      <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
+        <div className="flex gap-4">
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
+          >
+            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+            <span>{likesCount.toLocaleString()}</span>
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
+          >
+            <Share2 size={13} />
+            <span>Share {sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+          </button>
+        </div>
+        <span>{totalEngaged.toLocaleString()} engaged</span>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Main FlipArena Component ───────────────────────────────────────────────
+export default function FlipArena({
+  selectedSport,
+  activeTab = "fliparena",
+  setActiveTab,
+  isPreview = true,
+}: FlipArenaProps) {
+  const { user } = useAuth();
+  const [engagements, setEngagements] = useState<EngagementItem[]>(FALLBACK_ENGAGEMENTS);
+  const [loadingEngagements, setLoadingEngagements] = useState(true);
+  const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle">("all");
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Polls & Predictions for bottom active sections
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [loadingPolls, setLoadingPolls] = useState(true);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
+  // Fetch live engagements from backend API
+  const fetchEngagements = useCallback(async () => {
+    setLoadingEngagements(true);
+    try {
+      const liveItems = await engagementService.getEngagements({
+        sport: selectedSport !== "mixed" ? selectedSport : undefined,
+        status: "active",
+      });
+
+      if (liveItems && liveItems.length > 0) {
+        setEngagements(liveItems);
+      } else {
+        // Keep initial fallback seed data if backend has no records yet
+        setEngagements(FALLBACK_ENGAGEMENTS);
+      }
+    } catch (err) {
+      console.warn("Could not fetch live engagements, using fallback:", err);
+      setEngagements(FALLBACK_ENGAGEMENTS);
+    } finally {
+      setLoadingEngagements(false);
+    }
+  }, [selectedSport]);
+
+  useEffect(() => {
+    fetchEngagements();
+  }, [fetchEngagements]);
+
+  // Fetch legacy polls for bottom active section
   useEffect(() => {
     fetch("/api/polls")
       .then((res) => res.json())
@@ -85,14 +897,38 @@ export default function FlipArena({ selectedSport, activeTab = "fliparena", setA
     }
   };
 
+  // Filter engagements based on active filter tab
+  const filteredEngagements = engagements.filter((item) => {
+    if (filter === "all") return true;
+    if (filter === "battle") return item.type === "fan_battle";
+    if (filter === "quiz") return item.type === "quiz";
+    if (filter === "poll") return item.type === "poll" || item.type === "prediction";
+    return true;
+  });
+
   return (
     <div className="w-full bg-[#070b14] min-h-screen text-white flex flex-col font-sans pb-12">
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#161e2e] border border-white/20 text-white text-xs font-extrabold px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 backdrop-blur-lg"
+          >
+            <Zap size={14} className="text-amber-400" />
+            <span>{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 1. Header Bar for Full Page */}
       {!isPreview && (
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07] bg-[#070b14]/90 backdrop-blur-md sticky top-0 z-40">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => window.location.href = "/MainModules/HomePage"}
+              onClick={() => (window.location.href = "/MainModules/HomePage")}
               className="w-9 h-9 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-white/80 hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
             >
               <ArrowLeft size={16} />
@@ -119,7 +955,7 @@ export default function FlipArena({ selectedSport, activeTab = "fliparena", setA
         <div className="px-4 mb-4 mt-4">
           <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] shadow-inner">
             <button
-              onClick={() => window.location.href = "/MainModules/FlipLine"}
+              onClick={() => (window.location.href = "/MainModules/FlipLine")}
               className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer border-none"
               style={{
                 background: "transparent",
@@ -142,7 +978,7 @@ export default function FlipArena({ selectedSport, activeTab = "fliparena", setA
         </div>
       )}
 
-      {/* 4. Filter section "Today's Arena" */}
+      {/* 3. Filter section "Today's Arena" */}
       <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2">
         <div>
           <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
@@ -165,455 +1001,101 @@ export default function FlipArena({ selectedSport, activeTab = "fliparena", setA
         </div>
       </div>
 
-      {/* 5. Content Cards Feed */}
+      {/* 4. Live Engagements Feed */}
       <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full">
-        <AnimatePresence mode="popLayout">
-          {/* MOCK CARD 1: FAN BATTLE (Visible in All or Battle) */}
-          {(filter === "all" || filter === "battle") && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              className="w-full max-w-lg bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl"
-            >
-              <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[#FF3D57]">⚔️ FAN BATTLE</span>
-                  <span>•</span>
-                  <span className="text-[#FF7B02] flex items-center gap-0.5">
-                    🔥 TRENDING
-                  </span>
-                </div>
-                <span>10:00 AM</span>
-              </div>
-
-              <h3 className="text-sm font-black mb-4">Fan Battle - Who wins your vote?</h3>
-
-              <div className="grid grid-cols-7 items-center gap-3 mb-4">
-                <button
-                  onClick={() => !fanBattleVote && setFanBattleVote("left")}
-                  className={`col-span-3 rounded-xl p-3 border transition-all ${
-                    fanBattleVote === "left"
-                      ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.1)]"
-                      : fanBattleVote === "right"
-                      ? "opacity-40 border-white/[0.04]"
-                      : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
-                  }`}
-                >
-                  <span className="text-2xl font-black block">🇮🇳 IN</span>
-                  <span className="text-xs font-black block mt-2 text-white">Virat Kohli</span>
-                  <span className="text-[9px] text-white/40 block mt-1 font-semibold">Avg 89.8 in Tests</span>
-                  {fanBattleVote && (
-                    <span className="text-xs font-black block mt-2 text-[#FF3D57]">72% Voted</span>
-                  )}
-                </button>
-
-                <div className="col-span-1 flex items-center justify-center">
-                  <span className="w-8 h-8 rounded-full bg-white/[0.06] border border-white/[0.1] text-[10px] font-black text-white/50 flex items-center justify-center">
-                    VS
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => !fanBattleVote && setFanBattleVote("right")}
-                  className={`col-span-3 rounded-xl p-3 border transition-all ${
-                    fanBattleVote === "right"
-                      ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.1)]"
-                      : fanBattleVote === "left"
-                      ? "opacity-40 border-white/[0.04]"
-                      : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
-                  }`}
-                >
-                  <span className="text-2xl font-black block">🇵🇰 PK</span>
-                  <span className="text-xs font-black block mt-2 text-white">Babar Azam</span>
-                  <span className="text-[9px] text-white/40 block mt-1 font-semibold">Avg 44.8 in Tests</span>
-                  {fanBattleVote && (
-                    <span className="text-xs font-black block mt-2 text-[#FF7B02]">28% Voted</span>
-                  )}
-                </button>
-              </div>
-
-              <button className="w-full py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] font-black text-xs flex items-center justify-center gap-2 active:scale-[0.99] transition-all cursor-pointer">
-                <span>🫱🏼‍🫲🏾</span> Challenge a Friend
-              </button>
-
-              <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => handleLike("battle")}
-                    className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
-                      liked.battle ? "text-[#FF3D57]" : "hover:text-white"
-                    }`}
-                  >
-                    <Heart size={13} fill={liked.battle ? "currentColor" : "none"} />
-                    <span>{likes.battle.toLocaleString()}</span>
-                  </button>
-                  <button className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer">
-                    <Share2 size={13} />
-                    <span>Share</span>
-                  </button>
-                </div>
-                <span>2,852 engaged</span>
-              </div>
-            </motion.div>
-          )}
-
-          {/* MOCK CARD 2: QUIZ (Visible in All or Quiz) */}
-          {(filter === "all" || filter === "quiz") && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              className="w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl"
-            >
-              <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-                <div className="flex items-center gap-1.5 uppercase">
-                  <span className="text-purple-500">💬 QUIZ</span>
-                  <span>•</span>
-                  <span className="text-amber-400">⭐ 50 PTS</span>
-                </div>
-                <span>11:00 AM</span>
-              </div>
-
-              <h3 className="text-sm font-black mb-1">Quick Cricket Quiz</h3>
-              <p className="text-xs font-semibold text-white/60 mb-4">
-                How many Test centuries has Virat Kohli scored?
-              </p>
-
-              <div className="grid grid-cols-2 gap-3.5 mb-4">
-                {["A 27", "B 29", "C 30", "D 32"].map((opt) => {
-                  const letter = opt.charAt(0);
-                  const isCorrect = letter === "C";
-                  const isSelected = quizSelected === letter;
-                  const isAnySelected = quizSelected !== null;
-
-                  let cardStyle = "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]";
-                  if (isAnySelected) {
-                    if (isCorrect) {
-                      cardStyle = "bg-emerald-500/10 border-emerald-500 text-emerald-400";
-                    } else if (isSelected) {
-                      cardStyle = "bg-red-500/10 border-red-500 text-red-400";
-                    } else {
-                      cardStyle = "opacity-40 border-white/[0.04]";
-                    }
+        {loadingEngagements && engagements.length === 0 ? (
+          <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/40 text-xs font-bold">
+            <div className="w-6 h-6 border-2 border-[#FF3D57] border-t-transparent rounded-full animate-spin" />
+            <span>Loading live arena battles...</span>
+          </div>
+        ) : filteredEngagements.length === 0 ? (
+          <div className="py-12 text-center text-xs font-bold text-white/40 border border-white/[0.06] rounded-2xl bg-[#0e111a] p-8 w-full max-w-lg">
+            No events found for this filter. Check back shortly!
+          </div>
+        ) : (
+              <AnimatePresence mode="popLayout">
+                {filteredEngagements.map((item) => {
+                  if (item.type === "fan_battle") {
+                    return (
+                      <DynamicFanBattleCard
+                        key={item.id}
+                        item={item}
+                        userId={user?.userId}
+                        onToast={showToast}
+                      />
+                    );
                   }
-
-                  return (
-                    <button
-                      key={letter}
-                      onClick={() => !isAnySelected && setQuizSelected(letter)}
-                      className={`rounded-xl p-3 border font-extrabold text-xs text-left transition-all cursor-pointer ${cardStyle}`}
-                    >
-                      {opt}
-                    </button>
-                  );
+                  if (item.type === "quiz") {
+                    return (
+                      <DynamicQuizCard
+                        key={item.id}
+                        item={item}
+                        userId={user?.userId}
+                        onToast={showToast}
+                      />
+                    );
+                  }
+                  if (item.type === "poll") {
+                    return (
+                      <DynamicPollCard
+                        key={item.id}
+                        item={item}
+                        userId={user?.userId}
+                        onToast={showToast}
+                      />
+                    );
+                  }
+                  if (item.type === "prediction") {
+                    return (
+                      <DynamicPredictionCard
+                        key={item.id}
+                        item={item}
+                        userId={user?.userId}
+                        onToast={showToast}
+                      />
+                    );
+                  }
+                  return null;
                 })}
-              </div>
+          </AnimatePresence>
+        )}
 
-              {quizSelected && (
-                <div className="text-[11px] font-black text-center text-white/50">
-                  {quizSelected === "C" ? (
-                    <span className="text-emerald-400">🎉 Correct! You earned 50 PTS!</span>
-                  ) : (
-                    <span className="text-red-400">❌ Incorrect. Correct answer is C (30)</span>
-                  )}
-                </div>
-              )}
 
-              <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => handleLike("quiz")}
-                    className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
-                      liked.quiz ? "text-[#FF3D57]" : "hover:text-white"
-                    }`}
-                  >
-                    <Heart size={13} fill={liked.quiz ? "currentColor" : "none"} />
-                    <span>{likes.quiz}</span>
-                  </button>
-                  <button className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer">
-                    <Share2 size={13} />
-                    <span>Share</span>
-                  </button>
-                </div>
-                <span>2,180 engaged</span>
-              </div>
-            </motion.div>
-          )}
-
-          {/* MOCK CARD 3: POLL (Visible in All or Poll) */}
-          {(filter === "all" || filter === "poll") && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              className="w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl"
+        {/* 6. View Full Flip Arena button in Preview mode */}
+        {isPreview && (
+          <div className="w-full max-w-lg mt-4 px-2">
+            <button
+              onClick={() => (window.location.href = "/MainModules/FlipArena")}
+              className="w-full py-[11px] rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
+              style={{
+                background: "rgba(255,255,255,0.045)",
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
             >
-              <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-                <span className="text-blue-500 uppercase">🗳️ POLL</span>
-                <span>11:30 AM</span>
-              </div>
-
-              <h3 className="text-sm font-black mb-4">Who takes more wickets in Galle?</h3>
-
-              <div className="space-y-3 mb-4">
-                {[
-                  { id: "bumrah", label: "Jasprit Bumrah ☄️", percent: 64 },
-                  { id: "theekshana", label: "Maheesh Theekshana 🌀", percent: 18 },
-                  { id: "jadeja", label: "Ravindra Jadeja 🪙", percent: 18 },
-                ].map((opt) => {
-                  const isSelected = pollVote === opt.id;
-                  const isAnySelected = pollVote !== null;
-
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => !isAnySelected && setPollVote(opt.id)}
-                      className="w-full relative rounded-xl border border-white/[0.06] overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all bg-white/[0.01] hover:bg-white/[0.03] active:scale-[0.99] cursor-pointer"
-                    >
-                      {/* Percent Fill Bar */}
-                      {isAnySelected && (
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${opt.percent}%` }}
-                          transition={{ duration: 0.6, ease: "easeOut" }}
-                          className={`absolute left-0 top-0 bottom-0 z-0 ${
-                            isSelected ? "bg-blue-500/10" : "bg-white/[0.03]"
-                          }`}
-                        />
-                      )}
-                      <span className="relative z-10">{opt.label}</span>
-                      {isAnySelected && (
-                        <span className="relative z-10 text-[11px] font-black">
-                          {opt.percent}% {isSelected && "✓"}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => handleLike("poll")}
-                    className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
-                      liked.poll ? "text-[#FF3D57]" : "hover:text-white"
-                    }`}
-                  >
-                    <Heart size={13} fill={liked.poll ? "currentColor" : "none"} />
-                    <span>{likes.poll.toLocaleString()}</span>
-                  </button>
-                  <button className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer">
-                    <Share2 size={13} />
-                    <span>Share</span>
-                  </button>
-                </div>
-                <span>8,268 engaged</span>
-              </div>
-            </motion.div>
-          )}
-
-          {/* MOCK CARD 4: PREDICTION (Visible in All or Poll) */}
-          {(filter === "all" || filter === "poll") && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              className="w-full max-w-lg bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl"
-            >
-              <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-                <div className="flex items-center gap-1.5 uppercase">
-                  <span className="text-amber-500">🔮 PREDICTION</span>
-                  <span>•</span>
-                  <span className="text-indigo-400">🪙 POINTS</span>
-                </div>
-                <span>11:58 AM</span>
-              </div>
-
-              <h3 className="text-sm font-black mb-1">Predict the outcome!</h3>
-              <p className="text-xs font-semibold text-white/60 mb-4">India win the 1st Galle Test?</p>
-
-              <div className="grid grid-cols-2 gap-3.5 mb-4">
-                {[
-                  { id: "win", label: "Yes, India win", multi: "2X" },
-                  { id: "sl_draw", label: "SL hold / win", multi: "5X" },
-                ].map((opt) => {
-                  const isSelected = predictionVote === opt.id;
-                  const isAnySelected = predictionVote !== null;
-
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => !isAnySelected && setPredictionVote(opt.id)}
-                      className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
-                        isSelected
-                          ? "bg-amber-500/10 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)] text-amber-400"
-                          : isAnySelected
-                          ? "opacity-40 border-white/[0.04]"
-                          : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
-                      }`}
-                    >
-                      <span className="text-xs font-black">{opt.label}</span>
-                      <span className="text-[10px] font-black mt-1 text-white/50">{opt.multi} multiplier</span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {predictionVote && (
-                <div className="text-[11px] font-black text-center text-amber-400">
-                  ⚡ Prediction locked! Good luck!
-                </div>
-              )}
-
-              <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => handleLike("pred")}
-                    className={`flex items-center gap-1.5 transition-colors cursor-pointer ${
-                      liked.pred ? "text-[#FF3D57]" : "hover:text-white"
-                    }`}
-                  >
-                    <Heart size={13} fill={liked.pred ? "currentColor" : "none"} />
-                    <span>{likes.pred}</span>
-                  </button>
-                  <button className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer">
-                    <Share2 size={13} />
-                    <span>Share</span>
-                  </button>
-                </div>
-                <span>1,920 engaged</span>
-              </div>
-            </motion.div>
-          )}
-
-          {/* MOCK CARD 5: CONTEST (Visible in All or Battle) */}
-          {(filter === "all" || filter === "battle") && (
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              className="w-full max-w-lg bg-[#0e111a] border-l-2 border-emerald-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl"
-            >
-              <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-                <div className="flex items-center gap-1.5 uppercase">
-                  <span className="text-emerald-500">🏆 CONTEST</span>
-                  <span>•</span>
-                  <span className="text-yellow-400">🎁 WIN</span>
-                </div>
-                <span>12:00 PM</span>
-              </div>
-
-              <h3 className="text-sm font-black mb-4">SF360 Superfan Contest</h3>
-
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.02] p-4 mb-4">
-                <div className="flex items-center gap-2 text-xs font-black text-emerald-400">
-                  <span>🏆</span> SF360 Jersey + 1000 FlipCoins
-                </div>
-                <p className="text-[11px] text-white/60 mt-2 font-medium leading-relaxed">
-                  Caption the epic Kohli cover drive and win! Best caption wins a signed SF360 jersey + coins.
-                </p>
-                <div className="text-[9px] text-white/40 font-bold mt-3">
-                  ⏳ Today 11 PM IST
-                </div>
-              </div>
-
-              <button
-                onClick={() => setContestEntered(true)}
-                className={`w-full py-3 rounded-xl font-black text-xs active:scale-[0.99] transition-all cursor-pointer ${
-                  contestEntered
-                    ? "bg-emerald-500/20 border border-emerald-500 text-emerald-400"
-                    : "bg-emerald-500 hover:bg-emerald-400 text-[#070b14] shadow-[0_4px_15px_rgba(16,185,129,0.2)]"
-                }`}
+              <span
+                style={{
+                  fontSize: 11.5,
+                  fontWeight: 800,
+                  color: "rgba(255,255,255,0.55)",
+                }}
               >
-                {contestEntered ? "Entered! ✓" : "Enter Contest →"}
-              </button>
-            </motion.div>
-          )}
-
-          {/* 6. Active Interactive Components Integration Section */}
-          {!isPreview && (
-            <div className="w-full max-w-lg mt-8 pt-8 border-t border-white/[0.08] space-y-8 flex flex-col items-center">
-              {/* Polls Components (Active in Polls filter) */}
-              {(filter === "all" || filter === "poll") && (
-                <div className="w-full space-y-4">
-                  <div className="flex items-center gap-2 px-2">
-                    <Trophy size={16} className="text-blue-400" />
-                    <h3 className="text-sm font-black text-white/90">Live Polls</h3>
-                  </div>
-                  <div className="rounded-2xl border border-white/[0.06] bg-[#0c0d14] overflow-hidden p-4">
-                    <PollsSection />
-                  </div>
-
-                  <div className="flex items-center gap-2 px-2 mt-6">
-                    <Sparkles size={16} className="text-amber-400" />
-                    <h3 className="text-sm font-black text-white/90">Match Predictions</h3>
-                  </div>
-                  <div className="w-full space-y-4">
-                    {loadingPolls ? (
-                      <div className="py-8 flex justify-center text-xs font-bold text-white/40 animate-pulse">
-                        Loading prediction match data...
-                      </div>
-                    ) : Object.keys(matchGroups).length === 0 ? (
-                      <div className="py-8 text-center text-xs font-bold text-white/30 border border-white/[0.06] rounded-2xl bg-[#0c0d14]">
-                        No active predictions at the moment
-                      </div>
-                    ) : (
-                      Object.entries(matchGroups).map(([matchId, matchPolls]) => (
-                        <div key={matchId} className="w-full">
-                          <PredictionCard
-                            polls={matchPolls}
-                            matchTitle={matchPolls[0]?.matchId ? `Predictions: ${matchPolls[0].matchId}` : "Predictions"}
-                            matchSubtitle={`${matchPolls.length} prediction${matchPolls.length > 1 ? "s" : ""} available`}
-                            isLive
-                            userId={user?.userId}
-                            onVote={castVote}
-                          />
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* FanBattle & Challenges Components (Active in Battle filter) */}
-              {(filter === "all" || filter === "battle") && (
-                <div className="w-full space-y-6">
-                  <div className="flex items-center gap-2 px-2">
-                    <span className="text-[#FF3D57]">⚔️</span>
-                    <h3 className="text-sm font-black text-white/90">Fan Battle Arena</h3>
-                  </div>
-                  <div className="rounded-2xl border border-white/[0.06] bg-[#0c0d14] overflow-hidden p-4">
-                    <FanBattleCard />
-                  </div>
-
-                  <div className="flex items-center gap-2 px-2 mt-6">
-                    <Trophy size={16} className="text-emerald-400" />
-                    <h3 className="text-sm font-black text-white/90">Active Challenges</h3>
-                  </div>
-                  <div className="rounded-2xl border border-white/[0.06] bg-[#0c0d14] overflow-hidden p-4">
-                    <ChallengesSection />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* View Full Flip Arena button in Preview mode */}
-          {isPreview && (
-            <div className="w-full max-w-lg mt-4 px-2">
-              <button
-                onClick={() => window.location.href = "/MainModules/FlipArena"}
-                className="w-full py-[11px] rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
-                style={{ background: 'rgba(255,255,255,0.045)', border: '1px solid rgba(255,255,255,0.1)' }}
+                View Full Flip Arena
+              </span>
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="rgba(255,255,255,0.4)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <span style={{ fontSize: 11.5, fontWeight: 800, color: 'rgba(255,255,255,0.55)' }}>View Full Flip Arena</span>
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-              </button>
-            </div>
-          )}
-        </AnimatePresence>
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
