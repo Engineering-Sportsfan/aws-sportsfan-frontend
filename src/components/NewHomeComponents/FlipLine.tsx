@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { Heart, Share2, Play, Volume2, Sparkles } from 'lucide-react';
+import { Heart, MessageSquare, Share2, Play, Volume2, Sparkles, Send } from 'lucide-react';
 import { fliplineService } from '@/services/flipline.service';
 import { useAuth } from "@/context/AuthContext";
 import FlipArena from './FlipArena';
@@ -43,6 +43,7 @@ function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { select
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [likedCards, setLikedCards] = useState<Set<number>>(new Set());
   const [askOpen, setAskOpen] = useState<number | null>(null);
+  const [activeFilter, setActiveFilter] = useState<string>('all');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -66,7 +67,45 @@ function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { select
   }
 
   let displayCards = density === 'key' ? cards.filter(c => c.isKey) : cards;
-  if (selectedSport && selectedSport !== 'mixed') {
+
+  // Apply hashtag filter chips
+  if (activeFilter === 'cricket') {
+    displayCards = displayCards.filter(c => c.sport === 'cricket');
+  } else if (activeFilter === 'football') {
+    displayCards = displayCards.filter(c => c.sport === 'football');
+  } else if (activeFilter === 'athletics') {
+    displayCards = displayCards.filter(c => c.sport === 'athletics');
+  } else if (activeFilter === 'analysts') {
+    const filtered = displayCards.filter(
+      c =>
+        c.type === 'expert' ||
+        c.type === 'analyst' ||
+        c.type === 'bot' ||
+        c.author?.toLowerCase().includes('analyst') ||
+        c.source?.toLowerCase().includes('analyst') ||
+        c.tags?.some(t => t.toLowerCase().includes('analyst'))
+    );
+    if (filtered.length > 0) displayCards = filtered;
+  } else if (activeFilter === 'sf360-live') {
+    const filtered = displayCards.filter(
+      c =>
+        c.source?.toLowerCase().includes('live') ||
+        c.source?.toLowerCase().includes('roanuz') ||
+        c.type === 'bot' ||
+        c.isKey ||
+        c.tags?.some(t => t.toLowerCase().includes('live'))
+    );
+    if (filtered.length > 0) displayCards = filtered;
+  } else if (activeFilter === 'fan-roar') {
+    const filtered = displayCards.filter(
+      c =>
+        c.type === 'fan' ||
+        c.ctaType === 'room' ||
+        c.source?.toLowerCase().includes('roar') ||
+        c.tags?.some(t => t.toLowerCase().includes('roar'))
+    );
+    if (filtered.length > 0) displayCards = filtered;
+  } else if (selectedSport && selectedSport !== 'mixed') {
     displayCards = displayCards.filter(c => c.sport === selectedSport);
   }
 
@@ -83,14 +122,42 @@ function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { select
           ))}
         </div> */}
       </div>
-      {/* Multi-sport legend */}
-      <div className="flex items-center gap-4 px-4 mb-4">
-        {([{e:'🏏',l:'Cricket',c:'rgb(34,197,94)'},{e:'⚽',l:'Football',c:'rgb(96,165,250)'},{e:'🏃',l:'Athletics',c:'rgb(251,191,36)'}] as const).map(({e,l,c}) => (
-          <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: c, boxShadow: `0 0 5px ${c}99` }} />
-            <span style={{ fontSize: 9.5, fontWeight: 700, color: 'rgba(255,255,255,0.38)' }}>{e} {l}</span>
-          </div>
-        ))}
+      {/* Multi-sport & Tag Filter Chips (Horizontally Scrollable) */}
+      <div
+        className="flex items-center gap-2 px-4 mb-4 overflow-x-auto no-scrollbar"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {[
+          { id: 'all', label: '#all', emoji: '⚡' },
+          { id: 'cricket', label: '#cricket', emoji: '🏏' },
+          { id: 'football', label: '#football', emoji: '⚽' },
+          { id: 'athletics', label: '#athletics', emoji: '🏃' },
+          { id: 'analysts', label: '#analysts', emoji: '🎙' },
+          { id: 'sf360-live', label: '#sf360-live', emoji: '📡' },
+          { id: 'fan-roar', label: '#fan-roar', emoji: '🔥' },
+        ].map((chip) => {
+          const isActive = activeFilter === chip.id;
+          return (
+            <button
+              key={chip.id}
+              onClick={() => setActiveFilter(chip.id)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-extrabold whitespace-nowrap transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+              style={{
+                background: isActive
+                  ? 'linear-gradient(90deg, #FF3D57, #FF7B02)'
+                  : 'rgba(255, 255, 255, 0.05)',
+                border: isActive
+                  ? '1px solid rgba(255, 61, 87, 0.3)'
+                  : '1px solid rgba(255, 255, 255, 0.08)',
+                color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.65)',
+                boxShadow: isActive ? '0 3px 12px rgba(255, 61, 87, 0.3)' : 'none',
+              }}
+            >
+              <span className="text-xs">{chip.emoji}</span>
+              <span>{chip.label}</span>
+            </button>
+          );
+        })}
       </div>
       {/* Timeline — show latest 4 moments on home */}
       <FlipTimeline cards={displayCards} previewLimit={4} likedCards={likedCards} setLikedCards={setLikedCards} askOpen={askOpen} setAskOpen={setAskOpen} />
@@ -112,6 +179,7 @@ export function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loa
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [likedCards, setLikedCards] = useState<Set<number>>(new Set());
   const [askOpen, setAskOpen] = useState<number | null>(null);
+  const [activeFilter, setActiveFilter] = useState<string>('all');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -135,7 +203,45 @@ export function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loa
   }
 
   let displayCards = density === 'key' ? cards.filter(c => c.isKey) : cards;
-  if (selectedSport && selectedSport !== 'mixed') {
+
+  // Apply hashtag filter chips
+  if (activeFilter === 'cricket') {
+    displayCards = displayCards.filter(c => c.sport === 'cricket');
+  } else if (activeFilter === 'football') {
+    displayCards = displayCards.filter(c => c.sport === 'football');
+  } else if (activeFilter === 'athletics') {
+    displayCards = displayCards.filter(c => c.sport === 'athletics');
+  } else if (activeFilter === 'analysts') {
+    const filtered = displayCards.filter(
+      c =>
+        c.type === 'expert' ||
+        c.type === 'analyst' ||
+        c.type === 'bot' ||
+        c.author?.toLowerCase().includes('analyst') ||
+        c.source?.toLowerCase().includes('analyst') ||
+        c.tags?.some(t => t.toLowerCase().includes('analyst'))
+    );
+    if (filtered.length > 0) displayCards = filtered;
+  } else if (activeFilter === 'sf360-live') {
+    const filtered = displayCards.filter(
+      c =>
+        c.source?.toLowerCase().includes('live') ||
+        c.source?.toLowerCase().includes('roanuz') ||
+        c.type === 'bot' ||
+        c.isKey ||
+        c.tags?.some(t => t.toLowerCase().includes('live'))
+    );
+    if (filtered.length > 0) displayCards = filtered;
+  } else if (activeFilter === 'fan-roar') {
+    const filtered = displayCards.filter(
+      c =>
+        c.type === 'fan' ||
+        c.ctaType === 'room' ||
+        c.source?.toLowerCase().includes('roar') ||
+        c.tags?.some(t => t.toLowerCase().includes('roar'))
+    );
+    if (filtered.length > 0) displayCards = filtered;
+  } else if (selectedSport && selectedSport !== 'mixed') {
     displayCards = displayCards.filter(c => c.sport === selectedSport);
   }
 
@@ -144,7 +250,7 @@ export function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loa
       {/* Header */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px 11px', background: 'rgba(7,11,20,0.98)', borderBottom: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(20px)' }}>
         <a href="/MainModules/HomePage">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5" />
             <path d="M12 19l-7-7 7-7" />
           </svg>
@@ -166,6 +272,44 @@ export function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loa
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Multi-sport & Tag Filter Chips (Horizontally Scrollable) */}
+      <div
+        className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar border-b border-white/[0.06]"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {[
+          { id: 'all', label: '#all', emoji: '⚡' },
+          { id: 'cricket', label: '#cricket', emoji: '🏏' },
+          { id: 'football', label: '#football', emoji: '⚽' },
+          { id: 'athletics', label: '#athletics', emoji: '🏃' },
+          { id: 'analysts', label: '#analysts', emoji: '🎙' },
+          { id: 'sf360-live', label: '#sf360-live', emoji: '📡' },
+          { id: 'fan-roar', label: '#fan-roar', emoji: '🔥' },
+        ].map((chip) => {
+          const isActive = activeFilter === chip.id;
+          return (
+            <button
+              key={chip.id}
+              onClick={() => setActiveFilter(chip.id)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-extrabold whitespace-nowrap transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+              style={{
+                background: isActive
+                  ? 'linear-gradient(90deg, #FF3D57, #FF7B02)'
+                  : 'rgba(255, 255, 255, 0.05)',
+                border: isActive
+                  ? '1px solid rgba(255, 61, 87, 0.3)'
+                  : '1px solid rgba(255, 255, 255, 0.08)',
+                color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.65)',
+                boxShadow: isActive ? '0 3px 12px rgba(255, 61, 87, 0.3)' : 'none',
+              }}
+            >
+              <span className="text-xs">{chip.emoji}</span>
+              <span>{chip.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Legend strip */}
@@ -270,6 +414,11 @@ export function FlipCardItem({
   const [loading, setLoading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [wasInitiallyLiked, setWasInitiallyLiked] = useState(false);
+  const [commentOpen, setCommentOpen] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const [commentsList, setCommentsList] = useState<
+    Array<{ id: string; author: string; handle?: string; text: string; time: string; avatar?: string }>
+  >([]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -648,6 +797,28 @@ export function FlipCardItem({
                     : card.likes + (isLiked ? 1 : 0)}
                 </span>
               </button>
+
+              {/* Comment Button */}
+              <button
+                onClick={() => setCommentOpen((prev) => !prev)}
+                className={`flex items-center gap-2 transition-all cursor-pointer ${
+                  commentOpen
+                    ? "text-sky-400 font-black"
+                    : "text-white/40 hover:text-sky-400"
+                }`}
+                title="Comments"
+              >
+                <MessageSquare
+                  size={15}
+                  fill={commentOpen ? "rgba(56, 189, 248, 0.2)" : "none"}
+                  className={`transition-all duration-200 ${
+                    commentOpen ? "scale-110" : ""
+                  }`}
+                />
+                <span className="text-[12.5px] font-extrabold leading-none">
+                  {(card.commentsCount || 0) + commentsList.length}
+                </span>
+              </button>
               
               <button 
                 onClick={() => handleShare(card)}
@@ -657,6 +828,7 @@ export function FlipCardItem({
                 <span className="text-[12.5px] font-extrabold leading-none">Share</span>
               </button>
             </div>
+
 
             <button 
               onClick={() => setAskOpen(isExpanded ? null : card.id)}
@@ -674,6 +846,125 @@ export function FlipCardItem({
               <span>{isExpanded ? 'Flipped' : 'Ask Flip'}</span>
             </button>
           </div>
+
+          {/* Expanded Comment Box UI */}
+          <AnimatePresence>
+            {commentOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-3 pt-3 border-t border-white/[0.08] flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <MessageSquare size={13} className="text-sky-400" />
+                      <span className="text-[11px] font-black text-sky-300 uppercase tracking-widest">
+                        Comments{" "}
+                        {commentsList.length > 0 || (card.commentsCount || 0) > 0
+                          ? `(${commentsList.length + (card.commentsCount || 0)})`
+                          : ""}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-white/30 font-semibold">
+                      Join the discussion
+                    </span>
+                  </div>
+
+                  {/* Comment Input Field */}
+                  <div className="flex items-center gap-2 w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl p-1.5 pl-3 focus-within:border-sky-500/50 transition-all">
+                    <div className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-300 flex items-center justify-center text-[10px] font-black shrink-0">
+                      {user?.name ? user.name.charAt(0).toUpperCase() : "💬"}
+                    </div>
+                    <input
+                      type="text"
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      placeholder="Write a comment..."
+                      className="flex-1 bg-transparent text-[12.5px] text-white placeholder:text-white/35 outline-none font-medium"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          if (commentText.trim()) {
+                            const newComment = {
+                              id: `c_${Date.now()}`,
+                              author: user?.name || getUserName() || "Fan",
+                              handle: user?.name
+                                ? `@${user.name.toLowerCase().replace(/\s+/g, "")}`
+                                : "@fan",
+                              text: commentText.trim(),
+                              time: "Just now",
+                              avatar: user?.avatar,
+                            };
+                            setCommentsList((prev) => [newComment, ...prev]);
+                            setCommentText("");
+                          }
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (commentText.trim()) {
+                          const newComment = {
+                            id: `c_${Date.now()}`,
+                            author: user?.name || getUserName() || "Fan",
+                            handle: user?.name
+                              ? `@${user.name.toLowerCase().replace(/\s+/g, "")}`
+                              : "@fan",
+                            text: commentText.trim(),
+                            time: "Just now",
+                            avatar: user?.avatar,
+                          };
+                          setCommentsList((prev) => [newComment, ...prev]);
+                          setCommentText("");
+                        }
+                      }}
+                      disabled={!commentText.trim()}
+                      className="w-8 h-8 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0 shadow-[0_2px_8px_rgba(56,189,248,0.25)]"
+                      title="Send comment"
+                    >
+                      <Send size={13} className="ml-0.5" />
+                    </button>
+                  </div>
+
+                  {/* List of comments */}
+                  {commentsList.length > 0 ? (
+                    <div className="flex flex-col gap-2 mt-1">
+                      {commentsList.map((comm) => (
+                        <div
+                          key={comm.id}
+                          className="bg-white/[0.025] border border-white/[0.05] rounded-xl p-2.5 flex flex-col gap-1"
+                        >
+                          <div className="flex items-center justify-between text-[11px]">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-white/90">
+                                {comm.author}
+                              </span>
+                              <span className="text-[10px] text-white/35 font-medium">
+                                {comm.handle}
+                              </span>
+                            </div>
+                            <span className="text-[9.5px] text-white/30">
+                              {comm.time}
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-white/80 font-medium leading-snug pl-0.5">
+                            {comm.text}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-2 text-center text-[11px] text-white/30 font-medium italic">
+                      Be the first to comment on this moment! 💬
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Expanded AI response */}
           <AnimatePresence>
