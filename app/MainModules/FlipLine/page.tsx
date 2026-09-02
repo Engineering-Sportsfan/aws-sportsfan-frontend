@@ -3,8 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { FlipLineFullScreen } from '@/src/components/NewHomeComponents/FlipLine';
-import { fliplineService } from '@/services/flipline.service';
-import type { FlipCard } from '@/src/components/CreatePost-Component/CreatePostDialog';
+import { fliplineService, FlipCard } from '@/services/flipline.service';
 
 export default function FlipLinePage() {
   const router = useRouter();
@@ -167,12 +166,19 @@ export default function FlipLinePage() {
     });
   }, [dbCards, liveCards]);
 
+  const handleCardUpdate = React.useCallback((updatedCard: FlipCard) => {
+    setDbCards((prev) =>
+      prev.map((c) => (c.id === updatedCard.id || (c.sk && c.sk === updatedCard.sk) ? updatedCard : c))
+    );
+  }, []);
+
   return (
     <FlipLineFullScreen
       onBack={() => router.push('/')}
       selectedSport="mixed"
       cards={combinedCards}
       loading={loading}
+      onCardUpdate={handleCardUpdate}
     />
   );
 }
