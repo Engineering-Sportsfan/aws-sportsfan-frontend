@@ -1308,7 +1308,7 @@
 
 
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import Image from "next/image";
@@ -1318,6 +1318,7 @@ import { BADGE_CONFIG, BADGE_DETAIL, BADGE_LABELS, BADGES_LIST, RIVAL, CURRENT_U
 import { fmt } from "../utils";
 import BackButton from "../../ReusableComponent/BackButton";
 import { useActivity } from "@/context/ActivityContext";
+import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { RoarJourneySection } from "../components/RoarJourneySection";
 
@@ -1529,6 +1530,30 @@ export default function Profile({
   const handleBack = onBack ?? onClose;
 
   const { activities, loading: activityLoading, refreshActivities, profileStats } = useActivity();
+  const { user: authUser, getUserDisplayName, loading: authLoading } = useAuth();
+
+  const headerDisplayName = useMemo(() => {
+    if (authUser?.name) return authUser.name;
+    if (typeof getUserDisplayName === "function") {
+      const dn = getUserDisplayName();
+      if (dn && !dn.startsWith("Fan_") && !dn.startsWith("Guest_")) return dn;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.name) return parsed.name;
+        }
+      } catch {}
+      const roarUser = localStorage.getItem("roar_username");
+      if (roarUser) return roarUser;
+    }
+    if (!authLoading && typeof getUserDisplayName === "function") {
+      return getUserDisplayName();
+    }
+    return "";
+  }, [authLoading, authUser?.name, getUserDisplayName]);
 
   const [profileMetadata, setProfileMetadata] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1594,7 +1619,12 @@ export default function Profile({
   const [editAbout, setEditAbout] = useState("");
   const [editShowPredHistory, setEditShowPredHistory] = useState(true);
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
-  const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
+  const [selectedAvatar, setSelectedAvatar] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("roar_avatar_url");
+    }
+    return null;
+  });
   const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [activeActivityTab, setActiveActivityTab] = useState<"all" | "posts" | "predictions" | "debates">("all");
@@ -1631,10 +1661,16 @@ export default function Profile({
         axios.get("/api/roar/profile", { withCredentials: true })
           .then((res) => {
             if (!res.data?.success) return;
-            setProfileMetadata((prev: any) => ({
-              ...prev,
-              user: res.data.user || {},
-            }));
+            setProfileMetadata((prev: any) => {
+              const apiUser = res.data.user || {};
+              return {
+                ...prev,
+                user: {
+                  ...apiUser,
+                  username: apiUser.username || prev?.user?.username,
+                },
+              };
+            });
             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
             if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
@@ -1721,12 +1757,22 @@ export default function Profile({
         if (!isOtherProfile) {
           const res = await axios.get("/api/roar/profile", { withCredentials: true });
           if (res.data?.success) {
+            const apiUser = res.data.user || {};
+            const initialName =
+              headerDisplayName ||
+              (typeof window !== "undefined" ? localStorage.getItem("roar_username") : null) ||
+              apiUser.username ||
+              "";
+
             setProfileMetadata({
-              user: res.data.user || {},
+              user: {
+                ...apiUser,
+                username: initialName || apiUser.username || "",
+              },
               rival: res.data.rival || null,
             });
             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
-            if (res.data.user?.username) setEditName(res.data.user.username);
+            if (initialName) setEditName(initialName);
             setEditFavPlayer(res.data.user?.favPlayer ?? "");
             setEditAbout(res.data.user?.about ?? "");
             setEditShowPredHistory(res.data.user?.showPredHistory !== false);
@@ -1803,6 +1849,45 @@ export default function Profile({
     fetchProfileData();
   }, [viewingProfile, isViewingOther, fanData, isOtherProfile]);
 
+  const user = profileMetadata?.user ?? CURRENT_USER;
+
+  const effectiveUsername = useMemo(() => {
+    if (isOtherProfile) {
+      return user?.username || "Fan";
+    }
+    // For logged-in user: strictly match the exact username next to the avatar in Header!
+    if (headerDisplayName) return headerDisplayName;
+    if (
+      user?.username &&
+      user.username !== "RoarUser" &&
+      user.username !== "ROARFAN" &&
+      user.username !== "ROAR fan" &&
+      user.username !== "ROAR Fan" &&
+      user.username !== "Fan"
+    ) {
+      return user.username;
+    }
+    if (authUser?.name) return authUser.name;
+    if (typeof getUserDisplayName === "function") return getUserDisplayName();
+    return "Fan";
+  }, [isOtherProfile, headerDisplayName, user?.username, authUser?.name, getUserDisplayName]);
+
+  useEffect(() => {
+    if (!isOtherProfile && headerDisplayName) {
+      setProfileMetadata((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          user: {
+            ...(prev.user || {}),
+            username: headerDisplayName,
+          },
+        };
+      });
+      setEditName((prev) => (prev && prev !== "RoarUser" && prev !== "ROAR fan" && prev !== "ROARFAN") ? prev : headerDisplayName);
+    }
+  }, [isOtherProfile, headerDisplayName]);
+
   if (loading || !profileMetadata) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", color: "var(--text-muted)" }}>
@@ -1811,9 +1896,6 @@ export default function Profile({
     );
   }
 
-
-
-  const user = profileMetadata.user ?? CURRENT_USER;
   const isBotProfile = BOT_USERNAMES.includes(user?.username);
   const displayAvatar = selectedAvatar ?? (isBotProfile ? BOT_AVATARS[user.username] : null);
   const rival = profileMetadata.rival ?? RIVAL;
@@ -2117,7 +2199,7 @@ export default function Profile({
               {displayAvatar ? (
                 <img src={displayAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
-                <AvatarWithBadge username={user.username ?? CURRENT_USER.username} badge={userBadge} size="lg" />
+                <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="lg" />
               )}
             </div>
             {!isOtherProfile && (
@@ -2138,7 +2220,7 @@ export default function Profile({
 
         <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
           <h1 className="font-display" style={{ fontSize: 20, fontWeight: 900, letterSpacing: "0.03em", color: "#fff", margin: "0 0 4px" }}>
-            {(user.username ?? "ROARFAN").toUpperCase()}
+            {effectiveUsername}
           </h1>
           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>
             {BADGE_LABELS[userBadge] ?? "Fan"}
@@ -2943,6 +3025,7 @@ export default function Profile({
                   setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
                   setEditOpen(false);
                   onToast("Profile updated successfully");
+                  try { localStorage.setItem("roar_username", editName); } catch {}
                   try {
                     await axios.patch("/api/roar/profile", {
                       username: editName,

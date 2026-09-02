@@ -1163,11 +1163,38 @@ export default function Header() {
   const isPointsReady = !pointsLoading && !authLoading;
   const isProfileReady = !profileLoading && !authLoading;
 
+  const [headerAvatar, setHeaderAvatar] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("roar_avatar_url");
+      if (cached) setHeaderAvatar(cached);
+    }
+
+    const onAvatarUpdate = (e: any) => {
+      const newUrl = e?.detail?.avatarUrl || (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : "");
+      if (newUrl) setHeaderAvatar(newUrl);
+    };
+
+    window.addEventListener("roar-profile-updated", onAvatarUpdate);
+    window.addEventListener("storage", onAvatarUpdate);
+    return () => {
+      window.removeEventListener("roar-profile-updated", onAvatarUpdate);
+      window.removeEventListener("storage", onAvatarUpdate);
+    };
+  }, []);
+
   // ── Avatar source ─────────────────────────────────────────────────────────
   const avatarSrc = useMemo(() => {
-    if (!isProfileReady) return "";
-    return userProfile?.avatarUrl || userProfile?.avatar || "";
-  }, [isProfileReady, userProfile?.avatarUrl, userProfile?.avatar]);
+    if (headerAvatar) return headerAvatar;
+    if (userProfile?.avatarUrl) return userProfile.avatarUrl;
+    if (userProfile?.avatar) return userProfile.avatar;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("roar_avatar_url");
+      if (stored) return stored;
+    }
+    return "";
+  }, [headerAvatar, userProfile?.avatarUrl, userProfile?.avatar]);
 
   const totalUnreadChats = useMemo(
     () => chats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0),
