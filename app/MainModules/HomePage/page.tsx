@@ -483,7 +483,7 @@ function HomePageInner() {
       if (prefs?.badge) localStorage.setItem("roar_badge", prefs.badge);
     } catch {}
     setShowOnboarding(false);
-    if (prefs?.sports && prefs.sports.length > 0) {
+    if (prefs?.sports && Array.isArray(prefs.sports) && prefs.sports.length > 0) {
       const firstSport = String(prefs.sports[0]).toLowerCase();
       setSelectedSport(firstSport);
     }
@@ -586,7 +586,8 @@ function HomePageInner() {
     dollyHistoryExhaustedRef.current = false;
     try {
       const res = await axios.get(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/sessions`, { timeout: REQUEST_TIMEOUT_MS });
-      const sessions = res.data?.sessions ?? [];
+      const rawSessions = res.data?.sessions;
+      const sessions = Array.isArray(rawSessions) ? rawSessions : [];
       setDollyHistory(sessions.map((s: any) => ({
         sessionId: s.sessionId, roomId: DOLLY_ROOM_ID, title: s.title, subtitle: "", dateLabel: s.dateLabel,
       })));
@@ -607,7 +608,8 @@ function HomePageInner() {
       const res = await axios.get(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/sessions`, {
         params: before ? { before } : undefined, timeout: REQUEST_TIMEOUT_MS,
       });
-      const sessions = res.data?.sessions ?? [];
+      const rawSessions = res.data?.sessions;
+      const sessions = Array.isArray(rawSessions) ? rawSessions : [];
       if (sessions.length === 0) {
         dollyHistoryExhaustedRef.current = true;
       } else {
@@ -671,7 +673,8 @@ function HomePageInner() {
     try {
       const res = await axios.get(`/api/roar/rooms/${DOLLY_ROOM_ID}/dolly/${sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
       if (dollyFetchTokenRef.current !== requestId) return;
-      setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
+      const replies = res.data?.success && Array.isArray(res.data?.replies) ? res.data.replies : [];
+      setDollyReplies(replies);
     } catch {
       if (dollyFetchTokenRef.current === requestId) setDollyReplies([]);
     } finally {

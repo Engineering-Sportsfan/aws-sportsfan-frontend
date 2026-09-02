@@ -114,17 +114,23 @@ export default function FlipLinePage() {
   const fetchCards = async () => {
     try {
       const fetched = await fliplineService.fetchFlipCards();
-      setDbCards(fetched);
+      setDbCards(Array.isArray(fetched) ? fetched : []);
     } catch (e) {
       console.error("Failed to fetch FlipLine cards:", e);
+      setDbCards([]);
     } finally {
       setLoading(false);
     }
   };
 
   const updateLiveUpdates = async () => {
-    const live = await fetchLiveTickerUpdates();
-    setLiveCards(live);
+    try {
+      const live = await fetchLiveTickerUpdates();
+      setLiveCards(Array.isArray(live) ? live : []);
+    } catch (e) {
+      console.warn("Failed to fetch live updates:", e);
+      setLiveCards([]);
+    }
   };
 
   useEffect(() => {
@@ -151,9 +157,11 @@ export default function FlipLinePage() {
 
   const combinedCards = React.useMemo(() => {
     const seenIds = new Set<string | number>();
-    const all = [...liveCards, ...dbCards];
+    const safeLive = Array.isArray(liveCards) ? liveCards : [];
+    const safeDb = Array.isArray(dbCards) ? dbCards : [];
+    const all = [...safeLive, ...safeDb];
     return all.filter(c => {
-      if (seenIds.has(c.id)) return false;
+      if (!c || seenIds.has(c.id)) return false;
       seenIds.add(c.id);
       return true;
     });

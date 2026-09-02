@@ -4,8 +4,13 @@ import type { FlipCard } from "@/src/components/CreatePost-Component/CreatePostD
 export const fliplineService = {
   /** Fetch all FlipLine cards */
   fetchFlipCards: async (): Promise<FlipCard[]> => {
-    const res = await axios.get<{ success: boolean; data: FlipCard[] }>("/api/flipline");
-    return res.data.data;
+    try {
+      const res = await axios.get<{ success: boolean; data: FlipCard[] }>("/api/flipline");
+      return Array.isArray(res.data?.data) ? res.data.data : [];
+    } catch (err) {
+      console.warn("Failed to fetch flip cards:", err);
+      return [];
+    }
   },
 
   /** Create a new FlipLine card (includes file upload support) */

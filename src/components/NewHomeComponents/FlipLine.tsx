@@ -50,7 +50,10 @@ function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { select
       const stored = localStorage.getItem('sf360_liked_fliplines');
       if (stored) {
         try {
-          setLikedCards(new Set(JSON.parse(stored)));
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setLikedCards(new Set(parsed));
+          }
         } catch (e) {
           console.error('Failed to parse liked fliplines:', e);
         }
@@ -66,7 +69,8 @@ function FlipLineSection({ selectedSport, onViewFull, cards, loading }: { select
     );
   }
 
-  let displayCards = density === 'key' ? cards.filter(c => c.isKey) : cards;
+  const safeCards = Array.isArray(cards) ? cards : [];
+  let displayCards = density === 'key' ? safeCards.filter(c => c?.isKey) : safeCards;
 
   // Apply hashtag filter chips
   if (activeFilter === 'cricket') {
@@ -186,7 +190,10 @@ export function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loa
       const stored = localStorage.getItem('sf360_liked_fliplines');
       if (stored) {
         try {
-          setLikedCards(new Set(JSON.parse(stored)));
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setLikedCards(new Set(parsed));
+          }
         } catch (e) {
           console.error('Failed to parse liked fliplines:', e);
         }
@@ -202,7 +209,8 @@ export function FlipLineFullScreen({ onBack, selectedSport = 'mixed', cards, loa
     );
   }
 
-  let displayCards = density === 'key' ? cards.filter(c => c.isKey) : cards;
+  const safeCards = Array.isArray(cards) ? cards : [];
+  let displayCards = density === 'key' ? safeCards.filter(c => c?.isKey) : safeCards;
 
   // Apply hashtag filter chips
   if (activeFilter === 'cricket') {
@@ -1316,17 +1324,23 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
   const fetchCards = async () => {
     try {
       const fetched = await fliplineService.fetchFlipCards();
-      setDbCards(fetched);
+      setDbCards(Array.isArray(fetched) ? fetched : []);
     } catch (e) {
       console.error("Failed to fetch FlipLine cards:", e);
+      setDbCards([]);
     } finally {
       setLoading(false);
     }
   };
 
   const updateLiveUpdates = async () => {
-    const live = await fetchLiveTickerUpdates();
-    setLiveCards(live);
+    try {
+      const live = await fetchLiveTickerUpdates();
+      setLiveCards(Array.isArray(live) ? live : []);
+    } catch (e) {
+      console.warn("Failed to fetch live updates:", e);
+      setLiveCards([]);
+    }
   };
 
   useEffect(() => {
@@ -1353,9 +1367,11 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
 
   const combinedCards = React.useMemo(() => {
     const seenIds = new Set<string | number>();
-    const all = [...liveCards, ...dbCards];
+    const safeLive = Array.isArray(liveCards) ? liveCards : [];
+    const safeDb = Array.isArray(dbCards) ? dbCards : [];
+    const all = [...safeLive, ...safeDb];
     return all.filter(c => {
-      if (seenIds.has(c.id)) return false;
+      if (!c || seenIds.has(c.id)) return false;
       seenIds.add(c.id);
       return true;
     });

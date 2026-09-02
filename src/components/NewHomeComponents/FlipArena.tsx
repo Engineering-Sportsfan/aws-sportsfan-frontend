@@ -971,16 +971,17 @@ export default function FlipArena({
     fetch("/api/polls")
       .then((res) => res.json())
       .then((json) => {
-        setPolls(json.data ?? []);
+        setPolls(Array.isArray(json?.data) ? json.data : []);
         setLoadingPolls(false);
       })
       .catch((err) => {
         console.error("Failed to fetch polls in FlipArena:", err);
+        setPolls([]);
         setLoadingPolls(false);
       });
   }, []);
 
-  const activePolls = polls.filter((p) => p.active);
+  const activePolls = (Array.isArray(polls) ? polls : []).filter((p) => p?.active);
   const matchGroups = activePolls.reduce<Record<string, Poll[]>>((acc, poll) => {
     const key = poll.matchId ?? "general";
     if (!acc[key]) acc[key] = [];
