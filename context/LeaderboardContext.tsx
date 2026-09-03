@@ -42,7 +42,7 @@ let leaderboardCache: { ts: number; data: LeaderboardUser[] } | null = null;
 const LEADERBOARD_CACHE_TTL = 120_000; // 2 minutes
 
 const normalizeLeaderboard = (rows: LeaderboardUser[]): LeaderboardUser[] =>
-  [...rows]
+  [...(Array.isArray(rows) ? rows : [])]
     .sort((a, b) => {
       const pointDiff = (Number(b.totalPoints) || 0) - (Number(a.totalPoints) || 0);
       if (pointDiff !== 0) return pointDiff;

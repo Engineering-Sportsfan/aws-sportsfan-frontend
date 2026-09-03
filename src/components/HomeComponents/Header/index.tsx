@@ -1163,11 +1163,38 @@ export default function Header() {
   const isPointsReady = !pointsLoading && !authLoading;
   const isProfileReady = !profileLoading && !authLoading;
 
+  const [headerAvatar, setHeaderAvatar] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const cached = localStorage.getItem("roar_avatar_url");
+      if (cached) setHeaderAvatar(cached);
+    }
+
+    const onAvatarUpdate = (e: any) => {
+      const newUrl = e?.detail?.avatarUrl || (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : "");
+      if (newUrl) setHeaderAvatar(newUrl);
+    };
+
+    window.addEventListener("roar-profile-updated", onAvatarUpdate);
+    window.addEventListener("storage", onAvatarUpdate);
+    return () => {
+      window.removeEventListener("roar-profile-updated", onAvatarUpdate);
+      window.removeEventListener("storage", onAvatarUpdate);
+    };
+  }, []);
+
   // ── Avatar source ─────────────────────────────────────────────────────────
   const avatarSrc = useMemo(() => {
-    if (!isProfileReady) return "";
-    return userProfile?.avatarUrl || userProfile?.avatar || "";
-  }, [isProfileReady, userProfile?.avatarUrl, userProfile?.avatar]);
+    if (headerAvatar) return headerAvatar;
+    if (userProfile?.avatarUrl) return userProfile.avatarUrl;
+    if (userProfile?.avatar) return userProfile.avatar;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("roar_avatar_url");
+      if (stored) return stored;
+    }
+    return "";
+  }, [headerAvatar, userProfile?.avatarUrl, userProfile?.avatar]);
 
   const totalUnreadChats = useMemo(
     () => chats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0),
@@ -1600,7 +1627,7 @@ export default function Header() {
         id="global-header-tablet"
         className="hidden md:flex xl:hidden w-full items-center gap-2 px-3 py-1.5 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100"
       >
-        <Link href="/MainModules/ROAR" className="flex-shrink-0">
+        <Link href="/MainModules/HomePage" className="flex-shrink-0">
           <Image
             src="/images/Logo.png"
             alt="SportsFan360 logo"
@@ -1686,7 +1713,7 @@ export default function Header() {
         {/* Row 1: Logo + text on the left, notifications + avatar on the right */}
         <div className="flex items-center justify-between gap-1.5 px-2.5 pt-2 pb-1.5 w-full">
           <Link
-            href="/MainModules/ROAR"
+            href="/MainModules/HomePage"
             className="flex items-center gap-1.5 flex-shrink-0 min-w-0"
           >
             <Image

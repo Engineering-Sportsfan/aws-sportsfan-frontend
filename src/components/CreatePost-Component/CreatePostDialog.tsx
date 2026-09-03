@@ -1,458 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { fliplineService } from "@/services/flipline.service";
+import { X, Image as ImageIcon, BarChart2, Trash2, Plus, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
-export type FlipCard = {
-  id: number;
-  type: string;
-  sport: 'cricket' | 'football' | 'athletics';
-  sportEmoji: string;
-  sportLabel: string;
-  day: string;
-  time: string;
-  timeMs: number;
-  author: string;
-  handle?: string;
-  source: string;
-  authorPhoto?: any;
-  content: string;
-  emoji?: string;
-  mediaType?: 'audio' | 'video';
-  image?: any;
-  likes: number;
-  isKey: boolean;
-  tags?: string[];
-  scoreChip?: {
-    score: string;
-    status: string;
-    statusType: 'live' | 'final' | 'break' | 'upcoming' | 'delay' | 'info';
-  };
-  fomoMsg: string;
-  fomoCount: number;
-  ctaType: 'room' | 'watchalong' | 'drop';
-  flipResponse: string;
-  isUserPost?: boolean;
-  hasAttachedImage?: boolean;
-  hasAttachedVideo?: boolean;
-  userId?: string;
-  email?: string;
-  isVerified?: boolean;
-  adminPhoto?: string;
-};
-
-const POST_EMOJIS = [
-  '🔥', '❤️', '😍', '👏', '🎉', '😮', '100', '🏏', 'IN',
-  '⚡', '🙌', '😪', '💪', '👻', '😭', '👑', '🎯', '💥',
-  '🐐', '⚽', '🏃', '🏆', '🎙️', '📊', '🌧️', '💎',
-  '🥞', '😱', '👌'
-];
-
-function getAIPost(prompt: string, sport: FlipCard['sport']): string {
-  const clean = prompt.trim();
-  if (sport === 'cricket') {
-    return `🔥 Flip Take: ${clean} | What a session! The pace, line and length are absolutely top-tier. Expecting more wickets soon! #INDvsSL 🏏`;
-  } else if (sport === 'football') {
-    return `⚽ Flip Pitchside: ${clean} | Solid defense and fast transitions. Manager's tactical plan is working perfectly! #Football ⚡`;
-  } else {
-    return `🏃 Flip Track: ${clean} | Incredible performance and pacing! The momentum is completely with the lead pack. #Athletics 🏆`;
-  }
-}
-
-function spClr(sport: FlipCard['sport']): string {
-  if (sport === 'cricket') return 'rgb(34,197,94)'; // green
-  if (sport === 'football') return 'rgb(96,165,250)'; // blue
-  return 'rgb(168,85,247)'; // purple
-}
-
-function spBg(sport: FlipCard['sport']): string {
-  if (sport === 'cricket') return 'rgba(34,197,94,0.1)';
-  if (sport === 'football') return 'rgba(96,165,250,0.1)';
-  return 'rgba(168,85,247,0.1)';
-}
-
-const formatFileName = (name: string) => {
-  if (name.length <= 15) return name;
-  return name.slice(0, 12) + "...";
-};
-
-export function CreateFlipPostOverlay({ onClose, onPost, sport: initialSport }: {
-  onClose: () => void;
-  onPost: (card: FlipCard, imageFile: File | null, videoFile: File | null) => Promise<void>;
-  sport: FlipCard['sport'];
-}) {
-  const { user, getUserDisplayName, getUserName } = useAuth();
-  const [tab, setTab] = useState<'write' | 'askflip'>('write');
-  const [text, setText] = useState('');
-  const [sport, setSport] = useState<FlipCard['sport']>(initialSport);
-  const [showEmojis, setShowEmojis] = useState(false);
-  const [askPrompt, setAskPrompt] = useState('');
-  // console.log("userlogo", user);
-  const [generating, setGenerating] = useState(false);
-  const [generated, setGenerated] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Local storage upload states
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
-
-  const imgInputRef = useRef<HTMLInputElement>(null);
-  const vidInputRef = useRef<HTMLInputElement>(null);
-
-  const MAX = 280;
-  const activeText = tab === 'askflip' ? generated : text;
-  const remaining = MAX - activeText.length;
-  const canPost = activeText.trim().length > 0 && !submitting;
-
-  const MAX_FILE_SIZE_MB = 5.5;
-  const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-
-  async function handleGenerate() {
-    if (!askPrompt.trim()) return;
-    setGenerating(true);
-    setErrorMsg(null);
-    try {
-      const res = await fetch("/api/ask-ai", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          query: `Write a short, engaging fan post under 150 characters based on this description: "${askPrompt}". Use appropriate sports emojis.`
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to generate AI post");
-      const data = await res.json();
-      setGenerated(data.answer || "");
-    } catch (e) {
-      console.error("AI Generation failed, falling back to local model:", e);
-      setGenerated(getAIPost(askPrompt, sport));
-    } finally {
-      setGenerating(false);
-    }
-  }
-
-  function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        setErrorMsg(`Image exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB.`);
-        setImageFile(null);
-      } else {
-        setErrorMsg(null);
-        setImageFile(file);
-      }
-    }
-    e.target.value = "";
-  }
-
-  function handleVideoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > MAX_FILE_SIZE_BYTES) {
-        setErrorMsg(`Video exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB.`);
-        setVideoFile(null);
-      } else {
-        setErrorMsg(null);
-        setVideoFile(file);
-      }
-    }
-    e.target.value = "";
-  }
-
-  async function handlePost() {
-    setErrorMsg(null);
-    if (imageFile && imageFile.size > MAX_FILE_SIZE_BYTES) {
-      setErrorMsg(`Image exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB.`);
-      return;
-    }
-    if (videoFile && videoFile.size > MAX_FILE_SIZE_BYTES) {
-      setErrorMsg(`Video exceeds maximum allowed size of ${MAX_FILE_SIZE_MB}MB.`);
-      return;
-    }
-
-    setSubmitting(true);
-    try {
-      const now = new Date();
-      const h = now.getHours(), mn = now.getMinutes();
-      const ampm = h >= 12 ? 'PM' : 'AM';
-      const h12 = h % 12 || 12;
-      const timeStr = `${h12}:${mn.toString().padStart(2, '0')} ${ampm}`;
-      const dateStr = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); // "Aug 24, 2026"
-      const sportMeta: Record<FlipCard['sport'], { emoji: string; label: string }> = {
-        cricket: { emoji: '🏏', label: 'IND vs SL' },
-        football: { emoji: '⚽', label: 'IND vs JPN' },
-        athletics: { emoji: '🏃', label: 'Asian Athletics' },
-      };
-
-      const activeUsername = getUserDisplayName();
-      const activeHandle = `@${getUserName()}`;
-      const currentUserId = user?.actualUserId || user?.userId || getUserName();
-      const currentUserEmail = user?.email || "";
-
-      const isAdmin = user?.role === 'FlipLineAdmin';
-      const postType = isAdmin ? (user?.title || 'FlipLineAdmin') : 'fan';
-      const isVerified = isAdmin ? !!user?.verifiedFlipLineAdmin : false;
-      const adminPhoto = isAdmin ? (user?.addfliplineAdminPhoto || '') : '';
-
-      await onPost({
-        id: Date.now(),
-        type: postType,
-        sport,
-        sportEmoji: sportMeta[sport].emoji,
-        sportLabel: sportMeta[sport].label,
-        day: dateStr,
-        time: timeStr,
-        timeMs: Date.now(),
-        author: activeUsername,
-        handle: activeHandle,
-        source: tab === 'askflip' ? 'Ask Flip' : 'ROAR Room',
-        content: activeText.trim(),
-        likes: 0,
-        isKey: false,
-        tags: [],
-        fomoMsg: '',
-        fomoCount: 0,
-        ctaType: 'room',
-        flipResponse: '',
-        isUserPost: true,
-        hasAttachedImage: !!imageFile,
-        hasAttachedVideo: !!videoFile,
-        userId: currentUserId,
-        email: currentUserEmail,
-        isVerified,
-        adminPhoto: adminPhoto || undefined,
-        authorPhoto: user?.avatar || undefined,
-      }, imageFile, videoFile);
-
-      onClose();
-    } catch (e: any) {
-      console.error("Failed to post to FlipLine:", e);
-      const msg = e.response?.data?.error || e.message || "Failed to upload/post. File size may exceed AWS Lambda limit (6MB).";
-      setErrorMsg(msg);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null;
-
-  const portalTarget = document.getElementById('sf360-app-root') ?? document.body;
-  return createPortal(
-    <div style={{ position: 'absolute', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
-      {/* Backdrop */}
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(4px)' }} />
-
-      {/* Sheet */}
-      <div style={{ position: 'relative', zIndex: 1, borderRadius: '20px 20px 0 0', background: 'rgb(12,14,24)', border: '1px solid rgba(255,255,255,0.1)', borderBottom: 'none', maxHeight: '92dvh', display: 'flex', flexDirection: 'column' }}>
-
-        {/* Drag handle */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 0' }}>
-          <div style={{ width: 38, height: 4, borderRadius: 99, background: 'rgba(255,255,255,0.18)' }} />
-        </div>
-
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px 10px', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: 16, fontWeight: 900, color: 'white', letterSpacing: -0.4 }}>New FlipLine Moment</span>
-          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-          </button>
-        </div>
-
-        {/* Sport selector */}
-        <div style={{ display: 'flex', gap: 6, padding: '0 16px 12px' }}>
-          {(['cricket', 'football', 'athletics'] as const).map(s => {
-            const map = { cricket: { e: '🏏', l: 'Cricket' }, football: { e: '⚽', l: 'Football' }, athletics: { e: '🏃', l: 'Athletics' } };
-            const sc = spClr(s), sbk = spBg(s);
-            return (
-              <button key={s} onClick={() => setSport(s)}
-                style={{ flex: 1, padding: '6px 4px', borderRadius: 10, border: `1.5px solid ${sport === s ? sc : 'rgba(255,255,255,0.1)'}`, background: sport === s ? sbk : 'rgba(255,255,255,0.04)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                <span style={{ fontSize: 16 }}>{map[s].e}</span>
-                <span style={{ fontSize: 8.5, fontWeight: 800, color: sport === s ? sc : 'rgba(255,255,255,0.38)' }}>{map[s].l}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Tab switcher */}
-        <div style={{ display: 'flex', margin: '0 16px 12px', borderRadius: 12, padding: 3, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-          {([['write', '✍️ Write'], ['askflip', '🐬 Ask Flip']] as const).map(([t, l]) => (
-            <button key={t} onClick={() => setTab(t)}
-              style={{
-                flex: 1, padding: '7px 0', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 11.5, fontWeight: 800,
-                background: tab === t ? (t === 'askflip' ? 'linear-gradient(90deg,rgb(168,85,247),rgb(233,30,140))' : 'rgba(255,255,255,0.1)') : 'transparent',
-                color: tab === t ? 'white' : 'rgba(255,255,255,0.4)'
-              }}>
-              {l}
-            </button>
-          ))}
-        </div>
-
-        {/* Scrollable body */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px', minHeight: 0 }}>
-          {tab === 'write' ? (
-            <div>
-              {/* Textarea */}
-              <div style={{ position: 'relative', background: 'rgba(255,255,255,0.04)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.1)', padding: 12 }}>
-                <textarea
-                  value={text}
-                  onChange={e => setText(e.target.value.slice(0, MAX))}
-                  placeholder="Share your take on this moment... 🔥"
-                  style={{ width: '100%', minHeight: 100, background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 14, color: 'rgba(255,255,255,0.9)', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box' }}
-                  autoFocus
-                />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: remaining < 40 ? 'rgb(255,80,80)' : 'rgba(255,255,255,0.3)' }}>{remaining}</span>
-                </div>
-              </div>
-
-              {/* Attached media indicators */}
-              {(imageFile || videoFile) && (
-                <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                  {imageFile && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 9, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)' }}>
-                      <span style={{ fontSize: 13 }}>📷</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: 'rgb(34,197,94)' }}>{formatFileName(imageFile.name)}</span>
-                      <button onClick={() => { setImageFile(null); setErrorMsg(null); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>✕</button>
-                    </div>
-                  )}
-                  {videoFile && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 9, background: 'rgba(96,165,250,0.1)', border: '1px solid rgba(96,165,250,0.3)' }}>
-                      <span style={{ fontSize: 13 }}>🎬</span>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: 'rgb(96,165,250)' }}>{formatFileName(videoFile.name)}</span>
-                      <button onClick={() => { setVideoFile(null); setErrorMsg(null); }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>✕</button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Emoji picker */}
-              {showEmojis && (
-                <div style={{ marginTop: 10, padding: '10px 8px', borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.09)', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {POST_EMOJIS.map(em => (
-                    <button key={em} onClick={() => { if (text.length < MAX) setText(t => t + em); }}
-                      style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: '2px 4px', borderRadius: 6, lineHeight: 1 }}>
-                      {em}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ) : (
-            /* Ask Flip tab */
-            <div>
-                <div style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
-                    <span style={{ fontSize: 18 }}>🐬</span>
-                    <div>
-                      <p style={{ fontSize: 11, fontWeight: 800, color: 'rgb(192,132,252)', margin: 0 }}>Ask Flip to write your post</p>
-                      <p style={{ fontSize: 9.5, color: 'rgba(255,255,255,0.38)', margin: 0, marginTop: 1 }}>Describe your thoughts — Flip drafts the perfect FlipLine moment</p>
-                    </div>
-                  </div>
-                  <textarea
-                    value={askPrompt}
-                    onChange={e => setAskPrompt(e.target.value)}
-                    placeholder="e.g. Bumrah is bowling unreal today, that wicket was insane..."
-                    style={{ width: '100%', minHeight: 72, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(168,85,247,0.2)', borderRadius: 10, padding: '8px 10px', fontSize: 13, color: 'rgba(255,255,255,0.85)', fontFamily: 'inherit', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5 }}
-                  />
-                  <button onClick={handleGenerate} disabled={!askPrompt.trim() || generating}
-                    style={{ marginTop: 10, width: '100%', padding: '9px 0', borderRadius: 10, background: generating ? 'rgba(168,85,247,0.3)' : 'linear-gradient(90deg,rgb(168,85,247),rgb(233,30,140))', border: 'none', cursor: askPrompt.trim() && !generating ? 'pointer' : 'not-allowed', fontSize: 11.5, fontWeight: 900, color: 'white' }}>
-                    {generating ? '✨ Generating...' : '✨ Generate with Flip'}
-                  </button>
-                </div>
-
-                {generated && (
-                  <div style={{ padding: 12, borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <p style={{ fontSize: 9, fontWeight: 800, color: 'rgb(192,132,252)', letterSpacing: 0.5, marginBottom: 8 }}>✨ FLIP DRAFT — Edit before posting</p>
-                    <textarea
-                      value={generated}
-                      onChange={e => setGenerated(e.target.value.slice(0, MAX))}
-                      style={{ width: '100%', background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, color: 'rgba(255,255,255,0.9)', fontFamily: 'inherit', lineHeight: 1.6, boxSizing: 'border-box', minHeight: 80 }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)' }}>{MAX - generated.length}</span>
-                    </div>
-                  </div>
-                )}
-            </div>
-          )}
-          <div style={{ height: 12 }} />
-        </div>
-
-        {/* Error Message Indicator */}
-        {errorMsg && (
-          <div style={{ margin: '0 16px 12px', padding: '10px 12px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#fca5a5', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>⚠️</span>
-            <span style={{ flex: 1 }}>{errorMsg}</span>
-          </div>
-        )}
-
-        {/* Action bar */}
-        <div style={{ flexShrink: 0, padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.07)', background: 'rgb(12,14,24)' }}>
-          {tab === 'write' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <button onClick={() => setShowEmojis(e => !e)}
-                style={{ width: 36, height: 36, borderRadius: '50%', background: showEmojis ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.07)', border: `1px solid ${showEmojis ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: 'pointer', fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                😊
-              </button>
-
-              {/* Hidden file input for Photo */}
-              <input 
-                ref={imgInputRef}
-                type="file" 
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={handleImageChange}
-              />
-              <button onClick={() => imgInputRef.current?.click()}
-                disabled={submitting}
-                style={{ width: 36, height: 36, borderRadius: '50%', background: imageFile ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.07)', border: `1px solid ${imageFile ? 'rgba(34,197,94,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                📷
-              </button>
-
-              {/* Hidden file input for Video */}
-              <input
-                ref={vidInputRef}
-                type="file"
-                accept="video/*"
-                style={{ display: "none" }}
-                onChange={handleVideoChange}
-              />
-              <button onClick={() => vidInputRef.current?.click()}
-                disabled={submitting}
-                style={{ width: 36, height: 36, borderRadius: '50%', background: videoFile ? 'rgba(96,165,250,0.12)' : 'rgba(255,255,255,0.07)', border: `1px solid ${videoFile ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`, cursor: submitting ? 'not-allowed' : 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                🎬
-              </button>
-
-              <div style={{ flex: 1 }} />
-              <div style={{ width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, position: 'relative' }}>
-                <svg viewBox="0 0 36 36" style={{ width: 28, height: 28, transform: 'rotate(-90deg)' }}>
-                  <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
-                  <circle cx="18" cy="18" r="15" fill="none"
-                    stroke={remaining < 40 ? 'rgb(255,80,80)' : remaining < 100 ? 'rgb(251,191,36)' : 'rgb(168,85,247)'}
-                    strokeWidth="3" strokeDasharray={`${(1 - remaining / MAX) * 94.2} 94.2`} strokeLinecap="round" />
-                </svg>
-              </div>
-            </div>
-          )}
-          <button onClick={handlePost} disabled={!canPost}
-            style={{ width: '100%', padding: '13px 0', borderRadius: 14, background: canPost ? 'linear-gradient(90deg,rgb(233,30,140),rgb(255,107,53))' : 'rgba(255,255,255,0.08)', border: 'none', cursor: canPost ? 'pointer' : 'not-allowed', fontSize: 14, fontWeight: 900, color: canPost ? 'white' : 'rgba(255,255,255,0.28)', letterSpacing: 0.2 }}>
-            {submitting ? 'Uploading & Posting... ⚡' : canPost ? 'Post to FlipLine ⚡' : 'Write something first...'}
-          </button>
-        </div>
-      </div>
-    </div>,
-    portalTarget
-  );
-}
-
-interface Props {
+interface CreatePostDialogProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (
@@ -463,24 +16,289 @@ interface Props {
   ) => Promise<void>;
 }
 
-export default function CreatePostDialog({ isOpen, onClose }: Props) {
-  if (!isOpen) return null;
+export default function CreatePostDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+}: CreatePostDialogProps) {
+  const { user } = useAuth();
+  const [content, setContent] = useState("");
+  const [selectedMedia, setSelectedMedia] = useState<File[]>([]);
+  const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
+  const [showPoll, setShowPoll] = useState(false);
+  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+  const [submitting, setSubmitting] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  return (
-    <CreateFlipPostOverlay
-      onClose={onClose}
-      sport="cricket"
-      onPost={async (card, imageFile, videoFile) => {
-        try {
-          await fliplineService.createFlipCard(card, imageFile, videoFile);
-          if (typeof window !== "undefined") {
-            window.dispatchEvent(new CustomEvent("flipline-post-created"));
-          }
-        } catch (e) {
-          console.error("Failed to post to FlipLine:", e);
-          throw e; // rethrow so that CreateFlipPostOverlay can display the error to the user
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const resetForm = () => {
+    setContent("");
+    setSelectedMedia([]);
+    mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
+    setMediaPreviews([]);
+    setShowPoll(false);
+    setPollOptions(["", ""]);
+    setSubmitting(false);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const files = Array.from(e.target.files);
+      setSelectedMedia((prev) => [...prev, ...files]);
+      const newPreviews = files.map((file) => URL.createObjectURL(file));
+      setMediaPreviews((prev) => [...prev, ...newPreviews]);
+    }
+  };
+
+  const removeMedia = (index: number) => {
+    URL.revokeObjectURL(mediaPreviews[index]);
+    setSelectedMedia((prev) => prev.filter((_, i) => i !== index));
+    setMediaPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handlePollOptionChange = (index: number, val: string) => {
+    setPollOptions((prev) => {
+      const updated = [...prev];
+      updated[index] = val;
+      return updated;
+    });
+  };
+
+  const addPollOption = () => {
+    if (pollOptions.length < 4) {
+      setPollOptions((prev) => [...prev, ""]);
+    }
+  };
+
+  const removePollOption = (index: number) => {
+    if (pollOptions.length > 2) {
+      setPollOptions((prev) => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!content.trim() && selectedMedia.length === 0 && !showPoll) return;
+
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      const userId = user?.userId || (user as any)?.uid || (user as any)?.id || "anon";
+      const userName = user?.name || (user as any)?.username || "SportsFan";
+      const userEmail = user?.email || (user as any)?.emailAddress;
+
+      formData.append("userId", userId);
+      formData.append("author", userName);
+      formData.append("userName", userName);
+      formData.append("handle", `@${userName.replace(/\s+/g, "").toLowerCase()}`);
+      formData.append("userHandle", `@${userName.replace(/\s+/g, "").toLowerCase()}`);
+      formData.append("content", content.trim());
+      formData.append("sport", "cricket");
+      formData.append("type", "post");
+      formData.append("source", "FlipLine");
+      formData.append("likes", "0");
+      formData.append("isKey", "false");
+      if (userEmail) {
+        formData.append("email", userEmail);
+        formData.append("userEmail", userEmail);
+      }
+      const adminPhoto = (user as any)?.addfliplineAdminPhoto || user?.avatar || (user as any)?.avatarUrl;
+      if (adminPhoto) {
+        formData.append("adminPhoto", adminPhoto);
+        formData.append("authorPhoto", adminPhoto);
+      }
+
+      selectedMedia.forEach((file) => {
+        formData.append("media", file);
+      });
+
+      if (showPoll) {
+        const validOptions = pollOptions.filter((opt) => opt.trim() !== "");
+        if (validOptions.length >= 2) {
+          const pollData = {
+            options: validOptions.map((text, i) => ({
+              id: `opt_${i + 1}`,
+              text: text.trim(),
+              votes: 0,
+            })),
+            totalVotes: 0,
+            endsAt: Date.now() + 24 * 60 * 60 * 1000,
+            createdAt: Date.now(),
+          };
+          formData.append("poll", JSON.stringify(pollData));
         }
-      }}
-    />
+      }
+
+      await onSubmit(formData, userId, userName, userEmail);
+      handleClose();
+    } catch (err) {
+      console.error("Failed to create post:", err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg bg-[#141417] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04] flex items-center justify-center text-white text-xs font-bold">
+              ✍️
+            </span>
+            <h3 className="text-base font-black text-white tracking-wide">
+              Create Flipline Post
+            </h3>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Content Body */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-y-auto p-5 gap-4">
+          <textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="What's happening in the sports world?"
+            rows={4}
+            className="w-full bg-[#0c0c0e] border border-white/10 focus:border-pink-500 rounded-xl p-3.5 text-sm text-white placeholder:text-gray-500 outline-none resize-none transition-all"
+            autoFocus
+          />
+
+          {/* Media Previews */}
+          {mediaPreviews.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              {mediaPreviews.map((url, idx) => (
+                <div key={idx} className="relative group rounded-xl overflow-hidden border border-white/10 aspect-video bg-black/40">
+                  <img src={url} alt="Media preview" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeMedia(idx)}
+                    className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/80 hover:bg-red-600 text-white flex items-center justify-center transition-all"
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Poll Builder */}
+          {showPoll && (
+            <div className="flex flex-col gap-2.5 bg-[#0e0e11] border border-pink-500/20 rounded-xl p-3.5">
+              <div className="flex items-center justify-between text-xs font-bold text-pink-400 uppercase tracking-wider">
+                <span>Poll Options (24 Hours)</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPoll(false)}
+                  className="text-gray-400 hover:text-red-400 text-xs"
+                >
+                  Remove Poll
+                </button>
+              </div>
+              {pollOptions.map((opt, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={opt}
+                    onChange={(e) => handlePollOptionChange(idx, e.target.value)}
+                    placeholder={`Option ${idx + 1}`}
+                    className="flex-1 bg-[#18181b] border border-white/10 focus:border-pink-500 rounded-lg px-3 py-2 text-xs text-white outline-none placeholder:text-gray-600"
+                    maxLength={50}
+                  />
+                  {pollOptions.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => removePollOption(idx)}
+                      className="text-gray-500 hover:text-red-400 p-1"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+              ))}
+              {pollOptions.length < 4 && (
+                <button
+                  type="button"
+                  onClick={addPollOption}
+                  className="flex items-center gap-1.5 text-xs text-pink-400 hover:text-pink-300 font-bold py-1 mt-1 cursor-pointer w-fit"
+                >
+                  <Plus size={14} />
+                  <span>Add Option</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Action Bar */}
+          <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-auto">
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*"
+                multiple
+                onChange={handleMediaChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-semibold border border-white/10 transition-all cursor-pointer"
+              >
+                <ImageIcon size={14} className="text-pink-400" />
+                <span>Media</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowPoll((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                  showPoll
+                    ? "bg-pink-500/20 border-pink-500/40 text-pink-300"
+                    : "bg-white/5 hover:bg-white/10 text-gray-300 border-white/10"
+                }`}
+              >
+                <BarChart2 size={14} className="text-blue-400" />
+                <span>Poll</span>
+              </button>
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting || (!content.trim() && selectedMedia.length === 0 && !showPoll)}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-pink-500/20 active:scale-95 cursor-pointer"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Posting...</span>
+                </>
+              ) : (
+                <span>Post</span>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
   );
 }
