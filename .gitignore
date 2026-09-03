@@ -42,3 +42,4 @@ next-env.d.ts
 
 nodemodules
 .env.local
+google-drive-key.json

@@ -5,8 +5,7 @@ import path from 'path';
 
 export const runtime = 'nodejs';
 
-// Use the JSON key we copied into the project root
-const KEY_FILE_PATH = path.join(process.cwd(), 'google-drive-key.json');
+// Remove the file path completely
 const SCOPES = ['https://www.googleapis.com/auth/drive.file'];
 
 export async function POST(req: NextRequest) {
@@ -20,9 +19,16 @@ export async function POST(req: NextRequest) {
 
         const buffer = Buffer.from(await file.arrayBuffer());
         
-        // Authenticate with the Service Account
+        // ENTERPRISE PROTOCOL: Parse credentials from ENV variable
+        if (!process.env.GOOGLE_DRIVE_CREDENTIALS) {
+            throw new Error("Missing GOOGLE_DRIVE_CREDENTIALS environment variable");
+        }
+        
+        const credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS);
+
+        // Authenticate with the Service Account using credentials object
         const auth = new google.auth.GoogleAuth({
-            keyFile: KEY_FILE_PATH,
+            credentials,
             scopes: SCOPES,
         });
 
@@ -37,7 +43,7 @@ export async function POST(req: NextRequest) {
         const response = await drive.files.create({
             requestBody: {
                 name: `Watchroom-Recording-${new Date().toISOString().split('T')[0]}.webm`,
-                parents: ['0AG3_V_78whF4Uk9PVA'], // The new Shared Drive folder ID
+                parents: ['1nXkFEAAmgHnXG_Udrh9QOu0rVjckw6b4'], // Dinod's AI_Video_input folder
             },
             media: {
                 mimeType: 'video/webm',
