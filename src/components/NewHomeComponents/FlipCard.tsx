@@ -27,7 +27,7 @@ function AthleteCard({ a, onClick }: { a: AthletePreview; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      className="shrink-0 flex flex-col gap-0.5 rounded-xl px-3 py-2.5 min-w-[80px] text-left active:scale-95 transition-transform"
+      className="shrink-0 flex flex-col gap-0.5 rounded-xl px-2.5 sm:px-3 py-2 sm:py-2.5 min-w-[76px] sm:min-w-[80px] text-left active:scale-95 transition-transform"
       style={{
         background: a.highlight
           ? "linear-gradient(135deg,#0b2f6b,#1d4ed8)"
@@ -37,15 +37,15 @@ function AthleteCard({ a, onClick }: { a: AthletePreview; onClick: () => void })
           : "1px solid rgba(255,255,255,0.08)",
       }}
     >
-      <div className="flex items-baseline gap-1.5">
+      <div className="flex items-baseline gap-1 sm:gap-1.5">
         <span
-          className="text-[10px] font-extrabold"
+          className="text-[9px] sm:text-[10px] font-extrabold"
           style={{ color: "rgba(255,255,255,0.45)" }}
         >
           {a.country}
         </span>
         <span
-          className="text-[22px] font-black leading-none"
+          className="text-[20px] sm:text-[22px] font-black leading-none"
           style={{
             color: a.highlight ? "#93c5fd" : "#3b82f6",
             fontVariantNumeric: "tabular-nums",
@@ -54,11 +54,11 @@ function AthleteCard({ a, onClick }: { a: AthletePreview; onClick: () => void })
           {a.score}
         </span>
       </div>
-      <p className="text-[12px] font-extrabold text-white leading-none truncate">
+      <p className="text-[11px] sm:text-[12px] font-extrabold text-white leading-none truncate">
         {a.name}
       </p>
       <p
-        className="text-[10px] font-medium leading-none mt-0.5"
+        className="text-[9px] sm:text-[10px] font-medium leading-none mt-0.5"
         style={{ color: "rgba(255,255,255,0.4)" }}
       >
         {a.sport}
@@ -72,23 +72,23 @@ export default function FlipCard() {
 
   return (
     <div
-      className="w-full mt-4 rounded-2xl p-4"
+      className="w-full max-w-full overflow-hidden mt-4 rounded-2xl p-3.5 sm:p-4"
       style={{
         background: "linear-gradient(135deg,#0a1128 0%,#0f1a2e 100%)",
         border: "1px solid rgba(59,130,246,0.22)",
       }}
     >
       {/* Header */}
-      <div className="flex items-center gap-3 mb-3">
+      <div className="flex items-center gap-2.5 sm:gap-3 mb-3">
         <div
-          className="w-10 h-10 rounded-xl shrink-0 flex items-center justify-center text-xl"
+          className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shrink-0 flex items-center justify-center overflow-hidden"
           style={{ background: "linear-gradient(135deg,#1d4ed8,#3b82f6)" }}
         >
-          <img src="/images/dollyavatar.png" alt="askflip" className="w-10 h-10 object-cover"/>
+          <img src="/images/dollyavatar.png" alt="askflip" className="w-full h-full object-cover"/>
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-[15px] font-extrabold text-white leading-none">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <p className="text-[14px] sm:text-[15px] font-extrabold text-white leading-none">
               FlipFlex
             </p>
             <Zap size={13} className="text-amber-400" fill="currentColor" />
@@ -100,7 +100,7 @@ export default function FlipCard() {
             </span>
           </div>
           <p
-            className="text-[11px] font-medium mt-0.5"
+            className="text-[10px] sm:text-[11px] font-medium mt-0.5"
             style={{ color: "rgba(255,255,255,0.45)" }}
           >
             Build any athlete card in seconds
@@ -109,7 +109,7 @@ export default function FlipCard() {
       </div>
 
       {/* Athlete mini-cards row */}
-      <div className="flex gap-2 overflow-x-auto pb-1 mb-4 scrollbar-hide">
+      <div className="flex gap-2 overflow-x-auto pb-1 mb-4 scrollbar-hide w-full max-w-full">
         {ATHLETES.map((a) => (
           <AthleteCard
             key={a.id}
@@ -123,7 +123,7 @@ export default function FlipCard() {
       <motion.button
         whileTap={{ scale: 0.97 }}
         onClick={() => router.push("/MainModules/FlipCards/BuildFlip")}
-        className="w-full py-3.5 rounded-full font-extrabold text-white text-[14px]"
+        className="w-full py-3 sm:py-3.5 rounded-full font-extrabold text-white text-[13px] sm:text-[14px]"
         style={{ background: "linear-gradient(135deg,#1d4ed8,#3b82f6)" }}
       >
         Build Your FlipCard →
