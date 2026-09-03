@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ["@jitsi/react-sdk"],
   optimizeFonts: false,
   eslint: {
     ignoreDuringBuilds: true,
@@ -682,6 +683,16 @@ const nextConfig = {
         {
           source: "/api/flipline/:path*",
           destination: `${apiTarget}/api/flipline/:path*`,
+        },
+
+        // Engagements (Fan Battles, Quizzes, Polls, Predictions)
+        {
+          source: "/api/engagements",
+          destination: `${apiTarget}/api/engagements`,
+        },
+        {
+          source: "/api/engagements/:path*",
+          destination: `${apiTarget}/api/engagements/:path*`,
         },
 
         // MS Teams / Clubs API
