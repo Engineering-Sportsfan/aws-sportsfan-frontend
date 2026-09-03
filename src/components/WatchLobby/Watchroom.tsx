@@ -2558,7 +2558,7 @@
 // components/watch-along/WatchRoom.tsx
 "use client";
 import axios from "axios";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Component, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import { ArrowLeft } from "lucide-react";
@@ -2578,13 +2578,78 @@ import ConfettiWrapper from "./ConfettiWrapper";
 import Telestrator, { Stroke } from "./Telestrator";
 // Live camera feed via native getUserMedia API
 import Link from "next/link";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown, TrendingUp, Flame, MoreHorizontal, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, MessageSquare, Users } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown, TrendingUp, Flame, MoreHorizontal, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, MessageSquare, Users, Check, XCircle } from "lucide-react";
+import { engagementService } from "@/services/engagement.service";
+import { EngagementItem } from "@/types/engagements";
 
-
-const JitsiMeeting = dynamic(
-    () => import("@jitsi/react-sdk").then((mod) => mod.JitsiMeeting),
-    { ssr: false }
+const JitsiMeeting = dynamic<any>(
+    () =>
+        import("@jitsi/react-sdk")
+            .then((mod) => mod.JitsiMeeting)
+            .catch(async (err) => {
+                console.warn("Retrying Jitsi SDK dynamic import:", err);
+                try {
+                    await new Promise((res) => setTimeout(res, 600));
+                    const retryMod = await import("@jitsi/react-sdk");
+                    return retryMod.JitsiMeeting;
+                } catch (secondErr) {
+                    console.error("Jitsi SDK could not be loaded via chunk:", secondErr);
+                    return function JitsiFallback() {
+                        return (
+                            <div className="w-full h-full flex flex-col items-center justify-center bg-black/90 text-white/70 p-3 text-center">
+                                <span className="text-xs font-bold text-gray-300">Live Video Feed Connecting...</span>
+                                <button
+                                    onClick={() => window.location.reload()}
+                                    className="mt-2 text-[10px] font-bold px-3 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-all cursor-pointer"
+                                >
+                                    Reload Video
+                                </button>
+                            </div>
+                        );
+                    };
+                }
+            }),
+    {
+        ssr: false,
+        loading: () => (
+            <div className="w-full h-full flex items-center justify-center bg-black text-white/50 text-[10px] font-bold">
+                Connecting video...
+            </div>
+        ),
+    }
 );
+
+class JitsiErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
+    constructor(props: any) {
+        super(props);
+        this.state = { hasError: false };
+    }
+
+    static getDerivedStateFromError() {
+        return { hasError: true };
+    }
+
+    componentDidCatch(error: any, info: any) {
+        console.warn("Jitsi Meeting error caught gracefully by boundary:", error, info);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="w-full h-full flex flex-col items-center justify-center bg-black/90 text-white/70 p-3 text-center">
+                    <span className="text-xs font-bold text-gray-300">Live Feed Temporarily Unavailable</span>
+                    <button
+                        onClick={() => this.setState({ hasError: false })}
+                        className="mt-2 text-[10px] font-bold px-3 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-all cursor-pointer"
+                    >
+                        Retry Video Feed
+                    </button>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
 
 /* ── Jitsi PiP — Jitsi Meet External API SDK ── */
 function LiveCameraFeed({
@@ -2858,84 +2923,86 @@ function LiveCameraFeed({
             <div className="flex w-full h-full">
                 {/* Jitsi meeting frame */}
                 <div className="h-full relative w-full">
-                    {/* Jitsi SDK React component */}
-                    <JitsiMeeting
-                        key={isModerator ? 'moderator' : 'viewer'}
-                        domain="meet.uxexpert.in"
-                        roomName={roomName}
+                    {/* Jitsi SDK React component wrapped in ErrorBoundary */}
+                    <JitsiErrorBoundary>
+                        <JitsiMeeting
+                            key={isModerator ? 'moderator' : 'viewer'}
+                            domain="meet.uxexpert.in"
+                            roomName={roomName}
 
-                        configOverwrite={{
-                            prejoinPageEnabled: false,
-                            prejoinConfig: {
-                                enabled: false,
-                            },
-                            welcomePage: {
-                                disabled: true,
-                            },
-                            startWithAudioMuted: !isModerator,
-                            startWithVideoMuted: !isModerator,
-                            startSilent: false, // Fully connect viewers so WebRTC data channels and participants list synchronize correctly
-                            disableDeepLinking: true,
-                            enableWelcomePage: false,
-                            hideConferenceSubject: true,
-                            hideConferenceTimer: true,
-                            disableThirdPartyRequests: true,
-                            p2p: { enabled: false },
-                            defaultLogoUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-                            logoImageUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-                            logoClickUrl: '',
-                            disableUnsupportedBrowserPage: true,
-                            disableJoinLeaveSounds: true,
-                            disabledSounds: ['TALK_WHILE_MUTED_SOUND', 'INCOMING_MSG_SOUND', 'PARTICIPANT_JOINED_SOUND', 'PARTICIPANT_LEFT_SOUND', 'REACTIONS_SOUND'],
-                            disabledNotifications: [
-                                'notify.connected',
-                                'notify.disconnected',
-                                'notify.left',
-                                'notify.joined',
-                                'notify.participantLeft',
-                                'notify.participantJoined',
-                                'notify.invited',
-                                'notify.screenSharing',
-                                'notify.startSilent',
-                                'notify.grantModerator',
-                                'notify.raisedHand'
-                            ],
-                        }}
-                        interfaceConfigOverwrite={{
-                            SHOW_JITSI_WATERMARK: false,
-                            SHOW_BRAND_WATERMARK: false,
-                            SHOW_POWERED_BY: false,
-                            DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-                            DISABLE_NOTIFICATIONS: true,
-                            DEFAULT_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-                            DEFAULT_WELCOME_PAGE_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-                            BRAND_WATERMARK_LINK: '',
-                            JITSI_WATERMARK_LINK: '',
-                            TOOLBAR_BUTTONS: isModerator
-                                ? ['microphone', 'camera', 'desktop', 'fullscreen', 'hangup', 'settings', 'raisehand', 'videoquality', 'participants-pane', 'recording', 'localrecording', 'select-background']
-                                : ['microphone', 'hangup'],
-                            FILM_STRIP_MAX_HEIGHT: isModerator ? undefined : 0,
-                            DISABLE_VIDEO_BACKGROUND: true,
-                        }}
-                        userInfo={{
-                            displayName: userName || "Anonymous Viewer",
-                            email: userEmail || `${(userName || "viewer").toLowerCase().replace(/\s+/g, '')}@sportsfan360.com`,
-                        }}
-                        onApiReady={handleApiReady}
-                        getIFrameRef={(wrapperDiv: HTMLDivElement) => {
-                            wrapperDiv.style.width = '100%';
-                            wrapperDiv.style.height = '100%';
-                            wrapperDiv.style.border = 'none';
+                            configOverwrite={{
+                                prejoinPageEnabled: false,
+                                prejoinConfig: {
+                                    enabled: false,
+                                },
+                                welcomePage: {
+                                    disabled: true,
+                                },
+                                startWithAudioMuted: !isModerator,
+                                startWithVideoMuted: !isModerator,
+                                startSilent: false, // Fully connect viewers so WebRTC data channels and participants list synchronize correctly
+                                disableDeepLinking: true,
+                                enableWelcomePage: false,
+                                hideConferenceSubject: true,
+                                hideConferenceTimer: true,
+                                disableThirdPartyRequests: true,
+                                p2p: { enabled: false },
+                                defaultLogoUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+                                logoImageUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+                                logoClickUrl: '',
+                                disableUnsupportedBrowserPage: true,
+                                disableJoinLeaveSounds: true,
+                                disabledSounds: ['TALK_WHILE_MUTED_SOUND', 'INCOMING_MSG_SOUND', 'PARTICIPANT_JOINED_SOUND', 'PARTICIPANT_LEFT_SOUND', 'REACTIONS_SOUND'],
+                                disabledNotifications: [
+                                    'notify.connected',
+                                    'notify.disconnected',
+                                    'notify.left',
+                                    'notify.joined',
+                                    'notify.participantLeft',
+                                    'notify.participantJoined',
+                                    'notify.invited',
+                                    'notify.screenSharing',
+                                    'notify.startSilent',
+                                    'notify.grantModerator',
+                                    'notify.raisedHand'
+                                ],
+                            }}
+                            interfaceConfigOverwrite={{
+                                SHOW_JITSI_WATERMARK: false,
+                                SHOW_BRAND_WATERMARK: false,
+                                SHOW_POWERED_BY: false,
+                                DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+                                DISABLE_NOTIFICATIONS: true,
+                                DEFAULT_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+                                DEFAULT_WELCOME_PAGE_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+                                BRAND_WATERMARK_LINK: '',
+                                JITSI_WATERMARK_LINK: '',
+                                TOOLBAR_BUTTONS: isModerator
+                                    ? ['microphone', 'camera', 'desktop', 'fullscreen', 'hangup', 'settings', 'raisehand', 'videoquality', 'participants-pane', 'recording', 'localrecording', 'select-background']
+                                    : ['microphone', 'hangup'],
+                                FILM_STRIP_MAX_HEIGHT: isModerator ? undefined : 0,
+                                DISABLE_VIDEO_BACKGROUND: true,
+                            }}
+                            userInfo={{
+                                displayName: userName || "Anonymous Viewer",
+                                email: userEmail || `${(userName || "viewer").toLowerCase().replace(/\s+/g, '')}@sportsfan360.com`,
+                            }}
+                            onApiReady={handleApiReady}
+                            getIFrameRef={(wrapperDiv: HTMLDivElement) => {
+                                wrapperDiv.style.width = '100%';
+                                wrapperDiv.style.height = '100%';
+                                wrapperDiv.style.border = 'none';
 
-                            const iframe = wrapperDiv.querySelector('iframe');
-                            if (iframe) {
-                                iframe.style.width = '100%';
-                                iframe.style.height = '100%';
-                                iframe.style.border = 'none';
-                                iframe.setAttribute('allow', 'camera; microphone; display-capture; autoplay; clipboard-write');
-                            }
-                        }}
-                    />
+                                const iframe = wrapperDiv.querySelector('iframe');
+                                if (iframe) {
+                                    iframe.style.width = '100%';
+                                    iframe.style.height = '100%';
+                                    iframe.style.border = 'none';
+                                    iframe.setAttribute('allow', 'camera; microphone; display-capture; autoplay; clipboard-write');
+                                }
+                            }}
+                        />
+                    </JitsiErrorBoundary>
 
                     {/* Telestrator Drawing Board Overlay */}
                     <Telestrator
@@ -3537,12 +3604,547 @@ function TabContent({
             </div>
         </div>
     );
-}
+        }
         default: return null;
     }
 }
 
+interface WatchRoomEngagementDialogProps {
+    type: 'quiz' | 'polls' | 'prediction' | null;
+    onClose: () => void;
+    room: any;
+    question: any;
+    expiryTimestamp: number;
+    onAnswer: (questionId: string) => void;
+    onExpire: (questionId: string) => void;
+    userName?: string | null;
+    userId?: string;
+    submitQuizAnswer?: any;
+    votePrediction?: any;
+}
+
+function WatchRoomEngagementDialog({
+    type,
+    onClose,
+    room,
+    question,
+    expiryTimestamp,
+    onAnswer,
+    onExpire,
+    userName,
+    userId,
+    submitQuizAnswer,
+    votePrediction,
+}: WatchRoomEngagementDialogProps) {
+    // Timer computed from persistent expiry timestamp
+    const [timeLeft, setTimeLeft] = useState(() => {
+        if (!expiryTimestamp) return 30;
+        return Math.max(0, Math.ceil((expiryTimestamp - Date.now()) / 1000));
+    });
+
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const autoCloseTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+    // ── Quiz State (Matching FlipArena logic) ──
+    const resolvedCorrectId = (
+        question?.correctOptionId ||
+        question?.quizData?.correctOptionId ||
+        question?.raw?.quizData?.correctOptionId ||
+        question?.correctAnswer ||
+        "A"
+    ).trim();
+
+    const [correctOptionId, setCorrectOptionId] = useState<string>(resolvedCorrectId);
+    const [explanation, setExplanation] = useState<string>(question?.explanation || question?.quizData?.explanation || "");
+    const [pointsReward, setPointsReward] = useState<number>(question?.pointsReward || question?.quizData?.pointsReward || question?.points || 50);
+
+    const [quizSelected, setQuizSelected] = useState<string | null>(null);
+    const [quizAnswered, setQuizAnswered] = useState(false);
+    const [quizResult, setQuizResult] = useState<{ isCorrect: boolean; pointsEarned: number; correctAnswer: string } | null>(null);
+
+    // ── Poll State ──
+    const [pollSelected, setPollSelected] = useState<string | null>(null);
+    const [pollVoted, setPollVoted] = useState(false);
+    const [pollOptions, setPollOptions] = useState<any[]>(() => {
+        if (question?.options && Array.isArray(question.options)) {
+            return question.options.map((opt: any, idx: number) => {
+                const text = typeof opt === 'string' ? opt : opt.text || opt.label || `Option ${idx + 1}`;
+                const votes = (question.votes && question.votes[text]) || (typeof opt === 'object' && opt.votes) || 0;
+                return { id: opt.id || String.fromCharCode(65 + idx), text, votes };
+            });
+        }
+        return [
+            { id: "A", text: "Option A", votes: 0 },
+            { id: "B", text: "Option B", votes: 0 },
+        ];
+    });
+
+    // ── Prediction State ──
+    const [predChoice, setPredChoice] = useState<"left" | "right" | null>(null);
+    const [predLocked, setPredLocked] = useState(false);
+
+    // Check if user already voted in backend (prevent double voting)
+    useEffect(() => {
+        if (!question?.id) return;
+        const currentUid = userId || userName;
+        if (currentUid && question.source === "engagement") {
+            engagementService.checkVoteStatus(question.id, currentUid).then((res) => {
+                if (res.hasVoted && res.selectedOptionId) {
+                    if (type === 'quiz') {
+                        setQuizSelected(res.selectedOptionId);
+                        setQuizAnswered(true);
+                        const isRight = res.selectedOptionId.toUpperCase() === correctOptionId.toUpperCase();
+                        setQuizResult({
+                            isCorrect: isRight,
+                            pointsEarned: pointsReward,
+                            correctAnswer: correctOptionId,
+                        });
+                    } else if (type === 'polls') {
+                        setPollSelected(res.selectedOptionId);
+                        setPollVoted(true);
+                    } else if (type === 'prediction') {
+                        setPredChoice(res.selectedOptionId as any);
+                        setPredLocked(true);
+                    }
+                    onAnswer(question.id);
+                }
+            });
+        }
+    }, [question?.id, question?.source, userId, userName, type, correctOptionId, pointsReward, onAnswer]);
+
+    // Dynamic timer ticker against persistent timestamp
+    useEffect(() => {
+        if (!expiryTimestamp) return;
+
+        const updateTimer = () => {
+            const remaining = Math.max(0, Math.ceil((expiryTimestamp - Date.now()) / 1000));
+            setTimeLeft(remaining);
+            if (remaining <= 0) {
+                if (question?.id) {
+                    onExpire(question.id);
+                }
+            }
+        };
+
+        updateTimer();
+        const timer = setInterval(updateTimer, 1000);
+        return () => clearInterval(timer);
+    }, [expiryTimestamp, question?.id, onExpire]);
+
+    // Clear auto-close timer on unmount
+    useEffect(() => {
+        return () => {
+            if (autoCloseTimerRef.current) {
+                clearTimeout(autoCloseTimerRef.current);
+            }
+        };
+    }, []);
+
+    const handleManualClose = () => {
+        if (autoCloseTimerRef.current) {
+            clearTimeout(autoCloseTimerRef.current);
+        }
+        onClose();
+    };
+
+    if (!type || !question) return null;
+
+    // Normalizing Quiz options
+    const quizOptions = Array.isArray(question.options)
+        ? question.options.map((opt: any, idx: number) => {
+              const letter = opt.id || String.fromCharCode(65 + idx);
+              const text = typeof opt === 'string' ? opt : opt.text || opt.label || `Option ${idx + 1}`;
+              return { id: letter, text, value: text };
+          })
+        : [
+              { id: "A", text: "Option A", value: "Option A" },
+              { id: "B", text: "Option B", value: "Option B" },
+          ];
+
+    const handleQuizOption = async (optValue: string, optId: string) => {
+        if (quizAnswered || timeLeft === 0 || isSubmitting) return;
+        setIsSubmitting(true);
+        setQuizSelected(optId);
+        setQuizAnswered(true);
+
+        // Immediate answer notification to hide button in watchroom
+        if (question?.id) {
+            onAnswer(question.id);
+        }
+
+        const isRightImmediate =
+            optId.toUpperCase() === correctOptionId.toUpperCase() ||
+            optValue.trim().toUpperCase() === correctOptionId.toUpperCase();
+
+        setQuizResult({
+            isCorrect: isRightImmediate,
+            pointsEarned: pointsReward,
+            correctAnswer: correctOptionId || optId,
+        });
+
+        try {
+            if (question?.source === "engagement") {
+                const res: any = await engagementService.voteEngagement(question.id, optId, userId || userName || undefined);
+                const isRight = res?.isCorrect !== undefined ? Boolean(res.isCorrect) : isRightImmediate;
+                setQuizResult({
+                    isCorrect: isRight,
+                    pointsEarned: res?.pointsAwarded || pointsReward,
+                    correctAnswer: res?.correctOptionId || correctOptionId || optId,
+                });
+                if (res?.correctOptionId) setCorrectOptionId(res.correctOptionId);
+                if (res?.explanation) setExplanation(res.explanation);
+                if (res?.pointsAwarded) setPointsReward(res.pointsAwarded);
+            } else if (submitQuizAnswer && room?.liveMatchId && question?.id) {
+                const res = await submitQuizAnswer(room.liveMatchId, {
+                    questionId: question.id,
+                    option: optValue,
+                    userId: userId || userName || 'anon',
+                    displayName: userName || 'Fan',
+                });
+                if (res) {
+                    setQuizResult(res);
+                }
+            }
+        } catch (err: any) {
+            console.error("Quiz submission error:", err);
+            const prevOpt = err?.response?.data?.selectedOptionId || optId;
+            const isRight = prevOpt.toUpperCase() === correctOptionId.toUpperCase();
+            setQuizSelected(prevOpt);
+            setQuizResult({
+                isCorrect: isRight,
+                pointsEarned: pointsReward,
+                correctAnswer: correctOptionId,
+            });
+        } finally {
+            setIsSubmitting(false);
+            // Allow user to read points / answer explanation for 3 seconds before auto-closing
+            autoCloseTimerRef.current = setTimeout(() => {
+                onClose();
+            }, 3000);
+        }
+    };
+
+    const handlePollVote = async (optText: string, optId: string) => {
+        if (pollVoted || timeLeft === 0 || isSubmitting) return;
+        setIsSubmitting(true);
+        setPollSelected(optId);
+        setPollVoted(true);
+        setPollOptions((prev) =>
+            prev.map((o) => (o.id === optId ? { ...o, votes: (o.votes || 0) + 1 } : o))
+        );
+
+        if (question?.id) {
+            onAnswer(question.id);
+        }
+
+        try {
+            if (question?.source === "engagement") {
+                await engagementService.voteEngagement(question.id, optId, userId || userName || undefined);
+            } else if (votePrediction && room?.liveMatchId && question?.id) {
+                await votePrediction(room.liveMatchId, {
+                    predictionId: question.id,
+                    option: optText,
+                    userId: userId || userName || 'anon',
+                });
+            }
+        } catch (err) {
+            console.error("Poll vote error:", err);
+        } finally {
+            setIsSubmitting(false);
+            // Polls close right after user chooses an option
+            autoCloseTimerRef.current = setTimeout(() => {
+                onClose();
+            }, 400);
+        }
+    };
+
+    const leftOptText = question?.leftChoice?.text || (Array.isArray(question.options) && question.options[0] ? (typeof question.options[0] === 'string' ? question.options[0] : question.options[0].text) : "Yes");
+    const rightOptText = question?.rightChoice?.text || (Array.isArray(question.options) && question.options[1] ? (typeof question.options[1] === 'string' ? question.options[1] : question.options[1].text) : "No");
+
+    const handlePredChoice = async (side: "left" | "right", optText: string) => {
+        if (predLocked || timeLeft === 0 || isSubmitting) return;
+        setIsSubmitting(true);
+        setPredChoice(side);
+        setPredLocked(true);
+
+        if (question?.id) {
+            onAnswer(question.id);
+        }
+
+        try {
+            if (question?.source === "engagement") {
+                await engagementService.voteEngagement(question.id, side, userId || userName || undefined);
+            } else if (votePrediction && room?.liveMatchId && question?.id) {
+                await votePrediction(room.liveMatchId, {
+                    predictionId: question.id,
+                    option: optText,
+                    userId: userId || userName || 'anon',
+                });
+            }
+        } catch (err) {
+            console.error("Prediction vote error:", err);
+        } finally {
+            setIsSubmitting(false);
+            // Predictions close right after user chooses an option
+            autoCloseTimerRef.current = setTimeout(() => {
+                onClose();
+            }, 400);
+        }
+    };
+
+    const pollTotalVotes = pollOptions.reduce((acc, o) => acc + (o.votes || 0), 0) || 1;
+
+    const config = {
+        quiz: {
+            title: "FLASH QUIZ",
+            borderColor: "border-l-purple-500",
+            tagBg: "bg-purple-500/10 text-purple-400 border-purple-500/30",
+            accentGlow: "shadow-[0_4px_25px_rgba(0,0,0,0.6)]",
+        },
+        polls: {
+            title: "LIVE POLL",
+            borderColor: "border-l-blue-500",
+            tagBg: "bg-blue-500/10 text-blue-400 border-blue-500/30",
+            accentGlow: "shadow-[0_4px_25px_rgba(0,0,0,0.6)]",
+        },
+        prediction: {
+            title: "LIVE PREDICTION",
+            borderColor: "border-l-[#FF3D57]",
+            tagBg: "bg-[#FF3D57]/10 text-[#FF3D57] border-[#FF3D57]/30",
+            accentGlow: "shadow-[0_4px_25px_rgba(0,0,0,0.6)]",
+        },
+    }[type];
+
+    return (
+        <div
+            onClick={(e) => {
+                if (e.target === e.currentTarget) handleManualClose();
+            }}
+            className="fixed inset-0 z-[150] flex items-center justify-center p-3 bg-black/20 backdrop-blur-[1px] animate-in fade-in duration-150"
+        >
+            <div
+                className={`w-full max-w-md bg-[#0e111a] border-l-4 ${config.borderColor} border-y border-r border-white/[0.08] rounded-xl overflow-hidden shadow-2xl ${config.accentGlow} flex flex-col relative`}
+            >
+                {/* 30s Countdown Bar */}
+                <div className="w-full bg-white/[0.04] h-1 overflow-hidden">
+                    <div
+                        style={{ width: `${Math.min(100, Math.max(0, (timeLeft / 30) * 100))}%` }}
+                        className={`h-full transition-all duration-1000 ${
+                            timeLeft <= 10
+                                ? "bg-gradient-to-r from-red-500 to-orange-500 animate-pulse"
+                                : "bg-gradient-to-r from-pink-500 to-purple-500"
+                        }`}
+                    />
+                </div>
+
+                {/* Dialog Header */}
+                <div className="px-3.5 py-2 flex items-center justify-between border-b border-white/[0.06] bg-[#121522]">
+                    <div className="flex items-center gap-2">
+                        <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border ${config.tagBg}`}>
+                            {config.title}
+                        </span>
+                        {type === 'quiz' && (
+                            <span className="text-[9px] font-black uppercase text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">
+                                {pointsReward} PTS
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2.5">
+                        {/* 30s Timer Pill */}
+                        <div className={`px-2 py-0.5 rounded-md text-[11px] font-black tracking-wider ${
+                            timeLeft <= 10 ? "bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse" : "bg-white/5 text-gray-300 border border-white/10"
+                        }`}>
+                            {timeLeft > 0 ? `${timeLeft}s` : "Expired"}
+                        </div>
+
+                        {/* X Close Button */}
+                        <button
+                            onClick={handleManualClose}
+                            className="text-gray-400 hover:text-white p-0.5 rounded hover:bg-white/10 transition-colors cursor-pointer"
+                            title="Close"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Dialog Body */}
+                <div className="px-3.5 py-2.5 flex-1 flex flex-col bg-[#0e111a]">
+                    {/* Time expired alert */}
+                    {timeLeft === 0 && !quizAnswered && !pollVoted && !predLocked && (
+                        <div className="py-2 px-3 mb-2 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-bold text-center">
+                            Time is up! This question has closed.
+                        </div>
+                    )}
+
+                    {/* ── 1. QUIZ VIEW ── */}
+                    {type === 'quiz' && (
+                        <div className="flex flex-col">
+                            <h3 className="text-xs sm:text-sm font-black text-white leading-snug mb-2.5">
+                                {question.question}
+                            </h3>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2.5">
+                                {quizOptions.map((opt: any) => {
+                                    const optId = opt.id;
+                                    const isThisCorrect = quizAnswered && (
+                                        optId.toUpperCase() === (correctOptionId || quizResult?.correctAnswer || "").toUpperCase() ||
+                                        opt.value?.trim().toUpperCase() === (correctOptionId || quizResult?.correctAnswer || "").toUpperCase()
+                                    );
+                                    const isSelected = quizSelected === optId;
+
+                                    let btnStyle = "bg-[#141722] border-white/[0.08] hover:bg-white/[0.06] text-white/90";
+                                    if (quizAnswered) {
+                                        if (isThisCorrect) {
+                                            btnStyle = "bg-emerald-500/20 border-emerald-500 text-emerald-300 font-black shadow-[0_0_15px_rgba(16,185,129,0.2)]";
+                                        } else if (isSelected && !isThisCorrect) {
+                                            btnStyle = "bg-red-500/20 border-red-500 text-red-300 font-bold";
+                                        } else {
+                                            btnStyle = "opacity-40 border-white/[0.04] bg-[#141722]";
+                                        }
+                                    }
+
+                                    return (
+                                        <button
+                                            key={optId}
+                                            onClick={() => handleQuizOption(opt.value, optId)}
+                                            disabled={quizAnswered || timeLeft === 0 || isSubmitting}
+                                            className={`rounded-lg py-2 px-2.5 border font-bold text-xs text-left transition-all flex items-center justify-between cursor-pointer active:scale-[0.99] ${btnStyle}`}
+                                        >
+                                            <span className="flex items-center gap-1.5">
+                                                <span className="text-white/40 font-black">{optId}.</span>
+                                                <span>{opt.text}</span>
+                                            </span>
+                                            {quizAnswered && isThisCorrect && <Check size={14} className="text-emerald-400 shrink-0" />}
+                                            {quizAnswered && isSelected && !isThisCorrect && <XCircle size={14} className="text-red-400 shrink-0" />}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            {/* Quiz Result Banner */}
+                            {quizAnswered && (
+                                <div className={`py-1.5 px-2.5 rounded-lg border text-[11px] font-black flex items-center justify-center gap-1.5 ${
+                                    quizResult?.isCorrect
+                                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                        : "bg-red-500/10 border-red-500/30 text-red-400"
+                                }`}>
+                                    {quizResult?.isCorrect ? (
+                                        <span>Correct! You earned {quizResult?.pointsEarned || pointsReward} PTS</span>
+                                    ) : (
+                                        <span>{explanation || `Incorrect. Correct answer is ${correctOptionId}`}</span>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── 2. POLLS VIEW ── */}
+                    {type === 'polls' && (
+                        <div className="flex flex-col">
+                            <h3 className="text-xs sm:text-sm font-black text-white leading-snug mb-2.5">
+                                {question.question?.replace("[Poll] ", "")}
+                            </h3>
+
+                            <div className="space-y-2 mb-1">
+                                {pollOptions.map((opt: any) => {
+                                    const isSelected = pollSelected === opt.id;
+                                    const percentage = Math.round(((opt.votes || 0) / pollTotalVotes) * 100);
+
+                                    return (
+                                        <button
+                                            key={opt.id}
+                                            onClick={() => handlePollVote(opt.text, opt.id)}
+                                            disabled={pollVoted || timeLeft === 0 || isSubmitting}
+                                            className={`w-full relative rounded-lg border overflow-hidden py-2 px-3 flex items-center justify-between text-xs font-bold text-left transition-all cursor-pointer ${
+                                                isSelected
+                                                    ? "border-blue-500/60 bg-blue-500/[0.08]"
+                                                    : "border-white/[0.08] bg-[#141722] hover:bg-white/[0.05]"
+                                            }`}
+                                        >
+                                            {pollVoted && (
+                                                <div
+                                                    style={{ width: `${percentage}%` }}
+                                                    className={`absolute left-0 top-0 bottom-0 z-0 transition-all duration-700 ${
+                                                        isSelected ? "bg-blue-500/25" : "bg-white/[0.05]"
+                                                    }`}
+                                                />
+                                            )}
+                                            <span className="relative z-10 text-white/90 font-bold">{opt.text}</span>
+                                            {pollVoted && (
+                                                <span className={`relative z-10 text-[11px] font-black ${isSelected ? "text-blue-400" : "text-white/60"}`}>
+                                                    {percentage}% {isSelected && "✓"}
+                                                </span>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* ── 3. PREDICTION VIEW ── */}
+                    {type === 'prediction' && (
+                        <div className="flex flex-col">
+                            <h3 className="text-xs sm:text-sm font-black text-white leading-snug mb-2.5">
+                                {question.question}
+                            </h3>
+
+                            <div className="grid grid-cols-7 items-center gap-2 mb-1">
+                                {/* Left Choice */}
+                                <button
+                                    onClick={() => handlePredChoice("left", leftOptText)}
+                                    disabled={predLocked || timeLeft === 0 || isSubmitting}
+                                    className={`col-span-3 rounded-lg py-2 px-2.5 border transition-all cursor-pointer relative overflow-hidden text-center ${
+                                        predChoice === "left"
+                                            ? "bg-[#FF3D57]/15 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.2)]"
+                                            : predChoice === "right"
+                                            ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                                            : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
+                                    }`}
+                                >
+                                    <span className="text-base font-black block">{leftOptText}</span>
+                                    {predLocked && (
+                                        <span className="text-[11px] font-black block mt-1 text-[#FF3D57]">
+                                            {predChoice === "left" ? "68%" : "32%"} {predChoice === "left" && "✓"}
+                                        </span>
+                                    )}
+                                </button>
+
+                                <div className="col-span-1 text-center font-black text-[10px] text-white/40">VS</div>
+
+                                {/* Right Choice */}
+                                <button
+                                    onClick={() => handlePredChoice("right", rightOptText)}
+                                    disabled={predLocked || timeLeft === 0 || isSubmitting}
+                                    className={`col-span-3 rounded-lg py-2 px-2.5 border transition-all cursor-pointer relative overflow-hidden text-center ${
+                                        predChoice === "right"
+                                            ? "bg-[#FF7B02]/15 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.2)]"
+                                            : predChoice === "left"
+                                            ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                                            : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
+                                    }`}
+                                >
+                                    <span className="text-base font-black block">{rightOptText}</span>
+                                    {predLocked && (
+                                        <span className="text-[11px] font-black block mt-1 text-[#FF7B02]">
+                                            {predChoice === "right" ? "68%" : "32%"} {predChoice === "right" && "✓"}
+                                        </span>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function WatchRoom({ room, onBack }: Props) {
+    const { data: session, status } = useSession();
+    const { user: authUser } = useAuth();
     const {
         fetchMatchById,
         currentMatch,
@@ -3555,13 +4157,202 @@ export default function WatchRoom({ room, onBack }: Props) {
         fetchPredictions,
         fetchQuizQuestions,
         sendChatMessage,
-        fetchRoomById
+        fetchRoomById,
+        submitQuizAnswer,
+        votePrediction
     } = useWatchAlong();
     const [liveMatch, setLiveMatch] = useState<Match | null>(null);
     const [isLoadingMatch, setIsLoadingMatch] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
     const [activeTab, setActiveTab] = useState<'prediction' | 'polls' | 'flashQuiz' | 'liveChat' | 'emojiStorm' | 'participants' | 'qna'>('liveChat');
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+    const [engagementModalType, setEngagementModalType] = useState<'quiz' | 'polls' | 'prediction' | null>(null);
+    const [activeModalQuestion, setActiveModalQuestion] = useState<any>(null);
+
+    // ── Engagement Question Lifecycle & Persistent Timer (Quiz, Polls, Prediction) ──
+    const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Record<string, boolean>>({});
+    const [expiredQuestionIds, setExpiredQuestionIds] = useState<Record<string, boolean>>({});
+    const [questionExpiryTimestamps, setQuestionExpiryTimestamps] = useState<Record<string, number>>({});
+    const [liveEngagements, setLiveEngagements] = useState<EngagementItem[]>([]);
+
+    // Real-time sync with backend Engagements (FlipArena / Admin panel questions)
+    const fetchLiveEngagements = useCallback(async () => {
+        try {
+            const currentUserId = authUser?.userId || (session?.user as any)?.userId;
+            const items = await engagementService.getEngagements({
+                status: "active",
+                userId: currentUserId || undefined,
+            });
+            if (Array.isArray(items)) {
+                setLiveEngagements(items);
+            }
+        } catch (err) {
+            console.error("Error fetching live engagements in WatchRoom:", err);
+        }
+    }, [authUser?.userId, session?.user]);
+
+    useEffect(() => {
+        fetchLiveEngagements();
+        const interval = setInterval(fetchLiveEngagements, 3000);
+        return () => clearInterval(interval);
+    }, [fetchLiveEngagements]);
+
+    // Compute active, unanswered, unexpired questions (Priority: Live Admin Engagements, then Match-scoped)
+    const activeQuizQuestion = useMemo(() => {
+        // 1. Check live admin engagements (FlipArena)
+        const engagementQuiz = liveEngagements
+            .filter((e) => e.type === "quiz" && e.quizData)
+            .slice()
+            .reverse()
+            .find((e) => e.id && !answeredQuestionIds[e.id] && !expiredQuestionIds[e.id] && !e.userVoted);
+
+        if (engagementQuiz) {
+            return {
+                id: engagementQuiz.id,
+                source: "engagement",
+                question: engagementQuiz.quizData?.question || engagementQuiz.title,
+                options: engagementQuiz.quizData?.options || [],
+                correctOptionId: engagementQuiz.quizData?.correctOptionId,
+                pointsReward: engagementQuiz.quizData?.pointsReward || 50,
+                explanation: engagementQuiz.quizData?.explanation,
+                raw: engagementQuiz,
+            };
+        }
+
+        // 2. Fallback to match-scoped quiz questions
+        const matchQuiz = (quizQuestions || [])
+            .slice()
+            .reverse()
+            .find((q: any) => q.id && !answeredQuestionIds[q.id] && !expiredQuestionIds[q.id] && q.isActive !== false);
+
+        if (matchQuiz) {
+            return {
+                id: matchQuiz.id,
+                source: "watchalong",
+                question: matchQuiz.question,
+                options: matchQuiz.options,
+                correctOptionId: matchQuiz.correctAnswer,
+                pointsReward: matchQuiz.points || 50,
+                raw: matchQuiz,
+            };
+        }
+
+        return null;
+    }, [liveEngagements, quizQuestions, answeredQuestionIds, expiredQuestionIds]);
+
+    const activePollQuestion = useMemo(() => {
+        // 1. Check live admin engagements (FlipArena)
+        const engagementPoll = liveEngagements
+            .filter((e) => e.type === "poll" && e.pollData)
+            .slice()
+            .reverse()
+            .find((e) => e.id && !answeredQuestionIds[e.id] && !expiredQuestionIds[e.id] && !e.userVoted);
+
+        if (engagementPoll) {
+            return {
+                id: engagementPoll.id,
+                source: "engagement",
+                question: engagementPoll.pollData?.question || engagementPoll.title,
+                options: engagementPoll.pollData?.options || [],
+                totalVotes: engagementPoll.pollData?.totalVotes || 0,
+                raw: engagementPoll,
+            };
+        }
+
+        // 2. Fallback to match-scoped polls
+        const matchPoll = (predictions || [])
+            .slice()
+            .reverse()
+            .find((p: any) => p.id && p.question?.startsWith("[Poll] ") && !answeredQuestionIds[p.id] && !expiredQuestionIds[p.id] && p.isOpen !== false);
+
+        if (matchPoll) {
+            return {
+                id: matchPoll.id,
+                source: "watchalong",
+                question: matchPoll.question,
+                options: matchPoll.options,
+                votes: matchPoll.votes,
+                raw: matchPoll,
+            };
+        }
+
+        return null;
+    }, [liveEngagements, predictions, answeredQuestionIds, expiredQuestionIds]);
+
+    const activePredictionQuestion = useMemo(() => {
+        // 1. Check live admin engagements (FlipArena)
+        const engagementPred = liveEngagements
+            .filter((e) => e.type === "prediction" && e.predictionData)
+            .slice()
+            .reverse()
+            .find((e) => e.id && !answeredQuestionIds[e.id] && !expiredQuestionIds[e.id] && !e.userVoted);
+
+        if (engagementPred) {
+            return {
+                id: engagementPred.id,
+                source: "engagement",
+                question: engagementPred.predictionData?.question || engagementPred.title,
+                leftChoice: engagementPred.predictionData?.leftChoice,
+                rightChoice: engagementPred.predictionData?.rightChoice,
+                raw: engagementPred,
+            };
+        }
+
+        // 2. Fallback to match-scoped predictions
+        const matchPred = (predictions || [])
+            .slice()
+            .reverse()
+            .find((p: any) => p.id && !p.question?.startsWith("[Poll] ") && !answeredQuestionIds[p.id] && !expiredQuestionIds[p.id] && p.isOpen !== false);
+
+        if (matchPred) {
+            return {
+                id: matchPred.id,
+                source: "watchalong",
+                question: matchPred.question,
+                options: matchPred.options,
+                raw: matchPred,
+            };
+        }
+
+        return null;
+    }, [liveEngagements, predictions, answeredQuestionIds, expiredQuestionIds]);
+
+    // Check expiration every 1 sec for any question that has started its timer
+    useEffect(() => {
+        const timer = setInterval(() => {
+            const now = Date.now();
+            Object.entries(questionExpiryTimestamps).forEach(([qId, expiryMs]) => {
+                if (now >= expiryMs && !expiredQuestionIds[qId]) {
+                    setExpiredQuestionIds((prev) => ({ ...prev, [qId]: true }));
+                }
+            });
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [questionExpiryTimestamps, expiredQuestionIds]);
+
+    const openEngagement = (type: 'quiz' | 'polls' | 'prediction') => {
+        let targetQ: any = null;
+        if (type === 'quiz') targetQ = activeQuizQuestion;
+        else if (type === 'polls') targetQ = activePollQuestion;
+        else if (type === 'prediction') targetQ = activePredictionQuestion;
+
+        if (!targetQ) return;
+
+        // Start 30s timer on first open if not already started
+        if (!questionExpiryTimestamps[targetQ.id]) {
+            setQuestionExpiryTimestamps((prev) => ({
+                ...prev,
+                [targetQ.id]: Date.now() + 30000,
+            }));
+        }
+        setActiveModalQuestion(targetQ);
+        setEngagementModalType(type);
+    };
+
+    const closeEngagement = () => {
+        setEngagementModalType(null);
+        setActiveModalQuestion(null);
+    };
 
     // Real-time Jitsi states
     const [jitsiParticipants, setJitsiParticipants] = useState<any[]>([]);
@@ -3746,9 +4537,6 @@ export default function WatchRoom({ room, onBack }: Props) {
 
     const [pinText, setPinText] = useState("");
     const [submittingModal, setSubmittingModal] = useState(false);
-
-    const { data: session, status } = useSession();
-    const { user: authUser } = useAuth();
 
     // Auth and Roles
     const [userName, setUserName] = useState<string | null>(null);
@@ -4425,7 +5213,7 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
         ...(totalPredictionsCount > 0 ? [{ id: 'prediction', label: activePredictionsCount > 0 ? `Prediction (${activePredictionsCount})` : 'Prediction' }] : []),
         ...(totalPollsCount > 0 ? [{ id: 'polls', label: activePollsCount > 0 ? `Polls (${activePollsCount})` : 'Polls' }] : []),
         ...(totalQuizCount > 0 ? [{ id: 'flashQuiz', label: activeQuizCount > 0 ? `Quiz (${activeQuizCount})` : 'Quiz' }] : []),
-        { id: 'participants', label: `Participants (${dynamicParticipantsCount})` }
+        { id: 'participants', label: `(${dynamicParticipantsCount})` }
     ];
 
     // Tab safety: fallback if activeTab is not in sidebarTabs list (e.g. if deleted or hidden)
@@ -4515,7 +5303,7 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                             LIVE
                         </span>
                     )}
-                    <span className="text-sm font-bold truncate">{room.name || "Watch Room"}</span>
+                    <span className="text-[12px] font-bold whitespace-normal">{room.name || "Watch Room"}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     {/* <button
@@ -4548,7 +5336,7 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                         title="Copy Invite Link"
                     >
                         <Share2 size={13} className="animate-pulse" />
-                        <span>Share</span>
+                        {/* <span>Share</span> */}
                     </button>
                 </div>
 
@@ -4843,7 +5631,7 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                                             }`}
                                     >
                                         {micOn ? <Mic size={12} /> : <MicOff size={12} />}
-                                        <span>{micOn ? "Mute" : "Unmute"}</span>
+                                        {/* <span>{micOn ? "Mute" : "Unmute"}</span> */}
                                     </button>
 
                                     {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
@@ -5141,21 +5929,48 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                     <div className="relative z-20 flex flex-col gap-1.5 px-2 sm:px-6 py-1.5 border-b border-[#222] lg:hidden">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 flex-1">
-                                {sidebarTabs.map((tab) => (
+                                {activeQuizQuestion && (
                                     <button
-                                        key={tab.id}
-                                        onClick={() => {
-                                            setActiveTab(tab.id as any);
-                                            setIsSidebarCollapsed(false);
-                                        }}
-                                        className={`flex-shrink-0 text-xs px-3.5 py-1.5 rounded-full font-bold transition-all ${activeTab === tab.id && !isSidebarCollapsed
-                                            ? "bg-pink-600 text-white shadow-lg"
-                                            : "bg-[#202023] text-gray-400 hover:bg-[#2a2a2e]"
-                                            }`}
+                                        onClick={() => openEngagement('quiz')}
+                                        className="flex-shrink-0 text-xs px-3 py-1 rounded-full font-bold transition-all bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 active:scale-95 cursor-pointer shadow-sm animate-pulse flex items-center gap-1.5"
                                     >
-                                        {tab.label}
+                                        <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping"></span>
+                                        <span>Quiz</span>
                                     </button>
-                                ))}
+                                )}
+                                {activePollQuestion && (
+                                    <button
+                                        onClick={() => openEngagement('polls')}
+                                        className="flex-shrink-0 text-xs px-3 py-1 rounded-full font-bold transition-all bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 active:scale-95 cursor-pointer shadow-sm animate-pulse flex items-center gap-1.5"
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
+                                        <span>Polls</span>
+                                    </button>
+                                )}
+                                {activePredictionQuestion && (
+                                    <button
+                                        onClick={() => openEngagement('prediction')}
+                                        className="flex-shrink-0 text-xs px-3 py-1 rounded-full font-bold transition-all bg-pink-600/20 hover:bg-pink-600/30 text-pink-300 border border-pink-500/40 active:scale-95 cursor-pointer shadow-sm animate-pulse flex items-center gap-1.5"
+                                    >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-ping"></span>
+                                        <span>Prediction</span>
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => {
+                                        setActiveTab(activeTab === 'participants' ? 'liveChat' : 'participants');
+                                        setIsSidebarCollapsed(false);
+                                    }}
+                                    className={`flex-shrink-0 text-xs px-3 py-1 rounded-full font-bold transition-all ${activeTab === 'participants' && !isSidebarCollapsed
+                                        ? "bg-pink-600 text-white shadow-lg"
+                                        : "bg-[#202023] text-gray-400 hover:bg-[#2a2a2e]"
+                                        }`}
+                                >
+                                    <span className="flex items-center gap-1.5">
+                                        <Users size={14} />
+                                        <span>({dynamicParticipantsCount})</span>
+                                    </span>
+                                </button>
                             </div>
                             <button
                                 onClick={() => setIsSidebarCollapsed(prev => !prev)}
@@ -5199,20 +6014,47 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                             style={{ width: `${sidebarWidth}px` }}
                         >
                             {/* Tab Header row */}
-                            <div className="flex items-center border-b border-[#222] px-2 py-1.5 gap-1 bg-[#121214]">
-                                <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide flex-1">
-                                    {sidebarTabs.map((tab) => (
+                            <div className="flex items-center border-b border-[#222] px-2 py-1.5 gap-1.5 bg-[#121214]">
+                                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1">
+                                    {activeQuizQuestion && (
                                         <button
-                                            key={tab.id}
-                                            onClick={() => setActiveTab(tab.id as any)}
-                                            className={`flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1.5 rounded-lg font-bold tracking-wide transition-all ${activeTab === tab.id
-                                                ? "bg-pink-600/10 text-pink-400 border border-pink-500/20"
-                                                : "text-gray-400 hover:text-white hover:bg-white/5"
-                                                }`}
+                                            onClick={() => openEngagement('quiz')}
+                                            className="flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1 rounded-lg font-bold tracking-wide transition-all bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 active:scale-95 cursor-pointer animate-pulse flex items-center gap-1.5"
                                         >
-                                            {tab.label}
+                                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping"></span>
+                                            <span>Quiz</span>
                                         </button>
-                                    ))}
+                                    )}
+                                    {activePollQuestion && (
+                                        <button
+                                            onClick={() => openEngagement('polls')}
+                                            className="flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1 rounded-lg font-bold tracking-wide transition-all bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 active:scale-95 cursor-pointer animate-pulse flex items-center gap-1.5"
+                                        >
+                                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span>
+                                            <span>Polls</span>
+                                        </button>
+                                    )}
+                                    {activePredictionQuestion && (
+                                        <button
+                                            onClick={() => openEngagement('prediction')}
+                                            className="flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1 rounded-lg font-bold tracking-wide transition-all bg-pink-600/20 hover:bg-pink-600/30 text-pink-300 border border-pink-500/40 active:scale-95 cursor-pointer animate-pulse flex items-center gap-1.5"
+                                        >
+                                            <span className="w-1.5 h-1.5 rounded-full bg-pink-400 animate-ping"></span>
+                                            <span>Prediction</span>
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={() => setActiveTab(activeTab === 'participants' ? 'liveChat' : 'participants')}
+                                        className={`flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1 rounded-lg font-bold tracking-wide transition-all ${activeTab === 'participants'
+                                            ? "bg-pink-600/20 text-pink-300 border border-pink-500/30"
+                                            : "text-gray-400 hover:text-white hover:bg-white/5"
+                                            }`}
+                                    >
+                                        <span className="flex items-center gap-1.5">
+                                            <Users size={13} />
+                                            <span>({dynamicParticipantsCount})</span>
+                                        </span>
+                                    </button>
                                 </div>
                                 <button
                                     onClick={() => setIsSidebarCollapsed(true)}
@@ -5764,7 +6606,25 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                 </div>
             )}
 
-
+            {engagementModalType && activeModalQuestion && (
+                <WatchRoomEngagementDialog
+                    type={engagementModalType}
+                    question={activeModalQuestion}
+                    expiryTimestamp={questionExpiryTimestamps[activeModalQuestion.id] || (Date.now() + 30000)}
+                    onClose={closeEngagement}
+                    onAnswer={(qId) => {
+                        setAnsweredQuestionIds((prev) => ({ ...prev, [qId]: true }));
+                    }}
+                    onExpire={(qId) => {
+                        setExpiredQuestionIds((prev) => ({ ...prev, [qId]: true }));
+                    }}
+                    room={room}
+                    userName={userName || undefined}
+                    userId={authUser?.userId || (session?.user as any)?.userId}
+                    submitQuizAnswer={submitQuizAnswer}
+                    votePrediction={votePrediction}
+                />
+            )}
 
         </div>
     );

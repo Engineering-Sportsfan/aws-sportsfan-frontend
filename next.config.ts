@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ["@jitsi/react-sdk"],
   optimizeFonts: false,
   eslint: {
     ignoreDuringBuilds: true,

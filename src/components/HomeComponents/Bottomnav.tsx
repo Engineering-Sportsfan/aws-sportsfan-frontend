@@ -206,6 +206,12 @@ export default function BottomNav() {
       logoActive: "/images/watchalongactive.png",
       url: "/MainModules/WatchAlong"
     },
+     {
+      name: "Flip Guru",
+      logoInactive: "/images/dollyavatar.png",
+      logoActive: "/images/dollyavatar.png",
+      url: "/MainModules/flipGuru"
+    },
     {
       name: "Ask Flip",
       // logoInactive: <Sparkles className="w-5 h-5 text-gray-400" />,
@@ -234,12 +240,7 @@ export default function BottomNav() {
     //   ),
     //   url: "/MainModules/AtheleteHome" 
     // },
-    {
-      name: "Profile",
-      logoInactive: <AthleteIcon />,
-      logoActive: <AthleteIcon />,
-      url: "/MainModules/Profile"
-    },
+   
   ];
 
   return (
