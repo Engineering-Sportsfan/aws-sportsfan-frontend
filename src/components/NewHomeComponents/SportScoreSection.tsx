@@ -439,7 +439,7 @@ function HeroCarousel({ cards, loading }: { cards: HeroCard[]; loading?: boolean
 
   return (
     <div 
-      className="w-full pt-3"
+      className="w-full md:pt-3"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
@@ -533,7 +533,7 @@ function IndiaStatsBar({
   }
   
   return (
-    <div className="w-full mt-3 rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06]">
+    <div className="w-full md:mt-3 rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06]">
       {/* 
       <div className="flex items-center justify-between px-4 py-4">
         <div className="flex items-center gap-2.5">
@@ -585,7 +585,7 @@ function IndiaStatsBar({
       </div>
       */}
 
-      <div className="grid grid-cols-4">
+      {/* <div className="grid grid-cols-4">
         {navItems.map(({ label, icon: Icon }) => (
           <button
             key={label}
@@ -612,7 +612,7 @@ function IndiaStatsBar({
             </span>
           </button>
         ))}
-      </div>
+      </div> */}
     </div>
   );
 }

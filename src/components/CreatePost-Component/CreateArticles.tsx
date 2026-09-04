@@ -1,422 +1,12 @@
-// "use client";
-
-// import axios from "axios";
-// import { useEffect, useState } from "react";
-// import { createPortal } from "react-dom";
-// import { Plus, Trash2, GripVertical, X } from "lucide-react";
-
-// type BadgeType = "FEATURE" | "ANALYSIS" | "OPINION" | "NEWS";
-
-// type FormState = {
-//   badge: BadgeType;
-//   title: string;
-//   author: string;
-//   description: string[];
-//   readTime: string;
-//   views: string;
-//   tags: string[];
-// };
-
-// const EMPTY_FORM: FormState = {
-//   badge: "NEWS",
-//   title: "",
-//   author: "",
-//   description: [""],
-//   readTime: "5 min read",
-//   views: "0 views",
-//   tags: [],
-// };
-
-// interface Props {
-//   isOpen: boolean;
-//   onClose: () => void;
-//   onCreated?: () => void;
-// }
-
-// export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Props) {
-//   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-//   const [tagInput, setTagInput] = useState("");
-//   const [image, setImage] = useState<File | null>(null);
-//   const [loading, setLoading] = useState(false);
-
-//   const [mounted, setMounted] = useState(false);
-//   useEffect(() => setMounted(true), []);
-
-//   if (!isOpen || !mounted) return null;
-
-//   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-//     if (e.key === "Enter") {
-//       e.preventDefault();
-//       const newTag = tagInput.trim();
-//       if (newTag && !form.tags.includes(newTag)) {
-//         setForm((prev) => ({ ...prev, tags: [...prev.tags, newTag] }));
-//         setTagInput("");
-//       }
-//     }
-//   };
-
-//   const removeTag = (indexToRemove: number) => {
-//     setForm((prev) => ({
-//       ...prev,
-//       tags: prev.tags.filter((_, index) => index !== indexToRemove),
-//     }));
-//   };
-
-//   const handleChange = (
-//     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-//   ) => {
-//     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-//   };
-
-//   const handleDescriptionChange = (index: number, value: string) => {
-//     const updated = [...form.description];
-//     updated[index] = value;
-//     setForm((prev) => ({ ...prev, description: updated }));
-//   };
-
-//   const addDescriptionParagraph = () => {
-//     setForm((prev) => ({ ...prev, description: [...prev.description, ""] }));
-//   };
-
-//   const removeDescriptionParagraph = (index: number) => {
-//     if (form.description.length === 1) {
-//       alert("At least one paragraph is required");
-//       return;
-//     }
-//     setForm((prev) => ({
-//       ...prev,
-//       description: prev.description.filter((_, i) => i !== index),
-//     }));
-//   };
-
-//   const moveParagraphUp = (index: number) => {
-//     if (index === 0) return;
-//     const updated = [...form.description];
-//     [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
-//     setForm((prev) => ({ ...prev, description: updated }));
-//   };
-
-//   const moveParagraphDown = (index: number) => {
-//     if (index === form.description.length - 1) return;
-//     const updated = [...form.description];
-//     [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
-//     setForm((prev) => ({ ...prev, description: updated }));
-//   };
-
-//   const uploadFile = async (file: File) => {
-//     const formData = new FormData();
-//     formData.append("file", file);
-//     formData.append("folder", "Images");
-//     const res = await axios.post("/api/upload", formData);
-//     return res.data.url;
-//   };
-
-//   const resetAndClose = () => {
-//     setForm(EMPTY_FORM);
-//     setImage(null);
-//     setTagInput("");
-//     onClose();
-//   };
-
-//   const handleSubmit = async () => {
-//     if (!form.title) {
-//       alert("Title is required");
-//       return;
-//     }
-
-//     const nonEmptyDescriptions = form.description.filter((p) => p.trim() !== "");
-//     if (nonEmptyDescriptions.length === 0) {
-//       alert("At least one description paragraph is required");
-//       return;
-//     }
-
-//     setLoading(true);
-//     try {
-//       let imageUrl = "";
-//       if (image) imageUrl = await uploadFile(image);
-
-//       const payload = { ...form, description: nonEmptyDescriptions, image: imageUrl };
-//       const res = await axios.post("/api/cricket-articles", payload);
-
-//       if (res.data.success) {
-//         onCreated?.();
-//         resetAndClose();
-//       }
-//     } catch (error) {
-//       console.error("Save failed", error);
-//       alert("Error saving article");
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const preview = image ? URL.createObjectURL(image) : "";
-//   const nonEmptyCount = form.description.filter((p) => p.trim() !== "").length;
-
-//   const portalTarget = document.getElementById("sf360-app-root") ?? document.body;
-
-//   return createPortal(
-//     <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-//       {/* Backdrop */}
-//       <div
-//         onClick={resetAndClose}
-//         style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(4px)" }}
-//       />
-
-//       {/* Sheet */}
-//       <div
-//         style={{
-//           position: "relative",
-//           zIndex: 1,
-//           borderRadius: "20px 20px 0 0",
-//           background: "rgb(12,14,24)",
-//           border: "1px solid rgba(255,255,255,0.1)",
-//           borderBottom: "none",
-//           maxHeight: "92dvh",
-//           display: "flex",
-//           flexDirection: "column",
-//         }}
-//       >
-//         {/* Drag handle */}
-//         <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 0" }}>
-//           <div style={{ width: 38, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.18)" }} />
-//         </div>
-
-//         {/* Header */}
-//         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px 10px" }}>
-//           <span style={{ fontSize: 16, fontWeight: 900, color: "white", letterSpacing: -0.4 }}>
-//             New Cricket Article
-//           </span>
-//           <button
-//             onClick={resetAndClose}
-//             style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-//           >
-//             <X size={14} color="rgba(255,255,255,0.6)" strokeWidth={2.5} />
-//           </button>
-//         </div>
-
-//         {/* Scrollable body */}
-//         <div style={{ flex: 1, overflowY: "auto", padding: "0 16px", minHeight: 0 }}>
-//           {/* Badge + Title + Author + Read time + Views */}
-//           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-//             <div>
-//               <label className="text-xs text-gray-400 block mb-1">Badge</label>
-//               <select
-//                 name="badge"
-//                 value={form.badge}
-//                 onChange={handleChange}
-//                 className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 text-white text-sm"
-//               >
-//                 <option value="FEATURE">FEATURE</option>
-//                 <option value="ANALYSIS">ANALYSIS</option>
-//                 <option value="OPINION">OPINION</option>
-//                 <option value="NEWS">NEWS</option>
-//               </select>
-//             </div>
-
-//             <FormInput
-//               label="Title"
-//               name="title"
-//               value={form.title}
-//               onChange={handleChange}
-//               placeholder="Enter article title"
-//             />
-//             <FormInput
-//               label="Author"
-//               name="author"
-//               value={form.author}
-//               onChange={handleChange}
-//               placeholder="Enter author"
-//             />
-//             <FormInput
-//               label="Read Time"
-//               name="readTime"
-//               value={form.readTime}
-//               onChange={handleChange}
-//               placeholder="e.g., 5 min read"
-//             />
-//           </div>
-
-//           {/* Tags */}
-//           <div className="mb-4">
-//             <label className="text-xs text-gray-400 block mb-1">Article Tags</label>
-//             <div className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 focus-within:border-blue-500 focus-within:outline-none">
-//               <div className="flex flex-wrap gap-2 mb-2">
-//                 {form.tags.map((tag, index) => (
-//                   <span
-//                     key={index}
-//                     className="flex items-center gap-1 bg-blue-500/20 text-blue-500 px-2 py-1 rounded text-xs"
-//                   >
-//                     {tag}
-//                     <button
-//                       type="button"
-//                       onClick={() => removeTag(index)}
-//                       className="hover:text-white transition"
-//                     >
-//                       &times;
-//                     </button>
-//                   </span>
-//                 ))}
-//               </div>
-//               <input
-//                 type="text"
-//                 value={tagInput}
-//                 onChange={(e) => setTagInput(e.target.value)}
-//                 onKeyDown={handleKeyDown}
-//                 placeholder="Type tag and press Enter..."
-//                 className="w-full bg-transparent border-none text-white text-sm focus:outline-none"
-//               />
-//             </div>
-//           </div>
-
-//           {/* Description paragraphs */}
-//           <div className="mb-4">
-//             <div className="flex items-center justify-between mb-3">
-//               <label className="text-xs text-gray-400">Description Paragraphs</label>
-//               <button
-//                 type="button"
-//                 onClick={addDescriptionParagraph}
-//                 className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded transition"
-//               >
-//                 <Plus size={14} />
-//                 Add Paragraph
-//               </button>
-//             </div>
-
-//             <div className="space-y-3">
-//               {form.description.map((paragraph, index) => (
-//                 <div key={index} className="border border-gray-700 rounded-lg p-3 bg-[#0d1117]/50">
-//                   <div className="flex items-center justify-between mb-2">
-//                     <div className="flex items-center gap-2">
-//                       <GripVertical size={16} className="text-gray-500 cursor-move" />
-//                       <span className="text-xs text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded">
-//                         Paragraph {index + 1}
-//                       </span>
-//                     </div>
-//                     <div className="flex gap-2">
-//                       {index > 0 && (
-//                         <button
-//                           type="button"
-//                           onClick={() => moveParagraphUp(index)}
-//                           className="text-gray-400 hover:text-white transition"
-//                           title="Move Up"
-//                         >
-//                           ↑
-//                         </button>
-//                       )}
-//                       {index < form.description.length - 1 && (
-//                         <button
-//                           type="button"
-//                           onClick={() => moveParagraphDown(index)}
-//                           className="text-gray-400 hover:text-white transition"
-//                           title="Move Down"
-//                         >
-//                           ↓
-//                         </button>
-//                       )}
-//                       <button
-//                         type="button"
-//                         onClick={() => removeDescriptionParagraph(index)}
-//                         className="text-red-500 hover:text-red-400 transition"
-//                         title="Remove Paragraph"
-//                       >
-//                         <Trash2 size={16} />
-//                       </button>
-//                     </div>
-//                   </div>
-
-//                   <textarea
-//                     value={paragraph}
-//                     onChange={(e) => handleDescriptionChange(index, e.target.value)}
-//                     placeholder={`Write paragraph ${index + 1}...`}
-//                     rows={4}
-//                     className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-blue-500 resize-y"
-//                   />
-//                 </div>
-//               ))}
-//             </div>
-
-//             <p className="text-xs text-gray-500 mt-2">{nonEmptyCount} non-empty paragraph(s)</p>
-//           </div>
-
-//           {/* Image */}
-//           <div className="mb-4">
-//             <label className="text-xs text-gray-400 mb-1 block">Article Image</label>
-//             <input
-//               type="file"
-//               accept="image/*"
-//               onChange={(e) => setImage(e.target.files?.[0] ?? null)}
-//               className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 text-white file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-500 file:text-white hover:file:bg-blue-600 text-sm"
-//             />
-//             {preview && (
-//               <img
-//                 src={preview}
-//                 alt="preview"
-//                 className="w-28 h-28 object-cover rounded mt-3 border border-gray-700"
-//               />
-//             )}
-//           </div>
-
-//           <div style={{ height: 12 }} />
-//         </div>
-
-//         {/* Action bar */}
-//         <div style={{ flexShrink: 0, padding: "10px 16px", borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgb(12,14,24)" }}>
-//           <div className="flex gap-3">
-//             <button
-//               onClick={handleSubmit}
-//               disabled={loading}
-//               className="flex-1 py-3 rounded-xl font-bold text-sm disabled:cursor-not-allowed transition"
-//               style={{
-//                 background: loading
-//                   ? "rgba(255,255,255,0.08)"
-//                   : "linear-gradient(90deg,rgb(233,30,140),rgb(255,107,53))",
-//                 color: loading ? "rgba(255,255,255,0.28)" : "white",
-//               }}
-//             >
-//               {loading ? "Creating..." : "Create Article"}
-//             </button>
-//             <button
-//               onClick={resetAndClose}
-//               type="button"
-//               className="flex-1 py-3 rounded-xl font-bold text-sm bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition"
-//             >
-//               Cancel
-//             </button>
-//           </div>
-//         </div>
-//       </div>
-//     </div>,
-//     portalTarget
-//   );
-// }
-
-// function FormInput({
-//   label,
-//   ...props
-// }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
-//   return (
-//     <div>
-//       <label className="text-xs text-gray-400 mb-1 block">{label}</label>
-//       <input
-//         {...props}
-//         className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-blue-500"
-//       />
-//     </div>
-//   );
-// }
-
-
-
-
-
+//src\components\CreatePost-Component\CreateArticles.tsx
 
 "use client";
 
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Plus, Trash2, GripVertical, X } from "lucide-react";
+import { X, Eye, ArrowLeft, Send, Sparkles, Image as ImageIcon, Clock, User, Tag } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 type BadgeType = "FEATURE" | "ANALYSIS" | "OPINION" | "NEWS";
 
@@ -424,7 +14,7 @@ type FormState = {
   badge: BadgeType;
   title: string;
   author: string;
-  description: string[];
+  description: string;
   readTime: string;
   views: string;
   tags: string[];
@@ -434,10 +24,33 @@ const EMPTY_FORM: FormState = {
   badge: "NEWS",
   title: "",
   author: "",
-  description: [""],
+  description: "",
   readTime: "5 min read",
   views: "0 views",
   tags: [],
+};
+
+const BADGE_COLORS: Record<BadgeType, { bg: string; text: string; border: string }> = {
+  FEATURE: {
+    bg: "bg-pink-500/15",
+    text: "text-pink-400",
+    border: "border-pink-500/30",
+  },
+  ANALYSIS: {
+    bg: "bg-blue-500/15",
+    text: "text-blue-400",
+    border: "border-blue-500/30",
+  },
+  OPINION: {
+    bg: "bg-amber-500/15",
+    text: "text-amber-400",
+    border: "border-amber-500/30",
+  },
+  NEWS: {
+    bg: "bg-emerald-500/15",
+    text: "text-emerald-400",
+    border: "border-emerald-500/30",
+  },
 };
 
 interface Props {
@@ -447,13 +60,40 @@ interface Props {
 }
 
 export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Props) {
+  const { user, getUserDisplayName } = useAuth();
+  const currentUserName = getUserDisplayName?.() || user?.name || (user as any)?.username || "SportsFan";
+  const userAvatar =
+    (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : "") ||
+    user?.avatar ||
+    (user as any)?.avatarUrl ||
+    (user as any)?.addfliplineAdminPhoto ||
+    "";
+
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [tagInput, setTagInput] = useState("");
   const [image, setImage] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>("");
+  const [showPreview, setShowPreview] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
-
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const isSubmittingRef = useRef(false);
+
+  useEffect(() => {
+    setMounted(true);
+    if (currentUserName) {
+      setForm((prev) => ({ ...prev, author: prev.author || currentUserName }));
+    }
+  }, [currentUserName]);
+
+  useEffect(() => {
+    if (image) {
+      const url = URL.createObjectURL(image);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setPreviewUrl("");
+    }
+  }, [image]);
 
   if (!isOpen || !mounted) return null;
 
@@ -476,342 +116,491 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleDescriptionChange = (index: number, value: string) => {
-    const updated = [...form.description];
-    updated[index] = value;
-    setForm((prev) => ({ ...prev, description: updated }));
-  };
-
-  const addDescriptionParagraph = () => {
-    setForm((prev) => ({ ...prev, description: [...prev.description, ""] }));
-  };
-
-  const removeDescriptionParagraph = (index: number) => {
-    if (form.description.length === 1) {
-      alert("At least one paragraph is required");
-      return;
-    }
-    setForm((prev) => ({
-      ...prev,
-      description: prev.description.filter((_, i) => i !== index),
-    }));
-  };
-
-  const moveParagraphUp = (index: number) => {
-    if (index === 0) return;
-    const updated = [...form.description];
-    [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
-    setForm((prev) => ({ ...prev, description: updated }));
-  };
-
-  const moveParagraphDown = (index: number) => {
-    if (index === form.description.length - 1) return;
-    const updated = [...form.description];
-    [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
-    setForm((prev) => ({ ...prev, description: updated }));
-  };
-
   const resetAndClose = () => {
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, author: currentUserName });
     setImage(null);
+    setPreviewUrl("");
     setTagInput("");
+    setShowPreview(false);
     onClose();
   };
 
-  const handleSubmit = async () => {
-    if (!form.title) {
-      alert("Title is required");
-      return;
-    }
-
-    const nonEmptyDescriptions = form.description.filter((p) => p.trim() !== "");
-    if (nonEmptyDescriptions.length === 0) {
-      alert("At least one description paragraph is required");
-      return;
-    }
-    if (!image) {
-      alert("An image or video is required");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      // Send everything (including the raw file) to the article route —
-      // it uploads the file to Cloudinary itself.
-      const formData = new FormData();
-      formData.append("badge", form.badge);
-      formData.append("title", form.title);
-      formData.append("author", form.author);
-      formData.append("readTime", form.readTime);
-      formData.append("views", form.views);
-      formData.append("description", JSON.stringify(nonEmptyDescriptions));
-      formData.append("tags", JSON.stringify(form.tags));
-      formData.append("file", image);
-
-      const res = await axios.post("/api/cricket-articles", formData);
-
-      if (res.data.success) {
-        onCreated?.();
-        resetAndClose();
-      }
-    } catch (error) {
-      console.error("Save failed", error);
-      alert("Error saving article");
-    } finally {
-      setLoading(false);
-    }
+  const getParagraphs = () => {
+    return form.description
+      .split(/\n+/)
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
   };
 
-  const preview = image ? URL.createObjectURL(image) : "";
-  const nonEmptyCount = form.description.filter((p) => p.trim() !== "").length;
+  const displayAuthor = form.author.trim() || currentUserName;
 
+  // const handleSubmit = async () => {
+  //   if (!form.title.trim()) {
+  //     alert("Title is required");
+  //     return;
+  //   }
+
+  //   const paragraphs = getParagraphs();
+  //   if (paragraphs.length === 0) {
+  //     alert("Article description/content is required");
+  //     return;
+  //   }
+  //   setLoading(true);
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append("badge", form.badge);
+  //     formData.append("title", form.title.trim());
+  //     formData.append("author", displayAuthor);
+  //     formData.append("readTime", form.readTime.trim() || "5 min read");
+  //     formData.append("views", form.views.trim() || "0 views");
+  //     formData.append("description", JSON.stringify(paragraphs));
+  //     formData.append("tags", JSON.stringify(form.tags));
+  //     if (image) {
+  //       formData.append("file", image);
+  //     }
+
+  //     if (user?.userId) formData.append("userId", user.userId);
+  //     if (user?.email) formData.append("email", user.email);
+  //     if (userAvatar) formData.append("authorPhoto", userAvatar);
+
+  //     const res = await axios.post("/api/cricket-articles", formData);
+
+  //     if (res.data?.success || res.status === 201 || res.status === 200) {
+  //       if (typeof window !== "undefined") {
+  //         window.dispatchEvent(new Event("cricket-article-created"));
+  //       }
+  //       onCreated?.();
+  //       resetAndClose();
+  //     } else {
+  //       alert(res.data?.error || "Error saving article");
+  //     }
+  //   } catch (error: any) {
+  //     console.error("Save failed", error);
+  //     alert(error?.response?.data?.error || "Error saving article");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
+  const handleSubmit = async () => {
+  if (isSubmittingRef.current) return;
+
+  if (!form.title.trim()) {
+    alert("Title is required");
+    return;
+  }
+
+  const paragraphs = getParagraphs();
+  if (paragraphs.length === 0) {
+    alert("Article description/content is required");
+    return;
+  }
+
+  isSubmittingRef.current = true;
+  setLoading(true);
+  try {
+    const formData = new FormData();
+    formData.append("badge", form.badge);
+    formData.append("title", form.title.trim());
+    formData.append("author", displayAuthor);
+    formData.append("readTime", form.readTime.trim() || "5 min read");
+    formData.append("views", form.views.trim() || "0 views");
+    formData.append("description", JSON.stringify(paragraphs));
+    formData.append("tags", JSON.stringify(form.tags));
+    if (image) {
+      formData.append("file", image);
+    }
+
+    if (user?.userId) formData.append("userId", user.userId);
+    if (user?.email) formData.append("email", user.email);
+    if (userAvatar) formData.append("authorPhoto", userAvatar);
+
+    const res = await axios.post("/api/cricket-articles", formData);
+
+    if (res.data?.success || res.status === 201 || res.status === 200) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("cricket-article-created"));
+      }
+      onCreated?.();
+      resetAndClose();
+    } else {
+      alert(res.data?.error || "Error saving article");
+    }
+  } catch (error: any) {
+    console.error("Save failed", error);
+    alert(error?.response?.data?.error || "Error saving article");
+  } finally {
+    setLoading(false);
+    isSubmittingRef.current = false;
+  }
+};
+
+  const paragraphs = getParagraphs();
   const portalTarget = document.getElementById("sf360-app-root") ?? document.body;
+  const isVideo = image?.type?.startsWith("video/");
 
   return createPortal(
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+    <div className="fixed inset-0 z-[9999] flex flex-col justify-end">
       {/* Backdrop */}
       <div
         onClick={resetAndClose}
-        style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(4px)" }}
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
       />
 
-      {/* Sheet */}
-      <div
-        style={{
-          position: "relative",
-          zIndex: 1,
-          borderRadius: "20px 20px 0 0",
-          background: "rgb(12,14,24)",
-          border: "1px solid rgba(255,255,255,0.1)",
-          borderBottom: "none",
-          maxHeight: "92dvh",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
+      {/* Main Bottom Sheet Container */}
+      <div className="relative z-10 rounded-t-3xl bg-[#0c0e18] border border-white/10 border-b-0 max-h-[92dvh] flex flex-col overflow-hidden shadow-2xl animate-in slide-in-from-bottom-5 duration-200">
         {/* Drag handle */}
-        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0 0" }}>
-          <div style={{ width: 38, height: 4, borderRadius: 99, background: "rgba(255,255,255,0.18)" }} />
+        <div className="flex justify-center pt-2.5 pb-1 shrink-0">
+          <div className="w-10 h-1 rounded-full bg-white/20" />
         </div>
 
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px 10px" }}>
-          <span style={{ fontSize: 16, fontWeight: 900, color: "white", letterSpacing: -0.4 }}>
-            New Cricket Article
-          </span>
-          <button
-            onClick={resetAndClose}
-            style={{ width: 30, height: 30, borderRadius: "50%", background: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-          >
-            <X size={14} color="rgba(255,255,255,0.6)" strokeWidth={2.5} />
-          </button>
+        <div className="flex items-center justify-between px-5 py-3 border-b border-white/5 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04] flex items-center justify-center text-white text-xs font-bold shadow-md">
+              📰
+            </span>
+            <div>
+              <h2 className="text-base font-black text-white tracking-tight">
+                {showPreview ? "Article Preview" : "Create New Article"}
+              </h2>
+              <p className="text-[11px] text-gray-400 font-medium">
+                {showPreview ? "Review your article before publishing" : "Draft and publish to Articles Hub"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* <button
+              type="button"
+              onClick={() => setShowPreview((prev) => !prev)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                showPreview
+                  ? "bg-gradient-to-r from-[#C9115F] to-[#e85d04] text-white border-transparent shadow-md shadow-pink-500/20"
+                  : "bg-white/5 text-gray-300 hover:text-white hover:bg-white/10 border-white/10"
+              }`}
+            >
+              {showPreview ? (
+                <>
+                  <ArrowLeft size={13} />
+                  <span className="flex whitespace-nowrap">Edit Form</span>
+                </>
+              ) : (
+                <>
+                  <Eye size={13} />
+                  <span>Preview</span>
+                </>
+              )}
+            </button> */}
+
+            <button
+              onClick={resetAndClose}
+              className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-white/5"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
-        {/* Scrollable body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 16px", minHeight: 0 }}>
-          {/* Badge + Title + Author + Read time + Views */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-            <div>
-              <label className="text-xs text-gray-400 block mb-1">Badge</label>
-              <select
-                name="badge"
-                value={form.badge}
-                onChange={handleChange}
-                className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 text-white text-sm"
-              >
-                <option value="FEATURE">FEATURE</option>
-                <option value="ANALYSIS">ANALYSIS</option>
-                <option value="OPINION">OPINION</option>
-                <option value="NEWS">NEWS</option>
-              </select>
-            </div>
+        {/* Scrollable Body (Form OR Live Preview) */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
+          {showPreview ? (
+            /* ─────────────────────────────────────────────────────────────
+               ARTICLE LIVE PREVIEW
+               ───────────────────────────────────────────────────────────── */
+            <div className="space-y-4 max-w-2xl mx-auto pb-4">
+              {/* Badge + Meta */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <span
+                  className={`text-[11px] font-black uppercase px-2.5 py-1 rounded-full border ${
+                    BADGE_COLORS[form.badge].bg
+                  } ${BADGE_COLORS[form.badge].text} ${BADGE_COLORS[form.badge].border}`}
+                >
+                  {form.badge}
+                </span>
 
-            <FormInput
-              label="Title"
-              name="title"
-              value={form.title}
-              onChange={handleChange}
-              placeholder="Enter article title"
-            />
-            <FormInput
-              label="Author"
-              name="author"
-              value={form.author}
-              onChange={handleChange}
-              placeholder="Enter author"
-            />
-            <FormInput
-              label="Read Time"
-              name="readTime"
-              value={form.readTime}
-              onChange={handleChange}
-              placeholder="e.g., 5 min read"
-            />
-          </div>
-
-          {/* Tags */}
-          <div className="mb-4">
-            <label className="text-xs text-gray-400 block mb-1">Article Tags</label>
-            <div className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 focus-within:border-blue-500 focus-within:outline-none">
-              <div className="flex flex-wrap gap-2 mb-2">
-                {form.tags.map((tag, index) => (
-                  <span
-                    key={index}
-                    className="flex items-center gap-1 bg-blue-500/20 text-blue-500 px-2 py-1 rounded text-xs"
-                  >
-                    {tag}
-                    <button
-                      type="button"
-                      onClick={() => removeTag(index)}
-                      className="hover:text-white transition"
-                    >
-                      &times;
-                    </button>
+                <div className="flex items-center gap-3 text-xs text-gray-400">
+                  <span className="flex items-center gap-1">
+                    <Clock size={12} className="text-gray-500" />
+                    {form.readTime || "5 min read"}
                   </span>
-                ))}
+                  <span>•</span>
+                  <span>{form.views || "0 views"}</span>
+                </div>
               </div>
-              <input
-                type="text"
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Type tag and press Enter..."
-                className="w-full bg-transparent border-none text-white text-sm focus:outline-none"
-              />
-            </div>
-          </div>
 
-          {/* Description paragraphs */}
-          <div className="mb-4">
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-xs text-gray-400">Description Paragraphs</label>
-              <button
-                type="button"
-                onClick={addDescriptionParagraph}
-                className="flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded transition"
-              >
-                <Plus size={14} />
-                Add Paragraph
-              </button>
-            </div>
+              {/* Title */}
+              <h1 className="text-xl sm:text-2xl font-black text-white leading-snug">
+                {form.title.trim() || <span className="text-gray-600 italic">Untitled Article</span>}
+              </h1>
 
-            <div className="space-y-3">
-              {form.description.map((paragraph, index) => (
-                <div key={index} className="border border-gray-700 rounded-lg p-3 bg-[#0d1117]/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <GripVertical size={16} className="text-gray-500 cursor-move" />
-                      <span className="text-xs text-blue-500 bg-blue-500/10 px-2 py-0.5 rounded">
-                        Paragraph {index + 1}
-                      </span>
-                    </div>
-                    <div className="flex gap-2">
-                      {index > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => moveParagraphUp(index)}
-                          className="text-gray-400 hover:text-white transition"
-                          title="Move Up"
-                        >
-                          ↑
-                        </button>
-                      )}
-                      {index < form.description.length - 1 && (
-                        <button
-                          type="button"
-                          onClick={() => moveParagraphDown(index)}
-                          className="text-gray-400 hover:text-white transition"
-                          title="Move Down"
-                        >
-                          ↓
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => removeDescriptionParagraph(index)}
-                        className="text-red-500 hover:text-red-400 transition"
-                        title="Remove Paragraph"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
+              {/* Author & Timestamp bar */}
+              <div className="flex items-center gap-2.5 pb-2 border-b border-white/5 text-xs text-gray-400">
+                {userAvatar ? (
+                  <img
+                    src={userAvatar}
+                    alt={displayAuthor}
+                    className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0"
+                  />
+                ) : (
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-r from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-sm">
+                    {(displayAuthor || "U")[0].toUpperCase()}
                   </div>
+                )}
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <span className="font-bold text-white text-xs truncate">
+                    {displayAuthor}
+                  </span>
+                  <span className="text-gray-500">•</span>
+                  <span className="text-gray-500 text-[11px]">Just now</span>
+                </div>
+              </div>
 
-                  <textarea
-                    value={paragraph}
-                    onChange={(e) => handleDescriptionChange(index, e.target.value)}
-                    placeholder={`Write paragraph ${index + 1}...`}
-                    rows={4}
-                    className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-blue-500 resize-y"
+              {/* Media Preview (Cover) */}
+              {previewUrl ? (
+                <div className="rounded-2xl overflow-hidden border border-white/10 bg-black/50 w-full flex items-center justify-center shadow-lg max-h-[380px]">
+                  {isVideo ? (
+                    <video src={previewUrl} controls className="w-full max-h-[380px] object-contain rounded-2xl" />
+                  ) : (
+                    <img
+                      src={previewUrl}
+                      alt="Article cover"
+                      className="w-full h-auto max-h-[380px] object-contain rounded-2xl"
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 flex flex-col items-center justify-center text-gray-500 gap-2">
+                  <ImageIcon size={28} className="opacity-40" />
+                  <span className="text-xs">No cover image/video selected yet</span>
+                </div>
+              )}
+
+              {/* Tags */}
+              {form.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {form.tags.map((tag, idx) => (
+                    <span
+                      key={idx}
+                      className="flex items-center gap-1 bg-white/5 border border-white/10 text-gray-300 text-xs px-2.5 py-1 rounded-full font-medium"
+                    >
+                      <Tag size={10} className="text-pink-400" />
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Article Content / Paragraphs */}
+              <div className="space-y-3.5 pt-2 text-sm text-gray-300 leading-relaxed font-normal">
+                {paragraphs.length > 0 ? (
+                  paragraphs.map((p, idx) => (
+                    <p key={idx} className="whitespace-pre-wrap">
+                      {p}
+                    </p>
+                  ))
+                ) : (
+                  <p className="text-gray-600 italic">No description or paragraphs written yet.</p>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* ─────────────────────────────────────────────────────────────
+               ARTICLE EDIT FORM
+               ───────────────────────────────────────────────────────────── */
+            <div className="space-y-4 max-w-2xl mx-auto">
+              {/* Badge + Title + Author + Read time */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1 font-semibold">Category</label>
+                  <select
+                    name="badge"
+                    value={form.badge}
+                    onChange={handleChange}
+                    className="w-full bg-[#11131f] border border-white/10 focus:border-pink-500 rounded-xl px-3 py-2 text-white text-sm outline-none transition-all cursor-pointer"
+                  >
+                    <option value="NEWS">NEWS</option>
+                    <option value="FEATURE">FEATURE</option>
+                    <option value="ANALYSIS">ANALYSIS</option>
+                    <option value="OPINION">OPINION</option>
+                  </select>
+                </div>
+
+                  {/* <FormInput
+                  label="Read Time"
+                  name="readTime"
+                  value={form.readTime}
+                  onChange={handleChange}
+                  placeholder="e.g., 5 min read"
+                /> */}
+
+                <div className="sm:col-span-2">
+                  <FormInput
+                    label="Article Title *"
+                    name="title"
+                    value={form.title}
+                    onChange={handleChange}
+                    placeholder="Enter article title..."
                   />
                 </div>
-              ))}
+
+                <div className="sm:col-span-2">
+                  <FormInput
+                    label="Author"
+                    name="author"
+                    value={form.author}
+                    onChange={handleChange}
+                    placeholder={currentUserName || "Your Name"}
+                  />
+                </div>
+              </div>
+
+              {/* Article Content / Description Textarea (Single Spacious Box) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-400 font-semibold">
+                    Article Description / Paragraphs *
+                  </label>
+                  <span className="text-[11px] text-gray-500">
+                    {paragraphs.length} paragraph{paragraphs.length === 1 ? "" : "s"} detected
+                  </span>
+                </div>
+                <textarea
+                  name="description"
+                  value={form.description}
+                  onChange={handleChange}
+                  placeholder="Write your article content here. Separate paragraphs by pressing Enter..."
+                  rows={8}
+                  className="w-full bg-[#11131f] border border-white/10 focus:border-pink-500 rounded-xl p-3.5 text-sm text-white placeholder:text-gray-500 outline-none resize-y transition-all leading-relaxed"
+                />
+                <p className="text-[11px] text-gray-500 mt-1">
+                  💡 Tip: Press Enter twice to create new paragraphs.
+                </p>
+              </div>
+
+              {/* Tags */}
+              <div>
+                <label className="text-xs text-gray-400 block mb-1 font-semibold">Article Tags</label>
+                <div className="w-full bg-[#11131f] border border-white/10 focus-within:border-pink-500 rounded-xl px-3 py-2.5">
+                  {form.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {form.tags.map((tag, index) => (
+                        <span
+                          key={index}
+                          className="flex items-center gap-1.5 bg-pink-500/15 border border-pink-500/30 text-pink-300 px-2.5 py-1 rounded-full text-xs font-semibold"
+                        >
+                          #{tag}
+                          <button
+                            type="button"
+                            onClick={() => removeTag(index)}
+                            className="hover:text-white transition-colors text-xs ml-0.5 cursor-pointer"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    type="text"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type tag and press Enter..."
+                    className="w-full bg-transparent border-none text-white text-xs outline-none placeholder:text-gray-600"
+                  />
+                </div>
+              </div>
+
+              {/* Image / Video Upload */}
+              <div>
+                <label className="text-xs text-gray-400 mb-1 block font-semibold">
+                  Article Cover Media (Image / Video) <span className="text-gray-500 font-normal">(Optional)</span>
+                </label>
+                <input
+                  type="file"
+                  accept="image/*,video/*"
+                  onChange={(e) => setImage(e.target.files?.[0] ?? null)}
+                  className="w-full bg-[#11131f] border border-white/10 rounded-xl px-3 py-2 text-white file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gradient-to-r file:from-[#C9115F] file:to-[#e85d04] file:text-white hover:file:opacity-90 text-xs cursor-pointer"
+                />
+                {previewUrl && (
+                  <div className="mt-3 relative w-36 h-24 rounded-xl overflow-hidden border border-white/10 bg-black/40 group">
+                    {isVideo ? (
+                      <video src={previewUrl} className="w-full h-full object-cover" />
+                    ) : (
+                      <img src={previewUrl} alt="preview" className="w-full h-full object-cover" />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setImage(null)}
+                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/80 hover:bg-black text-white flex items-center justify-center text-xs transition cursor-pointer"
+                      title="Remove media"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
-
-            <p className="text-xs text-gray-500 mt-2">{nonEmptyCount} non-empty paragraph(s)</p>
-          </div>
-
-          {/* Image / Video */}
-          <div className="mb-4">
-            <label className="text-xs text-gray-400 mb-1 block">Article Image / Video</label>
-            <input
-              type="file"
-              accept="image/*,video/*"
-              onChange={(e) => setImage(e.target.files?.[0] ?? null)}
-              className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 text-white file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-blue-500 file:text-white hover:file:bg-blue-600 text-sm"
-            />
-            <p className="text-[10px] text-gray-500 mt-1">
-              Videos are uploaded to the cricket media (Cloudinary) folder.
-            </p>
-            {preview && (
-              image?.type.startsWith("video/") ? (
-                <video
-                  src={preview}
-                  controls
-                  className="w-40 h-28 object-cover rounded mt-3 border border-gray-700"
-                />
-              ) : (
-                <img
-                  src={preview}
-                  alt="preview"
-                  className="w-28 h-28 object-cover rounded mt-3 border border-gray-700"
-                />
-              )
-            )}
-          </div>
-
-          <div style={{ height: 12 }} />
+          )}
         </div>
 
         {/* Action bar */}
-        <div style={{ flexShrink: 0, padding: "10px 16px", borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgb(12,14,24)" }}>
-          <div className="flex gap-3">
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="flex-1 py-3 rounded-xl font-bold text-sm disabled:cursor-not-allowed transition"
-              style={{
-                background: loading
-                  ? "rgba(255,255,255,0.08)"
-                  : "linear-gradient(90deg,rgb(233,30,140),rgb(255,107,53))",
-                color: loading ? "rgba(255,255,255,0.28)" : "white",
-              }}
-            >
-              {loading ? "Creating..." : "Create Article"}
-            </button>
-            <button
-              onClick={resetAndClose}
-              type="button"
-              className="flex-1 py-3 rounded-xl font-bold text-sm bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition"
-            >
-              Cancel
-            </button>
-          </div>
+        <div className="shrink-0 px-5 py-3.5 border-t border-white/5 bg-[#0c0e18] flex items-center gap-3">
+          {showPreview ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowPreview(false)}
+                className="flex-1 py-3 rounded-xl font-bold text-xs bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft size={14} />
+                <span>Back to Edit</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading}
+                className="flex-1 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-pink-500/20 active:scale-95"
+              >
+                {loading ? "Publishing..." : "Publish Article ↗"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowPreview(true)}
+                className="flex-1 py-3 rounded-xl font-bold text-xs bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+              >
+                <Eye size={14} className="text-pink-400" />
+                <span>Preview Article</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSubmit}
+                disabled={loading || !form.title.trim() || paragraphs.length === 0}
+                className="flex-1 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-pink-500/20 active:scale-95"
+              >
+                {loading ? "Publishing..." : "Create Article ↗"}
+              </button>
+
+                {/* <button
+                type="button"
+                onClick={resetAndClose}
+                className="px-4 py-3 rounded-xl font-bold text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                Cancel
+              </button> */}
+            </>
+          )}
         </div>
       </div>
     </div>,
@@ -825,10 +614,10 @@ function FormInput({
 }: React.InputHTMLAttributes<HTMLInputElement> & { label: string }) {
   return (
     <div>
-      <label className="text-xs text-gray-400 mb-1 block">{label}</label>
+      <label className="text-xs text-gray-400 mb-1 block font-semibold">{label}</label>
       <input
         {...props}
-        className="w-full bg-[#0d1117] border border-gray-700 rounded px-3 py-2 text-white placeholder:text-gray-500 text-sm focus:outline-none focus:border-blue-500"
+        className="w-full bg-[#11131f] border border-white/10 focus:border-pink-500 rounded-xl px-3 py-2 text-white placeholder:text-gray-500 text-sm outline-none transition-all"
       />
     </div>
   );

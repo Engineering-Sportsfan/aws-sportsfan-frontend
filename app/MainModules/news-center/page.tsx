@@ -8,14 +8,16 @@ import { ArrowLeft, Bell, Heart, Share2, ArrowRight, Calendar, CheckCircle2, Ext
 import { NewsArticle } from '../../../types/news';
 // Type for the external cricket API response (narrowed to avoid `any`)
 type CricketApiArticle = {
+  _id?: string | number;
   id?: string | number;
   title?: string;
-  description?: string[];
+  description?: string[] | string;
   summary?: string;
   badge?: string;
   image?: string;
   cdn_url?: string;
   createdAt?: number | string;
+  updatedAt?: number | string;
 };
 
 type NewsApiArticle = NewsArticle & {
@@ -184,13 +186,68 @@ export default function DetailedNewsCenter() {
           createdAt: typeof article.createdAt === 'number' ? article.createdAt : (article.createdAt ? Date.parse(String(article.createdAt)) : undefined)
         })) as NewsArticle[];
 
+        const extractSummary = (art: CricketApiArticle): string => {
+          if (Array.isArray(art.description) && art.description.length > 0) {
+            return String(art.description[0]);
+          }
+          if (typeof art.description === 'string' && art.description.trim()) {
+            try {
+              const parsed = JSON.parse(art.description);
+              if (Array.isArray(parsed) && parsed.length > 0) return String(parsed[0]);
+            } catch {}
+            return art.description;
+          }
+          return art.summary || '';
+        };
+
+        const extractCreatedAt = (art: any): number => {
+          // Direct number (DynamoDB unix ms timestamp or seconds)
+          if (typeof art.createdAt === 'number') {
+            return art.createdAt < 10000000000 ? art.createdAt * 1000 : art.createdAt;
+          }
+          if (typeof art.timeMs === 'number') return art.timeMs;
+          if (typeof art.timestamp === 'number') {
+            return art.timestamp < 10000000000 ? art.timestamp * 1000 : art.timestamp;
+          }
+
+          // Firestore Timestamp objects (.toMillis(), .seconds, ._seconds)
+          if (art.createdAt && typeof art.createdAt.toMillis === 'function') {
+            return art.createdAt.toMillis();
+          }
+          if (art.createdAt && typeof art.createdAt.seconds === 'number') {
+            return art.createdAt.seconds * 1000;
+          }
+          if (art.createdAt && typeof art.createdAt._seconds === 'number') {
+            return art.createdAt._seconds * 1000;
+          }
+
+          // ISO Strings / date strings (DynamoDB standard string format)
+          if (typeof art.createdAt === 'string' && art.createdAt.trim()) {
+            const parsed = Date.parse(art.createdAt);
+            if (!isNaN(parsed) && parsed > 0) return parsed;
+          }
+
+          // Fallbacks to updatedAt
+          if (typeof art.updatedAt === 'number') {
+            return art.updatedAt < 10000000000 ? art.updatedAt * 1000 : art.updatedAt;
+          }
+          if (typeof art.updatedAt === 'string' && art.updatedAt.trim()) {
+            const parsed = Date.parse(art.updatedAt);
+            if (!isNaN(parsed) && parsed > 0) return parsed;
+          }
+
+          return Date.now();
+        };
+
         // Try to fetch Cricket Articles from local proxy
         let cricketArticles: CricketApiArticle[] = [];
         try {
-          const cricketRes = await fetch('/api/cricket-articles');
+          const cricketRes = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' },
+          });
           if (cricketRes.ok) {
             const cricketData = await cricketRes.json();
-            // Handle different possible response structures
             cricketArticles = cricketData?.articles || cricketData?.data || (Array.isArray(cricketData) ? cricketData : []);
             console.log("Cricket articles fetched:", cricketArticles.length);
           }
@@ -200,18 +257,21 @@ export default function DetailedNewsCenter() {
 
         // Transform cricket articles to match NewsArticle structure
         const transformedCricket: NewsArticle[] = (Array.isArray(cricketArticles) ? cricketArticles : [])
-          .map((article: CricketApiArticle) => ({
-            rank: 0,
-            title: article.title || '',
-            summary: article.description?.[0] || article.summary || '',
-            source: 'SportsFan360',
-            url: `/MainModules/CricketArticles/${article.id}`,
-            tag: article.badge || 'Cricket',
-            cdn_url: article.image || article.cdn_url || '',
-            createdAt: typeof article.createdAt === 'number' ? article.createdAt : (article.createdAt ? Date.parse(String(article.createdAt)) : Date.now()),
-            likes: 0,
-            id: String(article.id) // Add cricket article ID for sync
-          }));
+          .map((article: CricketApiArticle) => {
+            const articleId = String(article._id || article.id || '');
+            return {
+              rank: 0,
+              title: article.title || '',
+              summary: extractSummary(article),
+              source: 'SportsFan360',
+              url: `/MainModules/CricketArticles/${articleId}`,
+              tag: article.badge || 'Cricket',
+              cdn_url: article.image || article.cdn_url || '',
+              createdAt: extractCreatedAt(article),
+              likes: 0,
+              id: articleId,
+            };
+          });
 
         // Merge both arrays
         const mergedArticles = [...newsArticles, ...transformedCricket];
@@ -235,6 +295,14 @@ export default function DetailedNewsCenter() {
       }
     };
     fetchNews();
+
+    const handleArticleCreated = () => {
+      fetchNews();
+    };
+    window.addEventListener('cricket-article-created', handleArticleCreated);
+    return () => {
+      window.removeEventListener('cricket-article-created', handleArticleCreated);
+    };
   }, [selectedArchiveDate]);
 
   // derive displayedArticles from articles + filters

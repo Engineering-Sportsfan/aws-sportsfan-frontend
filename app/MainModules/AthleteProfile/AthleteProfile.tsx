@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
+
 import {
   Award,
   Share2,
@@ -49,6 +51,8 @@ interface Props {
 }
 
 export default function AthleteProfile({ athleteId, isClub }: Props) {
+  const router = useRouter();
+
   const [activeTab, setActiveTab] = useState<"drops" | "posts">("drops");
   const [isFollowing, setIsFollowing] = useState(false);
   const [cheerCount, setCheerCount] = useState(0);
@@ -504,13 +508,22 @@ export default function AthleteProfile({ athleteId, isClub }: Props) {
 
         {/* Top Navbar overlay */}
         <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 py-3 md:px-8">
-          <div className="flex flex-col">
-            <span className="text-[18px] md:text-[24px] font-black tracking-tight text-white flex items-center gap-1">
-              SportsFan<span className="text-[#FF7A00]">360</span>
-            </span>
-            <span className="text-[10px] text-gray-400 -mt-1 font-medium tracking-wide">
-              Where fans play...
-            </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.back()}
+              className="w-9 h-9 rounded-xl bg-white/5 border border-white/8 flex items-center justify-center text-gray-300 hover:bg-white/10 transition-colors active:scale-95 cursor-pointer"
+              aria-label="Go back"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <div className="flex flex-col">
+              <span className="text-[18px] md:text-[24px] font-black tracking-tight text-white flex items-center gap-1">
+                SportsFan<span className="text-[#FF7A00]">360</span>
+              </span>
+              <span className="text-[10px] text-gray-400 -mt-1 font-medium tracking-wide">
+                Where fans play...
+              </span>
+            </div>
           </div>
         </div>
 

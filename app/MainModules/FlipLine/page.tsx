@@ -65,16 +65,16 @@ export default function FlipLinePage() {
           // Override for demo cards so they line up with the screenshots' timestamps
           if (item.id === "demo_bbb_1_20.5") {
             timeStr = "11:03 AM";
-            itemTimeMs = 1793310000000; // specific mock timestamp
+            itemTimeMs = Date.now() - 1000 * 60 * 5;
           } else if (item.id === "demo_bbb_2_20.2") {
             timeStr = "11:00 AM";
-            itemTimeMs = 1793309820000;
+            itemTimeMs = Date.now() - 1000 * 60 * 10;
           } else if (item.id === "demo_bbb_3_19.6") {
             timeStr = "10:57 AM";
-            itemTimeMs = 1793309640000;
+            itemTimeMs = Date.now() - 1000 * 60 * 15;
           } else if (item.id === "demo_bbb_5_19.1") {
             timeStr = "10:49 AM";
-            itemTimeMs = 1793309160000;
+            itemTimeMs = Date.now() - 1000 * 60 * 20;
           }
 
           return {
@@ -83,7 +83,7 @@ export default function FlipLinePage() {
             sport: 'cricket',
             sportEmoji: '🏏',
             sportLabel: 'Cricket',
-            day: 'Today',
+            day: new Date(itemTimeMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             time: timeStr,
             timeMs: itemTimeMs,
             author: 'Flip',
@@ -136,7 +136,10 @@ export default function FlipLinePage() {
     fetchCards();
     updateLiveUpdates();
 
-    const interval = setInterval(updateLiveUpdates, 15000);
+    const interval = setInterval(() => {
+      updateLiveUpdates();
+      fetchCards();
+    }, 15000);
 
     const handleNewPost = () => {
       fetchCards();

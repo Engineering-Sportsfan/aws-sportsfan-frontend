@@ -540,14 +540,16 @@ declare const process: {
 };
 
 type CricketApiArticle = {
+  _id?: string | number;
   id?: string | number;
   title?: string;
-  description?: string[];
+  description?: string[] | string;
   summary?: string;
   badge?: string;
   image?: string;
   cdn_url?: string;
   createdAt?: number | string;
+  updatedAt?: number | string;
 };
 
 type DebugInfo = {
@@ -731,9 +733,65 @@ export default function NewsCenter() {
   };
 
   useEffect(() => {
+    const extractSummary = (art: CricketApiArticle): string => {
+      if (Array.isArray(art.description) && art.description.length > 0) {
+        return String(art.description[0]);
+      }
+      if (typeof art.description === 'string' && art.description.trim()) {
+        try {
+          const parsed = JSON.parse(art.description);
+          if (Array.isArray(parsed) && parsed.length > 0) return String(parsed[0]);
+        } catch {}
+        return art.description;
+      }
+      return art.summary || '';
+    };
+
+    const extractCreatedAt = (art: any): number => {
+      // Direct number (DynamoDB unix ms timestamp or seconds)
+      if (typeof art.createdAt === 'number') {
+        return art.createdAt < 10000000000 ? art.createdAt * 1000 : art.createdAt;
+      }
+      if (typeof art.timeMs === 'number') return art.timeMs;
+      if (typeof art.timestamp === 'number') {
+        return art.timestamp < 10000000000 ? art.timestamp * 1000 : art.timestamp;
+      }
+
+      // Firestore Timestamp objects (.toMillis(), .seconds, ._seconds)
+      if (art.createdAt && typeof art.createdAt.toMillis === 'function') {
+        return art.createdAt.toMillis();
+      }
+      if (art.createdAt && typeof art.createdAt.seconds === 'number') {
+        return art.createdAt.seconds * 1000;
+      }
+      if (art.createdAt && typeof art.createdAt._seconds === 'number') {
+        return art.createdAt._seconds * 1000;
+      }
+
+      // ISO Strings / date strings (DynamoDB standard string format)
+      if (typeof art.createdAt === 'string' && art.createdAt.trim()) {
+        const parsed = Date.parse(art.createdAt);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+
+      // Fallbacks to updatedAt
+      if (typeof art.updatedAt === 'number') {
+        return art.updatedAt < 10000000000 ? art.updatedAt * 1000 : art.updatedAt;
+      }
+      if (typeof art.updatedAt === 'string' && art.updatedAt.trim()) {
+        const parsed = Date.parse(art.updatedAt);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+
+      return Date.now();
+    };
+
     const fetchNews = async () => {
       try {
-        const cricketRes = await fetch('/api/cricket-articles');
+        const cricketRes = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        });
         console.log('[NewsCenter] cricket-articles status:', cricketRes.status, cricketRes.ok);
 
         if (!cricketRes.ok) {
@@ -751,22 +809,20 @@ export default function NewsCenter() {
         console.log('[NewsCenter] cricket articles fetched:', cricketArticles.length);
 
         const transformedCricket: NewsArticle[] = (Array.isArray(cricketArticles) ? cricketArticles : []).map(
-          (article: CricketApiArticle) => ({
-            rank: 0,
-            title: article.title || '',
-            summary: article.description?.[0] || article.summary || '',
-            source: 'SportsFan360',
-            url: `/MainModules/CricketArticles/${article.id}`,
-            tag: article.badge || 'Cricket',
-            cdn_url: article.image || article.cdn_url || '',
-            createdAt:
-              typeof article.createdAt === 'number'
-                ? article.createdAt
-                : article.createdAt
-                  ? Date.parse(String(article.createdAt))
-                  : Date.now(),
-            id: String(article.id) // Add cricket article ID for sync
-          })
+          (article: CricketApiArticle) => {
+            const articleId = String(article._id || article.id || '');
+            return {
+              rank: 0,
+              title: article.title || '',
+              summary: extractSummary(article),
+              source: 'SportsFan360',
+              url: `/MainModules/CricketArticles/${articleId}`,
+              tag: article.badge || 'Cricket',
+              cdn_url: article.image || article.cdn_url || '',
+              createdAt: extractCreatedAt(article),
+              id: articleId,
+            };
+          }
         );
 
         transformedCricket.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -792,6 +848,14 @@ export default function NewsCenter() {
     };
 
     fetchNews();
+
+    const handleArticleCreated = () => {
+      fetchNews();
+    };
+    window.addEventListener('cricket-article-created', handleArticleCreated);
+    return () => {
+      window.removeEventListener('cricket-article-created', handleArticleCreated);
+    };
   }, []);
 
   useEffect(() => {
@@ -818,7 +882,7 @@ export default function NewsCenter() {
     return (
       <div className="w-full flex flex-col gap-2 py-4 rounded-xl">
         <div className="flex justify-between items-center px-2">
-          <h3 className="text-[17px] font-extrabold text-white">Cricket Articles</h3>
+          <h3 className="text-[17px] font-extrabold text-white">Articles</h3>
         </div>
         <div className="w-full p-6 rounded-2xl border border-gray-800 bg-[#111111] text-center">
           <p className="text-gray-400 text-sm">No articles available</p>
@@ -840,7 +904,7 @@ export default function NewsCenter() {
           {/* <h2 className="text-2xl font-bold text-white">News Center</h2> */}
          
           {/* <h2 className="text-[17px] font-bold text-white">Cricket Articles</h2> */}
-           <h3 className="text-[17px] font-extrabold text-white">Cricket Articles</h3>
+           <h3 className="text-[17px] font-extrabold text-white">Articles</h3>
           {/* <p className="text-sm text-gray-400">Top stories, match previews & records from around the cricket world.</p> */}
         </div>
         {/* <Link href="/MainModules/CricketArticles" className="flex items-center gap-2 px-4 py-2 border border-orange-500 text-orange-500 rounded-full hover:bg-orange-500 hover:text-white transition-all text-sm shrink-0">
