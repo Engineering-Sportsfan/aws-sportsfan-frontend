@@ -104,6 +104,11 @@ export default function CreatePostDialog({
         minute: "2-digit",
         hour12: true,
       });
+      const dateStr = new Date(now).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
 
       formData.append("userId", userId);
       formData.append("author", userName);
@@ -116,7 +121,7 @@ export default function CreatePostDialog({
       formData.append("source", "FlipLine");
       formData.append("likes", "0");
       formData.append("isKey", "false");
-      formData.append("day", "Today");
+      formData.append("day", dateStr);
       formData.append("time", timeStr);
       formData.append("timeMs", String(now));
       formData.append("createdAt", String(now));
