@@ -340,6 +340,7 @@ export function FlipLineFullScreen({
 }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [askOpen, setAskOpen] = useState<number | string | null>(null);
+  const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<string>('all');
 
   if (loading) {
@@ -429,7 +430,7 @@ export function FlipLineFullScreen({
         }}
       >
         <button
-          onClick={onBack}
+          onClick={() => router.back()}
           className="p-1 text-white/70 hover:text-white transition-colors bg-transparent border-none cursor-pointer"
         >
           <svg
@@ -465,7 +466,7 @@ export function FlipLineFullScreen({
               LIVE
             </span>
           </div>
-          <div
+          {/* <div
             style={{
               fontSize: 9,
               color: 'rgba(255,255,255,0.35)',
@@ -478,9 +479,9 @@ export function FlipLineFullScreen({
             <span>🏏 Cricket</span>
             <span>⚽ Football</span>
             <span>🏃 Athletics</span>
-          </div>
+          </div> */}
         </div>
-        <div
+        {/* <div
           style={{
             display: 'flex',
             borderRadius: 99,
@@ -507,7 +508,7 @@ export function FlipLineFullScreen({
               {d === 'full' ? 'Full' : 'Key'}
             </button>
           ))}
-        </div>
+        </div> */}
       </div>
 
       {/* Multi-sport & Tag Filter Chips (Horizontally Scrollable) */}
@@ -521,8 +522,8 @@ export function FlipLineFullScreen({
           { id: 'football', label: '#football', emoji: '⚽' },
           { id: 'athletics', label: '#athletics', emoji: '🏃' },
           { id: 'analysts', label: '#analysts', emoji: '🎙' },
-          { id: 'sf360-live', label: '#sf360-live', emoji: '📡' },
-          { id: 'fan-roar', label: '#fan-roar', emoji: '🔥' },
+          // { id: 'sf360-live', label: '#sf360-live', emoji: '📡' },
+          // { id: 'fan-roar', label: '#fan-roar', emoji: '🔥' },
         ].map((chip) => {
           const isActive = activeFilter === chip.id;
           return (
@@ -549,7 +550,7 @@ export function FlipLineFullScreen({
       </div>
 
       {/* Legend strip */}
-      <div
+      {/* <div
         style={{
           flexShrink: 0,
           display: 'flex',
@@ -585,10 +586,10 @@ export function FlipLineFullScreen({
         <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.22)', fontWeight: 600 }}>
           Newest first
         </span>
-      </div>
+      </div> */}
 
       {/* Scrollable timeline */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingTop: 16, paddingBottom: 32 }}>
+      <div style={{ flex: 1, overflowY: 'auto', paddingTop: 0, paddingBottom: 32 }}>
         <FlipTimeline
           cards={displayCards}
           askOpen={askOpen}

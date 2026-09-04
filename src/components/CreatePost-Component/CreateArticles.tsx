@@ -222,7 +222,7 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            {/* <button
               type="button"
               onClick={() => setShowPreview((prev) => !prev)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
@@ -242,7 +242,7 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
                   <span>Preview</span>
                 </>
               )}
-            </button>
+            </button> */}
 
             <button
               onClick={resetAndClose}
@@ -377,13 +377,13 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
                   </select>
                 </div>
 
-                <FormInput
+                  {/* <FormInput
                   label="Read Time"
                   name="readTime"
                   value={form.readTime}
                   onChange={handleChange}
                   placeholder="e.g., 5 min read"
-                />
+                /> */}
 
                 <div className="sm:col-span-2">
                   <FormInput
@@ -538,13 +538,13 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
                 {loading ? "Publishing..." : "Create Article ↗"}
               </button>
 
-              <button
+                {/* <button
                 type="button"
                 onClick={resetAndClose}
                 className="px-4 py-3 rounded-xl font-bold text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
               >
                 Cancel
-              </button>
+              </button> */}
             </>
           )}
         </div>
