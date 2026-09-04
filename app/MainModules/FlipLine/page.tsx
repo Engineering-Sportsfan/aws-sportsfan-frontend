@@ -83,7 +83,7 @@ export default function FlipLinePage() {
             sport: 'cricket',
             sportEmoji: '🏏',
             sportLabel: 'Cricket',
-            day: 'Today',
+            day: new Date(itemTimeMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             time: timeStr,
             timeMs: itemTimeMs,
             author: 'Flip',

@@ -778,7 +778,7 @@ function HomePageInner() {
 
   return (
     <div className="flex flex-col w-full min-h-screen">
-      <div className="flex flex-col gap-6 px-4 mb-20 lg:px-6 py-4 w-full">
+      <div className="flex flex-col gap-2 md:gap-6 px-1 md:px-4 mb-20 lg:px-6 py-4 w-full">
         {/* <HomeBanners />
         <IPLSpotlight />
         <WomensT20Section/>

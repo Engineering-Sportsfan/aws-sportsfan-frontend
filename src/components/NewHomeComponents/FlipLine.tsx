@@ -37,27 +37,112 @@ function getGuestId(): string {
   return name;
 }
 
+function formatCardDate(day?: string, timeMs?: number, createdAt?: number | string): string {
+  const cleanDay = (day || '').trim();
+  if (
+    cleanDay &&
+    cleanDay.toLowerCase() !== 'just now' &&
+    cleanDay.toLowerCase() !== 'justnow' &&
+    cleanDay.toLowerCase() !== 'today'
+  ) {
+    // If it's a match day like "Day 1 · Morning", keep it
+    if (cleanDay.toLowerCase().startsWith('day ') || isNaN(Date.parse(cleanDay))) {
+      return cleanDay;
+    }
+    // If it's a parseable date string, format it nicely
+    const parsed = new Date(cleanDay);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+    }
+  }
+
+  const ts =
+    Number(timeMs) ||
+    (typeof createdAt === 'number' && !isNaN(createdAt) && createdAt > 0 ? createdAt : undefined) ||
+    (typeof createdAt === 'string' ? Number(createdAt) || Date.parse(createdAt) : undefined) ||
+    Date.now();
+
+  const d = new Date(ts);
+  if (isNaN(d.getTime())) {
+    return new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  }
+
+  return d.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+function getCardTime(card: FlipCard): string {
+  let timeStr = (card.time || '').trim();
+  if (!timeStr || timeStr.toLowerCase().includes('just now') || timeStr.toLowerCase() === 'live') {
+    const ts =
+      Number(card.timeMs) ||
+      (typeof card.createdAt === 'number' && !isNaN(card.createdAt) && card.createdAt > 0
+        ? card.createdAt
+        : undefined) ||
+      (typeof card.createdAt === 'string' ? Number(card.createdAt) || Date.parse(card.createdAt) : undefined) ||
+      Date.now();
+
+    const d = new Date(ts);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    }
+    return new Date().toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+  }
+  return timeStr;
+}
+
 function formatCommentTimestamp(createdAt?: number | string, fallbackTime?: string): string {
-  if (!createdAt && !fallbackTime) return 'Just now';
-  if (!createdAt) return fallbackTime || 'Just now';
+  const cleanFallback =
+    fallbackTime && fallbackTime.trim().toLowerCase() !== 'just now' ? fallbackTime.trim() : undefined;
 
-  const timestamp = typeof createdAt === 'string' ? Number(createdAt) || Date.parse(createdAt) : createdAt;
-  if (!timestamp || isNaN(timestamp)) return fallbackTime || 'Just now';
+  let timestamp: number | undefined;
+  if (typeof createdAt === 'number' && !isNaN(createdAt) && createdAt > 0) {
+    timestamp = createdAt;
+  } else if (typeof createdAt === 'string') {
+    const num = Number(createdAt);
+    timestamp = !isNaN(num) && num > 0 ? num : Date.parse(createdAt);
+    if (isNaN(timestamp)) timestamp = undefined;
+  }
 
-  const diffMs = Date.now() - timestamp;
-  if (diffMs < 60000) return 'Just now';
-
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 60) return `${mins}m ago`;
-
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d ago`;
+  if (!timestamp) {
+    if (cleanFallback) return cleanFallback;
+    return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
 
   const d = new Date(timestamp);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (isNaN(d.getTime())) {
+    if (cleanFallback) return cleanFallback;
+    return new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  }
+
+  const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+  const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+  const isToday = new Date().toDateString() === d.toDateString();
+  if (isToday) {
+    return timeStr;
+  }
+
+  return `${dateStr}, ${timeStr}`;
 }
 
 function renderFormattedContent(content: string) {
@@ -162,10 +247,10 @@ function FlipLineSection({
   }
 
   return (
-    <div className="mb-5">
+    <div className="sm:mb-2 md:mb-4">
       {/* Multi-sport & Tag Filter Chips (Horizontally Scrollable) */}
       <div
-        className="flex items-center gap-2 px-4 mb-4 overflow-x-auto no-scrollbar"
+        className="flex items-center gap-2 md:px-4 md:mb-4 overflow-x-auto no-scrollbar"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {[
@@ -718,8 +803,15 @@ export function FlipCardItem({
     setIsSubmittingComment(true);
     setCommentText('');
 
+    const now = Date.now();
+    const currentTimeStr = new Date(now).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+
     const optimisticComment: FlipLineComment = {
-      id: `c_temp_${Date.now()}`,
+      id: `c_temp_${now}`,
       userId: currentUserId,
       userName: currentUserName,
       userHandle: currentUserHandle,
@@ -727,8 +819,8 @@ export function FlipCardItem({
       authorPhoto: currentUserAuthorPhoto,
       userAvatar: currentUserAvatar,
       content: text,
-      time: 'Just now',
-      createdAt: Date.now(),
+      time: currentTimeStr,
+      createdAt: now,
       likes: 0,
       likedBy: [],
       replies: [],
@@ -829,8 +921,15 @@ export function FlipCardItem({
     setReplyText('');
     setReplyingToCommentId(null);
 
+    const now = Date.now();
+    const currentTimeStr = new Date(now).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    });
+
     const optimisticReply: FlipLineReply = {
-      id: `r_temp_${Date.now()}`,
+      id: `r_temp_${now}`,
       userId: currentUserId,
       userName: currentUserName,
       userHandle: currentUserHandle,
@@ -839,8 +938,8 @@ export function FlipCardItem({
       userAvatar: currentUserAvatar,
       content: text,
       replyTo: targetComment.userHandle || targetComment.userName,
-      time: 'Just now',
-      createdAt: Date.now(),
+      time: currentTimeStr,
+      createdAt: now,
       likes: 0,
       likedBy: [],
     };
@@ -1055,11 +1154,12 @@ export function FlipCardItem({
   const themeLabel = typeLabelMap[card.type] || card.type;
 
   return (
-    <div className="flex w-full relative mb-8">
+    <div className="flex w-full relative sm:mb-2 md:mb-4">
       {/* Left timeline axis */}
-      <div className="w-[70px] shrink-0 flex flex-col items-center pt-1 relative">
+      <div className="w-[50px] shrink-0 flex flex-col items-center pt-1 relative">
         {(() => {
-          const parts = (card.time || '').split(' ');
+          const displayTime = getCardTime(card);
+          const parts = displayTime.split(' ');
           if (parts.length >= 2) {
             return (
               <>
@@ -1071,8 +1171,8 @@ export function FlipCardItem({
             );
           }
           return (
-            <span className="text-[12px] font-extrabold text-white leading-tight text-center break-words max-w-[60px]">
-              {card.time || 'Live'}
+            <span className="text-[12px] font-extrabold text-white leading-tight text-center break-words max-w-[40px]">
+              {displayTime}
             </span>
           );
         })()}
@@ -1100,7 +1200,7 @@ export function FlipCardItem({
       </div>
 
       {/* Right card container */}
-      <div className="flex-1 pr-4 pb-2 min-w-0">
+      <div className="flex-1 md:pr-4 pb-1 md:pb-2 min-w-0">
         <div className="transition-all duration-300 relative flex flex-col gap-3.5 w-full bg-[#161b22]/50 border border-[#21262d] rounded-2xl p-4 shadow-md backdrop-blur-sm">
           {/* Row 1: Author info */}
           <div className="flex items-center justify-between w-full">
@@ -1234,7 +1334,7 @@ export function FlipCardItem({
           {/* If the card is a bot live update, render the over and time footer */}
           {card.type === 'bot' && card.overLabel && (
             <p className="text-[11px] font-bold text-white/35 mt-0.5">
-              {card.overLabel} · {card.time}
+              {card.overLabel} · {getCardTime(card)}
             </p>
           )}
 
@@ -1397,7 +1497,7 @@ export function FlipCardItem({
           )} */}
 
           {/* Row 5: Action buttons (Like, Comment, Share, Flip) */}
-          <div className="flex items-center justify-between pt-1">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               {/* Card Like Button */}
               <button
@@ -2000,7 +2100,7 @@ export function FlipCardItem({
               >
                 {displayAuthor} {displayHandle ? displayHandle : ''}
               </span>{' '}
-              · {card.time} · via {card.source || 'FlipLine'}
+              · {getCardTime(card)} · via {card.source || 'FlipLine'}
             </p>
           </div>
         </div>
@@ -2051,7 +2151,7 @@ export function FlipTimeline({
   // Group cards by day (date) preserving chronological order
   const dateGroups: { date: string; cards: FlipCard[] }[] = [];
   finalCards.forEach((card) => {
-    const date = card.day || 'Today';
+    const date = formatCardDate(card.day, card.timeMs, card.createdAt);
     let group = dateGroups.find((g) => g.date === date);
     if (!group) {
       group = { date, cards: [] };
@@ -2063,9 +2163,9 @@ export function FlipTimeline({
   return (
     <div className="flex flex-col w-full relative">
       {dateGroups.map((group) => (
-        <div key={group.date} className="w-full flex flex-col mb-6">
+        <div key={group.date} className="w-full flex flex-col sm:mb-4 md:mb-6">
           {/* Centered Date Header */}
-          <div className="flex justify-center mb-6 mt-2">
+          <div className="flex justify-center mb-1 sm:mb-2 md:mb-4 mt-2">
             <span className="px-4 py-1.5 rounded-full text-xs font-black text-white bg-white/10 backdrop-blur-sm border border-white/10 shadow-lg uppercase tracking-wider">
               {group.date}
             </span>
@@ -2168,7 +2268,7 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
             sport: 'cricket',
             sportEmoji: '🏏',
             sportLabel: 'Cricket',
-            day: 'Today',
+            day: formatCardDate(undefined, itemTimeMs),
             time: timeStr,
             timeMs: itemTimeMs,
             author: 'Flip',
@@ -2262,11 +2362,11 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
   return (
     <div className="w-full">
       {/* Main Toggle Button Row */}
-      <div className="px-4 mb-4">
+      <div className="px-4 mb-1 md:mb-4">
         <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] shadow-inner">
           <button
             onClick={() => setActiveTab('flipline')}
-            className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer"
+            className="flex-1 py-1  rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer"
             style={{
               background:
                 activeTab === 'flipline'
