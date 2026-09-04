@@ -1,14 +1,12 @@
 
-
-
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import axios from "axios";
 import { FileText, Newspaper } from "lucide-react";
+import type { CreatePostPayload } from "@/types/PostPolls";
 import CreatePostDialog from "./CreatePost-Component/CreatePostDialog";
 import CreateArticles from "./CreatePost-Component/CreateArticles";
+import { usePosts } from "../../hooks/Useposts";
 import { useAuth } from "@/context/AuthContext";
 
 // Add emails here to grant access to the floating Create Post button.
@@ -16,7 +14,7 @@ const CREATE_POST_ALLOWED_EMAILS: string[] = [
   // "someone@sportsfan360.com",
   "rahul.yadav@sportsfan360.com",
   "chandu.srikakulam@sportsfan360.com",
-  "jignesh@sportsfan360.com",
+  "jigesh@sportsfan360.com",
   "anandvasu@gmail.com",
   "tushar.deshmukh@sportsfan360.com",
   "prisha.dureja@sportsfan360.com",
@@ -29,7 +27,7 @@ export default function GlobalActionBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // const { createPost } = usePosts();
+  const { createPost } = usePosts();
   const { user } = useAuth();
 
   const userEmail = (user?.email || (user as any)?.emailAddress || (user as any)?.username || "").trim().toLowerCase();
@@ -48,12 +46,7 @@ export default function GlobalActionBar() {
     userName: string,
     userEmail?: string
   ) => {
-    await axios.post("/api/flipline", formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    });
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event("flipline-post-created"));
-    }
+    await createPost(formData, userId, userName, userEmail);
   };
 
   // Close the menu when clicking outside of it.

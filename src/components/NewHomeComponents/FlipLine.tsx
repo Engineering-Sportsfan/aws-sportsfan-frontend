@@ -60,6 +60,34 @@ function formatCommentTimestamp(createdAt?: number | string, fallbackTime?: stri
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+function renderFormattedContent(content: string) {
+  if (!content) return null;
+  const parts = content.split(/(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith('#')) {
+      return (
+        <span
+          key={index}
+          className="text-pink-500 font-bold hover:underline cursor-pointer"
+        >
+          {part}
+        </span>
+      );
+    }
+    if (part.startsWith('@')) {
+      return (
+        <span
+          key={index}
+          className="text-sky-400 font-bold hover:underline cursor-pointer"
+        >
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
+}
+
 function FlipLineSection({
   selectedSport,
   onViewFull,
@@ -1200,7 +1228,7 @@ export function FlipCardItem({
 
           {/* Row 2: Card Content */}
           <p className="text-[14px] font-medium text-white/90 leading-relaxed break-words whitespace-pre-line">
-            {card.content}
+            {renderFormattedContent(card.content)}
           </p>
 
           {/* If the card is a bot live update, render the over and time footer */}
@@ -1318,19 +1346,25 @@ export function FlipCardItem({
             </div>
           )}
 
-          {/* Row 3: Tags (if present) */}
-          {card.tags && card.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-0.5">
-              {card.tags.map((t) => (
-                <span
-                  key={t}
-                  className="text-[11px] font-bold text-pink-500 hover:underline cursor-pointer"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
+          {/* Row 3: Tags (only if not already in post content) */}
+          {(() => {
+            const extraTags = (card.tags || []).filter(
+              (t) => !card.content || !card.content.toLowerCase().includes(t.toLowerCase())
+            );
+            if (extraTags.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-2 mt-0.5">
+                {extraTags.map((t) => (
+                  <span
+                    key={t}
+                    className="text-[11px] font-bold text-pink-500 hover:underline cursor-pointer"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Row 4: FOMO Banner */}
           {/* {card.fomoMsg && (
@@ -1952,7 +1986,9 @@ export function FlipCardItem({
           </div>
 
           <div className="mt-6 text-center max-w-2xl px-4" onClick={(e) => e.stopPropagation()}>
-            <p className="text-[14.5px] font-medium text-white/95 leading-relaxed">{card.content}</p>
+            <p className="text-[14.5px] font-medium text-white/95 leading-relaxed break-words whitespace-pre-line">
+              {renderFormattedContent(card.content)}
+            </p>
             <p className="text-[11px] text-white/40 mt-2">
               Posted by{' '}
               <span
