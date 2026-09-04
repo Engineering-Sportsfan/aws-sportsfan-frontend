@@ -41,7 +41,7 @@ export default function FlipGuruPage() {
       id: "player-profiles",
       title: "Player Profiles",
       subtitle: "Explore athlete stats & bios",
-      href: "/MainModules/PlayersProfile",
+      href: "/MainModules/AthleteHomePage",
       iconBg: "bg-[#241328]",
       borderColor: "border-purple-500/30",
       glowColor: "shadow-[0_0_20px_rgba(168,85,247,0.15)]",
