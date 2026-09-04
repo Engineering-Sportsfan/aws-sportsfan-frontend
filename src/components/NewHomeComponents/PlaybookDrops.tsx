@@ -337,7 +337,7 @@ export default function PlaybookDrops() {
     return (
       <div className="w-full mt-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-[17px] font-extrabold text-white">Playbook Drops</h3>
+          <h3 className="text-[17px] font-extrabold text-white">FlipLONG Drops</h3>
         </div>
         <div className="flex gap-4 overflow-x-auto pb-3 -mx-4 px-4">
           {[1, 2, 3].map((i) => (
@@ -363,7 +363,7 @@ export default function PlaybookDrops() {
   return (
     <div className="w-full mt-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[17px] font-extrabold text-white">Playbook Drops</h3>
+        <h3 className="text-[17px] font-extrabold text-white">FlipLONG Drops</h3>
         {/* <button
           type="button"
           onClick={() => router.push("/MainModules/AtheletePlaybook")}

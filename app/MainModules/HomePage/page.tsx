@@ -811,6 +811,7 @@ function HomePageInner() {
         {/* <AthleticsSpotlight sport={selectedSport} /> */}
         <RoarRooms />
         <PlaybookDrops />
+        <NewsCenter /> 
 
         <AskFlip onAsk={handleAskFromFlip} matchContext={FEATURED_MATCH_CONTEXT} />
         <FlipCard />
