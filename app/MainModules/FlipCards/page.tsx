@@ -4,7 +4,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap } from "lucide-react";
+import { Zap, ArrowLeft } from "lucide-react";
 
 type Stat = { label: string; value: string; color: string };
 
@@ -332,6 +332,7 @@ function StatCard({ player, onBack }: { player: Player; onBack: () => void }) {
 }
 
 export default function FlipCardsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const playerFromQuery = searchParams.get("player");
   const [selectedId, setSelectedId] = useState<string | null>(playerFromQuery);
@@ -348,16 +349,41 @@ export default function FlipCardsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="max-w-md mx-auto"
+            className="max-w-md mx-auto flex flex-col min-h-[calc(100vh-4rem)]"
           >
-            <h1 className="text-xl font-extrabold text-white mb-1">Team India XI</h1>
-            <p className="text-sm mb-5" style={{ color: "rgba(255,255,255,0.45)" }}>
-              Tap a player to see full Test stats
-            </p>
-            <div className="grid grid-cols-2 gap-3">
+            {/* Header with Back Button */}
+            <div className="flex items-center gap-3 mb-5">
+              <button
+                onClick={() => router.push("/MainModules/HomePage")}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-white/80 hover:text-white bg-white/10 hover:bg-white/15 transition-all cursor-pointer border border-white/10 shrink-0 active:scale-95"
+                aria-label="Back to HomePage"
+              >
+                <ArrowLeft size={18} />
+              </button>
+              <div>
+                <h1 className="text-xl font-extrabold text-white leading-tight">Team India XI</h1>
+                <p className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>
+                  Tap a player to see full Test stats
+                </p>
+              </div>
+            </div>
+
+            {/* Grid */}
+            <div className="grid grid-cols-2 gap-3 mb-8">
               {PLAYERS.map((p) => (
                 <MiniCard key={p.id} p={p} onClick={() => setSelectedId(p.id)} />
               ))}
+            </div>
+
+            {/* Bottom Build FlipFlex Button */}
+            <div className="mt-auto pt-4 pb-8 sticky bottom-8">
+              <button
+                onClick={() => router.push("/MainModules/FlipCards/BuildFlip")}
+                className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] hover:from-[#ff526a] hover:to-[#ff8a1c] text-white font-extrabold text-sm shadow-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer border border-white/20"
+              >
+                <Zap size={16} className="text-white fill-white" />
+                <span>Build FlipFlex</span>
+              </button>
             </div>
           </motion.div>
         )}
