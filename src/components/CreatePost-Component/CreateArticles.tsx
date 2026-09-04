@@ -3,7 +3,7 @@
 "use client";
 
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Eye, ArrowLeft, Send, Sparkles, Image as ImageIcon, Clock, User, Tag } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
@@ -76,6 +76,7 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
   const [showPreview, setShowPreview] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -138,53 +139,106 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
 
   const displayAuthor = form.author.trim() || currentUserName;
 
+  // const handleSubmit = async () => {
+  //   if (!form.title.trim()) {
+  //     alert("Title is required");
+  //     return;
+  //   }
+
+  //   const paragraphs = getParagraphs();
+  //   if (paragraphs.length === 0) {
+  //     alert("Article description/content is required");
+  //     return;
+  //   }
+  //   setLoading(true);
+  //   try {
+  //     const formData = new FormData();
+  //     formData.append("badge", form.badge);
+  //     formData.append("title", form.title.trim());
+  //     formData.append("author", displayAuthor);
+  //     formData.append("readTime", form.readTime.trim() || "5 min read");
+  //     formData.append("views", form.views.trim() || "0 views");
+  //     formData.append("description", JSON.stringify(paragraphs));
+  //     formData.append("tags", JSON.stringify(form.tags));
+  //     if (image) {
+  //       formData.append("file", image);
+  //     }
+
+  //     if (user?.userId) formData.append("userId", user.userId);
+  //     if (user?.email) formData.append("email", user.email);
+  //     if (userAvatar) formData.append("authorPhoto", userAvatar);
+
+  //     const res = await axios.post("/api/cricket-articles", formData);
+
+  //     if (res.data?.success || res.status === 201 || res.status === 200) {
+  //       if (typeof window !== "undefined") {
+  //         window.dispatchEvent(new Event("cricket-article-created"));
+  //       }
+  //       onCreated?.();
+  //       resetAndClose();
+  //     } else {
+  //       alert(res.data?.error || "Error saving article");
+  //     }
+  //   } catch (error: any) {
+  //     console.error("Save failed", error);
+  //     alert(error?.response?.data?.error || "Error saving article");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
   const handleSubmit = async () => {
-    if (!form.title.trim()) {
-      alert("Title is required");
-      return;
+  if (isSubmittingRef.current) return;
+
+  if (!form.title.trim()) {
+    alert("Title is required");
+    return;
+  }
+
+  const paragraphs = getParagraphs();
+  if (paragraphs.length === 0) {
+    alert("Article description/content is required");
+    return;
+  }
+
+  isSubmittingRef.current = true;
+  setLoading(true);
+  try {
+    const formData = new FormData();
+    formData.append("badge", form.badge);
+    formData.append("title", form.title.trim());
+    formData.append("author", displayAuthor);
+    formData.append("readTime", form.readTime.trim() || "5 min read");
+    formData.append("views", form.views.trim() || "0 views");
+    formData.append("description", JSON.stringify(paragraphs));
+    formData.append("tags", JSON.stringify(form.tags));
+    if (image) {
+      formData.append("file", image);
     }
 
-    const paragraphs = getParagraphs();
-    if (paragraphs.length === 0) {
-      alert("Article description/content is required");
-      return;
-    }
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.append("badge", form.badge);
-      formData.append("title", form.title.trim());
-      formData.append("author", displayAuthor);
-      formData.append("readTime", form.readTime.trim() || "5 min read");
-      formData.append("views", form.views.trim() || "0 views");
-      formData.append("description", JSON.stringify(paragraphs));
-      formData.append("tags", JSON.stringify(form.tags));
-      if (image) {
-        formData.append("file", image);
+    if (user?.userId) formData.append("userId", user.userId);
+    if (user?.email) formData.append("email", user.email);
+    if (userAvatar) formData.append("authorPhoto", userAvatar);
+
+    const res = await axios.post("/api/cricket-articles", formData);
+
+    if (res.data?.success || res.status === 201 || res.status === 200) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("cricket-article-created"));
       }
-
-      if (user?.userId) formData.append("userId", user.userId);
-      if (user?.email) formData.append("email", user.email);
-      if (userAvatar) formData.append("authorPhoto", userAvatar);
-
-      const res = await axios.post("/api/cricket-articles", formData);
-
-      if (res.data?.success || res.status === 201 || res.status === 200) {
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new Event("cricket-article-created"));
-        }
-        onCreated?.();
-        resetAndClose();
-      } else {
-        alert(res.data?.error || "Error saving article");
-      }
-    } catch (error: any) {
-      console.error("Save failed", error);
-      alert(error?.response?.data?.error || "Error saving article");
-    } finally {
-      setLoading(false);
+      onCreated?.();
+      resetAndClose();
+    } else {
+      alert(res.data?.error || "Error saving article");
     }
-  };
+  } catch (error: any) {
+    console.error("Save failed", error);
+    alert(error?.response?.data?.error || "Error saving article");
+  } finally {
+    setLoading(false);
+    isSubmittingRef.current = false;
+  }
+};
 
   const paragraphs = getParagraphs();
   const portalTarget = document.getElementById("sf360-app-root") ?? document.body;
@@ -532,7 +586,7 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={loading || !form.title.trim() || paragraphs.length === 0 || !image}
+                disabled={loading || !form.title.trim() || paragraphs.length === 0}
                 className="flex-1 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-pink-500/20 active:scale-95"
               >
                 {loading ? "Publishing..." : "Create Article ↗"}
