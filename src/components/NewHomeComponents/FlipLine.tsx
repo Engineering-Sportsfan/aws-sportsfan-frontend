@@ -2028,8 +2028,12 @@ export function FlipTimeline({
     }
   };
 
-  // Sort chronologically by timeMs descending so newest is at the top
-  const displayList = [...cards].sort((a, b) => (b.timeMs || 0) - (a.timeMs || 0));
+  // Sort chronologically by timeMs / createdAt descending so newest is at the top
+  const displayList = [...cards].sort((a, b) => {
+    const timeA = Number(a.timeMs) || Number(a.createdAt) || 0;
+    const timeB = Number(b.timeMs) || Number(b.createdAt) || 0;
+    return timeB - timeA;
+  });
   const finalCards = previewLimit ? displayList.slice(0, previewLimit) : displayList;
 
   const typeColorMap = {
@@ -2146,16 +2150,16 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
 
           if (item.id === 'demo_bbb_1_20.5') {
             timeStr = '11:03 AM';
-            itemTimeMs = 1793310000000;
+            itemTimeMs = Date.now() - 1000 * 60 * 5;
           } else if (item.id === 'demo_bbb_2_20.2') {
             timeStr = '11:00 AM';
-            itemTimeMs = 1793309820000;
+            itemTimeMs = Date.now() - 1000 * 60 * 10;
           } else if (item.id === 'demo_bbb_3_19.6') {
             timeStr = '10:57 AM';
-            itemTimeMs = 1793309640000;
+            itemTimeMs = Date.now() - 1000 * 60 * 15;
           } else if (item.id === 'demo_bbb_5_19.1') {
             timeStr = '10:49 AM';
-            itemTimeMs = 1793309160000;
+            itemTimeMs = Date.now() - 1000 * 60 * 20;
           }
 
           return {
