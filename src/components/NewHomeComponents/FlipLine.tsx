@@ -2391,7 +2391,7 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
               border: 'none',
             }}
           >
-            <span className="text-sm">⚡</span> FlipLine
+            <span className="text-sm">⚡</span> FlipLINE
           </button>
           <button
             onClick={() => setActiveTab('fliparena')}
@@ -2407,7 +2407,7 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
               border: 'none',
             }}
           >
-            <span className="text-sm">🏟️</span> Flip Arena
+            <span className="text-sm">🏟️</span> FlipARENA
           </button>
         </div>
       </div>
