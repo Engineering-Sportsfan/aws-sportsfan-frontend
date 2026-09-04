@@ -6,8 +6,8 @@ import { FileText, Newspaper } from "lucide-react";
 import type { CreatePostPayload } from "@/types/PostPolls";
 import CreatePostDialog from "./CreatePost-Component/CreatePostDialog";
 import CreateArticles from "./CreatePost-Component/CreateArticles";
-import { usePosts } from "../../hooks/Useposts";
 import { useAuth } from "@/context/AuthContext";
+import axios from "axios";
 
 // Add emails here to grant access to the floating Create Post button.
 const CREATE_POST_ALLOWED_EMAILS: string[] = [
@@ -27,7 +27,6 @@ export default function GlobalActionBar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const { createPost } = usePosts();
   const { user } = useAuth();
 
   const userEmail = (user?.email || (user as any)?.emailAddress || (user as any)?.username || "").trim().toLowerCase();
@@ -46,7 +45,13 @@ export default function GlobalActionBar() {
     userName: string,
     userEmail?: string
   ) => {
-    await createPost(formData, userId, userName, userEmail);
+    const res = await axios.post("/api/flipline", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("flipline-post-created"));
+    }
+    return res.data;
   };
 
   // Close the menu when clicking outside of it.
