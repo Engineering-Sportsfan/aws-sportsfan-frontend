@@ -320,6 +320,16 @@ const nextConfig = {
           destination: `${apiTarget}/api/createpost/repost/:path*`,
         },
 
+        // FlipLine
+        {
+          source: "/api/flipline",
+          destination: `${apiTarget}/api/flipline`,
+        },
+        {
+          source: "/api/flipline/:path*",
+          destination: `${apiTarget}/api/flipline/:path*`,
+        },
+
         // Audio Signals
         {
           source: "/api/audio-messages",

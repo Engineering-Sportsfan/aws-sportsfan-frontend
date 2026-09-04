@@ -13,6 +13,8 @@ import {
   CornerDownRight,
   X,
   Loader2,
+  Flag,
+  CheckCircle2,
 } from 'lucide-react';
 import { fliplineService, FlipLineComment, FlipLineReply, FlipCard } from '@/services/flipline.service';
 import { useAuth } from '@/context/AuthContext';
@@ -56,6 +58,34 @@ function formatCommentTimestamp(createdAt?: number | string, fallbackTime?: stri
 
   const d = new Date(timestamp);
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function renderFormattedContent(content: string) {
+  if (!content) return null;
+  const parts = content.split(/(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith('#')) {
+      return (
+        <span
+          key={index}
+          className="text-pink-500 font-bold hover:underline cursor-pointer"
+        >
+          {part}
+        </span>
+      );
+    }
+    if (part.startsWith('@')) {
+      return (
+        <span
+          key={index}
+          className="text-sky-400 font-bold hover:underline cursor-pointer"
+        >
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
 }
 
 function FlipLineSection({
@@ -617,6 +647,13 @@ export function FlipCardItem({
   const [replyText, setReplyText] = useState('');
   const [isSubmittingReply, setIsSubmittingReply] = useState(false);
 
+  // Report state (UI only)
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [selectedReportTag, setSelectedReportTag] = useState<string | null>(null);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+
   // Sync comments list if card prop changes
   useEffect(() => {
     if (Array.isArray(card.comments)) {
@@ -955,6 +992,58 @@ export function FlipCardItem({
     }
   };
 
+  // ── 9. Report Post Handler (UI Only) ────────────────────────────────────────
+  const handleSendReport = () => {
+    if (!reportReason.trim() && !selectedReportTag) return;
+    setIsSubmittingReport(true);
+    setTimeout(() => {
+      setIsSubmittingReport(false);
+      setReportSubmitted(true);
+      setReportReason('');
+      setSelectedReportTag(null);
+      setTimeout(() => {
+        setReportSubmitted(false);
+        setReportOpen(false);
+      }, 2500);
+    }, 600);
+  };
+
+  // ── 10. Open User Profile Navigation ─────────────────────────────────────────
+  const handleOpenAuthorProfile = () => {
+    if (card.type === 'bot') {
+      const botName = card.author === 'Flip' ? 'Dolly' : card.author;
+      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botName)}`);
+      return;
+    }
+
+    const targetUser =
+      card.userId ||
+      card.email ||
+      (card.handle && card.handle !== '@fan' && card.handle !== '@you' ? card.handle.replace(/^@/, '') : null) ||
+      (card.author && card.author !== 'Fan' && card.author !== 'You' ? card.author : null) ||
+      (isCurrentUser ? (currentUserEmail || currentUserId) : null);
+
+    if (targetUser) {
+      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+    } else {
+      router.push('/MainModules/ROAR');
+    }
+  };
+
+  const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
+    const targetUser =
+      targetUserId ||
+      (targetHandle && targetHandle !== '@fan' && targetHandle !== '@you' ? targetHandle.replace(/^@/, '') : null) ||
+      (targetName && targetName !== 'Fan' && targetName !== 'You' ? targetName : null) ||
+      (currentUserEmail || currentUserId);
+
+    if (targetUser) {
+      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+    } else {
+      router.push('/MainModules/ROAR');
+    }
+  };
+
   // Total comment count = sum of comments + sum of replies
   const totalCommentsCount = commentsList.reduce(
     (acc, c) => acc + 1 + (Array.isArray(c.replies) ? c.replies.length : 0),
@@ -1020,35 +1109,44 @@ export function FlipCardItem({
                 <img
                   src="/images/dolly.png"
                   alt="Flip BOT"
-                  className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0 bg-blue-500/10"
+                  onClick={handleOpenAuthorProfile}
+                  className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0 bg-blue-500/10 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                  title="View Profile"
                 />
               ) : displayPhoto ? (
-                  <img
-                    src={typeof displayPhoto === 'object' ? displayPhoto.src : displayPhoto}
-                    alt={displayAuthor}
-                    className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0"
+                <img
+                  src={typeof displayPhoto === 'object' ? displayPhoto.src : displayPhoto}
+                  alt={displayAuthor}
+                  onClick={handleOpenAuthorProfile}
+                  className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                  title="View Profile"
                 />
               ) : (
-                    <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[12px] shrink-0 uppercase tracking-wider"
+                <div
+                  onClick={handleOpenAuthorProfile}
+                  className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[12px] shrink-0 uppercase tracking-wider cursor-pointer hover:opacity-80 active:scale-95 transition-all"
                   style={{
                     background: `linear-gradient(135deg, ${themeColor}, #0f172a)`,
                   }}
+                  title="View Profile"
                 >
-                      {displayAuthor
-                        ? displayAuthor
-                          .trim()
-                          .split(/\s+/)
-                          .map((w) => w[0])
-                          .join('')
-                          .toUpperCase()
-                        : 'F'}
+                  {displayAuthor
+                    ? displayAuthor
+                      .trim()
+                      .split(/\s+/)
+                      .map((w) => w[0])
+                      .join('')
+                      .toUpperCase()
+                    : 'F'}
                 </div>
               )}
 
               <div className="min-w-0 flex flex-col">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-extrabold text-[13.5px] text-white leading-tight truncate">
+                  <span
+                    onClick={handleOpenAuthorProfile}
+                    className="font-extrabold text-[13.5px] text-white leading-tight truncate cursor-pointer hover:text-sky-400 hover:underline transition-colors"
+                  >
                     {card.type === 'bot' ? 'Flip' : displayAuthor}
                   </span>
                   {card.type === 'bot' ? (
@@ -1057,25 +1155,30 @@ export function FlipCardItem({
                     </span>
                   ) : (
                     card.isVerified && (
-                        <span
-                          className="inline-flex items-center justify-center bg-[#1d9bf0] text-white rounded-full shrink-0"
-                          style={{ width: 14, height: 14 }}
-                          title="Verified Admin"
+                      <span
+                        className="inline-flex items-center justify-center bg-[#1d9bf0] text-white rounded-full shrink-0"
+                        style={{ width: 14, height: 14 }}
+                        title="Verified Admin"
+                      >
+                        <svg
+                          className="w-2.5 h-2.5 fill-none stroke-current"
+                          strokeWidth="3"
+                          viewBox="0 0 24 24"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
                         >
-                          <svg
-                            className="w-2.5 h-2.5 fill-none stroke-current"
-                            strokeWidth="3"
-                            viewBox="0 0 24 24"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       </span>
                     )
                   )}
                   {card.type !== 'bot' && displayHandle && (
-                    <span className="text-[11px] text-white/40 truncate">{displayHandle}</span>
+                    <span
+                      onClick={handleOpenAuthorProfile}
+                      className="text-[11px] text-white/40 truncate cursor-pointer hover:text-white/70 transition-colors"
+                    >
+                      {displayHandle}
+                    </span>
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 mt-0.5">
@@ -1125,7 +1228,7 @@ export function FlipCardItem({
 
           {/* Row 2: Card Content */}
           <p className="text-[14px] font-medium text-white/90 leading-relaxed break-words whitespace-pre-line">
-            {card.content}
+            {renderFormattedContent(card.content)}
           </p>
 
           {/* If the card is a bot live update, render the over and time footer */}
@@ -1243,22 +1346,28 @@ export function FlipCardItem({
             </div>
           )}
 
-          {/* Row 3: Tags (if present) */}
-          {card.tags && card.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-0.5">
-              {card.tags.map((t) => (
-                <span
-                  key={t}
-                  className="text-[11px] font-bold text-pink-500 hover:underline cursor-pointer"
-                >
-                  {t}
-                </span>
-              ))}
-            </div>
-          )}
+          {/* Row 3: Tags (only if not already in post content) */}
+          {(() => {
+            const extraTags = (card.tags || []).filter(
+              (t) => !card.content || !card.content.toLowerCase().includes(t.toLowerCase())
+            );
+            if (extraTags.length === 0) return null;
+            return (
+              <div className="flex flex-wrap gap-2 mt-0.5">
+                {extraTags.map((t) => (
+                  <span
+                    key={t}
+                    className="text-[11px] font-bold text-pink-500 hover:underline cursor-pointer"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            );
+          })()}
 
           {/* Row 4: FOMO Banner */}
-          {card.fomoMsg && (
+          {/* {card.fomoMsg && (
             <div
               className="flex items-center justify-between gap-3 rounded-2xl p-3 bg-[#0d0a14] border border-pink-500/15"
               style={{
@@ -1285,7 +1394,7 @@ export function FlipCardItem({
                 {!['room', 'watchalong', 'drop'].includes(card.ctaType || '') && 'Explore →'}
               </button>
             </div>
-          )}
+          )} */}
 
           {/* Row 5: Action buttons (Like, Comment, Share, Flip) */}
           <div className="flex items-center justify-between pt-1">
@@ -1328,7 +1437,24 @@ export function FlipCardItem({
                 title="Share"
               >
                 <Share2 size={15} />
-                <span className="text-[12.5px] font-extrabold leading-none">Share</span>
+                {/* <span className="text-[12.5px] font-extrabold leading-none">Share</span> */}
+              </button>
+
+              {/* Report Button */}
+              <button
+                onClick={() => {
+                  setReportOpen((prev) => !prev);
+                  if (!reportOpen && commentOpen) setCommentOpen(false);
+                }}
+                className={`flex items-center gap-2 transition-all cursor-pointer ${reportOpen ? 'text-amber-400 font-black' : 'text-white/40 hover:text-amber-400'
+                  }`}
+                title="Report Post"
+              >
+                <Flag
+                  size={14}
+                  fill={reportOpen ? 'rgba(251, 191, 36, 0.2)' : 'none'}
+                  className={`transition-all duration-200 ${reportOpen ? 'scale-110' : ''}`}
+                />
               </button>
             </div>
 
@@ -1347,6 +1473,105 @@ export function FlipCardItem({
               <span>{isExpanded ? 'Flipped' : 'Ask Flip'}</span>
             </button>
           </div>
+
+          {/* ── Expanded Report Section ───────────────────────────────────── */}
+          <AnimatePresence>
+            {reportOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-3 pt-3 border-t border-white/[0.08] flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Flag size={13} className="text-amber-400" />
+                      <span className="text-[11px] font-black text-amber-300 uppercase tracking-widest">
+                        Report Post
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setReportOpen(false);
+                        setReportSubmitted(false);
+                      }}
+                      className="text-white/30 hover:text-white transition-colors cursor-pointer p-0.5"
+                      title="Close"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
+
+                  {reportSubmitted ? (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[12px] font-semibold flex items-center gap-2"
+                    >
+                      <CheckCircle2 size={15} className="text-emerald-400 shrink-0" />
+                      <span>Report submitted. Thank you for keeping our community safe!</span>
+                    </motion.div>
+                  ) : (
+                    <>
+                      {/* Quick reason chips */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {['Spam', 'Harassment', 'Hate Speech', 'Misinformation', 'Other'].map((tag) => {
+                          const isSel = selectedReportTag === tag;
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => setSelectedReportTag(isSel ? null : tag)}
+                              className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${isSel
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                                  : 'bg-white/[0.04] text-white/50 border border-white/[0.06] hover:text-white/80 hover:bg-white/[0.08]'
+                                }`}
+                            >
+                              {tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Report Input Field */}
+                      <div className="flex items-center gap-2 w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl p-1.5 pl-3 focus-within:border-amber-500/50 transition-all">
+                        <input
+                          type="text"
+                          value={reportReason}
+                          onChange={(e) => setReportReason(e.target.value)}
+                          placeholder="Write reason to report..."
+                          className="flex-1 bg-transparent text-[12.5px] text-white placeholder:text-white/35 outline-none font-medium"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSendReport();
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={handleSendReport}
+                          disabled={(!reportReason.trim() && !selectedReportTag) || isSubmittingReport}
+                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-[11.5px] font-extrabold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0 shadow-[0_2px_8px_rgba(245,158,11,0.25)]"
+                          title="Send report"
+                        >
+                          {isSubmittingReport ? (
+                            <Loader2 size={13} className="animate-spin" />
+                          ) : (
+                            <>
+                              <span>Send</span>
+                              <Send size={12} className="ml-0.5" />
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* ── Expanded Comment & Reply Section ──────────────────────────── */}
           <AnimatePresence>
@@ -1381,10 +1606,16 @@ export function FlipCardItem({
                             : currentUserAvatar
                         }
                         alt="You"
-                        className="w-6 h-6 rounded-full object-cover border border-sky-400/30 shrink-0"
+                        onClick={() => handleOpenUserProfile()}
+                        className="w-6 h-6 rounded-full object-cover border border-sky-400/30 shrink-0 cursor-pointer hover:opacity-80 transition-all"
+                        title="Your Profile"
                       />
                     ) : (
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center text-[10px] font-black shrink-0 uppercase">
+                      <div
+                        onClick={() => handleOpenUserProfile()}
+                        className="w-6 h-6 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center text-[10px] font-black shrink-0 uppercase cursor-pointer hover:opacity-80 transition-all"
+                        title="Your Profile"
+                      >
                         {currentUserName ? currentUserName.trim().charAt(0).toUpperCase() : 'U'}
                       </div>
                     )}
@@ -1443,15 +1674,24 @@ export function FlipCardItem({
                                   <img
                                     src={typeof commPhoto === 'object' && commPhoto ? (commPhoto as any).src : commPhoto}
                                     alt={comm.userName}
-                                    className="w-5 h-5 rounded-full object-cover border border-white/10 shrink-0"
+                                    onClick={() => handleOpenUserProfile(comm.userId, comm.userHandle, comm.userName)}
+                                    className="w-5 h-5 rounded-full object-cover border border-white/10 shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                                    title="View Profile"
                                   />
                                 ) : (
-                                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center text-[9px] font-black shrink-0 uppercase">
+                                  <div
+                                    onClick={() => handleOpenUserProfile(comm.userId, comm.userHandle, comm.userName)}
+                                    className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center text-[9px] font-black shrink-0 uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                                    title="View Profile"
+                                  >
                                     {comm.userName ? comm.userName.trim().charAt(0).toUpperCase() : 'U'}
                                   </div>
                                 )}
                                 <div className="flex items-center gap-1.5 truncate">
-                                  <span className="font-bold text-white/90 truncate">
+                                  <span
+                                    onClick={() => handleOpenUserProfile(comm.userId, comm.userHandle, comm.userName)}
+                                    className="font-bold text-white/90 truncate cursor-pointer hover:text-sky-300 transition-colors"
+                                  >
                                     {isCommentAuthor ? `${comm.userName} (You)` : comm.userName}
                                   </span>
                                   <span className="text-[10px] text-white/35 font-medium truncate">
@@ -1580,14 +1820,23 @@ export function FlipCardItem({
                                             <img
                                               src={typeof repPhoto === 'object' && repPhoto ? (repPhoto as any).src : repPhoto}
                                               alt={rep.userName}
-                                              className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0"
+                                              onClick={() => handleOpenUserProfile(rep.userId, rep.userHandle, rep.userName)}
+                                              className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                                              title="View Profile"
                                             />
                                           ) : (
-                                            <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-500 text-white flex items-center justify-center text-[8px] font-black shrink-0 uppercase">
+                                            <div
+                                              onClick={() => handleOpenUserProfile(rep.userId, rep.userHandle, rep.userName)}
+                                              className="w-4 h-4 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-500 text-white flex items-center justify-center text-[8px] font-black shrink-0 uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                                              title="View Profile"
+                                            >
                                               {rep.userName ? rep.userName.trim().charAt(0).toUpperCase() : 'U'}
-                                              </div>
+                                            </div>
                                           )}
-                                          <span className="font-bold text-white/90 truncate">
+                                          <span
+                                            onClick={() => handleOpenUserProfile(rep.userId, rep.userHandle, rep.userName)}
+                                            className="font-bold text-white/90 truncate cursor-pointer hover:text-sky-300 transition-colors"
+                                          >
                                             {isReplyAuthor ? `${rep.userName} (You)` : rep.userName}
                                           </span>
                                           {rep.replyTo && (
@@ -1737,10 +1986,21 @@ export function FlipCardItem({
           </div>
 
           <div className="mt-6 text-center max-w-2xl px-4" onClick={(e) => e.stopPropagation()}>
-            <p className="text-[14.5px] font-medium text-white/95 leading-relaxed">{card.content}</p>
+            <p className="text-[14.5px] font-medium text-white/95 leading-relaxed break-words whitespace-pre-line">
+              {renderFormattedContent(card.content)}
+            </p>
             <p className="text-[11px] text-white/40 mt-2">
-              Posted by {displayAuthor} {displayHandle ? displayHandle : ''} · {card.time} · via{' '}
-              {card.source || 'FlipLine'}
+              Posted by{' '}
+              <span
+                onClick={() => {
+                  setIsFullscreen(false);
+                  handleOpenAuthorProfile();
+                }}
+                className="text-white/80 hover:text-sky-300 cursor-pointer font-bold transition-colors"
+              >
+                {displayAuthor} {displayHandle ? displayHandle : ''}
+              </span>{' '}
+              · {card.time} · via {card.source || 'FlipLine'}
             </p>
           </div>
         </div>
@@ -1768,8 +2028,12 @@ export function FlipTimeline({
     }
   };
 
-  // Sort chronologically by timeMs descending so newest is at the top
-  const displayList = [...cards].sort((a, b) => (b.timeMs || 0) - (a.timeMs || 0));
+  // Sort chronologically by timeMs / createdAt descending so newest is at the top
+  const displayList = [...cards].sort((a, b) => {
+    const timeA = Number(a.timeMs) || Number(a.createdAt) || 0;
+    const timeB = Number(b.timeMs) || Number(b.createdAt) || 0;
+    return timeB - timeA;
+  });
   const finalCards = previewLimit ? displayList.slice(0, previewLimit) : displayList;
 
   const typeColorMap = {
@@ -1886,16 +2150,16 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
 
           if (item.id === 'demo_bbb_1_20.5') {
             timeStr = '11:03 AM';
-            itemTimeMs = 1793310000000;
+            itemTimeMs = Date.now() - 1000 * 60 * 5;
           } else if (item.id === 'demo_bbb_2_20.2') {
             timeStr = '11:00 AM';
-            itemTimeMs = 1793309820000;
+            itemTimeMs = Date.now() - 1000 * 60 * 10;
           } else if (item.id === 'demo_bbb_3_19.6') {
             timeStr = '10:57 AM';
-            itemTimeMs = 1793309640000;
+            itemTimeMs = Date.now() - 1000 * 60 * 15;
           } else if (item.id === 'demo_bbb_5_19.1') {
             timeStr = '10:49 AM';
-            itemTimeMs = 1793309160000;
+            itemTimeMs = Date.now() - 1000 * 60 * 20;
           }
 
           return {

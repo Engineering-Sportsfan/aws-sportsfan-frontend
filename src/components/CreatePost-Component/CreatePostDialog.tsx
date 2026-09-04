@@ -23,6 +23,7 @@ export default function CreatePostDialog({
 }: CreatePostDialogProps) {
   const { user } = useAuth();
   const [content, setContent] = useState("");
+  const [sport, setSport] = useState<string>("cricket");
   const [selectedMedia, setSelectedMedia] = useState<File[]>([]);
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
   const [showPoll, setShowPoll] = useState(false);
@@ -37,6 +38,7 @@ export default function CreatePostDialog({
 
   const resetForm = () => {
     setContent("");
+    setSport("cricket");
     setSelectedMedia([]);
     mediaPreviews.forEach((url) => URL.revokeObjectURL(url));
     setMediaPreviews([]);
@@ -96,11 +98,38 @@ export default function CreatePostDialog({
       const userName = user?.name || (user as any)?.username || "SportsFan";
       const userEmail = user?.email || (user as any)?.emailAddress;
 
+      const now = Date.now();
+      const timeStr = new Date(now).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+
       formData.append("userId", userId);
+      formData.append("author", userName);
       formData.append("userName", userName);
+      formData.append("handle", `@${userName.replace(/\s+/g, "").toLowerCase()}`);
       formData.append("userHandle", `@${userName.replace(/\s+/g, "").toLowerCase()}`);
       formData.append("content", content.trim());
-      if (userEmail) formData.append("userEmail", userEmail);
+      formData.append("sport", sport);
+      formData.append("type", "post");
+      formData.append("source", "FlipLine");
+      formData.append("likes", "0");
+      formData.append("isKey", "false");
+      formData.append("day", "Today");
+      formData.append("time", timeStr);
+      formData.append("timeMs", String(now));
+      formData.append("createdAt", String(now));
+
+      if (userEmail) {
+        formData.append("email", userEmail);
+        formData.append("userEmail", userEmail);
+      }
+      const adminPhoto = (user as any)?.addfliplineAdminPhoto || user?.avatar || (user as any)?.avatarUrl;
+      if (adminPhoto) {
+        formData.append("adminPhoto", adminPhoto);
+        formData.append("authorPhoto", adminPhoto);
+      }
 
       selectedMedia.forEach((file) => {
         formData.append("media", file);
@@ -158,12 +187,39 @@ export default function CreatePostDialog({
 
         {/* Content Body */}
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-y-auto p-5 gap-4">
+          {/* Sport Selector Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar shrink-0 py-0.5">
+            {[
+              { id: "cricket", label: "Cricket", emoji: "🏏" },
+              { id: "football", label: "Football", emoji: "⚽" },
+              { id: "athletics", label: "Athletics", emoji: "🏃" },
+              { id: "general", label: "General", emoji: "⚡" },
+            ].map((s) => {
+              const isSelected = sport === s.id;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSport(s.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors cursor-pointer shrink-0 border ${
+                    isSelected
+                      ? "bg-gradient-to-r from-[#C9115F] to-[#e85d04] text-white border-transparent shadow-md shadow-pink-500/20"
+                      : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border-white/10"
+                  }`}
+                >
+                  <span className="text-xs">{s.emoji}</span>
+                  <span>{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
           <textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="What's happening in the sports world?"
             rows={4}
-            className="w-full bg-[#0c0c0e] border border-white/10 focus:border-pink-500 rounded-xl p-3.5 text-sm text-white placeholder:text-gray-500 outline-none resize-none transition-all"
+            className="w-full bg-[#0c0c0e] border border-white/10 focus:border-pink-500 rounded-xl p-3.5 text-sm text-white placeholder:text-gray-500 outline-none resize-none transition-colors min-h-[100px] shrink-0"
             autoFocus
           />
 

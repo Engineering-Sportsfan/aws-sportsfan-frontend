@@ -75,6 +75,7 @@ export interface FlipCard {
   adminPhoto?: string;
   overLabel?: string;
   runSymbol?: string;
+  createdAt?: number | string;
 }
 
 export const fliplineService = {
