@@ -136,7 +136,10 @@ export default function FlipLinePage() {
     fetchCards();
     updateLiveUpdates();
 
-    const interval = setInterval(updateLiveUpdates, 15000);
+    const interval = setInterval(() => {
+      updateLiveUpdates();
+      fetchCards();
+    }, 15000);
 
     const handleNewPost = () => {
       fetchCards();

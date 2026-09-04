@@ -2129,7 +2129,17 @@ export function FlipTimeline({
   };
 
   // Sort chronologically by timeMs / createdAt descending so newest is at the top
-  const displayList = [...cards].sort((a, b) => {
+  // Exclude scheduled posts whose scheduled time is still in the future
+  const now = Date.now();
+  const visibleCards = cards.filter((c) => {
+    const scheduledTime = Number(c.scheduledAt) || Number(c.scheduledTimeMs);
+    if ((c.isScheduled || (scheduledTime && scheduledTime > 0)) && scheduledTime > now) {
+      return false;
+    }
+    return true;
+  });
+
+  const displayList = [...visibleCards].sort((a, b) => {
     const timeA = Number(a.timeMs) || Number(a.createdAt) || 0;
     const timeB = Number(b.timeMs) || Number(b.createdAt) || 0;
     return timeB - timeA;
@@ -2329,7 +2339,10 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
     fetchCards();
     updateLiveUpdates();
 
-    const interval = setInterval(updateLiveUpdates, 15000);
+    const interval = setInterval(() => {
+      updateLiveUpdates();
+      fetchCards();
+    }, 15000);
 
     const handleNewPost = () => {
       fetchCards();

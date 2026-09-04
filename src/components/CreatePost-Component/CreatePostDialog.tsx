@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X, Image as ImageIcon, BarChart2, Trash2, Plus, Loader2 } from "lucide-react";
+import { X, Image as ImageIcon, BarChart2, Trash2, Plus, Loader2, Calendar, Clock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 interface CreatePostDialogProps {
@@ -28,6 +28,9 @@ export default function CreatePostDialog({
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([]);
   const [showPoll, setShowPoll] = useState(false);
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState<string>("");
+  const [scheduledTime, setScheduledTime] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,6 +38,56 @@ export default function CreatePostDialog({
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const getTodayDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getDefaultTimeString = (offsetMinutes = 30) => {
+    const d = new Date(Date.now() + offsetMinutes * 60 * 1000);
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  const applySchedulePreset = (minutesFromNow: number) => {
+    const target = new Date(Date.now() + minutesFromNow * 60 * 1000);
+    const y = target.getFullYear();
+    const m = String(target.getMonth() + 1).padStart(2, "0");
+    const d = String(target.getDate()).padStart(2, "0");
+    setScheduledDate(`${y}-${m}-${d}`);
+    const hh = String(target.getHours()).padStart(2, "0");
+    const mm = String(target.getMinutes()).padStart(2, "0");
+    setScheduledTime(`${hh}:${mm}`);
+  };
+
+  const applyTomorrowPreset = (hour: number, minute: number) => {
+    const target = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    target.setHours(hour, minute, 0, 0);
+    const y = target.getFullYear();
+    const m = String(target.getMonth() + 1).padStart(2, "0");
+    const d = String(target.getDate()).padStart(2, "0");
+    setScheduledDate(`${y}-${m}-${d}`);
+    const hh = String(hour).padStart(2, "0");
+    const mm = String(minute).padStart(2, "0");
+    setScheduledTime(`${hh}:${mm}`);
+  };
+
+  const getScheduledTs = (): number | null => {
+    if (!scheduledDate || !scheduledTime) return null;
+    const [year, month, day] = scheduledDate.split("-").map(Number);
+    const [hours, minutes] = scheduledTime.split(":").map(Number);
+    if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) return null;
+    const d = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    return d.getTime();
+  };
+
+  const scheduledTs = showSchedule ? getScheduledTs() : null;
+  const isPastTime = scheduledTs !== null && scheduledTs <= Date.now();
 
   const resetForm = () => {
     setContent("");
@@ -44,6 +97,9 @@ export default function CreatePostDialog({
     setMediaPreviews([]);
     setShowPoll(false);
     setPollOptions(["", ""]);
+    setShowSchedule(false);
+    setScheduledDate("");
+    setScheduledTime("");
     setSubmitting(false);
   };
 
@@ -90,6 +146,7 @@ export default function CreatePostDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() && selectedMedia.length === 0 && !showPoll) return;
+    if (showSchedule && (isPastTime || !scheduledTs)) return;
 
     setSubmitting(true);
     try {
@@ -121,10 +178,33 @@ export default function CreatePostDialog({
       formData.append("source", "FlipLine");
       formData.append("likes", "0");
       formData.append("isKey", "false");
-      formData.append("day", dateStr);
-      formData.append("time", timeStr);
-      formData.append("timeMs", String(now));
-      formData.append("createdAt", String(now));
+
+      if (showSchedule && scheduledTs && scheduledTs > now) {
+        const schedTimeStr = new Date(scheduledTs).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+        const schedDateStr = new Date(scheduledTs).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+
+        formData.append("isScheduled", "true");
+        formData.append("scheduledAt", String(scheduledTs));
+        formData.append("scheduledTimeMs", String(scheduledTs));
+        formData.append("day", schedDateStr);
+        formData.append("time", schedTimeStr);
+        formData.append("timeMs", String(scheduledTs));
+        formData.append("createdAt", String(now));
+      } else {
+        formData.append("isScheduled", "false");
+        formData.append("day", dateStr);
+        formData.append("time", timeStr);
+        formData.append("timeMs", String(now));
+        formData.append("createdAt", String(now));
+      }
 
       if (userEmail) {
         formData.append("email", userEmail);
@@ -293,9 +373,98 @@ export default function CreatePostDialog({
             </div>
           )}
 
+          {/* Schedule Post Section */}
+          {showSchedule && (
+            <div className="flex flex-col gap-3 bg-[#0e0e11] border border-amber-500/30 rounded-xl p-3.5 shadow-lg shadow-amber-500/5">
+              <div className="flex items-center justify-between text-xs font-bold text-amber-400 uppercase tracking-wider">
+                <div className="flex items-center gap-1.5">
+                  <Clock size={14} className="text-amber-400" />
+                  <span>Schedule Post (Auto-publish)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSchedule(false)}
+                  className="text-gray-400 hover:text-red-400 text-xs font-medium cursor-pointer"
+                >
+                  Cancel Schedule
+                </button>
+              </div>
+
+              {/* Date & Time Input Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10.5px] font-semibold text-gray-400">Publish Date</label>
+                  <input
+                    type="date"
+                    min={getTodayDateString()}
+                    value={scheduledDate}
+                    onChange={(e) => setScheduledDate(e.target.value)}
+                    className="w-full bg-[#18181b] border border-white/10 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-white outline-none [color-scheme:dark]"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <label className="text-[10.5px] font-semibold text-gray-400">Publish Time</label>
+                  <input
+                    type="time"
+                    value={scheduledTime}
+                    onChange={(e) => setScheduledTime(e.target.value)}
+                    className="w-full bg-[#18181b] border border-white/10 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-white outline-none [color-scheme:dark]"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className="text-[10px] text-gray-500 font-medium mr-0.5">Presets:</span>
+                {[
+                  { label: "+15m", action: () => applySchedulePreset(15) },
+                  { label: "+1h", action: () => applySchedulePreset(60) },
+                  { label: "+3h", action: () => applySchedulePreset(180) },
+                  { label: "Tomorrow 9 AM", action: () => applyTomorrowPreset(9, 0) },
+                  { label: "Tomorrow 6 PM", action: () => applyTomorrowPreset(18, 0) },
+                ].map((preset, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={preset.action}
+                    className="px-2 py-1 rounded-md bg-white/5 hover:bg-amber-500/20 text-gray-300 hover:text-amber-300 border border-white/10 hover:border-amber-500/30 text-[10.5px] font-semibold transition-all cursor-pointer"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Live Preview Info Banner */}
+              {scheduledTs && (
+                <div
+                  className={`p-2.5 rounded-lg text-xs font-medium flex items-center gap-2 border ${
+                    isPastTime
+                      ? "bg-red-500/10 border-red-500/30 text-red-400"
+                      : "bg-amber-500/10 border-amber-500/25 text-amber-300"
+                  }`}
+                >
+                  <Clock size={13} className="shrink-0" />
+                  <span>
+                    {isPastTime
+                      ? "⚠️ Selected time is in the past. Please choose a future time."
+                      : `Will go live on ${new Date(scheduledTs).toLocaleString("en-US", {
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })}`}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Action Bar */}
           <div className="flex items-center justify-between pt-3 border-t border-white/5 mt-auto">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -325,17 +494,49 @@ export default function CreatePostDialog({
                 <BarChart2 size={14} className="text-blue-400" />
                 <span>Poll</span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (!showSchedule) {
+                    if (!scheduledDate) setScheduledDate(getTodayDateString());
+                    if (!scheduledTime) setScheduledTime(getDefaultTimeString(30));
+                  }
+                  setShowSchedule((prev) => !prev);
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
+                  showSchedule
+                    ? "bg-amber-500/20 border-amber-500/40 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.15)]"
+                    : "bg-white/5 hover:bg-white/10 text-gray-300 border-white/10"
+                }`}
+              >
+                <Clock size={14} className="text-amber-400" />
+                <span>{showSchedule ? "Scheduled" : "Schedule"}</span>
+              </button>
             </div>
 
             <button
               type="submit"
-              disabled={submitting || (!content.trim() && selectedMedia.length === 0 && !showPoll)}
-              className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-pink-500/20 active:scale-95 cursor-pointer"
+              disabled={
+                submitting ||
+                (!content.trim() && selectedMedia.length === 0 && !showPoll) ||
+                (showSchedule && (isPastTime || !scheduledTs))
+              }
+              className={`flex items-center gap-2 px-5 py-2 rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg active:scale-95 cursor-pointer shrink-0 ${
+                showSchedule
+                  ? "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 shadow-amber-500/20"
+                  : "bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] shadow-pink-500/20"
+              }`}
             >
               {submitting ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  <span>Posting...</span>
+                  <span>{showSchedule ? "Scheduling..." : "Posting..."}</span>
+                </>
+              ) : showSchedule ? (
+                <>
+                  <Clock size={13} />
+                  <span>Schedule Post</span>
                 </>
               ) : (
                 <span>Post</span>
