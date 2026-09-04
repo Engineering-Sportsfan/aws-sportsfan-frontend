@@ -1246,6 +1246,7 @@ import { useAuth } from "@/context/AuthContext";
 type BadgeType = "FEATURE" | "ANALYSIS" | "OPINION" | "NEWS";
 
 interface ArticleDetail {
+    _id?: string | number;
     id: string;
     badge: BadgeType;
     title: string;
@@ -1256,6 +1257,7 @@ interface ArticleDetail {
     likeCount?: number;
     likedBy?: string[];
     image: string;
+    cdn_url?: string;
     createdAt: number;
     updatedAt?: number;
     description: string[];
@@ -1293,8 +1295,21 @@ const writeStoredCount = (key: string, count: number) => {
     localStorage.setItem(key, String(Math.max(0, count)));
 };
 
-const normalizeArticleStats = (rawArticle: Partial<ArticleDetail> | null | undefined): ArticleDetail | null => {
-    if (!rawArticle || !rawArticle.id) return null;
+const parseTimestamp = (raw: any): number => {
+    if (!raw) return Date.now();
+    if (typeof raw === "number") return raw < 10000000000 ? raw * 1000 : raw;
+    if (typeof raw.toMillis === "function") return raw.toMillis();
+    if (typeof raw.seconds === "number") return raw.seconds * 1000;
+    if (typeof raw._seconds === "number") return raw._seconds * 1000;
+    if (typeof raw === "string") {
+        const parsed = Date.parse(raw);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return Date.now();
+};
+
+const normalizeArticleStats = (rawArticle: (Partial<ArticleDetail> & { _id?: string | number; cdn_url?: string; createdAt?: any }) | null | undefined): ArticleDetail | null => {
+    if (!rawArticle || (!rawArticle.id && !rawArticle._id)) return null;
 
     const resolvedViewCount =
         typeof rawArticle.viewCount === "number"
@@ -1309,7 +1324,7 @@ const normalizeArticleStats = (rawArticle: Partial<ArticleDetail> | null | undef
                 : 0;
 
     return {
-        id: rawArticle.id,
+        id: String(rawArticle._id || rawArticle.id || ""),
         badge: (rawArticle.badge as BadgeType) || "NEWS",
         title: rawArticle.title || "",
         readTime: rawArticle.readTime || "",
@@ -1318,10 +1333,21 @@ const normalizeArticleStats = (rawArticle: Partial<ArticleDetail> | null | undef
         likeCount: resolvedLikeCount,
         viewCount: resolvedViewCount,
         likedBy: Array.isArray(rawArticle.likedBy) ? rawArticle.likedBy : [],
-        image: rawArticle.image || "",
-        createdAt: rawArticle.createdAt || Date.now(),
-        updatedAt: rawArticle.updatedAt,
-        description: Array.isArray(rawArticle.description) ? rawArticle.description : [],
+        image: rawArticle.image || rawArticle.cdn_url || "",
+        createdAt: parseTimestamp(rawArticle.createdAt),
+        updatedAt: typeof rawArticle.updatedAt === "number" ? rawArticle.updatedAt : undefined,
+        description: Array.isArray(rawArticle.description)
+            ? rawArticle.description
+            : typeof rawArticle.description === "string"
+                ? (() => {
+                    try {
+                        const parsed = JSON.parse(rawArticle.description);
+                        return Array.isArray(parsed) ? parsed : [rawArticle.description];
+                    } catch {
+                        return [rawArticle.description];
+                    }
+                })()
+            : [],
     };
 };
 
@@ -1589,7 +1615,7 @@ export default function CricketArticleDetail() {
                 const rawArticle =
                     res.data?.article
                     ?? (Array.isArray(res.data?.articles) ? res.data.articles[0] : null)
-                    ?? (res.data?.id ? res.data : null);
+                    ?? (res.data?.id || res.data?._id ? res.data : null);
 
                 const normalized = normalizeArticleStats(rawArticle);
                 if (!normalized) {
@@ -1879,11 +1905,11 @@ export default function CricketArticleDetail() {
 
 
             {/* Hero Image */}
-            <div className="w-full rounded-xl  overflow-hidden mb-2">
+            <div className="w-full rounded-xl overflow-hidden mb-2 bg-black/40 flex items-center justify-center border border-white/10">
                 <img
                     src={article.image}
                     alt={article.title}
-                    className="w-full object-fit"
+                    className="w-full h-auto max-h-[150px] object-contain rounded-xl"
                 />
             </div>
             <p className="text-center text-[11px] text-gray-500 mb-5">{article.title}</p>

@@ -7,9 +7,10 @@ import Link from "next/link";
 import { Heart, Share2, ArrowRight, ArrowLeft } from "lucide-react";
 
 type CricketApiArticle = {
+  _id?: string | number;
   id?: string | number;
   title?: string;
-  description?: string[];
+  description?: string[] | string;
   summary?: string;
   badge?: string;
   image?: string;
@@ -17,6 +18,7 @@ type CricketApiArticle = {
   author?: string;
   readTime?: string;
   createdAt?: number | string;
+  updatedAt?: number | string;
 };
 
 type Article = {
@@ -87,9 +89,65 @@ export default function AllCricketArticlesPage() {
   const [badgeFilter, setBadgeFilter] = useState<string>("ALL");
 
   useEffect(() => {
+    const extractSummary = (art: CricketApiArticle): string => {
+      if (Array.isArray(art.description) && art.description.length > 0) {
+        return String(art.description[0]);
+      }
+      if (typeof art.description === "string" && art.description.trim()) {
+        try {
+          const parsed = JSON.parse(art.description);
+          if (Array.isArray(parsed) && parsed.length > 0) return String(parsed[0]);
+        } catch {}
+        return art.description;
+      }
+      return art.summary || "";
+    };
+
+    const extractCreatedAt = (art: any): number => {
+      // Direct number (DynamoDB unix ms timestamp or seconds)
+      if (typeof art.createdAt === "number") {
+        return art.createdAt < 10000000000 ? art.createdAt * 1000 : art.createdAt;
+      }
+      if (typeof art.timeMs === "number") return art.timeMs;
+      if (typeof art.timestamp === "number") {
+        return art.timestamp < 10000000000 ? art.timestamp * 1000 : art.timestamp;
+      }
+
+      // Firestore Timestamp objects (.toMillis(), .seconds, ._seconds)
+      if (art.createdAt && typeof art.createdAt.toMillis === "function") {
+        return art.createdAt.toMillis();
+      }
+      if (art.createdAt && typeof art.createdAt.seconds === "number") {
+        return art.createdAt.seconds * 1000;
+      }
+      if (art.createdAt && typeof art.createdAt._seconds === "number") {
+        return art.createdAt._seconds * 1000;
+      }
+
+      // ISO Strings / date strings (DynamoDB standard string format)
+      if (typeof art.createdAt === "string" && art.createdAt.trim()) {
+        const parsed = Date.parse(art.createdAt);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+
+      // Fallbacks to updatedAt
+      if (typeof art.updatedAt === "number") {
+        return art.updatedAt < 10000000000 ? art.updatedAt * 1000 : art.updatedAt;
+      }
+      if (typeof art.updatedAt === "string" && art.updatedAt.trim()) {
+        const parsed = Date.parse(art.updatedAt);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+
+      return Date.now();
+    };
+
     const fetchArticles = async () => {
       try {
-        const res = await fetch("/api/cricket-articles");
+        const res = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" },
+        });
         if (!res.ok) {
           setError(`Failed to load articles (HTTP ${res.status})`);
           setLoading(false);
@@ -100,24 +158,22 @@ export default function AllCricketArticlesPage() {
           data?.articles || data?.data || (Array.isArray(data) ? data : []);
 
         const transformed: Article[] = (Array.isArray(rawArticles) ? rawArticles : []).map(
-          (article) => ({
-            id: String(article.id),
-            rank: 0,
-            title: article.title || "",
-            summary: article.description?.[0] || article.summary || "",
-            source: "SportsFan360",
-            url: `/MainModules/CricketArticles/${article.id}`,
-            tag: article.badge || "Cricket",
-            cdn_url: article.image || article.cdn_url || "",
-            author: article.author,
-            readTime: article.readTime,
-            createdAt:
-              typeof article.createdAt === "number"
-                ? article.createdAt
-                : article.createdAt
-                ? Date.parse(String(article.createdAt))
-                : Date.now(),
-          })
+          (article) => {
+            const articleId = String(article._id || article.id || "");
+            return {
+              id: articleId,
+              rank: 0,
+              title: article.title || "",
+              summary: extractSummary(article),
+              source: "SportsFan360",
+              url: `/MainModules/CricketArticles/${articleId}`,
+              tag: article.badge || "Cricket",
+              cdn_url: article.image || article.cdn_url || "",
+              author: article.author,
+              readTime: article.readTime,
+              createdAt: extractCreatedAt(article),
+            };
+          }
         );
 
         transformed.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -133,6 +189,14 @@ export default function AllCricketArticlesPage() {
     };
 
     fetchArticles();
+
+    const handleArticleCreated = () => {
+      fetchArticles();
+    };
+    window.addEventListener("cricket-article-created", handleArticleCreated);
+    return () => {
+      window.removeEventListener("cricket-article-created", handleArticleCreated);
+    };
   }, []);
 
   useEffect(() => {
@@ -251,7 +315,7 @@ export default function AllCricketArticlesPage() {
             <ArrowLeft size={16} />
           </Link>
           <div>
-            <h1 className="text-[18px] font-bold">Cricket Articles</h1>
+            <h1 className="text-[18px] font-bold">Articles</h1>
             {/* <p className="text-sm text-gray-400">
               All stories, match previews & records from around the cricket world.
             </p> */}
