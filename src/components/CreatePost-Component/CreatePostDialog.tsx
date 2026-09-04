@@ -97,10 +97,25 @@ export default function CreatePostDialog({
       const userEmail = user?.email || (user as any)?.emailAddress;
 
       formData.append("userId", userId);
+      formData.append("author", userName);
       formData.append("userName", userName);
+      formData.append("handle", `@${userName.replace(/\s+/g, "").toLowerCase()}`);
       formData.append("userHandle", `@${userName.replace(/\s+/g, "").toLowerCase()}`);
       formData.append("content", content.trim());
-      if (userEmail) formData.append("userEmail", userEmail);
+      formData.append("sport", "cricket");
+      formData.append("type", "post");
+      formData.append("source", "FlipLine");
+      formData.append("likes", "0");
+      formData.append("isKey", "false");
+      if (userEmail) {
+        formData.append("email", userEmail);
+        formData.append("userEmail", userEmail);
+      }
+      const adminPhoto = (user as any)?.addfliplineAdminPhoto || user?.avatar || (user as any)?.avatarUrl;
+      if (adminPhoto) {
+        formData.append("adminPhoto", adminPhoto);
+        formData.append("authorPhoto", adminPhoto);
+      }
 
       selectedMedia.forEach((file) => {
         formData.append("media", file);
