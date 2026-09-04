@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, User } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, ChevronRight, User } from "lucide-react";
 import Image from "next/image";
 
 interface HubItem {
@@ -17,6 +18,7 @@ interface HubItem {
 }
 
 export default function FlipGuruPage() {
+  const router = useRouter();
   const [liveMatchesCount, setLiveMatchesCount] = useState<number>(5);
 
   useEffect(() => {
@@ -93,25 +95,42 @@ export default function FlipGuruPage() {
         </div>
       ),
     },
-    {
-      id: "flip-ai",
-      title: "Flip AI",
-      subtitle: "Ask & learn with AI",
-      href: "/MainModules/AskAI",
-      iconBg: "bg-[#0d231a]",
-      borderColor: "border-emerald-500/30",
-      glowColor: "shadow-[0_0_20px_rgba(16,185,129,0.15)]",
-      icon: (
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-700 flex items-center justify-center text-white text-lg shadow-inner">
-          🐬
-        </div>
-      ),
-    },
+    // {
+    //   id: "flip-ai",
+    //   title: "Flip AI",
+    //   subtitle: "Ask & learn with AI",
+    //   href: "/MainModules/AskAI",
+    //   iconBg: "bg-[#0d231a]",
+    //   borderColor: "border-emerald-500/30",
+    //   glowColor: "shadow-[0_0_20px_rgba(160,185,129,0.15)]",
+    //   icon: (
+    //     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 via-teal-500 to-cyan-700 flex items-center justify-center text-white text-lg shadow-inner">
+    //       🐬
+    //     </div>
+    //   ),
+    // },
   ];
 
   return (
-    <div className="min-h-screen bg-black text-white px-3.5 sm:px-6 pt-15 md:pt-4 pb-28 md:pb-12 flex flex-col justify-start">
+    <div className="min-h-screen bg-black text-white px-3.5 sm:px-6 pt-12 md:pt-6 pb-28 md:pb-12 flex flex-col justify-start">
       <div className="w-full max-w-xl mx-auto flex flex-col">
+        {/* Top Header with Back Button and FLIPGURU Heading */}
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => router.push("/MainModules/HomePage")}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-white/80 hover:text-white bg-white/10 hover:bg-white/15 transition-all cursor-pointer border border-white/10 shrink-0 active:scale-95"
+            aria-label="Back to Home"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-wide uppercase">
+              FLIPGURU
+            </h1>
+            <span className="text-sm">⚡</span>
+          </div>
+        </div>
+
         {/* Section Header */}
         <h2 className="text-[11px] sm:text-xs font-black uppercase tracking-widest text-zinc-400/90 mb-3.5 pl-1">
           YOUR SPORTS KNOWLEDGE HUB
@@ -154,13 +173,13 @@ export default function FlipGuruPage() {
         </div>
 
         {/* Live Right Now Container */}
-        <div className="mt-4 rounded-2xl border border-purple-900/40 bg-[#120f18] p-3.5 sm:p-4 shadow-lg">
+        {/* <div className="mt-4 rounded-2xl border border-purple-900/40 bg-[#120f18] p-3.5 sm:p-4 shadow-lg">
           <div className="text-[10px] sm:text-[11px] font-black uppercase tracking-widest text-zinc-400 mb-3 pl-0.5">
             LIVE RIGHT NOW
           </div>
 
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            {/* Live Matches */}
+           
             <div className="bg-[#191622] border border-white/[0.04] rounded-xl py-3 px-1.5 sm:px-2 text-center flex flex-col items-center justify-center shadow-inner">
               <span className="text-2xl sm:text-3xl font-black text-[#22c55e] leading-none">
                 {liveMatchesCount}
@@ -170,7 +189,7 @@ export default function FlipGuruPage() {
               </span>
             </div>
 
-            {/* Records Tracked */}
+          
             <div className="bg-[#191622] border border-white/[0.04] rounded-xl py-3 px-1.5 sm:px-2 text-center flex flex-col items-center justify-center shadow-inner">
               <span className="text-2xl sm:text-3xl font-black text-[#fbbf24] leading-none">
                 240+
@@ -180,7 +199,7 @@ export default function FlipGuruPage() {
               </span>
             </div>
 
-            {/* Player Profiles */}
+           
             <div className="bg-[#191622] border border-white/[0.04] rounded-xl py-3 px-1.5 sm:px-2 text-center flex flex-col items-center justify-center shadow-inner">
               <span className="text-2xl sm:text-3xl font-black text-[#ec4899] leading-none">
                 1,800+
@@ -190,7 +209,7 @@ export default function FlipGuruPage() {
               </span>
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     </div>
   );
