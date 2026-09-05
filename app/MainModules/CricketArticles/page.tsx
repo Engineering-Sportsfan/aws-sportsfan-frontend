@@ -547,7 +547,7 @@
 
 
 
-
+//MainModules/CricketArticles/page.tsx
 
 
 "use client";
@@ -748,10 +748,20 @@ export default function AllCricketArticlesPage() {
                   ? article.likes
                   : 0;
 
-            const likedBy = Array.isArray(article.likedBy) ? article.likedBy : [];
-            const isUserLiked = likedBy.includes(actorId) || localUserLikes[articleId] === true;
+            const storedCount =
+              typeof window !== "undefined"
+                ? Number.parseInt(window.localStorage.getItem(`cricket_article_likes_${articleId}`) || "0", 10) || 0
+                : 0;
+            const resolvedCount = Math.max(count, storedCount);
 
-            initialLikes[articleId] = count;
+            const likedBy = Array.isArray(article.likedBy) ? article.likedBy : [];
+            const isUserLiked =
+              likedBy.includes(actorId) ||
+              localUserLikes[articleId] === true ||
+              (typeof window !== "undefined" &&
+                window.localStorage?.getItem(`cricket_article_like_${articleId}_${actorId}`) === "1");
+
+            initialLikes[articleId] = resolvedCount;
             if (isUserLiked) initialUserLikes.add(articleId);
 
             return {
@@ -767,23 +777,19 @@ export default function AllCricketArticlesPage() {
               readTime: article.readTime,
               tags: extractTags(article),
               createdAt: extractCreatedAt(article),
-              likes: count,
+              likes: resolvedCount,
               likedBy: likedBy,
             };
           }
         );
 
-        // transformed.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        // const ranked = transformed.map((a, i) => ({ ...a, rank: i + 1 }));
-
-        // setArticles(ranked);
         const deduped = Array.from(new Map(transformed.map((a) => [a.id, a])).values());
         deduped.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         const ranked = deduped.map((a, i) => ({ ...a, rank: i + 1 }));
 
         setArticles(ranked);
-        setLikeCounts(initialLikes);
-        setUserLikes(initialUserLikes);
+        setLikeCounts((prev) => ({ ...initialLikes, ...prev }));
+        setUserLikes((prev) => new Set([...Array.from(initialUserLikes), ...Array.from(prev)]));
       } catch (err: any) {
         console.error("[AllCricketArticles] Error loading articles", err);
         setError(err?.message || "Something went wrong while loading articles");
@@ -803,6 +809,45 @@ export default function AllCricketArticlesPage() {
     };
   }, [user?.userId]);
 
+  useEffect(() => {
+    const handleLikeSync = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.articleId) {
+        setLikeCounts((prev) => ({ ...prev, [detail.articleId]: detail.likeCount }));
+        setUserLikes((prev) => {
+          const next = new Set(prev);
+          if (detail.isLiked) next.add(detail.articleId);
+          else next.delete(detail.articleId);
+          return next;
+        });
+      }
+    };
+
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key.startsWith("cricket_article_likes_")) {
+        const articleId = e.key.replace("cricket_article_likes_", "");
+        const count = parseInt(e.newValue || "0", 10);
+        if (!isNaN(count)) {
+          setLikeCounts((prev) => ({ ...prev, [articleId]: count }));
+        }
+      } else if (e.key === CRICKET_USER_LIKES_KEY) {
+        try {
+          const parsed = JSON.parse(e.newValue || "{}");
+          const likedIds = Object.keys(parsed).filter((id) => parsed[id] === true);
+          setUserLikes(new Set(likedIds));
+        } catch {}
+      }
+    };
+
+    window.addEventListener("cricket-article-liked", handleLikeSync);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("cricket-article-liked", handleLikeSync);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
   const toggleLike = async (article: Article) => {
     const articleId = article.id;
     const isCurrentlyLiked = userLikes.has(articleId);
@@ -820,20 +865,30 @@ export default function AllCricketArticlesPage() {
     setUserLikes(nextUserLikes);
     setLikeCounts((prev) => ({ ...prev, [articleId]: newCount }));
 
+    const actorId = getLikeActorId();
+
     if (typeof window !== "undefined") {
       try {
         const rawLocal = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
         let localUserLikes: Record<string, boolean> = rawLocal ? JSON.parse(rawLocal) : {};
         if (newIsLiked) {
           localUserLikes[articleId] = true;
+          window.localStorage.setItem(`cricket_article_like_${articleId}_${actorId}`, "1");
         } else {
           delete localUserLikes[articleId];
+          window.localStorage.removeItem(`cricket_article_like_${articleId}_${actorId}`);
         }
         window.localStorage.setItem(CRICKET_USER_LIKES_KEY, JSON.stringify(localUserLikes));
         window.localStorage.setItem(`cricket_article_likes_${articleId}`, String(newCount));
       } catch (e) {
         console.warn("LocalStorage like sync error:", e);
       }
+
+      window.dispatchEvent(
+        new CustomEvent("cricket-article-liked", {
+          detail: { articleId, likeCount: newCount, isLiked: newIsLiked },
+        })
+      );
     }
 
     try {
@@ -841,7 +896,7 @@ export default function AllCricketArticlesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: getLikeActorId(),
+          userId: actorId,
           action: newIsLiked ? "like" : "unlike",
         }),
       });
@@ -856,6 +911,14 @@ export default function AllCricketArticlesPage() {
               : newCount;
 
         setLikeCounts((prev) => ({ ...prev, [articleId]: serverLikeCount }));
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(`cricket_article_likes_${articleId}`, String(serverLikeCount));
+          window.dispatchEvent(
+            new CustomEvent("cricket-article-liked", {
+              detail: { articleId, likeCount: serverLikeCount, isLiked: newIsLiked },
+            })
+          );
+        }
       }
     } catch (err) {
       console.error("Failed to sync like with backend:", err);
@@ -1016,6 +1079,11 @@ export default function AllCricketArticlesPage() {
                             #{tag}
                           </span>
                         ))}
+                        {article.tags.length > 4 && (
+                          <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-400">
+                            +{article.tags.length - 4} more
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

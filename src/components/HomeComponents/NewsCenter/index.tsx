@@ -525,7 +525,7 @@
 
 
 
-//src/components/HomeComponents/index.tsx
+//src/components/HomeComponents/NewsCenter/index.tsx
 
 "use client";
 
@@ -534,6 +534,7 @@ import Link from 'next/link';
 import { Heart, Share2, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { NewsArticle } from '../../../../types/news';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 
 declare const process: {
   env: Record<string, string | undefined>;
@@ -552,6 +553,9 @@ type CricketApiArticle = {
   cdn_url?: string;
   createdAt?: number | string;
   updatedAt?: number | string;
+  likes?: number;
+  likeCount?: number;
+  likedBy?: string[];
 };
 
 type DebugInfo = {
@@ -585,9 +589,15 @@ const stripHtmlTags = (html: string) => {
   return html.replace(/<[^>]*>/g, '').trim();
 };
 
-const NEWS_LIKES_KEY = 'sportsfan_news_likes';
-const NEWS_USER_LIKES_KEY = 'sportsfan_news_user_likes';
 const CRICKET_USER_LIKES_KEY = 'cricket_user_likes'; // Track which users liked which cricket articles
+
+const readStoredCount = (key: string) => {
+  if (typeof window === 'undefined') return 0;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return 0;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const formatDate = (timestamp?: number) => {
   if (!timestamp) return 'May 11, 2026';
@@ -632,6 +642,7 @@ const buildNewsShareText = (article: NewsArticle) => {
 };
 
 export default function NewsCenter() {
+  const { user, getUserName } = useAuth();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({ status: 'loading' });
   const [startIndex, setStartIndex] = useState(0);
@@ -639,10 +650,12 @@ export default function NewsCenter() {
   const [sharedArticle, setSharedArticle] = useState<NewsArticle | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
-  const [userLikes, setUserLikes] = useState<Set<number>>(new Set());
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
+  const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
   const animationId = useId();
   const router = useRouter();
+
+  const getLikeActorId = () => user?.userId || `guest:${getUserName ? getUserName() : 'user'}`;
 
   const openShareDialog = (article: NewsArticle) => {
     setSharedArticle(article);
@@ -701,52 +714,82 @@ export default function NewsCenter() {
     setStartIndex((current) => (current - 1 + articles.length) % articles.length);
   };
 
-  const toggleLike = (article: NewsArticle, currentLikes: number = 0) => {
-    const articleRank = article.rank;
-    const newUserLikes = new Set(userLikes);
-    let newCount = currentLikes;
+  const toggleLike = async (article: NewsArticle, currentLikes: number = 0) => {
+    const articleId = article.id || String(article.rank);
+    const isCurrentlyLiked = userLikes.has(articleId);
+    const count = (likeCounts[articleId] !== undefined) ? likeCounts[articleId] : (article.likes || currentLikes || 0);
 
-    if (newUserLikes.has(articleRank)) {
-      newUserLikes.delete(articleRank);
-      newCount = Math.max(0, currentLikes - 1);
+    const newIsLiked = !isCurrentlyLiked;
+    const newCount = newIsLiked ? count + 1 : Math.max(0, count - 1);
+
+    const nextUserLikes = new Set(userLikes);
+    if (newIsLiked) {
+      nextUserLikes.add(articleId);
     } else {
-      newUserLikes.add(articleRank);
-      newCount = currentLikes + 1;
+      nextUserLikes.delete(articleId);
     }
 
-    setUserLikes(newUserLikes);
-    const newLikeCounts = { ...likeCounts, [articleRank]: newCount };
-    setLikeCounts(newLikeCounts);
+    setUserLikes(nextUserLikes);
+    setLikeCounts((prev) => ({ ...prev, [articleId]: newCount }));
+
+    const actorId = getLikeActorId();
 
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(NEWS_USER_LIKES_KEY, JSON.stringify(Array.from(newUserLikes)));
-      window.localStorage.setItem(NEWS_LIKES_KEY, JSON.stringify(newLikeCounts));
+      try {
+        const rawLocal = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
+        let localUserLikes: Record<string, boolean> = rawLocal ? JSON.parse(rawLocal) : {};
+        if (newIsLiked) {
+          localUserLikes[articleId] = true;
+          window.localStorage.setItem(`cricket_article_like_${articleId}_${actorId}`, '1');
+        } else {
+          delete localUserLikes[articleId];
+          window.localStorage.removeItem(`cricket_article_like_${articleId}_${actorId}`);
+        }
+        window.localStorage.setItem(CRICKET_USER_LIKES_KEY, JSON.stringify(localUserLikes));
+        window.localStorage.setItem(`cricket_article_likes_${articleId}`, String(newCount));
+      } catch (e) {
+        console.warn('LocalStorage like sync error in NewsCenter:', e);
+      }
 
-      // Sync cricket article likes if this is a cricket article
-      if (article.id && article.url.includes('/MainModules/CricketArticles/')) {
-        const cricketLikeKey = `cricket_article_likes_${article.id}`;
-        window.localStorage.setItem(cricketLikeKey, String(newCount));
+      window.dispatchEvent(
+        new CustomEvent('cricket-article-liked', {
+          detail: { articleId, likeCount: newCount, isLiked: newIsLiked },
+        })
+      );
+    }
 
-        // Track that this user liked this cricket article
-        const cricketUserLikesData = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
-        let cricketUserLikes: Record<string, boolean> = {};
-        if (cricketUserLikesData) {
-          try {
-            cricketUserLikes = JSON.parse(cricketUserLikesData);
-          } catch {
-            cricketUserLikes = {};
+    if (article.id) {
+      try {
+        const res = await fetch(`/api/cricket-articles/${article.id}/like`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: actorId,
+            action: newIsLiked ? 'like' : 'unlike',
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const serverLikeCount =
+            typeof data?.likeCount === 'number'
+              ? data.likeCount
+              : typeof data?.likes === 'number'
+                ? data.likes
+                : newCount;
+
+          setLikeCounts((prev) => ({ ...prev, [articleId]: serverLikeCount }));
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(`cricket_article_likes_${articleId}`, String(serverLikeCount));
+            window.dispatchEvent(
+              new CustomEvent('cricket-article-liked', {
+                detail: { articleId, likeCount: serverLikeCount, isLiked: newIsLiked },
+              })
+            );
           }
         }
-
-        if (newUserLikes.has(articleRank)) {
-          // User liked - track the article ID
-          cricketUserLikes[article.id] = true;
-        } else {
-          // User unliked - remove tracking
-          delete cricketUserLikes[article.id];
-        }
-
-        window.localStorage.setItem(CRICKET_USER_LIKES_KEY, JSON.stringify(cricketUserLikes));
+      } catch (err) {
+        console.error('[NewsCenter] Failed to sync like with backend:', err);
       }
     }
   };
@@ -827,10 +870,42 @@ export default function NewsCenter() {
           cricketData?.articles || cricketData?.data || (Array.isArray(cricketData) ? cricketData : []);
         console.log('[NewsCenter] cricket articles fetched:', cricketArticles.length);
 
+        const actorId = getLikeActorId();
+        const initialLikes: Record<string, number> = {};
+        const initialUserLikes = new Set<string>();
+
+        let localUserLikes: Record<string, boolean> = {};
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
+            if (raw) localUserLikes = JSON.parse(raw);
+          } catch {}
+        }
+
         const transformedCricket: NewsArticle[] = (Array.isArray(cricketArticles) ? cricketArticles : []).map(
           (article: CricketApiArticle) => {
             const articleId = String(article._id || article.id || '');
             const author = article.author || '';
+            const count =
+              typeof article.likeCount === 'number'
+                ? article.likeCount
+                : typeof article.likes === 'number'
+                  ? article.likes
+                  : 0;
+
+            const storedCount = readStoredCount(`cricket_article_likes_${articleId}`);
+            const resolvedCount = Math.max(count, storedCount);
+            initialLikes[articleId] = resolvedCount;
+
+            const likedBy = Array.isArray(article.likedBy) ? article.likedBy : [];
+            const isUserLiked =
+              likedBy.includes(actorId) ||
+              localUserLikes[articleId] === true ||
+              (typeof window !== 'undefined' &&
+                window.localStorage?.getItem(`cricket_article_like_${articleId}_${actorId}`) === '1');
+
+            if (isUserLiked) initialUserLikes.add(articleId);
+
             return {
               rank: 0,
               title: article.title || '',
@@ -843,6 +918,7 @@ export default function NewsCenter() {
               cdn_url: article.image || article.cdn_url || '',
               createdAt: extractCreatedAt(article),
               id: articleId,
+              likes: resolvedCount,
             };
           }
         );
@@ -855,6 +931,9 @@ export default function NewsCenter() {
         }));
 
         setArticles(rankedArticles);
+        setLikeCounts((prev) => ({ ...initialLikes, ...prev }));
+        setUserLikes((prev) => new Set([...Array.from(initialUserLikes), ...Array.from(prev)]));
+
         setDebugInfo({
           status: rankedArticles.length === 0 ? 'empty' : 'ok',
           cricketCount: transformedCricket.length,
@@ -878,18 +957,45 @@ export default function NewsCenter() {
     return () => {
       window.removeEventListener('cricket-article-created', handleArticleCreated);
     };
-  }, []);
+  }, [user?.userId]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const savedLikeCounts = window.localStorage.getItem(NEWS_LIKES_KEY);
-    if (savedLikeCounts) {
-      setLikeCounts(JSON.parse(savedLikeCounts));
-    }
-    const savedUserLikes = window.localStorage.getItem(NEWS_USER_LIKES_KEY);
-    if (savedUserLikes) {
-      setUserLikes(new Set(JSON.parse(savedUserLikes)));
-    }
+    const handleLikeSync = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.articleId) {
+        setLikeCounts((prev) => ({ ...prev, [detail.articleId]: detail.likeCount }));
+        setUserLikes((prev) => {
+          const next = new Set(prev);
+          if (detail.isLiked) next.add(detail.articleId);
+          else next.delete(detail.articleId);
+          return next;
+        });
+      }
+    };
+
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key.startsWith('cricket_article_likes_')) {
+        const articleId = e.key.replace('cricket_article_likes_', '');
+        const count = parseInt(e.newValue || '0', 10);
+        if (!isNaN(count)) {
+          setLikeCounts((prev) => ({ ...prev, [articleId]: count }));
+        }
+      } else if (e.key === CRICKET_USER_LIKES_KEY) {
+        try {
+          const parsed = JSON.parse(e.newValue || '{}');
+          const likedIds = Object.keys(parsed).filter((id) => parsed[id] === true);
+          setUserLikes(new Set(likedIds));
+        } catch {}
+      }
+    };
+
+    window.addEventListener('cricket-article-liked', handleLikeSync);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('cricket-article-liked', handleLikeSync);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   // While the first fetch is in flight, keep the space quiet rather than
@@ -987,6 +1093,9 @@ export default function NewsCenter() {
           >
             {duplicated.map((article: NewsArticle, index: number) => {
               const authorText = article.author || (article.source && article.source !== 'SportsFan360' ? article.source : '');
+              const articleKey = article.id || String(article.rank);
+              const isLiked = userLikes.has(articleKey);
+              const currentLikes = (likeCounts[articleKey] !== undefined) ? likeCounts[articleKey] : (article.likes || 0);
 
               return (
                 <div key={`${article.rank}-${index}`} className={hasMultiple ? "flex-none w-[calc(90vw-3rem)] sm:w-[calc(50vw-3rem)] max-w-[690px] flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2" : "w-full flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2"}>
@@ -1025,6 +1134,11 @@ export default function NewsCenter() {
                             #{tag}
                           </span>
                         ))}
+                        {article.tags.length > 4 && (
+                          <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-400">
+                            +{article.tags.length - 4} more
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1036,8 +1150,8 @@ export default function NewsCenter() {
                     </p>
                     <div className="flex items-center justify-between border-t border-gray-800 pt-3">
                       <div className="flex gap-4">
-                        <button onClick={() => toggleLike(article, likeCounts[article.rank] || article.likes || 0)} className={`flex items-center gap-1 text-sm transition-colors ${userLikes.has(article.rank) ? 'text-pink-500' : 'text-gray-400 hover:text-pink-400'}`}>
-                          <Heart size={16} fill={userLikes.has(article.rank) ? 'currentColor' : 'none'} /> {(likeCounts[article.rank] ?? article.likes) || 0}
+                        <button onClick={() => toggleLike(article, currentLikes)} className={`flex items-center gap-1 text-sm transition-colors ${isLiked ? 'text-pink-500' : 'text-gray-400 hover:text-pink-400'}`}>
+                          <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} /> {currentLikes}
                         </button>
                         <button onClick={() => openShareDialog(article)} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm">
                           <Share2 size={16} /> Share

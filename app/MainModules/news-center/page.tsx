@@ -6,6 +6,8 @@ import Image from 'next/image';
 import { ArrowLeft, Bell, Heart, Share2, ArrowRight, Calendar, CheckCircle2, ExternalLink } from 'lucide-react';
 // FIX: Using relative path from app/news-center/page.tsx to types/news.ts
 import { NewsArticle } from '../../../types/news';
+import { useAuth } from '@/context/AuthContext';
+
 // Type for the external cricket API response (narrowed to avoid `any`)
 type CricketApiArticle = {
   _id?: string | number;
@@ -20,6 +22,9 @@ type CricketApiArticle = {
   cdn_url?: string;
   createdAt?: number | string;
   updatedAt?: number | string;
+  likes?: number;
+  likeCount?: number;
+  likedBy?: string[];
 };
 
 type NewsApiArticle = NewsArticle & {
@@ -27,9 +32,15 @@ type NewsApiArticle = NewsArticle & {
 };
 
 const NEWS_EXTERNAL_BYPASS_KEY = 'sportsfan_news_external_bypass';
-const NEWS_LIKES_KEY = 'sportsfan_news_likes';
-const NEWS_USER_LIKES_KEY = 'sportsfan_news_user_likes';
 const CRICKET_USER_LIKES_KEY = 'cricket_user_likes'; // Track which users liked which cricket articles
+
+const readStoredCount = (key: string) => {
+  if (typeof window === 'undefined') return 0;
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return 0;
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 // Extract tags array safely
 const extractTags = (rawTags: any): string[] => {
@@ -101,6 +112,7 @@ const buildNewsShareText = (article: NewsArticle) => {
 };
 const ARCHIVE_DATES = ['2026-06-09','2026-06-05','2026-06-04'];
 export default function DetailedNewsCenter() {
+  const { user, getUserName } = useAuth();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [sortOption, setSortOption] = useState<'latest' | 'oldest' | 'most-liked'>('latest');
   const [showExternalPrompt, setShowExternalPrompt] = useState(false);
@@ -116,10 +128,12 @@ export default function DetailedNewsCenter() {
   const [sharedArticle, setSharedArticle] = useState<NewsArticle | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
-  const [userLikes, setUserLikes] = useState<Set<number>>(new Set());
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
+  const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
   // Change this line:
   const [selectedArchiveDate, setSelectedArchiveDate] = useState('last-3-days');
+
+  const getLikeActorId = () => user?.userId || `guest:${getUserName ? getUserName() : 'user'}`;
 
   const openShareDialog = (article: NewsArticle) => {
     setSharedArticle(article);
@@ -175,27 +189,55 @@ export default function DetailedNewsCenter() {
       setBypassExternalPrompt(true);
       setRememberChoice(true);
     }
-    const savedLikeCounts = window.localStorage.getItem(NEWS_LIKES_KEY);
-    if (savedLikeCounts) {
-      setLikeCounts(JSON.parse(savedLikeCounts));
-    }
-    const savedUserLikes = window.localStorage.getItem(NEWS_USER_LIKES_KEY);
-    if (savedUserLikes) {
-      setUserLikes(new Set(JSON.parse(savedUserLikes)));
-    }
+  }, []);
+
+  useEffect(() => {
+    const handleLikeSync = (e: any) => {
+      const detail = e.detail;
+      if (detail && detail.articleId) {
+        setLikeCounts((prev) => ({ ...prev, [detail.articleId]: detail.likeCount }));
+        setUserLikes((prev) => {
+          const next = new Set(prev);
+          if (detail.isLiked) next.add(detail.articleId);
+          else next.delete(detail.articleId);
+          return next;
+        });
+      }
+    };
+
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key.startsWith('cricket_article_likes_')) {
+        const articleId = e.key.replace('cricket_article_likes_', '');
+        const count = parseInt(e.newValue || '0', 10);
+        if (!isNaN(count)) {
+          setLikeCounts((prev) => ({ ...prev, [articleId]: count }));
+        }
+      } else if (e.key === CRICKET_USER_LIKES_KEY) {
+        try {
+          const parsed = JSON.parse(e.newValue || '{}');
+          const likedIds = Object.keys(parsed).filter((id) => parsed[id] === true);
+          setUserLikes(new Set(likedIds));
+        } catch {}
+      }
+    };
+
+    window.addEventListener('cricket-article-liked', handleLikeSync);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('cricket-article-liked', handleLikeSync);
+      window.removeEventListener('storage', handleStorage);
+    };
   }, []);
 
   useEffect(() => {
     const fetchNews = async () => {
       try {
-        // Pass the selected date to your API
         const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '';
-        // ADD THIS: Build the query depending on the selected state
         const dateQuery = selectedArchiveDate === 'last-3-days' 
           ? ARCHIVE_DATES.slice(0, 3).join(',') 
           : selectedArchiveDate;
 
-        // UPDATE THIS: Use the new dateQuery variable
         const newsRes = await fetch(
           `${baseUrl}/api/news-center?date=${dateQuery}`
         );
@@ -222,7 +264,6 @@ export default function DetailedNewsCenter() {
         };
 
         const extractCreatedAt = (art: any): number => {
-          // Direct number (DynamoDB unix ms timestamp or seconds)
           if (typeof art.createdAt === 'number') {
             return art.createdAt < 10000000000 ? art.createdAt * 1000 : art.createdAt;
           }
@@ -230,8 +271,6 @@ export default function DetailedNewsCenter() {
           if (typeof art.timestamp === 'number') {
             return art.timestamp < 10000000000 ? art.timestamp * 1000 : art.timestamp;
           }
-
-          // Firestore Timestamp objects (.toMillis(), .seconds, ._seconds)
           if (art.createdAt && typeof art.createdAt.toMillis === 'function') {
             return art.createdAt.toMillis();
           }
@@ -241,14 +280,10 @@ export default function DetailedNewsCenter() {
           if (art.createdAt && typeof art.createdAt._seconds === 'number') {
             return art.createdAt._seconds * 1000;
           }
-
-          // ISO Strings / date strings (DynamoDB standard string format)
           if (typeof art.createdAt === 'string' && art.createdAt.trim()) {
             const parsed = Date.parse(art.createdAt);
             if (!isNaN(parsed) && parsed > 0) return parsed;
           }
-
-          // Fallbacks to updatedAt
           if (typeof art.updatedAt === 'number') {
             return art.updatedAt < 10000000000 ? art.updatedAt * 1000 : art.updatedAt;
           }
@@ -256,11 +291,9 @@ export default function DetailedNewsCenter() {
             const parsed = Date.parse(art.updatedAt);
             if (!isNaN(parsed) && parsed > 0) return parsed;
           }
-
           return Date.now();
         };
 
-        // Try to fetch Cricket Articles from local proxy
         let cricketArticles: CricketApiArticle[] = [];
         try {
           const cricketRes = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
@@ -270,17 +303,47 @@ export default function DetailedNewsCenter() {
           if (cricketRes.ok) {
             const cricketData = await cricketRes.json();
             cricketArticles = cricketData?.articles || cricketData?.data || (Array.isArray(cricketData) ? cricketData : []);
-            console.log("Cricket articles fetched:", cricketArticles.length);
           }
         } catch (error) {
           console.warn("Cricket articles fetch failed", error);
         }
 
-        // Transform cricket articles to match NewsArticle structure
+        const actorId = getLikeActorId();
+        const initialLikes: Record<string, number> = {};
+        const initialUserLikes = new Set<string>();
+
+        let localUserLikes: Record<string, boolean> = {};
+        if (typeof window !== 'undefined') {
+          try {
+            const raw = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
+            if (raw) localUserLikes = JSON.parse(raw);
+          } catch {}
+        }
+
         const transformedCricket: NewsArticle[] = (Array.isArray(cricketArticles) ? cricketArticles : [])
           .map((article: CricketApiArticle) => {
             const articleId = String(article._id || article.id || '');
             const author = article.author || '';
+            const count =
+              typeof article.likeCount === 'number'
+                ? article.likeCount
+                : typeof article.likes === 'number'
+                  ? article.likes
+                  : 0;
+
+            const storedCount = readStoredCount(`cricket_article_likes_${articleId}`);
+            const resolvedCount = Math.max(count, storedCount);
+            initialLikes[articleId] = resolvedCount;
+
+            const likedBy = Array.isArray(article.likedBy) ? article.likedBy : [];
+            const isUserLiked =
+              likedBy.includes(actorId) ||
+              localUserLikes[articleId] === true ||
+              (typeof window !== 'undefined' &&
+                window.localStorage?.getItem(`cricket_article_like_${articleId}_${actorId}`) === '1');
+
+            if (isUserLiked) initialUserLikes.add(articleId);
+
             return {
               rank: 0,
               title: article.title || '',
@@ -292,28 +355,26 @@ export default function DetailedNewsCenter() {
               tags: extractTags(article.tags),
               cdn_url: article.image || article.cdn_url || '',
               createdAt: extractCreatedAt(article),
-              likes: 0,
+              likes: resolvedCount,
               id: articleId,
             };
           });
 
-        // Merge both arrays
         const mergedArticles = [...newsArticles, ...transformedCricket];
-
-        // Sort by date (latest first)
         mergedArticles.sort((a: NewsArticle, b: NewsArticle) => {
           const dateA = (a.createdAt || 0) as number;
           const dateB = (b.createdAt || 0) as number;
           return dateB - dateA;
         });
 
-        // Reassign ranks based on sorted order
         const rankedArticles = mergedArticles.map((article, index) => ({
           ...article,
           rank: index + 1
         }));
 
         setArticles(rankedArticles);
+        setLikeCounts((prev) => ({ ...initialLikes, ...prev }));
+        setUserLikes((prev) => new Set([...Array.from(initialUserLikes), ...Array.from(prev)]));
       } catch (error) {
         console.error("Error loading news", error);
       }
@@ -327,56 +388,53 @@ export default function DetailedNewsCenter() {
     return () => {
       window.removeEventListener('cricket-article-created', handleArticleCreated);
     };
-  }, [selectedArchiveDate]);
+  }, [selectedArchiveDate, user?.userId]);
 
-  // derive displayedArticles from articles + filters
   const displayedArticles = React.useMemo(() => {
-    // Filter by categories
     const cats = Object.entries(selectedCategories)
       .filter(([k, v]) => k !== 'All' && v)
       .map(([k]) => k);
 
     let filtered = articles.filter((a) => {
-      if (selectedCategories.All) return true;
       if (cats.length === 0) return true;
-      return cats.includes(a.tag) || cats.includes(String(a.tag));
+      return cats.includes(a.tag);
     });
 
-    // Sort according to option
-    // NOTE: swapping behavior per request: 'latest' will now show oldest-first and
-    // 'oldest' will show latest-first (labels unchanged)
-    // Sort according to option
-    if (sortOption === 'latest') {
-      // Latest first (newest dates at the top)
-      filtered = filtered.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-    } else if (sortOption === 'oldest') {
-      // Oldest first (older dates at the top)
-      filtered = filtered.slice().sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-    } else if (sortOption === 'most-liked') {
-      // Most liked (highest likes at the top)
-      filtered = filtered.slice().sort((a, b) => (b.likes || 0) - (a.likes || 0));
-    }
-
-    return filtered;
-  }, [articles, selectedCategories, sortOption]);
-
-  const openExternalArticle = (url: string) => {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
+    return [...filtered].sort((a, b) => {
+      if (sortOption === 'latest') {
+        return ((b.createdAt || 0) as number) - ((a.createdAt || 0) as number);
+      }
+      if (sortOption === 'oldest') {
+        return ((a.createdAt || 0) as number) - ((b.createdAt || 0) as number);
+      }
+      if (sortOption === 'most-liked') {
+        const keyA = a.id || String(a.rank);
+        const keyB = b.id || String(b.rank);
+        const likesA = (likeCounts[keyA] !== undefined ? likeCounts[keyA] : a.likes) || 0;
+        const likesB = (likeCounts[keyB] !== undefined ? likeCounts[keyB] : b.likes) || 0;
+        return likesB - likesA;
+      }
+      return 0;
+    });
+  }, [articles, selectedCategories, sortOption, likeCounts]);
 
   const handleExternalReadClick = (event: React.MouseEvent<HTMLAnchorElement>, article: NewsArticle) => {
-    event.preventDefault();
+    if (!article.url) return;
 
     if (bypassExternalPrompt) {
-      openExternalArticle(article.url);
       return;
     }
 
+    event.preventDefault();
     setPendingExternal({
       url: article.url,
       source: article.source || 'External Source',
     });
     setShowExternalPrompt(true);
+  };
+
+  const openExternalArticle = (url: string) => {
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   const handleConfirmExternalOpen = () => {
@@ -397,52 +455,82 @@ export default function DetailedNewsCenter() {
     setPendingExternal(null);
   };
 
-  const toggleLike = (article: NewsArticle, currentLikes: number = 0) => {
-    const articleRank = article.rank;
-    const newUserLikes = new Set(userLikes);
-    let newCount = currentLikes;
-    
-    if (newUserLikes.has(articleRank)) {
-      newUserLikes.delete(articleRank);
-      newCount = Math.max(0, currentLikes - 1);
+  const toggleLike = async (article: NewsArticle, currentLikes: number = 0) => {
+    const articleId = article.id || String(article.rank);
+    const isCurrentlyLiked = userLikes.has(articleId);
+    const count = (likeCounts[articleId] !== undefined) ? likeCounts[articleId] : (article.likes || currentLikes || 0);
+
+    const newIsLiked = !isCurrentlyLiked;
+    const newCount = newIsLiked ? count + 1 : Math.max(0, count - 1);
+
+    const nextUserLikes = new Set(userLikes);
+    if (newIsLiked) {
+      nextUserLikes.add(articleId);
     } else {
-      newUserLikes.add(articleRank);
-      newCount = currentLikes + 1;
+      nextUserLikes.delete(articleId);
     }
-    
-    setUserLikes(newUserLikes);
-    const newLikeCounts = { ...likeCounts, [articleRank]: newCount };
-    setLikeCounts(newLikeCounts);
-    
+
+    setUserLikes(nextUserLikes);
+    setLikeCounts((prev) => ({ ...prev, [articleId]: newCount }));
+
+    const actorId = getLikeActorId();
+
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(NEWS_USER_LIKES_KEY, JSON.stringify(Array.from(newUserLikes)));
-      window.localStorage.setItem(NEWS_LIKES_KEY, JSON.stringify(newLikeCounts));
-      
-      // Sync cricket article likes if this is a cricket article
-      if (article.id && article.url.includes('/MainModules/CricketArticles/')) {
-        const cricketLikeKey = `cricket_article_likes_${article.id}`;
-        window.localStorage.setItem(cricketLikeKey, String(newCount));
-        
-        // Track that this user liked this cricket article
-        const cricketUserLikesData = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
-        let cricketUserLikes: Record<string, boolean> = {};
-        if (cricketUserLikesData) {
-          try {
-            cricketUserLikes = JSON.parse(cricketUserLikesData);
-          } catch {
-            cricketUserLikes = {};
+      try {
+        const rawLocal = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
+        let localUserLikes: Record<string, boolean> = rawLocal ? JSON.parse(rawLocal) : {};
+        if (newIsLiked) {
+          localUserLikes[articleId] = true;
+          window.localStorage.setItem(`cricket_article_like_${articleId}_${actorId}`, '1');
+        } else {
+          delete localUserLikes[articleId];
+          window.localStorage.removeItem(`cricket_article_like_${articleId}_${actorId}`);
+        }
+        window.localStorage.setItem(CRICKET_USER_LIKES_KEY, JSON.stringify(localUserLikes));
+        window.localStorage.setItem(`cricket_article_likes_${articleId}`, String(newCount));
+      } catch (e) {
+        console.warn('LocalStorage like sync error:', e);
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('cricket-article-liked', {
+          detail: { articleId, likeCount: newCount, isLiked: newIsLiked },
+        })
+      );
+    }
+
+    if (article.id) {
+      try {
+        const res = await fetch(`/api/cricket-articles/${article.id}/like`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: actorId,
+            action: newIsLiked ? 'like' : 'unlike',
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const serverLikeCount =
+            typeof data?.likeCount === 'number'
+              ? data.likeCount
+              : typeof data?.likes === 'number'
+                ? data.likes
+                : newCount;
+
+          setLikeCounts((prev) => ({ ...prev, [articleId]: serverLikeCount }));
+          if (typeof window !== 'undefined') {
+            window.localStorage.setItem(`cricket_article_likes_${articleId}`, String(serverLikeCount));
+            window.dispatchEvent(
+              new CustomEvent('cricket-article-liked', {
+                detail: { articleId, likeCount: serverLikeCount, isLiked: newIsLiked },
+              })
+            );
           }
         }
-        
-        if (newUserLikes.has(articleRank)) {
-          // User liked - track the article ID
-          cricketUserLikes[article.id] = true;
-        } else {
-          // User unliked - remove tracking
-          delete cricketUserLikes[article.id];
-        }
-        
-        window.localStorage.setItem(CRICKET_USER_LIKES_KEY, JSON.stringify(cricketUserLikes));
+      } catch (err) {
+        console.error('Failed to sync like with backend:', err);
       }
     }
   };
@@ -472,6 +560,10 @@ export default function DetailedNewsCenter() {
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-1 flex flex-col gap-4">
           {displayedArticles.map((article, index) => {
+            const articleKey = article.id || String(article.rank);
+            const isLiked = userLikes.has(articleKey);
+            const currentLikes = (likeCounts[articleKey] !== undefined) ? likeCounts[articleKey] : (article.likes || 0);
+
             return (
               <div key={index} className="bg-[#111] border border-gray-800 rounded-xl p-6 flex flex-col md:flex-row gap-6">
                  <div className="md:w-[120px] md:h-[100px] shrink-0 relative">
@@ -485,28 +577,38 @@ export default function DetailedNewsCenter() {
                    />
                  </div>
 
-                 <div className="flex-1">
-                   <div className="flex justify-between items-center mb-2">
-                      <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider">
-                        {article.tag}
-                      </span>
-                      <span className="text-xs text-gray-500">{formatDate(article.createdAt)}</span>
-                   </div>
-                   <h2 className="text-xl font-bold mb-2">{article.title}</h2>
-                   <p className="text-sm text-gray-400 mb-3 line-clamp-2">{stripHtmlTags(article.summary)}</p>
-
-                   {article.tags && article.tags.length > 0 && (
-                     <div className="flex flex-wrap gap-1.5 mb-3">
-                       {article.tags.slice(0, 4).map((tag, idx) => (
-                         <span
-                           key={idx}
-                           className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-colors"
-                         >
-                           #{tag}
-                         </span>
-                       ))}
+                 <div className="flex-1 flex flex-col justify-between">
+                   <div>
+                     <div className="flex items-center gap-2 mb-2">
+                       <span className="px-2 py-0.5 text-xs font-semibold text-orange-500 border border-orange-500 rounded uppercase">
+                         {article.tag}
+                       </span>
                      </div>
-                   )}
+                     <h2 className="text-xl font-bold mb-2 hover:text-pink-500 transition-colors cursor-pointer">
+                       {article.title}
+                     </h2>
+                     <p className="text-sm text-gray-400 mb-3">
+                       {stripHtmlTags(article.summary)}
+                     </p>
+                   </div>
+
+                    {article.tags && article.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {article.tags.slice(0, 4).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-colors"
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                        {article.tags.length > 4 && (
+                          <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-400">
+                            +{article.tags.length - 4} more
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                    <p className="text-xs text-gray-500 mb-4">
                      {article.author ? `${article.author} · ` : (article.source && article.source !== 'SportsFan360' ? `${article.source} · ` : '')}
@@ -515,8 +617,8 @@ export default function DetailedNewsCenter() {
 
                    <div className="flex items-center justify-between border-t border-gray-800 pt-4">
                     <div className="flex gap-6">
-                      <button onClick={() => toggleLike(article, likeCounts[article.rank] || article.likes || 0)} className={`flex items-center gap-1 text-sm transition-colors ${userLikes.has(article.rank) ? 'text-pink-500' : 'text-gray-400 hover:text-pink-400'}`}>
-                        <Heart size={16} fill={userLikes.has(article.rank) ? 'currentColor' : 'none'} /> {(likeCounts[article.rank] ?? article.likes) || 0}
+                      <button onClick={() => toggleLike(article, currentLikes)} className={`flex items-center gap-1 text-sm transition-colors ${isLiked ? 'text-pink-500' : 'text-gray-400 hover:text-pink-400'}`}>
+                        <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} /> {currentLikes}
                       </button>
                       <button onClick={() => openShareDialog(article)} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm">
                         <Share2 size={16} /> Share
