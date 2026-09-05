@@ -1380,6 +1380,7 @@
 // }
 
 
+//MainModules/CricketArticles/[id]/page.tsx
 
 "use client";
 
@@ -1990,6 +1991,36 @@ export default function CricketArticleDetail() {
     void syncView();
   }, [article?.id]);
 
+  useEffect(() => {
+    const handleLikeSync = (e: any) => {
+      const detail = e.detail;
+      if (detail && String(detail.articleId) === String(articleId)) {
+        setLikeCount(detail.likeCount);
+        setLiked(detail.isLiked);
+      }
+    };
+
+    const handleStorage = (e: StorageEvent) => {
+      if (!e.key) return;
+      if (e.key === getLikeCountStorageKey(String(articleId))) {
+        const count = parseInt(e.newValue || "0", 10);
+        if (!isNaN(count)) setLikeCount(count);
+      } else if (e.key === CRICKET_USER_LIKES_KEY) {
+        try {
+          const parsed = JSON.parse(e.newValue || "{}");
+          setLiked(parsed[String(articleId)] === true);
+        } catch {}
+      }
+    };
+
+    window.addEventListener("cricket-article-liked", handleLikeSync);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.removeEventListener("cricket-article-liked", handleLikeSync);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [articleId]);
+
   const handleLikeClick = async () => {
     if (!article || likeSubmitting) return;
 
@@ -2014,6 +2045,12 @@ export default function CricketArticleDetail() {
       window.localStorage?.setItem(CRICKET_USER_LIKES_KEY, JSON.stringify(cricketUserLikes));
     } catch {}
 
+    window.dispatchEvent(
+      new CustomEvent("cricket-article-liked", {
+        detail: { articleId: article.id, likeCount: nextCount, isLiked: nextLiked },
+      })
+    );
+
     try {
       const res = await axios.post(`/api/cricket-articles/${article.id}/like`, {
         userId: actorId,
@@ -2024,6 +2061,11 @@ export default function CricketArticleDetail() {
           typeof res.data.likeCount === "number" ? res.data.likeCount : typeof res.data.likes === "number" ? res.data.likes : nextCount;
         setLikeCount(serverLikes);
         writeStoredCount(getLikeCountStorageKey(article.id), serverLikes);
+        window.dispatchEvent(
+          new CustomEvent("cricket-article-liked", {
+            detail: { articleId: article.id, likeCount: serverLikes, isLiked: nextLiked },
+          })
+        );
       }
     } catch (err) {
       console.error("Failed to update like state on backend:", err);
