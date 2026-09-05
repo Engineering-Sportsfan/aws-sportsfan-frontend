@@ -543,6 +543,8 @@ type CricketApiArticle = {
   _id?: string | number;
   id?: string | number;
   title?: string;
+  author?: string;
+  tags?: string[] | string;
   description?: string[] | string;
   summary?: string;
   badge?: string;
@@ -559,6 +561,23 @@ type DebugInfo = {
   error?: string;
   baseUrl?: string;
   newsStatusCode?: number;
+};
+
+// Extract tags array safely
+const extractTags = (rawTags: any): string[] => {
+  if (Array.isArray(rawTags)) {
+    return rawTags.map((t: any) => String(t).trim()).filter(Boolean);
+  }
+  if (typeof rawTags === 'string' && rawTags.trim()) {
+    try {
+      const parsed = JSON.parse(rawTags);
+      if (Array.isArray(parsed)) {
+        return parsed.map((t: any) => String(t).trim()).filter(Boolean);
+      }
+    } catch {}
+    return rawTags.split(',').map((t: string) => t.trim()).filter(Boolean);
+  }
+  return [];
 };
 
 const stripHtmlTags = (html: string) => {
@@ -811,13 +830,16 @@ export default function NewsCenter() {
         const transformedCricket: NewsArticle[] = (Array.isArray(cricketArticles) ? cricketArticles : []).map(
           (article: CricketApiArticle) => {
             const articleId = String(article._id || article.id || '');
+            const author = article.author || '';
             return {
               rank: 0,
               title: article.title || '',
               summary: extractSummary(article),
-              source: 'SportsFan360',
+              source: author || 'SportsFan360',
+              author: author,
               url: `/MainModules/CricketArticles/${articleId}`,
               tag: article.badge || 'Cricket',
+              tags: extractTags(article.tags),
               cdn_url: article.image || article.cdn_url || '',
               createdAt: extractCreatedAt(article),
               id: articleId,
@@ -963,57 +985,78 @@ export default function NewsCenter() {
                 : { width: '100%' }
             }
           >
-            {duplicated.map((article: NewsArticle, index: number) => (
-              <div key={`${article.rank}-${index}`} className={hasMultiple ? "flex-none w-[calc(90vw-3rem)] sm:w-[calc(50vw-3rem)] max-w-[690px] flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2" : "w-full flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2"}>
-                <div>
-                  <div className="flex justify-between items-start mb-3 gap-2">
-                    <div className="flex items-start gap-3">
-                      <img
-                        src={article.source === 'SportsFan360' && article.cdn_url ? article.cdn_url : '/images/News_center_Default.png'}
-                        alt={article.title}
-                        className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
-                        onError={(e) => {
-                          e.currentTarget.src = '/images/News_center_Default.png';
-                        }}
-                      />
-                      <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider h-fit">
-                        {article.tag}
-                      </span>
-                    </div>
-                    {/* <span className="text-xs text-gray-400">{formatDate(article.createdAt)}</span> */}
-                  </div>
-                  {/* <h3 className="text-lg font-bold text-white leading-tight mb-3 line-clamp-2">
-                    {article.title}
-                  </h3> */}
-                  <p className="text-sm text-gray-400 line-clamp-2 mb-4">
-                    {stripHtmlTags(article.summary)}
-                  </p>
-                </div>
+            {duplicated.map((article: NewsArticle, index: number) => {
+              const authorText = article.author || (article.source && article.source !== 'SportsFan360' ? article.source : '');
 
-                <div>
-                  <p className="text-xs text-gray-500 mb-4">{article.source} • {formatDate(article.createdAt)}</p>
-                  <div className="flex items-center justify-between border-t border-gray-800 pt-3">
-                    <div className="flex gap-4">
-                      <button onClick={() => toggleLike(article, likeCounts[article.rank] || article.likes || 0)} className={`flex items-center gap-1 text-sm transition-colors ${userLikes.has(article.rank) ? 'text-pink-500' : 'text-gray-400 hover:text-pink-400'}`}>
-                        <Heart size={16} fill={userLikes.has(article.rank) ? 'currentColor' : 'none'} /> {(likeCounts[article.rank] ?? article.likes) || 0}
-                      </button>
-                      <button onClick={() => openShareDialog(article)} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm">
-                        <Share2 size={16} /> Share
-                      </button>
+              return (
+                <div key={`${article.rank}-${index}`} className={hasMultiple ? "flex-none w-[calc(90vw-3rem)] sm:w-[calc(50vw-3rem)] max-w-[690px] flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2" : "w-full flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2"}>
+                  <div>
+                    <div className="flex justify-between items-start mb-3 gap-2">
+                      <div className="flex items-start gap-3">
+                        <img
+                          src={article.cdn_url || '/images/News_center_Default.png'}
+                          alt={article.title}
+                          className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
+                          onError={(e) => {
+                            e.currentTarget.src = '/images/News_center_Default.png';
+                          }}
+                        />
+                        <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider h-fit">
+                          {article.tag}
+                        </span>
+                      </div>
                     </div>
-                    {article.source === 'SportsFan360' || article.url?.includes('/MainModules/CricketArticles/') ? (
-                      <Link href={article.url} className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold">
-                        Read More <ArrowRight size={14} />
-                      </Link>
-                    ) : (
-                      <a href={article.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold">
-                        Read More <ArrowRight size={14} />
-                      </a>
+
+                    <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2">
+                      {article.title}
+                    </h3>
+
+                    <p className="text-sm text-gray-400 line-clamp-3 mb-3">
+                      {stripHtmlTags(article.summary)}
+                    </p>
+
+                    {article.tags && article.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {article.tags.slice(0, 4).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-colors"
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
                     )}
                   </div>
+
+                  <div>
+                    <p className="text-xs text-gray-500 mb-4">
+                      {authorText ? `${authorText} · ` : ''}
+                      {formatDate(article.createdAt)}
+                    </p>
+                    <div className="flex items-center justify-between border-t border-gray-800 pt-3">
+                      <div className="flex gap-4">
+                        <button onClick={() => toggleLike(article, likeCounts[article.rank] || article.likes || 0)} className={`flex items-center gap-1 text-sm transition-colors ${userLikes.has(article.rank) ? 'text-pink-500' : 'text-gray-400 hover:text-pink-400'}`}>
+                          <Heart size={16} fill={userLikes.has(article.rank) ? 'currentColor' : 'none'} /> {(likeCounts[article.rank] ?? article.likes) || 0}
+                        </button>
+                        <button onClick={() => openShareDialog(article)} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm">
+                          <Share2 size={16} /> Share
+                        </button>
+                      </div>
+                      {article.url?.startsWith('/MainModules/') || article.url?.includes('/CricketArticles/') ? (
+                        <Link href={article.url} className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold">
+                          Read More <ArrowRight size={14} />
+                        </Link>
+                      ) : (
+                        <a href={article.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold">
+                          Read More <ArrowRight size={14} />
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -1029,11 +1072,18 @@ export default function NewsCenter() {
         )}
 
         {hasMultiple && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
-            <span className={`w-4 h-1 rounded-full ${startIndex === 0 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-            <span className={`w-4 h-1 rounded-full ${startIndex === 1 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-            <span className={`w-4 h-1 rounded-full ${startIndex === 2 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
-            <span className={`w-4 h-1 rounded-full ${startIndex >= 3 ? 'bg-pink-500' : 'bg-gray-600'}`}></span>
+          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+            {articles.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => setStartIndex(idx)}
+                aria-label={`Go to article slide ${idx + 1}`}
+                className={`w-4 h-1 rounded-full transition-all cursor-pointer ${
+                  startIndex === idx ? 'bg-pink-500' : 'bg-gray-600 hover:bg-gray-500'
+                }`}
+              />
+            ))}
           </div>
         )}
       </div>

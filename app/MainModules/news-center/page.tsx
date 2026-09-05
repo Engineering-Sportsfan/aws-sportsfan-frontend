@@ -11,6 +11,8 @@ type CricketApiArticle = {
   _id?: string | number;
   id?: string | number;
   title?: string;
+  author?: string;
+  tags?: string[] | string;
   description?: string[] | string;
   summary?: string;
   badge?: string;
@@ -28,6 +30,23 @@ const NEWS_EXTERNAL_BYPASS_KEY = 'sportsfan_news_external_bypass';
 const NEWS_LIKES_KEY = 'sportsfan_news_likes';
 const NEWS_USER_LIKES_KEY = 'sportsfan_news_user_likes';
 const CRICKET_USER_LIKES_KEY = 'cricket_user_likes'; // Track which users liked which cricket articles
+
+// Extract tags array safely
+const extractTags = (rawTags: any): string[] => {
+  if (Array.isArray(rawTags)) {
+    return rawTags.map((t: any) => String(t).trim()).filter(Boolean);
+  }
+  if (typeof rawTags === 'string' && rawTags.trim()) {
+    try {
+      const parsed = JSON.parse(rawTags);
+      if (Array.isArray(parsed)) {
+        return parsed.map((t: any) => String(t).trim()).filter(Boolean);
+      }
+    } catch {}
+    return rawTags.split(',').map((t: string) => t.trim()).filter(Boolean);
+  }
+  return [];
+};
 
 // Strip HTML tags from text
 const stripHtmlTags = (html: string) => {
@@ -181,8 +200,10 @@ export default function DetailedNewsCenter() {
           `${baseUrl}/api/news-center?date=${dateQuery}`
         );
         const newsData = await newsRes.json();
-        const newsArticles = (newsData?.articles || []).map((article: NewsApiArticle) => ({
+        const newsArticles = (newsData?.articles || []).map((article: NewsApiArticle & { author?: string; tags?: any }) => ({
           ...article,
+          author: article.author || (article.source && article.source !== 'SportsFan360' ? article.source : '') || '',
+          tags: extractTags(article.tags),
           createdAt: typeof article.createdAt === 'number' ? article.createdAt : (article.createdAt ? Date.parse(String(article.createdAt)) : undefined)
         })) as NewsArticle[];
 
@@ -259,13 +280,16 @@ export default function DetailedNewsCenter() {
         const transformedCricket: NewsArticle[] = (Array.isArray(cricketArticles) ? cricketArticles : [])
           .map((article: CricketApiArticle) => {
             const articleId = String(article._id || article.id || '');
+            const author = article.author || '';
             return {
               rank: 0,
               title: article.title || '',
               summary: extractSummary(article),
-              source: 'SportsFan360',
+              source: author || 'SportsFan360',
+              author: author,
               url: `/MainModules/CricketArticles/${articleId}`,
               tag: article.badge || 'Cricket',
+              tags: extractTags(article.tags),
               cdn_url: article.image || article.cdn_url || '',
               createdAt: extractCreatedAt(article),
               likes: 0,
@@ -447,60 +471,77 @@ export default function DetailedNewsCenter() {
 
       <div className="flex flex-col lg:flex-row gap-8">
         <div className="flex-1 flex flex-col gap-4">
-          {displayedArticles.map((article, index) => (
-            <div key={index} className="bg-[#111] border border-gray-800 rounded-xl p-6 flex flex-col md:flex-row gap-6">
-               <div className="md:w-[120px] md:h-[100px] shrink-0 relative">
-                 <Image
-                   src={article.source === 'SportsFan360' && article.cdn_url ? article.cdn_url : '/images/News_center_Default.png'}
-                   alt={article.title}
-                   width={120}
-                   height={100}
-                   className="w-full h-full object-cover rounded-lg"
-                   onError={(e) => {
-                     (e.currentTarget as HTMLImageElement).src = '/images/News_center_Default.png';
-                   }}
-                 />
-               </div>
-
-               <div className="flex-1">
-                 <div className="flex justify-between items-center mb-2">
-                    <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider">
-                      {article.tag}
-                    </span>
-                    <span className="text-xs text-gray-500">{formatDate(article.createdAt)}</span>
+          {displayedArticles.map((article, index) => {
+            return (
+              <div key={index} className="bg-[#111] border border-gray-800 rounded-xl p-6 flex flex-col md:flex-row gap-6">
+                 <div className="md:w-[120px] md:h-[100px] shrink-0 relative">
+                   <img
+                     src={article.cdn_url || '/images/News_center_Default.png'}
+                     alt={article.title}
+                     className="w-full h-full object-cover rounded-lg"
+                     onError={(e) => {
+                       (e.currentTarget as HTMLImageElement).src = '/images/News_center_Default.png';
+                     }}
+                   />
                  </div>
-                 <h2 className="text-xl font-bold mb-2">{article.title}</h2>
-                 <p className="text-sm text-gray-400 mb-4 line-clamp-2">{stripHtmlTags(article.summary)}</p>
-                 <p className="text-xs text-gray-500 mb-4">{article.source} • {formatDate(article.createdAt)}</p>
 
-                 <div className="flex items-center justify-between border-t border-gray-800 pt-4">
-                  <div className="flex gap-6">
-                    <button onClick={() => toggleLike(article, likeCounts[article.rank] || article.likes || 0)} className={`flex items-center gap-1 text-sm transition-colors ${userLikes.has(article.rank) ? 'text-pink-500' : 'text-gray-400 hover:text-pink-400'}`}>
-                      <Heart size={16} fill={userLikes.has(article.rank) ? 'currentColor' : 'none'} /> {(likeCounts[article.rank] ?? article.likes) || 0}
-                    </button>
-                    <button onClick={() => openShareDialog(article)} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm">
-                      <Share2 size={16} /> Share
-                    </button>
-                  </div>
-                  {article.source === 'SportsFan360' || article.url?.includes('/MainModules/CricketArticles/') ? (
-                    <Link href={article.url} className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold">
-                      Read More <ArrowRight size={16} />
-                    </Link>
-                  ) : (
-                    <a
-                      href={article.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={(event) => handleExternalReadClick(event, article)}
-                      className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold"
-                    >
-                      Read More <ArrowRight size={16} />
-                    </a>
+                 <div className="flex-1">
+                   <div className="flex justify-between items-center mb-2">
+                      <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider">
+                        {article.tag}
+                      </span>
+                      <span className="text-xs text-gray-500">{formatDate(article.createdAt)}</span>
+                   </div>
+                   <h2 className="text-xl font-bold mb-2">{article.title}</h2>
+                   <p className="text-sm text-gray-400 mb-3 line-clamp-2">{stripHtmlTags(article.summary)}</p>
+
+                   {article.tags && article.tags.length > 0 && (
+                     <div className="flex flex-wrap gap-1.5 mb-3">
+                       {article.tags.slice(0, 4).map((tag, idx) => (
+                         <span
+                           key={idx}
+                           className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-colors"
+                         >
+                           #{tag}
+                         </span>
+                       ))}
+                     </div>
+                   )}
+
+                   <p className="text-xs text-gray-500 mb-4">
+                     {article.author ? `${article.author} · ` : (article.source && article.source !== 'SportsFan360' ? `${article.source} · ` : '')}
+                     {formatDate(article.createdAt)}
+                   </p>
+
+                   <div className="flex items-center justify-between border-t border-gray-800 pt-4">
+                    <div className="flex gap-6">
+                      <button onClick={() => toggleLike(article, likeCounts[article.rank] || article.likes || 0)} className={`flex items-center gap-1 text-sm transition-colors ${userLikes.has(article.rank) ? 'text-pink-500' : 'text-gray-400 hover:text-pink-400'}`}>
+                        <Heart size={16} fill={userLikes.has(article.rank) ? 'currentColor' : 'none'} /> {(likeCounts[article.rank] ?? article.likes) || 0}
+                      </button>
+                      <button onClick={() => openShareDialog(article)} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm">
+                        <Share2 size={16} /> Share
+                      </button>
+                    </div>
+                    {article.url?.startsWith('/MainModules/') || article.url?.includes('/CricketArticles/') ? (
+                      <Link href={article.url} className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold">
+                        Read More <ArrowRight size={16} />
+                      </Link>
+                    ) : (
+                      <a
+                        href={article.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(event) => handleExternalReadClick(event, article)}
+                        className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold"
+                      >
+                        Read More <ArrowRight size={16} />
+                      </a>
                     )}
-                </div>    
-               </div>
-            </div>
-          ))}
+                  </div>    
+                 </div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="w-full lg:w-80 flex flex-col gap-6">
