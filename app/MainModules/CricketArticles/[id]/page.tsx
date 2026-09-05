@@ -1383,7 +1383,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { ArrowLeft, Heart, Reply, Trash2, ChevronDown, ChevronUp, Send, Loader2, Smile } from "lucide-react";
@@ -1403,8 +1403,11 @@ interface ArticleDetail {
   viewCount?: number;
   likeCount?: number;
   likedBy?: string[];
+  commentCount?: number;
+  commentsCount?: number;
   image: string;
   cdn_url?: string;
+  tags?: string[];
   createdAt: number;
   updatedAt?: number;
   description: string[];
@@ -1474,7 +1477,7 @@ const parseTimestamp = (raw: any): number => {
 };
 
 const normalizeArticleStats = (
-  rawArticle: (Partial<ArticleDetail> & { _id?: string | number; cdn_url?: string; createdAt?: any }) | null | undefined
+  rawArticle: (Partial<ArticleDetail> & { _id?: string | number; cdn_url?: string; createdAt?: any; tags?: any }) | null | undefined
 ): ArticleDetail | null => {
   if (!rawArticle || (!rawArticle.id && !rawArticle._id)) return null;
 
@@ -1488,6 +1491,13 @@ const normalizeArticleStats = (
       ? rawArticle.likeCount
       : 0;
 
+  const resolvedCommentCount =
+    typeof rawArticle.commentCount === "number"
+      ? rawArticle.commentCount
+      : typeof rawArticle.commentsCount === "number"
+      ? rawArticle.commentsCount
+      : 0;
+
   return {
     id: String(rawArticle._id || rawArticle.id || ""),
     badge: (rawArticle.badge as BadgeType) || "NEWS",
@@ -1497,8 +1507,24 @@ const normalizeArticleStats = (
     likes: resolvedLikeCount,
     likeCount: resolvedLikeCount,
     viewCount: resolvedViewCount,
+    commentCount: resolvedCommentCount,
+    commentsCount: resolvedCommentCount,
     likedBy: Array.isArray(rawArticle.likedBy) ? rawArticle.likedBy : [],
     image: rawArticle.image || rawArticle.cdn_url || "",
+    tags: Array.isArray(rawArticle.tags)
+      ? rawArticle.tags.map((t: any) => String(t).trim()).filter(Boolean)
+      : typeof rawArticle.tags === "string"
+      ? (() => {
+          try {
+            const parsed = JSON.parse(rawArticle.tags);
+            return Array.isArray(parsed)
+              ? parsed.map((t: any) => String(t).trim()).filter(Boolean)
+              : rawArticle.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
+          } catch {
+            return rawArticle.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
+          }
+        })()
+      : [],
     createdAt: parseTimestamp(rawArticle.createdAt),
     updatedAt: typeof rawArticle.updatedAt === "number" ? rawArticle.updatedAt : undefined,
     description: Array.isArray(rawArticle.description)
@@ -1562,17 +1588,46 @@ const EMOJI_CATEGORIES = [
   { label: "⚽ Sports", emojis: ["⚽","🏀","🏈","⚾","🎾","🏐","🏏","🏆","🥅","⛳","🏹"] },
 ] as const;
 
-function Avatar({ name, avatar, size = 8 }: { name: string; avatar?: string; size?: number }) {
-  const sizeClass = `w-${size} h-${size}`;
-  if (avatar) {
-    return <img src={avatar} alt={name} className={`${sizeClass} rounded-full object-cover flex-shrink-0`} />;
-  }
-  const initials = (name || "U").slice(0, 2).toUpperCase();
-  const colors = ["bg-pink-600", "bg-purple-600", "bg-blue-600", "bg-green-600", "bg-orange-600", "bg-red-600"];
-  const color = colors[(name || "U").charCodeAt(0) % colors.length];
+function Avatar({
+  name,
+  avatar,
+  src,
+  size = 32,
+  ring = false,
+}: {
+  name: string;
+  avatar?: string;
+  src?: string;
+  size?: number;
+  ring?: boolean;
+}) {
+  const imageSrc = avatar || src;
+  const initial = (name || "U").trim().charAt(0).toUpperCase() || "U";
+
   return (
-    <div className={`${sizeClass} ${color} rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold`} style={{ fontSize: size < 8 ? "10px" : "13px" }}>
-      {initials}
+    <div
+      style={{ width: size, height: size }}
+      className={`rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-pink-500 to-orange-500 ${
+        ring ? "ring-2 ring-pink-500/40" : ""
+      } flex items-center justify-center`}
+    >
+      {imageSrc ? (
+        <img
+          src={imageSrc}
+          alt={name || "User"}
+          className="w-full h-full object-cover"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      ) : (
+        <div
+          className="w-full h-full flex items-center justify-center text-white font-bold uppercase select-none"
+          style={{ fontSize: Math.max(10, size * 0.4) }}
+        >
+          {initial}
+        </div>
+      )}
     </div>
   );
 }
@@ -1629,7 +1684,7 @@ function CommentRow({
 
   return (
     <div className={`flex gap-3 ${isReply ? "pl-10" : ""}`}>
-      <Avatar name={comment.userName} avatar={comment.userAvatar} size={isReply ? 6 : 8} />
+      <Avatar name={comment.userName} avatar={comment.userAvatar} size={isReply ? 24 : 32} />
       <div className="flex-1 min-w-0">
         <div className="bg-white/5 rounded-2xl px-3 py-2.5">
           <div className="flex items-center gap-2 mb-0.5">
@@ -1729,6 +1784,45 @@ export default function CricketArticleDetail() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const commentsLoadedForArticle = useRef<string | null>(null);
+
+  const [localAvatar, setLocalAvatar] = useState<string>("");
+
+  useEffect(() => {
+    const updateAvatar = () => {
+      try {
+        const stored = localStorage.getItem("roar_avatar_url") || localStorage.getItem("user_avatar");
+        if (stored) setLocalAvatar(stored);
+      } catch {}
+    };
+    updateAvatar();
+    const onAvatarUpdate = () => updateAvatar();
+    window.addEventListener("roar-profile-updated", onAvatarUpdate);
+    window.addEventListener("storage", onAvatarUpdate);
+    return () => {
+      window.removeEventListener("roar-profile-updated", onAvatarUpdate);
+      window.removeEventListener("storage", onAvatarUpdate);
+    };
+  }, []);
+
+  const currentUserAvatar = useMemo(() => {
+    if (localAvatar) return localAvatar;
+    if (user?.avatar) return user.avatar;
+    if (user?.photoURL) return user.photoURL;
+    if (user?.addfliplineAdminPhoto) return user.addfliplineAdminPhoto;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("roar_avatar_url") || localStorage.getItem("user_avatar");
+      if (stored) return stored;
+    }
+    return "";
+  }, [localAvatar, user]);
+
+  const totalCommentsCount = useMemo(() => {
+    const directCount = comments.reduce((sum, c) => {
+      const repCount = typeof c.replyCount === "number" ? c.replyCount : (replies[c.id]?.length || 0);
+      return sum + 1 + repCount;
+    }, 0);
+    return Math.max(article?.commentCount || article?.commentsCount || 0, directCount);
+  }, [article?.commentCount, article?.commentsCount, comments, replies]);
 
   const getUserId = () => user?.userId || null;
   const getLikeActorId = () => user?.userId || `guest:${getUserName ? getUserName() : "user"}`;
@@ -1955,11 +2049,11 @@ export default function CricketArticleDetail() {
   }, [article?.id]);
 
   useEffect(() => {
-    if (activePanel !== "comments" || !article?.id) return;
+    if (!article?.id) return;
     if (commentsLoadedForArticle.current === article.id) return;
     commentsLoadedForArticle.current = article.id;
     fetchComments();
-  }, [activePanel, article?.id, fetchComments]);
+  }, [article?.id, fetchComments]);
 
   const fetchReplies = useCallback(async (commentId: string) => {
     try {
@@ -1999,12 +2093,16 @@ export default function CricketArticleDetail() {
         commentText: commentText.trim(),
         userId: user.userId || user.email,
         userName: getUserDisplayName(),
+        userAvatar: currentUserAvatar,
         userEmail: user.email,
         parentCommentId: replyTo?.commentId,
       });
 
       if (res.data?.success) {
-        const newComment: Comment = res.data.comment;
+        const newComment: Comment = {
+          ...res.data.comment,
+          userAvatar: res.data.comment?.userAvatar || currentUserAvatar,
+        };
         if (replyTo?.commentId) {
           setReplies((prev) => ({
             ...prev,
@@ -2136,6 +2234,8 @@ export default function CricketArticleDetail() {
         <span>{formatViews(viewCount)}</span>
         <span>·</span>
         <span>{likeCount} likes</span>
+        <span>·</span>
+        <span>{totalCommentsCount} {totalCommentsCount === 1 ? "comment" : "comments"}</span>
       </div>
 
       <PlaylistDialog open={showPlaylistDialog} onClose={() => setShowPlaylistDialog(false)} itemId={article.id || ""} itemType="article" userId={getUserId()} />
@@ -2155,6 +2255,19 @@ export default function CricketArticleDetail() {
         ))}
       </div>
 
+      {article.tags && article.tags.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {article.tags.map((tag, idx) => (
+            <span
+              key={idx}
+              className="inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-colors"
+            >
+              #{tag}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="flex items-center border-t border-b border-white/10 py-2 mb-4">
         <button
           onClick={handleLikeClick}
@@ -2172,7 +2285,7 @@ export default function CricketArticleDetail() {
           className={`flex flex-1 items-center justify-center gap-1.5 text-xs py-2 rounded-lg transition hover:bg-white/5 ${activePanel === "comments" ? "text-white" : "text-gray-400"}`}
         >
           <CommentIcon />
-          <span>Comment</span>
+          <span>Comment{totalCommentsCount > 0 ? ` (${totalCommentsCount})` : ""}</span>
         </button>
 
         <div className="w-px h-6 bg-white/10" />
@@ -2189,8 +2302,17 @@ export default function CricketArticleDetail() {
       {/* ── Comments Panel (inlined) ─────────────────────────────────────── */}
       {activePanel === "comments" && (
         <div className="mb-4 flex w-full max-w-full flex-col gap-4 overflow-visible mt-2">
+          <div className="flex items-center justify-between px-1">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              Comments
+              <span className="text-xs font-normal text-pink-400 bg-pink-500/10 border border-pink-500/20 px-2 py-0.5 rounded-full">
+                {totalCommentsCount}
+              </span>
+            </h3>
+          </div>
+
           <div className="flex items-start gap-2 w-full min-w-0">
-            <Avatar name={displayName} size={8} />
+            <Avatar name={displayName} avatar={currentUserAvatar} size={32} ring />
             <div className="flex-1 min-w-0 relative">
               {replyTo && (
                 <div className="flex items-center gap-1 mb-1 text-xs text-[#C9115F]">

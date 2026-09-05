@@ -5,8 +5,10 @@ export interface NewsArticle {
   title: string;
   summary: string;
   source: string;
+  author?: string;
   url: string;
   tag: string;
+  tags?: string[];
   cdn_url: string;
   createdAt?: number; // Timestamp for sorting
   likes?: number;
