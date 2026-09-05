@@ -14,7 +14,7 @@ const CREATE_POST_ALLOWED_EMAILS: string[] = [
   // "someone@sportsfan360.com",
   "rahul.yadav@sportsfan360.com",
   "chandu.srikakulam@sportsfan360.com",
-  "jigesh@sportsfan360.com",
+  "jignesh@sportsfan360.com",
   "anandvasu@gmail.com",
   "tushar.deshmukh@sportsfan360.com",
   "prisha.dureja@sportsfan360.com",
