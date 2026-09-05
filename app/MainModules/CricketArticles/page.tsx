@@ -568,6 +568,7 @@ type CricketApiArticle = {
   cdn_url?: string;
   author?: string;
   readTime?: string;
+  tags?: string[] | string;
   likes?: number;
   likeCount?: number;
   likedBy?: string[];
@@ -589,6 +590,7 @@ type Article = {
   cdn_url: string;
   author?: string;
   readTime?: string;
+  tags?: string[];
   createdAt: number;
   likes: number;
   likedBy: string[];
@@ -660,6 +662,22 @@ export default function AllCricketArticlesPage() {
         return art.description;
       }
       return art.summary || "";
+    };
+
+    const extractTags = (art: CricketApiArticle): string[] => {
+      if (Array.isArray(art.tags)) {
+        return art.tags.map((t) => String(t).trim()).filter(Boolean);
+      }
+      if (typeof art.tags === "string" && art.tags.trim()) {
+        try {
+          const parsed = JSON.parse(art.tags);
+          if (Array.isArray(parsed)) {
+            return parsed.map((t) => String(t).trim()).filter(Boolean);
+          }
+        } catch { }
+        return art.tags.split(",").map((t) => t.trim()).filter(Boolean);
+      }
+      return [];
     };
 
     const extractCreatedAt = (art: any): number => {
@@ -747,6 +765,7 @@ export default function AllCricketArticlesPage() {
               cdn_url: article.image || article.cdn_url || "",
               author: article.author,
               readTime: article.readTime,
+              tags: extractTags(article),
               createdAt: extractCreatedAt(article),
               likes: count,
               likedBy: likedBy,
@@ -983,9 +1002,22 @@ export default function AllCricketArticlesPage() {
                       {article.title}
                     </h3>
 
-                    <p className="text-sm text-gray-400 line-clamp-3 mb-4">
+                    <p className="text-sm text-gray-400 line-clamp-3 mb-3">
                       {stripHtmlTags(article.summary)}
                     </p>
+
+                    {article.tags && article.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-3">
+                        {article.tags.slice(0, 4).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-colors"
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
