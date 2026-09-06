@@ -659,7 +659,7 @@ export default function CreatePostDialog({
                   <span>Media</span>
                 </button>
 
-                <button
+                {/* <button
                   type="button"
                   onClick={() => setShowPoll((prev) => !prev)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
@@ -670,7 +670,7 @@ export default function CreatePostDialog({
                 >
                   <BarChart2 size={14} className="text-blue-400" />
                   <span>Poll</span>
-                </button>
+                </button> */}
 
                 <button
                   type="button"
