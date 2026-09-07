@@ -83,7 +83,7 @@ export default function FlipLinePage() {
             sport: 'cricket',
             sportEmoji: '🏏',
             sportLabel: 'Cricket',
-            day: 'Today',
+            day: new Date(itemTimeMs).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
             time: timeStr,
             timeMs: itemTimeMs,
             author: 'Flip',
@@ -136,7 +136,10 @@ export default function FlipLinePage() {
     fetchCards();
     updateLiveUpdates();
 
-    const interval = setInterval(updateLiveUpdates, 15000);
+    const interval = setInterval(() => {
+      updateLiveUpdates();
+      fetchCards();
+    }, 15000);
 
     const handleNewPost = () => {
       fetchCards();

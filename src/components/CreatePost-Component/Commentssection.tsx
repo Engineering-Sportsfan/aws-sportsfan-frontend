@@ -389,7 +389,8 @@ export default function CommentsSection({
         try {
             if (reset) lastDocIdRef.current = null;
             const cursor = lastDocIdRef.current ? `&lastDocId=${lastDocIdRef.current}` : "";
-            const url = `/api/comments?contentId=${contentId}&contentType=${contentType}&limit=20${cursor}`;
+            // const url = `/api/comments?contentId=${contentId}&contentType=${contentType}&limit=20${cursor}`;
+            const url = `/api/cricket-articles/${contentId}/comments?limit=20${cursor}`
             const res = await axios.get(url, { signal });
             const data = res.data;
 
@@ -444,12 +445,15 @@ export default function CommentsSection({
         userEmail?: string;
         parentCommentId?: string;
     }) => {
-        const res = await axios.post(`/api/comments`, {
-            ...commentData,
-            contentType,
-            contentId,
-            contentTitle: contentTitle || "",
-        });
+        // const res = await axios.post(`/api/comments`, {
+        //     ...commentData,
+        //     contentType,
+        //     contentId,
+        //     contentTitle: contentTitle || "",
+        // });
+        const res = await axios.post(`/api/cricket-articles/${contentId}/comments`, {
+  commentText:commentData.commentText, userId:commentData.userId, userName:commentData.userName, userEmail:commentData.userEmail, parentCommentId:commentData.parentCommentId,
+});
         const data = res.data;
 
         if (data.success) {
@@ -505,7 +509,8 @@ export default function CommentsSection({
         commentId: string, userId: string, parentCommentId?: string
     ) => {
         try {
-            const res = await axios.delete(`/api/comments/${commentId}`, { data: { userId } });
+            // const res = await axios.delete(`/api/comments/${commentId}`, { data: { userId } });
+            const res = await axios.delete(`/api/cricket-articles/${contentId}/comments?commentId=${commentId}`);
             const data = res.data;
             if (data.success) {
                 if (parentCommentId) {
@@ -567,7 +572,7 @@ export default function CommentsSection({
     };
 
     return (
-        <div className={`flex w-full max-w-full flex-col gap-4 overflow-visible ${className}`}>
+        <div className={`flex w-full mleteax-w-full flex-col gap-4 overflow-visible ${className}`}>
             {/* ── Input Row ─────────────────────────────────────────────────── */}
             <div className="flex items-start gap-2 w-full min-w-0">
                 <Avatar name={displayName} size={8} />

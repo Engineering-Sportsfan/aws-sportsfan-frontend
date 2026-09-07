@@ -61,13 +61,15 @@ export const engagementService = {
   voteEngagement: async <T = VoteResponse>(
     id: string,
     selectedOptionId: string,
-    userId?: string
+    userId?: string,
+    questionId?: string
   ): Promise<T> => {
     const res = await axios.post<T>(
       `/api/engagements/${encodeURIComponent(id)}/vote`,
       {
         selectedOptionId,
         userId,
+        ...(questionId ? { questionId } : {}),
       }
     );
     return res.data;

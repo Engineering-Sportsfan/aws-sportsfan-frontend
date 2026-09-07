@@ -586,58 +586,110 @@ export default function CricketArticles() {
         }, 0);
     };
 
-    useEffect(() => {
-   const fetchArticles = async () => {
-    try {
-        const res = await axios.get<ApiResponse>("/api/cricket-articles");
-        const articlesData = res.data.articles || [];
-        const flaggedMap: Record<string, CommentItem> = {};
-        const articlesWithComments = await Promise.all(
-            articlesData.map(async (article) => {
-                try {
-                    const commentsRes = await axios.get(
-                        `/api/comments?contentId=${article.id}`
-                    );
-                    const count = commentsRes.data.comments?.length ?? 0;
-                    console.log("comments length", commentsRes.data.comments?.length);
+    useEffect(() => {    const fetchArticles = async () => {
+     try {
+         const res = await axios.get<ApiResponse>(`/api/cricket-articles?t=${Date.now()}`);
+         const articlesData = res.data.articles || [];
+         const flaggedMap: Record<string, CommentItem> = {};
+         const articlesWithComments = await Promise.all(
+             articlesData.map(async (rawArticle) => {
+                 const articleId = String(rawArticle.id || (rawArticle as any)._id || "");
+                 const article = {
+                     ...rawArticle,
+                     id: articleId,
+                     image: rawArticle.image || (rawArticle as any).cdn_url || "",
+                 };
+                 try {
+                     const commentsRes = await axios.get(
+                         `/api/comments?contentId=${articleId}`
+                     );
+                     const count = commentsRes.data.comments?.length ?? 0;
 
-                    const commentsList: CommentItem[] = commentsRes.data.comments || [];
-                    const flaggedForUser = user?.userId
-                        ? commentsList.find((c) => (c.userId === user.userId) && (c.isFlagged || c.flaggedByAdmin)) || null
-                        : null;
-                    if (flaggedForUser) {
-                        flaggedMap[article.id] = flaggedForUser;
-                    }
+                     const commentsList: CommentItem[] = commentsRes.data.comments || [];
+                     const flaggedForUser = user?.userId
+                         ? commentsList.find((c) => (c.userId === user.userId) && (c.isFlagged || c.flaggedByAdmin)) || null
+                         : null;
+                     if (flaggedForUser) {
+                         flaggedMap[articleId] = flaggedForUser;
+                     }
 
-                    return normalizeArticle({ ...article, commentCount: count });
-                } catch (err) {
-                    console.error(`Error fetching comment count for article ${article.id}:`, err);
-                    return normalizeArticle({ ...article, commentCount: 0 });
-                }
-            })
-        );
+                     return normalizeArticle({ ...article, commentCount: count });
+                 } catch (err) {
+                     console.error(`Error fetching comment count for article ${articleId}:`, err);
+                     return normalizeArticle({ ...article, commentCount: 0 });
+                 }
+             })
+         );
 
-        // publish flagged map and open dialog for first unacknowledged flagged comment (homepage-only)
-        setFlaggedCommentsByArticle(flaggedMap);
-        if (user?.userId && Object.keys(flaggedMap).length > 0) {
-            const unacked = Object.keys(flaggedMap).filter((id) => !isFlagAcked(flaggedMap[id].id));
-            if (unacked.length > 0) {
-                const firstId = unacked[0];
-                setCurrentFlagged({ articleId: firstId, comment: flaggedMap[firstId] });
-            }
-        }
+         const getCreatedTs = (art: any): number => {
+             // Direct number (DynamoDB unix ms timestamp or seconds)
+             if (typeof art.createdAt === "number") {
+                 return art.createdAt < 10000000000 ? art.createdAt * 1000 : art.createdAt;
+             }
+             if (typeof art.timeMs === "number") return art.timeMs;
+             if (typeof art.timestamp === "number") {
+                 return art.timestamp < 10000000000 ? art.timestamp * 1000 : art.timestamp;
+             }
 
-        setArticles(articlesWithComments);
-    } catch (error) {
-        console.error("Failed to fetch cricket articles", error);
-    } finally {
-        setLoading(false);
-    }
-};
+             // Firestore Timestamp objects (.toMillis(), .seconds, ._seconds)
+             if (art.createdAt && typeof art.createdAt.toMillis === "function") {
+                 return art.createdAt.toMillis();
+             }
+             if (art.createdAt && typeof art.createdAt.seconds === "number") {
+                 return art.createdAt.seconds * 1000;
+             }
+             if (art.createdAt && typeof art.createdAt._seconds === "number") {
+                 return art.createdAt._seconds * 1000;
+             }
 
-    fetchArticles();
-}, [user?.userId]);
-  
+             // ISO Strings / date strings (DynamoDB standard string format)
+             if (typeof art.createdAt === "string" && art.createdAt.trim()) {
+                 const parsed = Date.parse(art.createdAt);
+                 if (!isNaN(parsed) && parsed > 0) return parsed;
+             }
+
+             // Fallbacks to updatedAt
+             if (typeof art.updatedAt === "number") {
+                 return art.updatedAt < 10000000000 ? art.updatedAt * 1000 : art.updatedAt;
+             }
+             if (typeof art.updatedAt === "string" && art.updatedAt.trim()) {
+                 const parsed = Date.parse(art.updatedAt);
+                 if (!isNaN(parsed) && parsed > 0) return parsed;
+             }
+
+             return 0;
+         };
+
+         articlesWithComments.sort((a, b) => getCreatedTs(b) - getCreatedTs(a));
+
+         // publish flagged map and open dialog for first unacknowledged flagged comment (homepage-only)
+         setFlaggedCommentsByArticle(flaggedMap);
+         if (user?.userId && Object.keys(flaggedMap).length > 0) {
+             const unacked = Object.keys(flaggedMap).filter((id) => !isFlagAcked(flaggedMap[id].id));
+             if (unacked.length > 0) {
+                 const firstId = unacked[0];
+                 setCurrentFlagged({ articleId: firstId, comment: flaggedMap[firstId] });
+             }
+         }
+
+         setArticles(articlesWithComments);
+     } catch (error) {
+         console.error("Failed to fetch cricket articles", error);
+     } finally {
+         setLoading(false);
+     }
+ };
+
+     fetchArticles();
+
+     const handleArticleCreated = () => {
+         fetchArticles();
+     };
+     window.addEventListener("cricket-article-created", handleArticleCreated);
+     return () => {
+         window.removeEventListener("cricket-article-created", handleArticleCreated);
+     };
+ }, [user?.userId]);
 
     const handleImageError = (id: string) => {
         setImageErrors(prev => ({ ...prev, [id]: true }));

@@ -76,6 +76,9 @@ export interface FlipCard {
   overLabel?: string;
   runSymbol?: string;
   createdAt?: number | string;
+  isScheduled?: boolean;
+  scheduledAt?: number;
+  scheduledTimeMs?: number;
 }
 
 export const fliplineService = {
