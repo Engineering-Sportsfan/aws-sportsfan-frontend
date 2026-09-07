@@ -251,9 +251,9 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                 <div style={{ height: 68 }} />
 
                 {/* Global Live Ticker */}
-                <div className="w-full mb-4">
+                {/* <div className="w-full mb-4">
                     <LiveTicker />
-                </div>
+                </div> */}
 
                 {/* Filter pills */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 mt-3 mb-5" style={{ scrollbarWidth: "none" }}>

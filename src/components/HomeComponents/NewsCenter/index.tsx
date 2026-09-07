@@ -1097,28 +1097,74 @@ export default function NewsCenter() {
               const isLiked = userLikes.has(articleKey);
               const currentLikes = (likeCounts[articleKey] !== undefined) ? likeCounts[articleKey] : (article.likes || 0);
 
+              const isInternalLink = Boolean(
+                article.url?.startsWith('/MainModules/') || article.url?.includes('/CricketArticles/')
+              );
+
               return (
                 <div key={`${article.rank}-${index}`} className={hasMultiple ? "flex-none w-[calc(90vw-3rem)] sm:w-[calc(50vw-3rem)] max-w-[690px] flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2" : "w-full flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2"}>
                   <div>
                     <div className="flex justify-between items-start mb-3 gap-2">
                       <div className="flex items-start gap-3">
-                        <img
-                          src={article.cdn_url || '/images/News_center_Default.png'}
-                          alt={article.title}
-                          className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
-                          onError={(e) => {
-                            e.currentTarget.src = '/images/News_center_Default.png';
-                          }}
-                        />
+                        {article.url ? (
+                          isInternalLink ? (
+                            <Link href={article.url} className="shrink-0 cursor-pointer block group/img">
+                              <img
+                                src={article.cdn_url || '/images/News_center_Default.png'}
+                                alt={article.title}
+                                className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg group-hover/img:opacity-85 transition-opacity"
+                                onError={(e) => {
+                                  e.currentTarget.src = '/images/News_center_Default.png';
+                                }}
+                              />
+                            </Link>
+                          ) : (
+                            <a href={article.url} target="_blank" rel="noreferrer" className="shrink-0 cursor-pointer block group/img">
+                              <img
+                                src={article.cdn_url || '/images/News_center_Default.png'}
+                                alt={article.title}
+                                className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg group-hover/img:opacity-85 transition-opacity"
+                                onError={(e) => {
+                                  e.currentTarget.src = '/images/News_center_Default.png';
+                                }}
+                              />
+                            </a>
+                          )
+                        ) : (
+                          <img
+                            src={article.cdn_url || '/images/News_center_Default.png'}
+                            alt={article.title}
+                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
+                            onError={(e) => {
+                              e.currentTarget.src = '/images/News_center_Default.png';
+                            }}
+                          />
+                        )}
                         <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider h-fit">
                           {article.tag}
                         </span>
                       </div>
                     </div>
 
-                    <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2">
-                      {article.title}
-                    </h3>
+                    {article.url ? (
+                      isInternalLink ? (
+                        <Link href={article.url} className="block group/title">
+                          <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2 group-hover/title:text-pink-400 transition-colors cursor-pointer">
+                            {article.title}
+                          </h3>
+                        </Link>
+                      ) : (
+                        <a href={article.url} target="_blank" rel="noreferrer" className="block group/title">
+                          <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2 group-hover/title:text-pink-400 transition-colors cursor-pointer">
+                            {article.title}
+                          </h3>
+                        </a>
+                      )
+                    ) : (
+                      <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2">
+                        {article.title}
+                      </h3>
+                    )}
 
                     <p className="text-sm text-gray-400 line-clamp-3 mb-3">
                       {stripHtmlTags(article.summary)}

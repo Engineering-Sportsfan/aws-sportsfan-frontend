@@ -23,12 +23,25 @@ export interface QuizOption {
   text: string; // e.g. "29"
 }
 
+export interface QuizQuestionItem {
+  id: string;
+  question: string;
+  options: QuizOption[];
+  correctOptionId: string;
+  pointsReward?: number;
+  explanation?: string;
+}
+
 export interface QuizPayload {
   question: string;
   options: QuizOption[];
   correctOptionId: string; // "B"
   pointsReward: number; // e.g. 50
   explanation?: string; // e.g. "Correct: 29"
+  questions?: QuizQuestionItem[];
+  frequencyMinutes?: number;
+  startTime?: number | string;
+  scheduledStartTime?: number | string;
 }
 
 // ─── 3. Poll ───────────────────────────────────────────────────────────────
