@@ -243,9 +243,17 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import type { Room } from "../NewROARComponent/types";
 
+interface ActiveFan {
+  uid: string;
+  username: string;
+  avatarUrl?: string | null;
+  badge?: string | null;
+}
+
 interface PresenceInfo {
   fanCount: number;
   totalJoinCount?: number;
+  fans?: ActiveFan[];
 }
 
 interface RoomCounts {
@@ -263,6 +271,7 @@ export type RoarRoomCard = {
   emoji: string;
   title: string; // "India vs Korea (Hockey)"
   fansCount: string; // "18.4K"
+  joinedCount: string; // "18.4K"
   messagesCount: string; // "32K"
   avatarUrls: string[]; // first 3 shown
   moreLabel?: string; // "+more"
@@ -272,42 +281,57 @@ export type RoarRoomCard = {
 
 function RoarRoomCardView({ card }: { card: RoarRoomCard }) {
   return (
-    <div className="shrink-0 w-[220px] rounded-2xl bg-[#12101c] border border-white/[0.06] p-4 flex flex-col">
-      <div className="flex items-center gap-2.5 mb-3">
-        <span className="text-xl leading-none shrink-0">{card.emoji}</span>
-        {/* <h4 className="text-[15px] font-extrabold text-white leading-tight">{card.title}</h4> */}
-            <p className="text-[13px] font-extrabold text-white whitespace-normal">Pulse Room</p>
-
-      </div>
-                  <div className="text-[9px] font-bold text-white whitespace-normal">Your Space to Post and Talk About Any Sport</div>
-      <p className="text-[11px] text-white/45 font-medium mb-3">
-      · {card.messagesCount} Messages
-      </p>
-
-      <div className="flex items-center gap-1.5 mb-4">
-        <div className="flex -space-x-2">
-          {card.avatarUrls.slice(0, 3).map((url, i) => (
-            <img
-              key={i}
-              src={url}
-              alt=""
-              className="w-6 h-6 rounded-full border-2 border-[#12101c] object-cover"
-            />
-          ))}
+    <div className="shrink-0 w-[220px] rounded-2xl bg-[#12101c] border border-white/[0.06] p-4 flex flex-col justify-between">
+      <div>
+        <div className="flex items-center gap-2.5 mb-2">
+          <span className="text-xl leading-none shrink-0">{card.emoji}</span>
+          <p className="text-[13px] font-extrabold text-white whitespace-normal line-clamp-1">{card.title || "Pulse Room"}</p>
         </div>
-        {card.moreLabel && (
-          <span className="text-[11px] font-semibold text-white/40">{card.moreLabel}</span>
-        )}
+        <div className="text-[9px] font-bold text-white/50 whitespace-normal mb-3">
+          Your Space to Post and Talk About Any Sport
+        </div>
+
+        <div className="flex items-center gap-1.5 mb-4">
+          <div className="flex -space-x-2">
+            {card.avatarUrls && card.avatarUrls.length > 0 ? (
+              card.avatarUrls.slice(0, 3).map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt=""
+                  className="w-6 h-6 rounded-full border-2 border-[#12101c] object-cover"
+                />
+              ))
+            ) : (
+              ["#E91E8C", "#FF6B35", "#7C3AED"].map((c, i) => (
+                <div
+                  key={i}
+                  className="w-6 h-6 rounded-full border-2 border-[#12101c]"
+                  style={{ background: c }}
+                />
+              ))
+            )}
+          </div>
+          {card.moreLabel && (
+            <span className="text-[11px] font-semibold text-white/40">{card.moreLabel}</span>
+          )}
+        </div>
       </div>
 
-      <motion.button
-        whileTap={{ scale: 0.97 }}
-        onClick={card.onJoin}
-        className="w-full py-3 rounded-full font-extrabold text-white text-[13px]"
-        style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
-      >
-        {card.ctaLabel}
-      </motion.button>
+      <div className="mt-auto">
+        <p className="text-[11px] text-white/45 font-medium mb-3">
+          {card.joinedCount} Joined · {card.messagesCount} Messages
+        </p>
+
+        <motion.button
+          whileTap={{ scale: 0.97 }}
+          onClick={card.onJoin}
+          className="w-full py-3 rounded-full font-extrabold text-white text-[13px]"
+          style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
+        >
+          {card.ctaLabel}
+        </motion.button>
+      </div>
     </div>
   );
 }
@@ -451,16 +475,25 @@ export default function RoarRooms() {
   const liveCards: RoarRoomCard[] = rooms.map((room) => {
     const presence = presenceByRoom[room.roomId];
     const fanCount = presence?.fanCount ?? room.fanCount ?? 0;
+    const totalJoinCount = presence?.totalJoinCount;
     const counts = countsByRoom[room.roomId];
     const msgCount = totalMessages(counts);
     const isLive = room.isActive || fanCount > 0;
+    const joinedNum = totalJoinCount !== undefined && totalJoinCount > 0
+      ? totalJoinCount
+      : (fanCount > 0 ? fanCount : 0);
+    const joinedDisplay = joinedNum > 0 ? formatCount(joinedNum) : "0";
+    const fans = presence?.fans ?? [];
+    const avatarUrls = fans.map((f) => f.avatarUrl).filter(Boolean) as string[];
+
     return {
       id: room.roomId,
       emoji: getSportEmoji(room.sport),
       title: room.name,
-      fansCount: fanCount > 0 ? formatCount(fanCount) : "—",
-      messagesCount: msgCount > 0 ? formatCount(msgCount) : "—",
-      avatarUrls: [],
+      fansCount: fanCount > 0 ? formatCount(fanCount) : "0",
+      joinedCount: joinedDisplay,
+      messagesCount: msgCount > 0 ? formatCount(msgCount) : "0",
+      avatarUrls: avatarUrls,
       ctaLabel: isLive ? "Enter" : "Join",
       onJoin: () => handleEnterRoom(room),
     };
