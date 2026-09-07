@@ -552,8 +552,9 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Heart, Share2, ArrowRight, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -632,7 +633,11 @@ const copyToClipboard = async (text: string) => {
   }
 };
 
-export default function AllCricketArticlesPage() {
+function AllCricketArticlesContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const authorQuery = searchParams.get("author") || "";
+
   const { user, getUserName } = useAuth();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
@@ -646,6 +651,11 @@ export default function AllCricketArticlesPage() {
   const [copied, setCopied] = useState(false);
 
   const [badgeFilter, setBadgeFilter] = useState<string>("ALL");
+  const [selectedAuthor, setSelectedAuthor] = useState<string>(authorQuery);
+
+  useEffect(() => {
+    setSelectedAuthor(authorQuery);
+  }, [authorQuery]);
 
   const getLikeActorId = () => user?.userId || `guest:${getUserName ? getUserName() : "user"}`;
 
@@ -773,7 +783,7 @@ export default function AllCricketArticlesPage() {
               url: `/MainModules/CricketArticles/${articleId}`,
               tag: article.badge || "Cricket",
               cdn_url: article.image || article.cdn_url || "",
-              author: article.author,
+              author: article.author || (article as any).authorName || (article as any).creatorName || (article as any).userName || "",
               readTime: article.readTime,
               tags: extractTags(article),
               createdAt: extractCreatedAt(article),
@@ -975,8 +985,11 @@ export default function AllCricketArticlesPage() {
   };
 
   const badges = ["ALL", ...Array.from(new Set(articles.map((a) => a.tag.toUpperCase())))];
-  const visibleArticles =
-    badgeFilter === "ALL" ? articles : articles.filter((a) => a.tag.toUpperCase() === badgeFilter);
+  const visibleArticles = articles.filter((a) => {
+    const matchesBadge = badgeFilter === "ALL" || a.tag.toUpperCase() === badgeFilter;
+    const matchesAuthor = !selectedAuthor || (a.author && a.author.toLowerCase().trim() === selectedAuthor.toLowerCase().trim());
+    return matchesBadge && matchesAuthor;
+  });
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
@@ -993,6 +1006,30 @@ export default function AllCricketArticlesPage() {
             <h1 className="text-[18px] font-bold">Articles</h1>
           </div>
         </div>
+
+        {selectedAuthor && (
+          <div className="flex items-center justify-between bg-[#151518] border border-pink-500/30 rounded-xl px-4 py-3 mt-4 mb-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs sm:text-sm text-gray-300">Showing articles by:</span>
+              <span className="text-xs sm:text-sm font-bold text-pink-400 underline underline-offset-4">
+                {selectedAuthor}
+              </span>
+              <span className="text-xs text-gray-400 bg-white/5 px-2 py-0.5 rounded-full">
+                {visibleArticles.length} {visibleArticles.length === 1 ? "article" : "articles"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedAuthor("");
+                router.replace("/MainModules/CricketArticles");
+              }}
+              className="text-xs font-semibold text-gray-300 hover:text-white bg-white/10 hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              Show all articles ✕
+            </button>
+          </div>
+        )}
 
         {badges.length > 1 && (
           <div className="flex flex-wrap gap-2 mt-5 mb-6">
@@ -1048,22 +1085,26 @@ export default function AllCricketArticlesPage() {
                 >
                   <div>
                     <div className="flex items-start justify-between gap-2 mb-3">
-                      <img
-                        src={article.cdn_url || "/images/News_center_Default.png"}
-                        alt={article.title}
-                        className="w-16 h-16 object-cover rounded-lg"
-                        onError={(e) => {
-                          e.currentTarget.src = "/images/News_center_Default.png";
-                        }}
-                      />
+                      <Link href={article.url} className="shrink-0 block group/img">
+                        <img
+                          src={article.cdn_url || "/images/News_center_Default.png"}
+                          alt={article.title}
+                          className="w-16 h-16 object-cover rounded-lg group-hover/img:opacity-85 transition-opacity cursor-pointer"
+                          onError={(e) => {
+                            e.currentTarget.src = "/images/News_center_Default.png";
+                          }}
+                        />
+                      </Link>
                       <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider h-fit">
                         {article.tag}
                       </span>
                     </div>
 
-                    <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2">
-                      {article.title}
-                    </h3>
+                    <Link href={article.url} className="block group/title">
+                      <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2 group-hover/title:text-pink-400 transition-colors cursor-pointer">
+                        {article.title}
+                      </h3>
+                    </Link>
 
                     <p className="text-sm text-gray-400 line-clamp-3 mb-3">
                       {stripHtmlTags(article.summary)}
@@ -1090,7 +1131,22 @@ export default function AllCricketArticlesPage() {
 
                   <div>
                     <p className="text-xs text-gray-500 mb-4">
-                      {article.author ? `${article.author} · ` : ""}
+                      {article.author ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedAuthor(article.author!);
+                              router.replace(`/MainModules/CricketArticles?author=${encodeURIComponent(article.author!)}`);
+                            }}
+                            className="text-gray-400 hover:text-pink-400 underline underline-offset-2 transition-colors cursor-pointer"
+                          >
+                            {article.author}
+                          </button>
+                          {" · "}
+                        </>
+                      ) : null}
                       {formatDate(article.createdAt)}
                     </p>
                     <div className="flex items-center justify-between border-t border-gray-800 pt-3">
@@ -1227,5 +1283,19 @@ export default function AllCricketArticlesPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function AllCricketArticlesPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center items-center min-h-screen bg-[#0a0a0a]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500" />
+        </div>
+      }
+    >
+      <AllCricketArticlesContent />
+    </Suspense>
   );
 }

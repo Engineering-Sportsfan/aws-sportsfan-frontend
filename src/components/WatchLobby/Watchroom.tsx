@@ -3429,181 +3429,181 @@ function TabContent({
                 </div>
             );
         }
-       case 'participants': {
-    // Build real participant list:
-    // 1. Jitsi participants (people actually in the video call) — excluding self
-    // 2. Anyone who has sent a chat message (backend-synced)
-    const normalizedUserName = (userName || "").trim().toLowerCase();
+        case 'participants': {
+            // Build real participant list:
+            // 1. Jitsi participants (people actually in the video call) — excluding self
+            // 2. Anyone who has sent a chat message (backend-synced)
+            const normalizedUserName = (userName || "").trim().toLowerCase();
 
-    const realJitsiParticipants = (jitsiParticipants || []).filter((p: any) => {
-        const displayName = (p.displayName || p.formattedDisplayName || "").trim().toLowerCase();
-        return displayName && displayName !== normalizedUserName;
-    });
+            const realJitsiParticipants = (jitsiParticipants || []).filter((p: any) => {
+                const displayName = (p.displayName || p.formattedDisplayName || "").trim().toLowerCase();
+                return displayName && displayName !== normalizedUserName;
+            });
 
-    const chatUsers = Array.from(
-        new Set(
-            chats
-                .filter((m: any) => m.user && m.user !== 'System' && !m.text?.startsWith('[SYSTEM_REACTION]'))
-                .map((m: any) => m.user as string)
-        )
-    ).filter((u) => u !== userName);
+            const chatUsers = Array.from(
+                new Set(
+                    chats
+                        .filter((m: any) => m.user && m.user !== 'System' && !m.text?.startsWith('[SYSTEM_REACTION]'))
+                        .map((m: any) => m.user as string)
+                )
+            ).filter((u) => u !== userName);
 
-    // Merge jitsi names + chat users, deduplicate by display name
-    const jitsiNames = new Set(realJitsiParticipants.map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
-    const chatOnlyUsers = chatUsers.filter(u => !jitsiNames.has(u.toLowerCase()));
+            // Merge jitsi names + chat users, deduplicate by display name
+            const jitsiNames = new Set(realJitsiParticipants.map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
+            const chatOnlyUsers = chatUsers.filter(u => !jitsiNames.has(u.toLowerCase()));
 
-    const totalCount = 1 + realJitsiParticipants.length + chatOnlyUsers.length;
+            const totalCount = 1 + realJitsiParticipants.length + chatOnlyUsers.length;
 
-    return (
-        <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
-            <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                Live Participants ({totalCount})
-            </h2>
-            <div className="flex flex-col gap-3">
-                {/* Current User (You) */}
-                <div className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-pink-500/30">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-pink-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
-                            {userName?.charAt(0).toUpperCase() || 'U'}
-                        </div>
-                        <div>
-                            <p className="text-white text-sm font-bold">{userName} <span className="text-gray-500 font-normal">(You)</span></p>
-                            <p className="text-xs text-pink-400 uppercase tracking-wide">{userRole}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Real Jitsi Participants (in video call) — filtered, self excluded */}
-                {realJitsiParticipants.map((p: any) => {
-                    const displayName = p.displayName || p.formattedDisplayName || 'Viewer';
-                    const initial = displayName.charAt(0).toUpperCase() || '?';
-                    const isHostUser = displayName.toLowerCase().includes('host') ||
-                        (room?.hostUserId && (
-                            displayName.toLowerCase() === room.hostUserId.toLowerCase() ||
-                            p.email?.toLowerCase() === room.hostUserId.toLowerCase()
-                        )) ||
-                        displayName.toLowerCase() === room?.name?.split(' ')[0]?.toLowerCase();
-
-                    const coHostsList = room?.coHostUserId
-                        ? room.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
-                        : [];
-                    const isCoHostUser = coHostsList.some(
-                        (id: string) =>
-                            displayName.toLowerCase() === id ||
-                            p.email?.toLowerCase() === id
-                    );
-                    const role = isHostUser ? 'Host' : (isCoHostUser ? 'Co-Host' : 'Viewer');
-                    return (
-                        <div key={p.id || p.displayName || Math.random()} className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
+            return (
+                <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
+                    <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        Live Participants ({totalCount})
+                    </h2>
+                    <div className="flex flex-col gap-3">
+                        {/* Current User (You) */}
+                        <div className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-pink-500/30">
                             <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
-                                    {initial}
+                                <div className="w-8 h-8 bg-pink-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
+                                    {userName?.charAt(0).toUpperCase() || 'U'}
                                 </div>
                                 <div>
-                                    <p className="text-white text-sm font-bold">{displayName}</p>
-                                    <p className="text-xs text-blue-400 uppercase tracking-wide">{role}</p>
+                                    <p className="text-white text-sm font-bold">{userName} <span className="text-gray-500 font-normal">(You)</span></p>
+                                    <p className="text-xs text-pink-400 uppercase tracking-wide">{userRole}</p>
                                 </div>
                             </div>
-                            {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
-                                <div className="flex gap-1.5">
-                                    {(userRole === 'Host' || userRole === 'Co-Host') && (
-                                        <button
-                                            onClick={async () => {
-                                                try {
-                                                    const fd = new FormData();
-                                                    const currentCoHosts = room.coHostUserId
-                                                        ? room.coHostUserId.split(",").map((id: string) => id.trim())
-                                                        : [];
-                                                    const userKey = (p.email && !p.email.toLowerCase().endsWith('@sportsfan360.com')) ? p.email : displayName;
+                        </div>
 
-                                                    const isAlreadyCoHost = currentCoHosts.some(
-                                                        (id: string) => id.toLowerCase() === userKey.toLowerCase()
-                                                    );
+                        {/* Real Jitsi Participants (in video call) — filtered, self excluded */}
+                        {realJitsiParticipants.map((p: any) => {
+                            const displayName = p.displayName || p.formattedDisplayName || 'Viewer';
+                            const initial = displayName.charAt(0).toUpperCase() || '?';
+                            const isHostUser = displayName.toLowerCase().includes('host') ||
+                                (room?.hostUserId && (
+                                    displayName.toLowerCase() === room.hostUserId.toLowerCase() ||
+                                    p.email?.toLowerCase() === room.hostUserId.toLowerCase()
+                                )) ||
+                                displayName.toLowerCase() === room?.name?.split(' ')[0]?.toLowerCase();
 
-                                                    let newCoHosts: string[];
-                                                    if (isAlreadyCoHost) {
-                                                        newCoHosts = currentCoHosts.filter(
-                                                            (id: string) => id.toLowerCase() !== userKey.toLowerCase()
-                                                        );
-                                                    } else {
-                                                        newCoHosts = [...currentCoHosts, userKey];
+                            const coHostsList = room?.coHostUserId
+                                ? room.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
+                                : [];
+                            const isCoHostUser = coHostsList.some(
+                                (id: string) =>
+                                    displayName.toLowerCase() === id ||
+                                    p.email?.toLowerCase() === id
+                            );
+                            const role = isHostUser ? 'Host' : (isCoHostUser ? 'Co-Host' : 'Viewer');
+                            return (
+                                <div key={p.id || p.displayName || Math.random()} className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
+                                            {initial}
+                                        </div>
+                                        <div>
+                                            <p className="text-white text-sm font-bold">{displayName}</p>
+                                            <p className="text-xs text-blue-400 uppercase tracking-wide">{role}</p>
+                                        </div>
+                                    </div>
+                                    {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
+                                        <div className="flex gap-1.5">
+                                            {(userRole === 'Host' || userRole === 'Co-Host') && (
+                                                <button
+                                                    onClick={async () => {
+                                                        try {
+                                                            const fd = new FormData();
+                                                            const currentCoHosts = room.coHostUserId
+                                                                ? room.coHostUserId.split(",").map((id: string) => id.trim())
+                                                                : [];
+                                                            const userKey = (p.email && !p.email.toLowerCase().endsWith('@sportsfan360.com')) ? p.email : displayName;
+
+                                                            const isAlreadyCoHost = currentCoHosts.some(
+                                                                (id: string) => id.toLowerCase() === userKey.toLowerCase()
+                                                            );
+
+                                                            let newCoHosts: string[];
+                                                            if (isAlreadyCoHost) {
+                                                                newCoHosts = currentCoHosts.filter(
+                                                                    (id: string) => id.toLowerCase() !== userKey.toLowerCase()
+                                                                );
+                                                            } else {
+                                                                newCoHosts = [...currentCoHosts, userKey];
+                                                            }
+
+                                                            const targetValue = newCoHosts.join(",");
+                                                            fd.set('coHostUserId', targetValue);
+                                                            const res = await fetch(`/api/watch-along/${room.id}`, {
+                                                                method: 'PUT',
+                                                                body: fd
+                                                            });
+                                                            if (res.ok) {
+                                                                alert(isAlreadyCoHost ? `${displayName} is no longer Co-Host!` : `${displayName} is now Co-Host!`);
+                                                                if (room.id) await fetchRoomById(room.id);
+                                                            }
+                                                        } catch (err) { console.error('Toggle Co-Host failed:', err); }
+                                                    }}
+                                                    className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all flex items-center gap-1 ${isCoHostUser
+                                                        ? 'bg-yellow-600 border-yellow-500 text-white'
+                                                        : 'bg-[#222] hover:bg-yellow-600 border-[#444] text-white'
+                                                        }`}
+                                                    title={isCoHostUser ? "Remove Co-Host" : "Make Co-Host"}
+                                                >
+                                                    <Crown size={10} /> {isCoHostUser ? "Co-Host" : "Make Co-Host"}
+                                                </button>
+                                            )}
+                                            <button
+                                                onClick={async () => {
+                                                    if (jitsiApi) {
+                                                        try {
+                                                            jitsiApi.executeCommand('kickParticipant', p.id);
+                                                        } catch (err) {
+                                                            console.error('Jitsi kick failed:', err);
+                                                        }
                                                     }
-
-                                                    const targetValue = newCoHosts.join(",");
-                                                    fd.set('coHostUserId', targetValue);
-                                                    const res = await fetch(`/api/watch-along/${room.id}`, {
-                                                        method: 'PUT',
-                                                        body: fd
-                                                    });
-                                                    if (res.ok) {
-                                                        alert(isAlreadyCoHost ? `${displayName} is no longer Co-Host!` : `${displayName} is now Co-Host!`);
-                                                        if (room.id) await fetchRoomById(room.id);
+                                                    if (sendChatMessage && room?.liveMatchId) {
+                                                        try {
+                                                            await sendChatMessage(room.liveMatchId, "System", `[SYSTEM_REACTION]:KICK:${displayName}`, "text-red-500");
+                                                        } catch (err) {
+                                                            console.error('Broadcast kick failed:', err);
+                                                        }
                                                     }
-                                                } catch (err) { console.error('Toggle Co-Host failed:', err); }
-                                            }}
-                                            className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all flex items-center gap-1 ${isCoHostUser
-                                                    ? 'bg-yellow-600 border-yellow-500 text-white'
-                                                    : 'bg-[#222] hover:bg-yellow-600 border-[#444] text-white'
-                                                }`}
-                                            title={isCoHostUser ? "Remove Co-Host" : "Make Co-Host"}
-                                        >
-                                            <Crown size={10} /> {isCoHostUser ? "Co-Host" : "Make Co-Host"}
-                                        </button>
+                                                }}
+                                                className="px-3 py-1 bg-[#222] hover:bg-red-600 text-white text-xs font-semibold rounded-full border border-[#444] transition-all"
+                                            >
+                                                Kick
+                                            </button>
+                                        </div>
                                     )}
-                                    <button
-                                        onClick={async () => {
-                                            if (jitsiApi) {
-                                                try {
-                                                    jitsiApi.executeCommand('kickParticipant', p.id);
-                                                } catch (err) {
-                                                    console.error('Jitsi kick failed:', err);
-                                                }
-                                            }
-                                            if (sendChatMessage && room?.liveMatchId) {
-                                                try {
-                                                    await sendChatMessage(room.liveMatchId, "System", `[SYSTEM_REACTION]:KICK:${displayName}`, "text-red-500");
-                                                } catch (err) {
-                                                    console.error('Broadcast kick failed:', err);
-                                                }
-                                            }
-                                        }}
-                                        className="px-3 py-1 bg-[#222] hover:bg-red-600 text-white text-xs font-semibold rounded-full border border-[#444] transition-all"
-                                    >
-                                        Kick
-                                    </button>
                                 </div>
-                            )}
-                        </div>
-                    );
-                })}
+                            );
+                        })}
 
-                {/* Chat-derived participants (joined but not in Jitsi video) */}
-                {chatOnlyUsers.map((name: string) => (
-                    <div key={name} className="flex items-center gap-3 bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
-                        <div className="w-8 h-8 bg-green-700 rounded-full flex items-center justify-center font-bold text-white text-xs">
-                            {name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                            <p className="text-white text-sm font-bold">{name}</p>
-                            <p className="text-xs text-green-400 uppercase tracking-wide">Viewer</p>
-                        </div>
-                    </div>
-                ))}
+                        {/* Chat-derived participants (joined but not in Jitsi video) */}
+                        {chatOnlyUsers.map((name: string) => (
+                            <div key={name} className="flex items-center gap-3 bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
+                                <div className="w-8 h-8 bg-green-700 rounded-full flex items-center justify-center font-bold text-white text-xs">
+                                    {name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                    <p className="text-white text-sm font-bold">{name}</p>
+                                    <p className="text-xs text-green-400 uppercase tracking-wide">Viewer</p>
+                                </div>
+                            </div>
+                        ))}
 
-                {/* Empty state — only shown if truly alone */}
-                {realJitsiParticipants.length === 0 && chatOnlyUsers.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-8 text-center">
-                        <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3">
-                            <span className="text-2xl">👥</span>
-                        </div>
-                        <p className="text-gray-400 text-sm font-medium">Waiting for others to join...</p>
-                        <p className="text-gray-600 text-xs mt-1">Share the room link to invite people</p>
+                        {/* Empty state — only shown if truly alone */}
+                        {realJitsiParticipants.length === 0 && chatOnlyUsers.length === 0 && (
+                            <div className="flex flex-col items-center justify-center py-8 text-center">
+                                <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mb-3">
+                                    <span className="text-2xl">👥</span>
+                                </div>
+                                <p className="text-gray-400 text-sm font-medium">Waiting for others to join...</p>
+                                <p className="text-gray-600 text-xs mt-1">Share the room link to invite people</p>
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
-        </div>
-    );
+                </div>
+            );
         }
         default: return null;
     }
@@ -3615,8 +3615,8 @@ interface WatchRoomEngagementDialogProps {
     room: any;
     question: any;
     expiryTimestamp: number;
-    onAnswer: (questionId: string) => void;
-    onExpire: (questionId: string) => void;
+    onAnswer: (questionId: string, key?: string) => void;
+    onExpire: (questionId: string, key?: string) => void;
     userName?: string | null;
     userId?: string;
     submitQuizAnswer?: any;
@@ -3688,7 +3688,8 @@ function WatchRoomEngagementDialog({
         if (!question?.id) return;
         const currentUid = userId || userName;
         if (currentUid && question.source === "engagement") {
-            engagementService.checkVoteStatus(question.id, currentUid).then((res) => {
+            const targetEngagementId = question.engagementId || question.id;
+            engagementService.checkVoteStatus(targetEngagementId, currentUid).then((res) => {
                 if (res.hasVoted && res.selectedOptionId) {
                     if (type === 'quiz') {
                         setQuizSelected(res.selectedOptionId);
@@ -3706,11 +3707,11 @@ function WatchRoomEngagementDialog({
                         setPredChoice(res.selectedOptionId as any);
                         setPredLocked(true);
                     }
-                    onAnswer(question.id);
+                    onAnswer(question.id, question.key);
                 }
             });
         }
-    }, [question?.id, question?.source, userId, userName, type, correctOptionId, pointsReward, onAnswer]);
+    }, [question?.id, question?.key, question?.engagementId, question?.source, userId, userName, type, correctOptionId, pointsReward, onAnswer]);
 
     // Dynamic timer ticker against persistent timestamp
     useEffect(() => {
@@ -3721,7 +3722,7 @@ function WatchRoomEngagementDialog({
             setTimeLeft(remaining);
             if (remaining <= 0) {
                 if (question?.id) {
-                    onExpire(question.id);
+                    onExpire(question.id, question.key);
                 }
             }
         };
@@ -3729,7 +3730,7 @@ function WatchRoomEngagementDialog({
         updateTimer();
         const timer = setInterval(updateTimer, 1000);
         return () => clearInterval(timer);
-    }, [expiryTimestamp, question?.id, onExpire]);
+    }, [expiryTimestamp, question?.id, question?.key, onExpire]);
 
     // Clear auto-close timer on unmount
     useEffect(() => {
@@ -3752,14 +3753,14 @@ function WatchRoomEngagementDialog({
     // Normalizing Quiz options
     const quizOptions = Array.isArray(question.options)
         ? question.options.map((opt: any, idx: number) => {
-              const letter = opt.id || String.fromCharCode(65 + idx);
-              const text = typeof opt === 'string' ? opt : opt.text || opt.label || `Option ${idx + 1}`;
-              return { id: letter, text, value: text };
-          })
+            const letter = opt.id || String.fromCharCode(65 + idx);
+            const text = typeof opt === 'string' ? opt : opt.text || opt.label || `Option ${idx + 1}`;
+            return { id: letter, text, value: text };
+        })
         : [
-              { id: "A", text: "Option A", value: "Option A" },
-              { id: "B", text: "Option B", value: "Option B" },
-          ];
+            { id: "A", text: "Option A", value: "Option A" },
+            { id: "B", text: "Option B", value: "Option B" },
+        ];
 
     const handleQuizOption = async (optValue: string, optId: string) => {
         if (quizAnswered || timeLeft === 0 || isSubmitting) return;
@@ -3769,7 +3770,7 @@ function WatchRoomEngagementDialog({
 
         // Immediate answer notification to hide button in watchroom
         if (question?.id) {
-            onAnswer(question.id);
+            onAnswer(question.id, question.key);
         }
 
         const isRightImmediate =
@@ -3784,7 +3785,8 @@ function WatchRoomEngagementDialog({
 
         try {
             if (question?.source === "engagement") {
-                const res: any = await engagementService.voteEngagement(question.id, optId, userId || userName || undefined);
+                const targetEngagementId = question.engagementId || question.id;
+                const res: any = await engagementService.voteEngagement(targetEngagementId, optId, userId || userName || undefined, question.id);
                 const isRight = res?.isCorrect !== undefined ? Boolean(res.isCorrect) : isRightImmediate;
                 setQuizResult({
                     isCorrect: isRight,
@@ -3929,11 +3931,10 @@ function WatchRoomEngagementDialog({
                 <div className="w-full bg-white/[0.04] h-1 overflow-hidden">
                     <div
                         style={{ width: `${Math.min(100, Math.max(0, (timeLeft / 30) * 100))}%` }}
-                        className={`h-full transition-all duration-1000 ${
-                            timeLeft <= 10
+                        className={`h-full transition-all duration-1000 ${timeLeft <= 10
                                 ? "bg-gradient-to-r from-red-500 to-orange-500 animate-pulse"
                                 : "bg-gradient-to-r from-pink-500 to-purple-500"
-                        }`}
+                            }`}
                     />
                 </div>
 
@@ -3944,17 +3945,23 @@ function WatchRoomEngagementDialog({
                             {config.title}
                         </span>
                         {type === 'quiz' && (
-                            <span className="text-[9px] font-black uppercase text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">
-                                {pointsReward} PTS
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                                {question.questionIndex && question.totalQuestions && (
+                                    <span className="text-[9px] font-black uppercase text-purple-400 bg-purple-400/10 border border-purple-400/20 px-2 py-0.5 rounded-full">
+                                        Q {question.questionIndex}/{question.totalQuestions}
+                                    </span>
+                                )}
+                                <span className="text-[9px] font-black uppercase text-amber-400 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">
+                                    {pointsReward} PTS
+                                </span>
+                            </div>
                         )}
                     </div>
 
                     <div className="flex items-center gap-2.5">
                         {/* 30s Timer Pill */}
-                        <div className={`px-2 py-0.5 rounded-md text-[11px] font-black tracking-wider ${
-                            timeLeft <= 10 ? "bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse" : "bg-white/5 text-gray-300 border border-white/10"
-                        }`}>
+                        <div className={`px-2 py-0.5 rounded-md text-[11px] font-black tracking-wider ${timeLeft <= 10 ? "bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse" : "bg-white/5 text-gray-300 border border-white/10"
+                            }`}>
                             {timeLeft > 0 ? `${timeLeft}s` : "Expired"}
                         </div>
 
@@ -4025,11 +4032,10 @@ function WatchRoomEngagementDialog({
 
                             {/* Quiz Result Banner */}
                             {quizAnswered && (
-                                <div className={`py-1.5 px-2.5 rounded-lg border text-[11px] font-black flex items-center justify-center gap-1.5 ${
-                                    quizResult?.isCorrect
+                                <div className={`py-1.5 px-2.5 rounded-lg border text-[11px] font-black flex items-center justify-center gap-1.5 ${quizResult?.isCorrect
                                         ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
                                         : "bg-red-500/10 border-red-500/30 text-red-400"
-                                }`}>
+                                    }`}>
                                     {quizResult?.isCorrect ? (
                                         <span>Correct! You earned {quizResult?.pointsEarned || pointsReward} PTS</span>
                                     ) : (
@@ -4057,18 +4063,16 @@ function WatchRoomEngagementDialog({
                                             key={opt.id}
                                             onClick={() => handlePollVote(opt.text, opt.id)}
                                             disabled={pollVoted || timeLeft === 0 || isSubmitting}
-                                            className={`w-full relative rounded-lg border overflow-hidden py-2 px-3 flex items-center justify-between text-xs font-bold text-left transition-all cursor-pointer ${
-                                                isSelected
+                                            className={`w-full relative rounded-lg border overflow-hidden py-2 px-3 flex items-center justify-between text-xs font-bold text-left transition-all cursor-pointer ${isSelected
                                                     ? "border-blue-500/60 bg-blue-500/[0.08]"
                                                     : "border-white/[0.08] bg-[#141722] hover:bg-white/[0.05]"
-                                            }`}
+                                                }`}
                                         >
                                             {pollVoted && (
                                                 <div
                                                     style={{ width: `${percentage}%` }}
-                                                    className={`absolute left-0 top-0 bottom-0 z-0 transition-all duration-700 ${
-                                                        isSelected ? "bg-blue-500/25" : "bg-white/[0.05]"
-                                                    }`}
+                                                    className={`absolute left-0 top-0 bottom-0 z-0 transition-all duration-700 ${isSelected ? "bg-blue-500/25" : "bg-white/[0.05]"
+                                                        }`}
                                                 />
                                             )}
                                             <span className="relative z-10 text-white/90 font-bold">{opt.text}</span>
@@ -4096,13 +4100,12 @@ function WatchRoomEngagementDialog({
                                 <button
                                     onClick={() => handlePredChoice("left", leftOptText)}
                                     disabled={predLocked || timeLeft === 0 || isSubmitting}
-                                    className={`col-span-3 rounded-lg py-2 px-2.5 border transition-all cursor-pointer relative overflow-hidden text-center ${
-                                        predChoice === "left"
+                                    className={`col-span-3 rounded-lg py-2 px-2.5 border transition-all cursor-pointer relative overflow-hidden text-center ${predChoice === "left"
                                             ? "bg-[#FF3D57]/15 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.2)]"
                                             : predChoice === "right"
-                                            ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                                            : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
-                                    }`}
+                                                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                                                : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
+                                        }`}
                                 >
                                     <span className="text-base font-black block">{leftOptText}</span>
                                     {predLocked && (
@@ -4118,13 +4121,12 @@ function WatchRoomEngagementDialog({
                                 <button
                                     onClick={() => handlePredChoice("right", rightOptText)}
                                     disabled={predLocked || timeLeft === 0 || isSubmitting}
-                                    className={`col-span-3 rounded-lg py-2 px-2.5 border transition-all cursor-pointer relative overflow-hidden text-center ${
-                                        predChoice === "right"
+                                    className={`col-span-3 rounded-lg py-2 px-2.5 border transition-all cursor-pointer relative overflow-hidden text-center ${predChoice === "right"
                                             ? "bg-[#FF7B02]/15 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.2)]"
                                             : predChoice === "left"
-                                            ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                                            : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
-                                    }`}
+                                                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                                                : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
+                                        }`}
                                 >
                                     <span className="text-base font-black block">{rightOptText}</span>
                                     {predLocked && (
@@ -4170,10 +4172,66 @@ export default function WatchRoom({ room, onBack }: Props) {
     const [activeModalQuestion, setActiveModalQuestion] = useState<any>(null);
 
     // ── Engagement Question Lifecycle & Persistent Timer (Quiz, Polls, Prediction) ──
-    const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Record<string, boolean>>({});
-    const [expiredQuestionIds, setExpiredQuestionIds] = useState<Record<string, boolean>>({});
+    const STORAGE_KEY_ANSWERED = "watchroom_answered_quiz_questions";
+    const STORAGE_KEY_EXPIRED = "watchroom_expired_quiz_questions";
+
+    const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Record<string, boolean>>(() => {
+        if (typeof window === "undefined") return {};
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY_ANSWERED);
+            return saved ? JSON.parse(saved) : {};
+        } catch {
+            return {};
+        }
+    });
+
+    const [expiredQuestionIds, setExpiredQuestionIds] = useState<Record<string, boolean>>(() => {
+        if (typeof window === "undefined") return {};
+        try {
+            const saved = localStorage.getItem(STORAGE_KEY_EXPIRED);
+            return saved ? JSON.parse(saved) : {};
+        } catch {
+            return {};
+        }
+    });
+
+    const markQuestionAnswered = useCallback((qId: string, key?: string) => {
+        setAnsweredQuestionIds((prev) => {
+            const next = { ...prev, [qId]: true };
+            if (key) next[key] = true;
+            try {
+                localStorage.setItem(STORAGE_KEY_ANSWERED, JSON.stringify(next));
+            } catch (e) {
+                console.warn("Failed to persist answered question:", e);
+            }
+            return next;
+        });
+    }, []);
+
+    const markQuestionExpired = useCallback((qId: string, key?: string) => {
+        setExpiredQuestionIds((prev) => {
+            const next = { ...prev, [qId]: true };
+            if (key) next[key] = true;
+            try {
+                localStorage.setItem(STORAGE_KEY_EXPIRED, JSON.stringify(next));
+            } catch (e) {
+                console.warn("Failed to persist expired question:", e);
+            }
+            return next;
+        });
+    }, []);
+
     const [questionExpiryTimestamps, setQuestionExpiryTimestamps] = useState<Record<string, number>>({});
     const [liveEngagements, setLiveEngagements] = useState<EngagementItem[]>([]);
+    const [nowTick, setNowTick] = useState(() => Date.now());
+
+    // 1-second clock ticker for exact real-time start-time and frequency schedule synchronization
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setNowTick(Date.now());
+        }, 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     // Real-time sync with backend Engagements (FlipArena / Admin panel questions)
     const fetchLiveEngagements = useCallback(async () => {
@@ -4191,31 +4249,139 @@ export default function WatchRoom({ room, onBack }: Props) {
         }
     }, [authUser?.userId, session?.user]);
 
+    // Track boundary checks when a quiz's questions finish to prevent redundant fetches
+    const lastCheckedEndQuizId = useRef<string | null>(null);
+
+    // Fetch once on mount + on tab visibility change (0 continuous polling reads)
     useEffect(() => {
         fetchLiveEngagements();
-        const interval = setInterval(fetchLiveEngagements, 3000);
-        return () => clearInterval(interval);
+
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                fetchLiveEngagements();
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
     }, [fetchLiveEngagements]);
+
+    // Smart Re-fetch: When the current list of scheduled questions finishes,
+    // make 1 single check to the backend to see if the admin appended any new questions!
+    useEffect(() => {
+        for (const e of liveEngagements) {
+            if (e.type !== "quiz" || !e.quizData) continue;
+            const qData = e.quizData as any;
+            const questionList: any[] = (Array.isArray(qData.questions) && qData.questions.length > 0)
+                ? qData.questions
+                : [];
+            if (questionList.length === 0) continue;
+
+            const rawStartTime = qData.startTime || qData.scheduledStartTime || e.createdAt;
+            const startTime = typeof rawStartTime === "number"
+                ? rawStartTime
+                : (rawStartTime ? new Date(rawStartTime).getTime() : e.createdAt);
+
+            const frequencyMinutes = Number(qData.frequencyMinutes) || 5;
+            const frequencyMs = Math.max(5000, frequencyMinutes * 60 * 1000);
+
+            if (nowTick >= startTime) {
+                const elapsedMs = nowTick - startTime;
+                const currentIndex = Math.floor(elapsedMs / frequencyMs);
+
+                // When current questions reach or exceed the end of the array,
+                // check ONCE if the admin added more questions to this quiz
+                if (currentIndex >= questionList.length) {
+                    const checkKey = `${e.id}_count_${questionList.length}`;
+                    if (lastCheckedEndQuizId.current !== checkKey) {
+                        lastCheckedEndQuizId.current = checkKey;
+                        fetchLiveEngagements();
+                    }
+                }
+            }
+        }
+    }, [nowTick, liveEngagements, fetchLiveEngagements]);
 
     // Compute active, unanswered, unexpired questions (Priority: Live Admin Engagements, then Match-scoped)
     const activeQuizQuestion = useMemo(() => {
-        // 1. Check live admin engagements (FlipArena)
-        const engagementQuiz = liveEngagements
-            .filter((e) => e.type === "quiz" && e.quizData)
-            .slice()
-            .reverse()
-            .find((e) => e.id && !answeredQuestionIds[e.id] && !expiredQuestionIds[e.id] && !e.userVoted);
+        // 1. Check live admin engagements (FlipArena) with scheduling & frequency
+        for (const e of liveEngagements) {
+            if (e.type !== "quiz" || !e.quizData) continue;
+            const qData = e.quizData as any;
 
-        if (engagementQuiz) {
+            // Extract questions list (multi-question array or fallback to single question)
+            const questionList: any[] = (Array.isArray(qData.questions) && qData.questions.length > 0)
+                ? qData.questions
+                : [
+                    {
+                        id: e.id,
+                        question: qData.question || e.title,
+                        options: qData.options || [],
+                        correctOptionId: qData.correctOptionId || "A",
+                        pointsReward: qData.pointsReward || 50,
+                        explanation: qData.explanation || "",
+                    }
+                ];
+
+            // Scheduled start time
+            const rawStartTime = qData.startTime || qData.scheduledStartTime || e.createdAt;
+            const startTime = typeof rawStartTime === "number"
+                ? rawStartTime
+                : (rawStartTime ? new Date(rawStartTime).getTime() : e.createdAt);
+
+            // Frequency in minutes (default 5m)
+            const frequencyMinutes = Number(qData.frequencyMinutes) || 5;
+            const frequencyMs = Math.max(5000, frequencyMinutes * 60 * 1000);
+
+            // If scheduled start time has not arrived yet, quiz is not active
+            if (nowTick < startTime) {
+                continue;
+            }
+
+            const elapsedMs = nowTick - startTime;
+            const currentIndex = Math.floor(elapsedMs / frequencyMs);
+
+            // If we have surpassed all questions based on frequency intervals, this quiz has completed
+            if (currentIndex >= questionList.length) {
+                continue;
+            }
+
+            const currentQ = questionList[currentIndex];
+            if (!currentQ) continue;
+
+            const qId = currentQ.id || `q_${currentIndex}`;
+            const compositeKey = `${e.id}_${qId}`;
+
+            // Check if already answered or expired (never repeat displayed/answered questions, even after refresh)
+            if (
+                answeredQuestionIds[compositeKey] ||
+                answeredQuestionIds[qId] ||
+                expiredQuestionIds[compositeKey] ||
+                expiredQuestionIds[qId]
+            ) {
+                continue;
+            }
+
+            const windowStart = startTime + currentIndex * frequencyMs;
+            const windowEnd = windowStart + frequencyMs;
+
             return {
-                id: engagementQuiz.id,
+                id: qId,
+                key: compositeKey,
+                engagementId: e.id,
                 source: "engagement",
-                question: engagementQuiz.quizData?.question || engagementQuiz.title,
-                options: engagementQuiz.quizData?.options || [],
-                correctOptionId: engagementQuiz.quizData?.correctOptionId,
-                pointsReward: engagementQuiz.quizData?.pointsReward || 50,
-                explanation: engagementQuiz.quizData?.explanation,
-                raw: engagementQuiz,
+                question: currentQ.question || qData.question || e.title,
+                options: currentQ.options || qData.options || [],
+                correctOptionId: currentQ.correctOptionId || qData.correctOptionId || "A",
+                pointsReward: currentQ.pointsReward || qData.pointsReward || 50,
+                explanation: currentQ.explanation || qData.explanation || "",
+                questionIndex: currentIndex + 1,
+                totalQuestions: questionList.length,
+                windowStart,
+                windowEnd,
+                raw: e,
             };
         }
 
@@ -4228,6 +4394,7 @@ export default function WatchRoom({ room, onBack }: Props) {
         if (matchQuiz) {
             return {
                 id: matchQuiz.id,
+                key: matchQuiz.id,
                 source: "watchalong",
                 question: matchQuiz.question,
                 options: matchQuiz.options,
@@ -4238,7 +4405,7 @@ export default function WatchRoom({ room, onBack }: Props) {
         }
 
         return null;
-    }, [liveEngagements, quizQuestions, answeredQuestionIds, expiredQuestionIds]);
+    }, [liveEngagements, nowTick, answeredQuestionIds, expiredQuestionIds, quizQuestions]);
 
     const activePollQuestion = useMemo(() => {
         // 1. Check live admin engagements (FlipArena)
@@ -4323,12 +4490,12 @@ export default function WatchRoom({ room, onBack }: Props) {
             const now = Date.now();
             Object.entries(questionExpiryTimestamps).forEach(([qId, expiryMs]) => {
                 if (now >= expiryMs && !expiredQuestionIds[qId]) {
-                    setExpiredQuestionIds((prev) => ({ ...prev, [qId]: true }));
+                    markQuestionExpired(qId);
                 }
             });
         }, 1000);
         return () => clearInterval(timer);
-    }, [questionExpiryTimestamps, expiredQuestionIds]);
+    }, [questionExpiryTimestamps, expiredQuestionIds, markQuestionExpired]);
 
     const openEngagement = (type: 'quiz' | 'polls' | 'prediction') => {
         let targetQ: any = null;
@@ -4339,10 +4506,11 @@ export default function WatchRoom({ room, onBack }: Props) {
         if (!targetQ) return;
 
         // Start 30s timer on first open if not already started
-        if (!questionExpiryTimestamps[targetQ.id]) {
+        const timerKey = targetQ.key || targetQ.id;
+        if (!questionExpiryTimestamps[timerKey]) {
             setQuestionExpiryTimestamps((prev) => ({
                 ...prev,
-                [targetQ.id]: Date.now() + 30000,
+                [timerKey]: Date.now() + 30000,
             }));
         }
         setActiveModalQuestion(targetQ);
@@ -4370,31 +4538,31 @@ export default function WatchRoom({ room, onBack }: Props) {
         try {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
             const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-            
+
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
                     recordedChunksRef.current.push(event.data);
                 }
             };
-            
+
             mediaRecorder.onstop = async () => {
                 // Instantly update the UI so the button reverts to "Record Session"
                 setIsRecording(false);
 
                 const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
-                
+
                 // Alert the user that the background upload is starting
                 alert("Recording stopped! Uploading to Google Drive in the background...");
-                
+
                 const formData = new FormData();
                 formData.append('video', blob, 'recording.webm');
-                
+
                 try {
                     const response = await fetch('/api/upload-recording', {
                         method: 'POST',
                         body: formData
                     });
-                    
+
                     const data = await response.json();
                     if (data.success) {
                         alert("Video successfully saved to Google Drive!");
@@ -4409,11 +4577,11 @@ export default function WatchRoom({ room, onBack }: Props) {
 
                 recordedChunksRef.current = [];
             };
-            
+
             mediaRecorderRef.current = mediaRecorder;
             mediaRecorder.start();
             setIsRecording(true);
-            
+
             // Stop recording when user stops sharing via browser bar
             stream.getVideoTracks()[0].onended = () => {
                 stopRecording();
@@ -5184,28 +5352,28 @@ export default function WatchRoom({ room, onBack }: Props) {
     // const currentUserInJitsi = userName ? jitsiNames.has(userName.toLowerCase()) : false;
     // const dynamicParticipantsCount = (currentUserInJitsi ? 0 : 1) + (jitsiParticipants?.length || 0) + chatOnlyUsers.length;
     const normalizedSelfName = (userName || "").trim().toLowerCase();
-const realJitsiParticipantsTop = (jitsiParticipants || []).filter((p: any) => {
-    const displayName = (p.displayName || p.formattedDisplayName || "").trim().toLowerCase();
-    return displayName && displayName !== normalizedSelfName;
-});
-const jitsiNames = new Set(realJitsiParticipantsTop.map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
-// const chatUsersList = Array.from(
-//     new Set(
-//         (chats || [])
-//             .filter((c) => c.user && c.user.trim() !== "")
-//             .map((c) => c.user)
-//     )
-// ).filter((u) => u !== userName);
-const chatUsersList = Array.from(
-    new Set(
-        (chats || [])
-            .filter((c) => c.user && c.user.trim() !== "" && c.user !== 'System' && !c.text?.startsWith('[SYSTEM_REACTION]'))
-            .map((c) => c.user)
-    )
-).filter((u) => u !== userName);
-const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
+    const realJitsiParticipantsTop = (jitsiParticipants || []).filter((p: any) => {
+        const displayName = (p.displayName || p.formattedDisplayName || "").trim().toLowerCase();
+        return displayName && displayName !== normalizedSelfName;
+    });
+    const jitsiNames = new Set(realJitsiParticipantsTop.map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
+    // const chatUsersList = Array.from(
+    //     new Set(
+    //         (chats || [])
+    //             .filter((c) => c.user && c.user.trim() !== "")
+    //             .map((c) => c.user)
+    //     )
+    // ).filter((u) => u !== userName);
+    const chatUsersList = Array.from(
+        new Set(
+            (chats || [])
+                .filter((c) => c.user && c.user.trim() !== "" && c.user !== 'System' && !c.text?.startsWith('[SYSTEM_REACTION]'))
+                .map((c) => c.user)
+        )
+    ).filter((u) => u !== userName);
+    const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
 
-const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyUsers.length;
+    const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyUsers.length;
 
     const sidebarTabs = [
         { id: 'liveChat', label: 'Live Chat' },
@@ -5343,11 +5511,11 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
             </div>
 
             {/* ── Match Specific Live Ticker ── */}
-            {room.name && (
+            {/* {room.name && (
                 <div className="w-full border-b border-[#222]">
                     <LiveTicker roomNameFilter={room.name} matchIdFilter={room.liveMatchId} />
                 </div>
-            )}
+            )} */}
 
             {/* ── Score bar ── */}
             {/* <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2 border-b border-[#222]">
@@ -6610,13 +6778,13 @@ const dynamicParticipantsCount = 1 + realJitsiParticipantsTop.length + chatOnlyU
                 <WatchRoomEngagementDialog
                     type={engagementModalType}
                     question={activeModalQuestion}
-                    expiryTimestamp={questionExpiryTimestamps[activeModalQuestion.id] || (Date.now() + 30000)}
+                    expiryTimestamp={questionExpiryTimestamps[activeModalQuestion.key || activeModalQuestion.id] || (Date.now() + 30000)}
                     onClose={closeEngagement}
-                    onAnswer={(qId) => {
-                        setAnsweredQuestionIds((prev) => ({ ...prev, [qId]: true }));
+                    onAnswer={(qId, key) => {
+                        markQuestionAnswered(qId, key);
                     }}
-                    onExpire={(qId) => {
-                        setExpiredQuestionIds((prev) => ({ ...prev, [qId]: true }));
+                    onExpire={(qId, key) => {
+                        markQuestionExpired(qId, key);
                     }}
                     room={room}
                     userName={userName || undefined}

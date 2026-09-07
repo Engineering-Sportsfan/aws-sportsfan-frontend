@@ -5,7 +5,21 @@
 import axios from "axios";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Eye, ArrowLeft, Send, Sparkles, Image as ImageIcon, Clock, User, Tag } from "lucide-react";
+import {
+  X,
+  Eye,
+  ArrowLeft,
+  Send,
+  Sparkles,
+  Image as ImageIcon,
+  Clock,
+  User,
+  Tag,
+  AlertCircle,
+  Loader2,
+  Calendar,
+  Info,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 type BadgeType = "FEATURE" | "ANALYSIS" | "OPINION" | "NEWS";
@@ -75,6 +89,10 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
   const [previewUrl, setPreviewUrl] = useState<string>("");
   const [showPreview, setShowPreview] = useState<boolean>(false);
   const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState<string>("");
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState<string>("");
+  const [scheduledTime, setScheduledTime] = useState<string>("");
   const [mounted, setMounted] = useState(false);
   const isSubmittingRef = useRef(false);
 
@@ -94,6 +112,56 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
       setPreviewUrl("");
     }
   }, [image]);
+
+  const getTodayDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getDefaultTimeString = (offsetMinutes = 30) => {
+    const d = new Date(Date.now() + offsetMinutes * 60 * 1000);
+    const hours = String(d.getHours()).padStart(2, "0");
+    const minutes = String(d.getMinutes()).padStart(2, "0");
+    return `${hours}:${minutes}`;
+  };
+
+  const applySchedulePreset = (minutesFromNow: number) => {
+    const target = new Date(Date.now() + minutesFromNow * 60 * 1000);
+    const y = target.getFullYear();
+    const m = String(target.getMonth() + 1).padStart(2, "0");
+    const d = String(target.getDate()).padStart(2, "0");
+    setScheduledDate(`${y}-${m}-${d}`);
+    const hh = String(target.getHours()).padStart(2, "0");
+    const mm = String(target.getMinutes()).padStart(2, "0");
+    setScheduledTime(`${hh}:${mm}`);
+  };
+
+  const applyTomorrowPreset = (hour: number, minute: number) => {
+    const target = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    target.setHours(hour, minute, 0, 0);
+    const y = target.getFullYear();
+    const m = String(target.getMonth() + 1).padStart(2, "0");
+    const d = String(target.getDate()).padStart(2, "0");
+    setScheduledDate(`${y}-${m}-${d}`);
+    const hh = String(hour).padStart(2, "0");
+    const mm = String(minute).padStart(2, "0");
+    setScheduledTime(`${hh}:${mm}`);
+  };
+
+  const getScheduledTs = (): number | null => {
+    if (!scheduledDate || !scheduledTime) return null;
+    const [year, month, day] = scheduledDate.split("-").map(Number);
+    const [hours, minutes] = scheduledTime.split(":").map(Number);
+    if (isNaN(year) || isNaN(month) || isNaN(day) || isNaN(hours) || isNaN(minutes)) return null;
+    const d = new Date(year, month - 1, day, hours, minutes, 0, 0);
+    return d.getTime();
+  };
+
+  const scheduledTs = showSchedule ? getScheduledTs() : null;
+  const isPastTime = scheduledTs !== null && scheduledTs <= Date.now();
 
   if (!isOpen || !mounted) return null;
 
@@ -127,6 +195,12 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
     setPreviewUrl("");
     setTagInput("");
     setShowPreview(false);
+    setShowSchedule(false);
+    setScheduledDate("");
+    setScheduledTime("");
+    setSubmitError("");
+    setLoading(false);
+    isSubmittingRef.current = false;
     onClose();
   };
 
@@ -139,106 +213,107 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
 
   const displayAuthor = form.author.trim() || currentUserName;
 
-  // const handleSubmit = async () => {
-  //   if (!form.title.trim()) {
-  //     alert("Title is required");
-  //     return;
-  //   }
-
-  //   const paragraphs = getParagraphs();
-  //   if (paragraphs.length === 0) {
-  //     alert("Article description/content is required");
-  //     return;
-  //   }
-  //   setLoading(true);
-  //   try {
-  //     const formData = new FormData();
-  //     formData.append("badge", form.badge);
-  //     formData.append("title", form.title.trim());
-  //     formData.append("author", displayAuthor);
-  //     formData.append("readTime", form.readTime.trim() || "5 min read");
-  //     formData.append("views", form.views.trim() || "0 views");
-  //     formData.append("description", JSON.stringify(paragraphs));
-  //     formData.append("tags", JSON.stringify(form.tags));
-  //     if (image) {
-  //       formData.append("file", image);
-  //     }
-
-  //     if (user?.userId) formData.append("userId", user.userId);
-  //     if (user?.email) formData.append("email", user.email);
-  //     if (userAvatar) formData.append("authorPhoto", userAvatar);
-
-  //     const res = await axios.post("/api/cricket-articles", formData);
-
-  //     if (res.data?.success || res.status === 201 || res.status === 200) {
-  //       if (typeof window !== "undefined") {
-  //         window.dispatchEvent(new Event("cricket-article-created"));
-  //       }
-  //       onCreated?.();
-  //       resetAndClose();
-  //     } else {
-  //       alert(res.data?.error || "Error saving article");
-  //     }
-  //   } catch (error: any) {
-  //     console.error("Save failed", error);
-  //     alert(error?.response?.data?.error || "Error saving article");
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
-
   const handleSubmit = async () => {
-  if (isSubmittingRef.current) return;
+    if (isSubmittingRef.current) return;
 
-  if (!form.title.trim()) {
-    alert("Title is required");
-    return;
-  }
-
-  const paragraphs = getParagraphs();
-  if (paragraphs.length === 0) {
-    alert("Article description/content is required");
-    return;
-  }
-
-  isSubmittingRef.current = true;
-  setLoading(true);
-  try {
-    const formData = new FormData();
-    formData.append("badge", form.badge);
-    formData.append("title", form.title.trim());
-    formData.append("author", displayAuthor);
-    formData.append("readTime", form.readTime.trim() || "5 min read");
-    formData.append("views", form.views.trim() || "0 views");
-    formData.append("description", JSON.stringify(paragraphs));
-    formData.append("tags", JSON.stringify(form.tags));
-    if (image) {
-      formData.append("file", image);
+    if (!form.title.trim()) {
+      alert("Title is required");
+      return;
     }
 
-    if (user?.userId) formData.append("userId", user.userId);
-    if (user?.email) formData.append("email", user.email);
-    if (userAvatar) formData.append("authorPhoto", userAvatar);
+    const paragraphs = getParagraphs();
+    if (paragraphs.length === 0) {
+      alert("Article description/content is required");
+      return;
+    }
 
-    const res = await axios.post("/api/cricket-articles", formData);
+    if (showSchedule && (isPastTime || !scheduledTs)) {
+      setSubmitError("Please select a valid future date and time for scheduling.");
+      return;
+    }
 
-    if (res.data?.success || res.status === 201 || res.status === 200) {
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(new Event("cricket-article-created"));
+    isSubmittingRef.current = true;
+    setLoading(true);
+    setSubmitError("");
+    try {
+      const now = Date.now();
+      const timeStr = new Date(now).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const dateStr = new Date(now).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+
+      const formData = new FormData();
+      formData.append("badge", form.badge);
+      formData.append("title", form.title.trim());
+      formData.append("author", displayAuthor);
+      formData.append("readTime", form.readTime.trim() || "5 min read");
+      formData.append("views", form.views.trim() || "0 views");
+      formData.append("description", JSON.stringify(paragraphs));
+      formData.append("tags", JSON.stringify(form.tags));
+      if (image) {
+        formData.append("file", image);
       }
-      onCreated?.();
-      resetAndClose();
-    } else {
-      alert(res.data?.error || "Error saving article");
+
+      if (user?.userId) formData.append("userId", user.userId);
+      if (user?.email) formData.append("email", user.email);
+      if (userAvatar) formData.append("authorPhoto", userAvatar);
+
+      if (showSchedule && scheduledTs && scheduledTs > now) {
+        const schedTimeStr = new Date(scheduledTs).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          minute: "2-digit",
+          hour12: true,
+        });
+        const schedDateStr = new Date(scheduledTs).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+
+        formData.append("isScheduled", "true");
+        formData.append("scheduledAt", String(scheduledTs));
+        formData.append("scheduledTimeMs", String(scheduledTs));
+        formData.append("day", schedDateStr);
+        formData.append("time", schedTimeStr);
+        formData.append("timeMs", String(scheduledTs));
+        formData.append("createdAt", String(now));
+      } else {
+        formData.append("isScheduled", "false");
+        formData.append("day", dateStr);
+        formData.append("time", timeStr);
+        formData.append("timeMs", String(now));
+        formData.append("createdAt", String(now));
+      }
+
+      const res = await axios.post("/api/cricket-articles", formData);
+
+      if (res.data?.success || res.status === 201 || res.status === 200) {
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("cricket-article-created"));
+        }
+        onCreated?.();
+        resetAndClose();
+      } else {
+        setSubmitError(res.data?.error || "Error saving article");
+      }
+    } catch (error: any) {
+      console.error("Save failed", error);
+      const serverMsg =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Error saving article. Please check inputs and try again.";
+      setSubmitError(serverMsg);
+    } finally {
+      setLoading(false);
+      isSubmittingRef.current = false;
     }
-  } catch (error: any) {
-    console.error("Save failed", error);
-    alert(error?.response?.data?.error || "Error saving article");
-  } finally {
-    setLoading(false);
-    isSubmittingRef.current = false;
-  }
-};
+  };
 
   const paragraphs = getParagraphs();
   const portalTarget = document.getElementById("sf360-app-root") ?? document.body;
@@ -270,34 +345,14 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
                 {showPreview ? "Article Preview" : "Create New Article"}
               </h2>
               <p className="text-[11px] text-gray-400 font-medium">
-                {showPreview ? "Review your article before publishing" : "Draft and publish to Articles Hub"}
+                {showPreview
+                  ? "Review your article before publishing"
+                  : "Draft and publish to Articles Hub"}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* <button
-              type="button"
-              onClick={() => setShowPreview((prev) => !prev)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
-                showPreview
-                  ? "bg-gradient-to-r from-[#C9115F] to-[#e85d04] text-white border-transparent shadow-md shadow-pink-500/20"
-                  : "bg-white/5 text-gray-300 hover:text-white hover:bg-white/10 border-white/10"
-              }`}
-            >
-              {showPreview ? (
-                <>
-                  <ArrowLeft size={13} />
-                  <span className="flex whitespace-nowrap">Edit Form</span>
-                </>
-              ) : (
-                <>
-                  <Eye size={13} />
-                  <span>Preview</span>
-                </>
-              )}
-            </button> */}
-
             <button
               onClick={resetAndClose}
               className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-white/5"
@@ -352,12 +407,27 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
                     {(displayAuthor || "U")[0].toUpperCase()}
                   </div>
                 )}
-                <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
                   <span className="font-bold text-white text-xs truncate">
                     {displayAuthor}
                   </span>
                   <span className="text-gray-500">•</span>
-                  <span className="text-gray-500 text-[11px]">Just now</span>
+                  {showSchedule && scheduledTs ? (
+                    <span className="text-amber-400 text-[11px] font-semibold flex items-center gap-1">
+                      <Clock size={11} />
+                      Scheduled for{" "}
+                      {new Date(scheduledTs).toLocaleString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                        hour12: true,
+                      })}
+                    </span>
+                  ) : (
+                    <span className="text-gray-500 text-[11px]">Just now</span>
+                  )}
                 </div>
               </div>
 
@@ -414,6 +484,21 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
                ARTICLE EDIT FORM
                ───────────────────────────────────────────────────────────── */
             <div className="space-y-4 max-w-2xl mx-auto">
+              {/* Validation & Error Alerts */}
+              {submitError && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs animate-in fade-in">
+                  <AlertCircle size={15} className="shrink-0 mt-0.5 text-red-400" />
+                  <div className="flex-1 leading-relaxed">{submitError}</div>
+                  <button
+                    type="button"
+                    onClick={() => setSubmitError("")}
+                    className="text-red-400 hover:text-white cursor-pointer ml-1"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               {/* Badge + Title + Author + Read time */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -430,14 +515,6 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
                     <option value="OPINION">OPINION</option>
                   </select>
                 </div>
-
-                  {/* <FormInput
-                  label="Read Time"
-                  name="readTime"
-                  value={form.readTime}
-                  onChange={handleChange}
-                  placeholder="e.g., 5 min read"
-                /> */}
 
                 <div className="sm:col-span-2">
                   <FormInput
@@ -546,6 +623,95 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
                   </div>
                 )}
               </div>
+
+              {/* Schedule Article Section */}
+              {showSchedule && (
+                <div className="flex flex-col gap-3 bg-[#11131f] border border-amber-500/30 rounded-xl p-3.5 shadow-lg shadow-amber-500/5 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between text-xs font-bold text-amber-400 uppercase tracking-wider">
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={14} className="text-amber-400" />
+                      <span>Schedule Article (Auto-publish)</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowSchedule(false)}
+                      className="text-gray-400 hover:text-red-400 text-xs font-medium cursor-pointer"
+                    >
+                      Cancel Schedule
+                    </button>
+                  </div>
+
+                  {/* Date & Time Input Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-gray-400">Publish Date</label>
+                      <input
+                        type="date"
+                        min={getTodayDateString()}
+                        value={scheduledDate}
+                        onChange={(e) => setScheduledDate(e.target.value)}
+                        className="w-full bg-[#18181b] border border-white/10 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-white outline-none [color-scheme:dark]"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[10.5px] font-semibold text-gray-400">Publish Time</label>
+                      <input
+                        type="time"
+                        value={scheduledTime}
+                        onChange={(e) => setScheduledTime(e.target.value)}
+                        className="w-full bg-[#18181b] border border-white/10 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-white outline-none [color-scheme:dark]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    <span className="text-[10px] text-gray-500 font-medium mr-0.5">Presets:</span>
+                    {[
+                      { label: "+15m", action: () => applySchedulePreset(15) },
+                      { label: "+1h", action: () => applySchedulePreset(60) },
+                      { label: "+3h", action: () => applySchedulePreset(180) },
+                      { label: "Tomorrow 9 AM", action: () => applyTomorrowPreset(9, 0) },
+                      { label: "Tomorrow 6 PM", action: () => applyTomorrowPreset(18, 0) },
+                    ].map((preset, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={preset.action}
+                        className="px-2 py-1 rounded-md bg-white/5 hover:bg-amber-500/20 text-gray-300 hover:text-amber-300 border border-white/10 hover:border-amber-500/30 text-[10.5px] font-semibold transition-all cursor-pointer"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Live Preview Info Banner */}
+                  {scheduledTs && (
+                    <div
+                      className={`p-2.5 rounded-lg text-xs font-medium flex items-center gap-2 border ${
+                        isPastTime
+                          ? "bg-red-500/10 border-red-500/30 text-red-400"
+                          : "bg-amber-500/10 border-amber-500/25 text-amber-300"
+                      }`}
+                    >
+                      <Clock size={13} className="shrink-0" />
+                      <span>
+                        {isPastTime
+                          ? "⚠️ Selected time is in the past. Please choose a future time."
+                          : `Will go live on ${new Date(scheduledTs).toLocaleString("en-US", {
+                              weekday: "short",
+                              month: "short",
+                              day: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}`}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -566,14 +732,49 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={loading}
-                className="flex-1 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-pink-500/20 active:scale-95"
+                disabled={loading || (showSchedule && (isPastTime || !scheduledTs))}
+                className={`flex-1 py-3 rounded-xl font-bold text-xs text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 shadow-lg active:scale-95 ${
+                  showSchedule
+                    ? "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 shadow-amber-500/20"
+                    : "bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] shadow-pink-500/20"
+                }`}
               >
-                {loading ? "Publishing..." : "Publish Article ↗"}
+                {loading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>{showSchedule ? "Scheduling..." : "Publishing..."}</span>
+                  </>
+                ) : showSchedule ? (
+                  <>
+                    <Clock size={14} />
+                    <span>Schedule Article</span>
+                  </>
+                ) : (
+                  <span>Publish Article ↗</span>
+                )}
               </button>
             </>
           ) : (
             <>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!showSchedule) {
+                    if (!scheduledDate) setScheduledDate(getTodayDateString());
+                    if (!scheduledTime) setScheduledTime(getDefaultTimeString(30));
+                  }
+                  setShowSchedule((prev) => !prev);
+                }}
+                className={`px-4 py-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
+                  showSchedule
+                    ? "bg-amber-500/20 border-amber-500/40 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.15)]"
+                    : "bg-white/5 hover:bg-white/10 text-gray-300 border-white/10"
+                }`}
+              >
+                <Clock size={14} className="text-amber-400" />
+                <span>{showSchedule ? "Scheduled" : "Schedule"}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setShowPreview(true)}
@@ -586,19 +787,32 @@ export default function CreateArticleDialog({ isOpen, onClose, onCreated }: Prop
               <button
                 type="button"
                 onClick={handleSubmit}
-                disabled={loading || !form.title.trim() || paragraphs.length === 0}
-                className="flex-1 py-3 rounded-xl font-bold text-xs bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-pink-500/20 active:scale-95"
+                disabled={
+                  loading ||
+                  !form.title.trim() ||
+                  paragraphs.length === 0 ||
+                  (showSchedule && (isPastTime || !scheduledTs))
+                }
+                className={`flex-1 py-3 rounded-xl font-bold text-xs text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 shadow-lg active:scale-95 ${
+                  showSchedule
+                    ? "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 shadow-amber-500/20"
+                    : "bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] shadow-pink-500/20"
+                }`}
               >
-                {loading ? "Publishing..." : "Create Article ↗"}
+                {loading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>{showSchedule ? "Scheduling..." : "Publishing..."}</span>
+                  </>
+                ) : showSchedule ? (
+                  <>
+                    <Clock size={14} />
+                    <span>Schedule Article</span>
+                  </>
+                ) : (
+                  <span>Create Article ↗</span>
+                )}
               </button>
-
-                {/* <button
-                type="button"
-                onClick={resetAndClose}
-                className="px-4 py-3 rounded-xl font-bold text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
-              >
-                Cancel
-              </button> */}
             </>
           )}
         </div>

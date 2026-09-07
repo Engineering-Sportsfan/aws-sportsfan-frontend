@@ -1386,6 +1386,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import axios from "axios";
 import { ArrowLeft, Heart, Reply, Trash2, ChevronDown, ChevronUp, Send, Loader2, Smile } from "lucide-react";
 import PlaylistDialog from "@/src/components/playlistdialog-component/playlistdialog";
@@ -1398,6 +1399,7 @@ interface ArticleDetail {
   id: string;
   badge: BadgeType;
   title: string;
+  author?: string;
   readTime: string;
   views: string;
   likes?: number;
@@ -1478,7 +1480,7 @@ const parseTimestamp = (raw: any): number => {
 };
 
 const normalizeArticleStats = (
-  rawArticle: (Partial<ArticleDetail> & { _id?: string | number; cdn_url?: string; createdAt?: any; tags?: any }) | null | undefined
+  rawArticle: (Partial<ArticleDetail> & { _id?: string | number; cdn_url?: string; createdAt?: any; tags?: any; author?: string; authorName?: string; creatorName?: string; userName?: string; source?: string }) | null | undefined
 ): ArticleDetail | null => {
   if (!rawArticle || (!rawArticle.id && !rawArticle._id)) return null;
 
@@ -1499,10 +1501,19 @@ const normalizeArticleStats = (
       ? rawArticle.commentsCount
       : 0;
 
+  const resolvedAuthor =
+    rawArticle.author ||
+    rawArticle.authorName ||
+    rawArticle.creatorName ||
+    rawArticle.userName ||
+    (rawArticle.source && rawArticle.source !== "SportsFan360" ? rawArticle.source : "") ||
+    "";
+
   return {
     id: String(rawArticle._id || rawArticle.id || ""),
     badge: (rawArticle.badge as BadgeType) || "NEWS",
     title: rawArticle.title || "",
+    author: resolvedAuthor,
     readTime: rawArticle.readTime || "",
     views: rawArticle.views ? String(rawArticle.views) : formatViews(resolvedViewCount),
     likes: resolvedLikeCount,
@@ -2271,6 +2282,18 @@ export default function CricketArticleDetail() {
       </div>
 
       <div className="flex items-center gap-2 text-gray-400 text-xs mb-4 flex-wrap">
+        {article.author ? (
+          <>
+            <span className="text-gray-400">By</span>
+            <Link
+              href={`/MainModules/CricketArticles?author=${encodeURIComponent(article.author)}`}
+              className="font-semibold text-pink-400 hover:text-pink-300 underline underline-offset-4 transition-colors cursor-pointer"
+            >
+              {article.author}
+            </Link>
+            <span>·</span>
+          </>
+        ) : null}
         <span>{new Date(article.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
         <span>·</span>
         <span>{formatViews(viewCount)}</span>

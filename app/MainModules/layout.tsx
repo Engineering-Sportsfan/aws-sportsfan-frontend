@@ -454,9 +454,9 @@ export default function MainModulesLayout({
             // </div>
             <div className="relative z-60 md:static fixed top-0 left-0 right-0 z-[102] md:z-60">
               <Header />
-              <div id="live-ticker-container">
+              {/* <div id="live-ticker-container">
                 <LiveTicker />
-              </div>
+              </div> */}
             </div>
           )}
 
