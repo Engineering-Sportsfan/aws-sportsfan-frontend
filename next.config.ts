@@ -597,6 +597,15 @@ const nextConfig = {
           source: "/api/upload/:path*",
           destination: `${apiTarget}/api/upload/:path*`,
         },
+//upload-recording
+ {
+          source: "/api/upload-recording",
+          destination: `${apiTarget}/api/upload-recording`,
+        },
+        {
+          source: "/api/upload-recording/:path*",
+          destination: `${apiTarget}/api/upload-recording/:path*`,
+        },
 
         // Watch Along APIs
         {
