@@ -730,7 +730,7 @@
 
       // Submit to backend DynamoDB API
       try {
-        const res = await fetch("/api/invite-waitlist", {
+       const res = await fetch("https://app.sportsfan360.com/api/invite-waitlist", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData)
