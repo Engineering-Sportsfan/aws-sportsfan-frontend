@@ -4,10 +4,14 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ProfilePageInner from "../../../src/components/NewROARComponent/screens/Profile";
 import { GLOBAL_CSS } from "../../../src/components/NewROARComponent/constants/styles";
+import { useAuth } from "@/context/AuthContext";
+import { getBotCanonicalName, BOT_AVATARS, BOT_BIOS } from "@/src/constants/bots";
 
 function ProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user: authUser } = useAuth();
+
   const targetUserId =
     searchParams.get("profileUserId") ||
     searchParams.get("userId") ||
@@ -15,30 +19,61 @@ function ProfileContent() {
     searchParams.get("username") ||
     undefined;
 
-  useEffect(() => {
-    if (targetUserId) {
-      router.replace(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUserId)}`);
-    }
-  }, [targetUserId, router]);
+  const botName = getBotCanonicalName(targetUserId);
+
+  const effectiveUserId =
+    botName ||
+    targetUserId ||
+    authUser?.actualUserId ||
+    (authUser?.userId
+      ? authUser.userId.includes("@") || authUser.userId.includes(".")
+        ? authUser.userId.replace(/[@.]/g, "_")
+        : authUser.userId
+      : undefined) ||
+    (authUser?.email ? authUser.email.replace(/[@.]/g, "_") : undefined);
 
   const [profile, setProfile] = useState<any>(null);
   const [userBadge, setUserBadge] = useState("");
 
   useEffect(() => {
-    loadProfile();
-  }, [targetUserId]);
+    if (effectiveUserId) {
+      loadProfile();
+    }
+  }, [effectiveUserId]);
 
   const loadProfile = async () => {
+    if (!effectiveUserId) return;
+    if (botName) {
+      const botAvatar = BOT_AVATARS[botName] || "/images/dolly.png";
+      const botBio = BOT_BIOS[botName] || "SportsFan360 bot — automated fan companion.";
+      setUserBadge("BOT");
+      setProfile({
+        success: true,
+        user: {
+          username: botName,
+          displayName: botName,
+          avatarUrl: botAvatar,
+          avatar: botAvatar,
+          about: botBio,
+          badge: "BOT",
+          isBot: true,
+        },
+        predictions: [],
+        hotTakes: [],
+        debates: [],
+        posts: [],
+      });
+      return;
+    }
     try {
-      const url = targetUserId
-        ? `/api/roar/profile?userId=${encodeURIComponent(targetUserId)}`
-        : "/api/roar/profile";
-      const res = await fetch(url);
+      const res = await fetch(`/api/roar/profile?userId=${encodeURIComponent(effectiveUserId)}`);
       const data = await res.json();
 
-      setProfile(data);
-      if (data?.user?.badge) {
-        setUserBadge(data.user.badge);
+      if (data?.success) {
+        setProfile(data);
+        if (data?.user?.badge) {
+          setUserBadge(data.user.badge);
+        }
       }
     } catch (err) {
       console.error("Failed to load profile:", err);
@@ -61,6 +96,17 @@ function ProfileContent() {
         setUserBadge={setUserBadge}
         viewingProfile={targetUserId}
         isViewingOther={!!targetUserId}
+        fanData={
+          profile?.user
+            ? {
+                ...profile.user,
+                predictions: profile.predictions || [],
+                hotTakes: profile.hotTakes || [],
+                debates: profile.debates || [],
+                posts: profile.posts || [],
+              }
+            : undefined
+        }
         onBack={() => router.back()}
         onCompose={() => { }}
         onToast={() => { }}

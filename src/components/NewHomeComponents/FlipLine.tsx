@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { getBotCanonicalName } from '@/src/constants/bots';
 import {
   Heart,
   MessageSquare,
@@ -1109,10 +1110,71 @@ export function FlipCardItem({
   };
 
   // ── 10. Open User Profile Navigation ─────────────────────────────────────────
+  // const handleOpenAuthorProfile = () => {
+  //   if (card.type === 'bot') {
+  //     const botName = card.author === 'Flip' ? 'Dolly' : card.author;
+  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botName)}`);
+  //     return;
+  //   }
+
+  //   const targetUser =
+  //     card.userId ||
+  //     card.email ||
+  //     (card.handle && card.handle !== '@fan' && card.handle !== '@you' ? card.handle.replace(/^@/, '') : null) ||
+  //     (card.author && card.author !== 'Fan' && card.author !== 'You' ? card.author : null) ||
+  //     (isCurrentUser ? (currentUserEmail || currentUserId) : null);
+
+  //   if (targetUser) {
+  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+  //   } else {
+  //     router.push('/MainModules/ROAR');
+  //   }
+  // };
+
+  // const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
+  //   const targetUser =
+  //     targetUserId ||
+  //     (targetHandle && targetHandle !== '@fan' && targetHandle !== '@you' ? targetHandle.replace(/^@/, '') : null) ||
+  //     (targetName && targetName !== 'Fan' && targetName !== 'You' ? targetName : null) ||
+  //     (currentUserEmail || currentUserId);
+
+  //   if (targetUser) {
+  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+  //   } else {
+  //     router.push('/MainModules/ROAR');
+  //   }
+  // };
+
+
+    const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
+    const botCanon = getBotCanonicalName(targetName) || getBotCanonicalName(targetUserId);
+    if (botCanon) {
+      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botCanon)}`);
+      return;
+    }
+
+    const targetUser =
+      targetUserId ||
+      (targetHandle && targetHandle !== '@fan' && targetHandle !== '@you' ? targetHandle.replace(/^@/, '') : null) ||
+      (targetName && targetName !== 'Fan' && targetName !== 'You' ? targetName : null) ||
+      (currentUserEmail || currentUserId);
+
+    if (targetUser) {
+      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+    } else {
+      router.push('/MainModules/ROAR');
+    }
+  };
+
+
+    // ── 10. Open User Profile Navigation ─────────────────────────────────────────
   const handleOpenAuthorProfile = () => {
-    if (card.type === 'bot') {
-      const botName = card.author === 'Flip' ? 'Dolly' : card.author;
-      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botName)}`);
+    const botCanon = card.type === 'bot'
+      ? (getBotCanonicalName(card.author) || 'Dolly')
+      : getBotCanonicalName(card.author);
+
+    if (botCanon) {
+      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botCanon)}`);
       return;
     }
 
@@ -1130,19 +1192,6 @@ export function FlipCardItem({
     }
   };
 
-  const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
-    const targetUser =
-      targetUserId ||
-      (targetHandle && targetHandle !== '@fan' && targetHandle !== '@you' ? targetHandle.replace(/^@/, '') : null) ||
-      (targetName && targetName !== 'Fan' && targetName !== 'You' ? targetName : null) ||
-      (currentUserEmail || currentUserId);
-
-    if (targetUser) {
-      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
-    } else {
-      router.push('/MainModules/ROAR');
-    }
-  };
 
   // Total comment count = sum of comments + sum of replies
   const totalCommentsCount = commentsList.reduce(
