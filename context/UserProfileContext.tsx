@@ -73,6 +73,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
+import { sanitizeAvatarUrl } from "@/src/components/NewROARComponent/components/AvatarWithBadge";
 
 interface UserProfile {
   actualUserId?: string;
@@ -100,21 +101,32 @@ export const useUserProfile = () => {
 };
 
 export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
-  const { authReady } = useAuth();
+  const { authReady, user: authUser } = useAuth();
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
 
   const fetchProfile = async () => {
     try {
-      const res = await axios.get("/api/roar/profile");
+      const rawUid =
+        authUser?.actualUserId ||
+        authUser?.userId ||
+        (authUser?.email ? authUser.email.replace(/[@.]/g, "_") : null);
+      const uid = rawUid
+        ? rawUid.includes("@") || rawUid.includes(".")
+          ? rawUid.replace(/[@.]/g, "_")
+          : rawUid
+        : null;
+      const url = uid ? `/api/roar/profile?userId=${encodeURIComponent(uid)}` : "/api/roar/profile";
+      const res = await axios.get(url);
       const data = res.data;
       console.log("profile data:", data);
       if (data?.user) {
         const localCachedAvatar = typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null;
+        const rawAv = data.user.avatarUrl || localCachedAvatar || "";
         setUserProfile({
           actualUserId: data.user.actualUserId,
           username: data.user.username,
-          avatarUrl: data.user.avatarUrl || localCachedAvatar || "",   // base64 data URI
+          avatarUrl: sanitizeAvatarUrl(rawAv) || rawAv,   // base64 data URI / URL
           avatar: data.user.avatar,          // Google CDN URL (fallback)
           name: data.user.name,
           badge: data.user.badge,

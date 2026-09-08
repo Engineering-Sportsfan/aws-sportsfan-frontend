@@ -613,7 +613,9 @@ const calculateProfileStats = (activities: ActivityItem[]): ProfileStats => {
   const debates = activities.filter(
     (a) => a.type === "ROAR_DEBATE" || a.type === "ROAR_DEBATE_PARTICIPATE"
   ).length;
-  const predictions = activities.filter((a) => a.type === "ROAR_PREDICTION").length;
+  const predictions = activities.filter(
+    (a) => a.type === "ROAR_PREDICTION" || a.type === "ROAR_PREDICTION_PARTICIPATE"
+  ).length;
   const hotTakes = activities.filter((a) => a.type === "ROAR_HOT_TAKE").length;
   const flashQuiz = activities.filter((a) => a.type === "FLASH_QUIZ").length;
   // Total = all meaningful activity types (excluding internal types)
@@ -669,7 +671,10 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({
   const debatesParticipated = serverCounts["ROAR_DEBATE_PARTICIPATE"] ?? 0;
   const debates             = debatesCreated + debatesParticipated;
 
-  const predictions   = serverCounts["ROAR_PREDICTION"] ?? 0;
+  const predictionsCreated      = serverCounts["ROAR_PREDICTION"] ?? 0;
+  const predictionsParticipated = serverCounts["ROAR_PREDICTION_PARTICIPATE"] ?? 0;
+  const predictions             = predictionsCreated + predictionsParticipated;
+
   const hotTakes       = serverCounts["ROAR_HOT_TAKE"] ?? 0;
   const flashQuiz       = serverCounts["FLASH_QUIZ"] ?? 0;
   const roarMemory       = serverCounts["ROAR_MEMORY"] ?? 0;
@@ -710,7 +715,13 @@ export const ActivityProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // ── Fetch from API ──────────────────────────────────────────────────────────
   const fetchActivities = useCallback(async () => {
-    const userId = user?.userId;
+    const rawUid =
+      user?.actualUserId ||
+      user?.userId ||
+      (user?.email ? user.email.replace(/[@.]/g, "_") : null);
+    const userId = rawUid
+      ? (rawUid.includes("@") || rawUid.includes(".") ? rawUid.replace(/[@.]/g, "_") : rawUid)
+      : null;
     if (!userId) {
       setActivities([]);
       return;
