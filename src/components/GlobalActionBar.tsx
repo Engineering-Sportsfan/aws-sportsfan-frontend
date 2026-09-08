@@ -48,6 +48,12 @@ export default function GlobalActionBar() {
     const res = await axios.post("/api/flipline", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+    if (typeof res.data === "string" && res.data.includes("<html")) {
+      throw new Error("Server returned an invalid HTML response. Please check backend connection.");
+    }
+    if (res.data && res.data.success === false) {
+      throw new Error(res.data.error || "Failed to create post. Please try again.");
+    }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("flipline-post-created"));
     }
