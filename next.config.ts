@@ -55,13 +55,39 @@ const nextConfig = {
           source: "/api/auth/host/:path*",
           destination: `${apiTarget}/api/auth/host/:path*`,
         },
-        // {
-        //   source: "/api/auth/forgot-password",
-        //   destination: `${apiTarget}/api/auth/forgot-password`,
-        // },
         {
           source: "/api/auth/forgot-password/:path*",
           destination: `${apiTarget}/api/auth/forgot-password/:path*`,
+        },
+
+        // ── Static Invite Page Rewrite ──
+        {
+          source: "/MainModules/invite",
+          destination: "/MainModules/invite/index.html",
+        },
+        {
+          source: "/MainModules/invite/",
+          destination: "/MainModules/invite/index.html",
+        },
+
+        // ── FlipLine Rewrites ──
+        {
+          source: "/api/flipline",
+          destination: `${apiTarget}/api/flipline`,
+        },
+        {
+          source: "/api/flipline/:path*",
+          destination: `${apiTarget}/api/flipline/:path*`,
+        },
+
+        // ── Cricket Articles Rewrites ──
+        {
+          source: "/api/cricket-articles",
+          destination: `${apiTarget}/api/cricket-articles`,
+        },
+        {
+          source: "/api/cricket-articles/:path*",
+          destination: `${apiTarget}/api/cricket-articles/:path*`,
         },
       ],
 
@@ -780,6 +806,15 @@ const nextConfig = {
           destination: `${apiTarget}/api/auctions/:path*`,
         },
 
+        // Invite Waitlist (DynamoDB-backed)
+        {
+          source: "/api/invite-waitlist",
+          destination: `${apiTarget}/api/invite-waitlist`,
+        },
+        {
+          source: "/api/invite-waitlist/:path*",
+          destination: `${apiTarget}/api/invite-waitlist/:path*`,
+        },
       ],
     };
   },

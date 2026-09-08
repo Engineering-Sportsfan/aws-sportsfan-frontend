@@ -39,7 +39,7 @@ export default function ROARApp() {
   const containerRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
-   const { authReady } = useAuth();
+   const { authReady, user: authUser } = useAuth();
   const [likingPosts, setLikingPosts] = useState<Set<string>>(new Set());
   const roomRefreshRef = useRef<(() => void) | null>(null);
   const roomReplyUpdateRef = useRef<((postId: string, count: number) => void) | null>(null);
@@ -50,7 +50,13 @@ export default function ROARApp() {
 
   // ── Bootstrap 
   const [mounted, setMounted] = useState(false);
-  const [checkingProfile, setChecking] = useState(true);
+  const [checkingProfile, setChecking] = useState(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get("profileUserId")) return false;
+    }
+    return true;
+  });
   const [onboarded, setOnboarded] = useState(false);
   const [userBadge, setUserBadge] = useState("RISING_FAN");
   const [userSports, setUserSports] = useState<string[]>([]);
@@ -66,8 +72,20 @@ useEffect(() => {
   useEffect(() => {
      if (!authReady) return;
     const checkProfile = async () => {
+      const isViewingProfileDirectly = searchParams.get("profileUserId");
+      if (isViewingProfileDirectly) {
+        setChecking(false);
+        setOnboarded(true);
+      }
       try {
-        const res = await axios.get("/api/roar/profile");
+        const myUid =
+          authUser?.actualUserId ||
+          authUser?.userId ||
+          (authUser?.email ? authUser.email.replace(/[@.]/g, "_") : undefined);
+        const url = myUid
+          ? `/api/roar/profile?userId=${encodeURIComponent(myUid)}`
+          : "/api/roar/profile";
+        const res = await axios.get(url);
         if (res.data?.success) {
           const u = res.data.user;
           setUserBadge(u.badge || "RISING_FAN");
@@ -93,7 +111,7 @@ useEffect(() => {
             hasLocalComplete = localStorage.getItem("roar_v2_complete") === "1";
           } catch { }
 
-          if (completed || hasLocalComplete) {
+          if (completed || hasLocalComplete || isViewingProfileDirectly) {
             try {
               localStorage.setItem("roar_v2_complete", "1");
               localStorage.setItem("roar_badge", u.badge || "RISING_FAN");
@@ -105,36 +123,37 @@ useEffect(() => {
           } else {
             setOnboarded(false);
             setChecking(false);
-            router.replace("/MainModules/HomePage");
+            if (!isViewingProfileDirectly) {
+              router.replace("/MainModules/HomePage");
+            }
           }
         } else {
-          setOnboarded(false);
+          setOnboarded(Boolean(isViewingProfileDirectly));
           setChecking(false);
-          router.replace("/MainModules/HomePage");
+          if (!isViewingProfileDirectly) {
+            router.replace("/MainModules/HomePage");
+          }
         }
       } catch (err: any) {
         const status = err.response?.status;
-        if (status === 404 || status === 401) {
-          setOnboarded(false);
-          setChecking(false);
+        let hasLocal = false; let badge = "RISING_FAN";
+        try {
+          hasLocal = !!localStorage.getItem("roar_v2_complete");
+          badge = localStorage.getItem("roar_badge") || "RISING_FAN";
+        } catch { }
+
+        const allowStay = hasLocal || Boolean(isViewingProfileDirectly);
+        setOnboarded(allowStay);
+        setUserBadge(badge);
+        setChecking(false);
+
+        if (!allowStay && (status === 400 || status === 404 || status === 401 || !hasLocal)) {
           router.replace("/MainModules/HomePage");
-        } else {
-          let hasLocal = false; let badge = "RISING_FAN";
-          try {
-            hasLocal = !!localStorage.getItem("roar_v2_complete");
-            badge = localStorage.getItem("roar_badge") || "RISING_FAN";
-          } catch { }
-          setOnboarded(hasLocal);
-          setUserBadge(badge);
-          setChecking(false);
-          if (!hasLocal) {
-            router.replace("/MainModules/HomePage");
-          }
         }
       }
     };
     checkProfile();
-  }, [authReady, router]);
+  }, [authReady, authUser, router, searchParams]);
 
   useEffect(() => {
     if (phog) {

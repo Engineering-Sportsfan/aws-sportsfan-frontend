@@ -97,6 +97,67 @@ export const fliplineService = {
     }
   },
 
+  /** Fetch scheduled posts for a particular user */
+  fetchScheduledPosts: async (userId?: string, userEmail?: string, author?: string): Promise<FlipCard[]> => {
+    try {
+      const params = new URLSearchParams({ scheduledOnly: "true" });
+      if (userId) params.append("userId", userId);
+      if (userEmail) params.append("email", userEmail);
+      if (author) params.append("author", author);
+
+      const res = await axios.get<{ success: boolean; data: FlipCard[] }>(`/api/flipline?${params.toString()}`);
+      const posts = Array.isArray(res.data?.data) ? res.data.data : [];
+      const now = Date.now();
+      // Strictly filter for scheduled items where scheduledAt is in the future
+      return posts.filter((p) => {
+        const schedTime = Number(p.scheduledAt) || Number(p.scheduledTimeMs);
+        return (p.isScheduled || (schedTime && schedTime > 0)) && schedTime > now;
+      });
+    } catch (err) {
+      console.warn("Failed to fetch scheduled flip cards:", err);
+      return [];
+    }
+  },
+
+  /** Update an existing scheduled FlipLine post */
+  updateScheduledPost: async (sk: string, formDataOrPayload: FormData | any): Promise<FlipCard> => {
+    if (formDataOrPayload instanceof FormData) {
+      if (!formDataOrPayload.has("sk")) {
+        formDataOrPayload.append("sk", sk);
+      }
+      const res = await axios.put<{ success: boolean; error?: string; data: FlipCard }>("/api/flipline", formDataOrPayload, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (res.data && res.data.success === false) {
+        throw new Error(res.data.error || "Failed to update scheduled post");
+      }
+      return res.data.data;
+    } else {
+      const res = await axios.put<{ success: boolean; error?: string; data: FlipCard }>("/api/flipline", {
+        sk,
+        ...formDataOrPayload,
+      });
+      if (res.data && res.data.success === false) {
+        throw new Error(res.data.error || "Failed to update scheduled post");
+      }
+      return res.data.data;
+    }
+  },
+
+  /** Delete a scheduled FlipLine post */
+  deleteScheduledPost: async (sk: string, roomId = "FLIPLINE#ALL"): Promise<boolean> => {
+    try {
+      const res = await axios.delete<{ success: boolean }>("/api/flipline", {
+        data: { sk, roomId },
+        params: { sk, roomId },
+      });
+      return res.data?.success ?? true;
+    } catch (err) {
+      console.error("Failed to delete scheduled post:", err);
+      return false;
+    }
+  },
+
   /** Create a new FlipLine card (includes file upload support) */
   createFlipCard: async (
     card: Omit<FlipCard, "id" | "timeMs">,
