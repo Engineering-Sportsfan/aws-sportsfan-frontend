@@ -236,7 +236,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                             <p style={{ color: "rgba(255,255,255,0.4)", margin: 0, fontSize: 11 }}>Join live rooms with friends</p>
                         </div>
                     </Link>
-                    <button
+                    {/* <button
                         onClick={() => setShowCreateModal(true)}
                         style={{
                             background: "linear-gradient(90deg, #e91e8c, #ff6b35)",
@@ -245,7 +245,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                         }}
                     >
                         + Create
-                    </button>
+                    </button> */}
                 </div>
                 {/* Spacer */}
                 <div style={{ height: 68 }} />

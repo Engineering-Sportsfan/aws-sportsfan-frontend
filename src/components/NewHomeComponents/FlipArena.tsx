@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Poll } from "@/types/Polls";
 import { EngagementItem } from "@/types/engagements";
@@ -938,8 +938,16 @@ export default function FlipArena({
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
 
+  const isFetchingEngagementsRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+
   // Fetch live engagements from backend API
   const fetchEngagements = useCallback(async () => {
+    if (isFetchingEngagementsRef.current || Date.now() - lastFetchTimeRef.current < 4000) {
+      return;
+    }
+    isFetchingEngagementsRef.current = true;
+    lastFetchTimeRef.current = Date.now();
     setLoadingEngagements(true);
     try {
       const liveItems = await engagementService.getEngagements({
@@ -959,6 +967,7 @@ export default function FlipArena({
       setEngagements(FALLBACK_ENGAGEMENTS);
     } finally {
       setLoadingEngagements(false);
+      isFetchingEngagementsRef.current = false;
     }
   }, [selectedSport, activeUserId]);
 

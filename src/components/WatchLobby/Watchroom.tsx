@@ -2651,6 +2651,127 @@ class JitsiErrorBoundary extends Component<{ children: ReactNode }, { hasError: 
     }
 }
 
+/* ── Recording Audio & Video Stream Mixers ── */
+interface CombinedRecordingResult {
+    recordingStream: MediaStream;
+    displayStream: MediaStream;
+    micStream: MediaStream | null;
+    audioContext: AudioContext | null;
+}
+
+function getSupportedRecordingMimeType(): string {
+    const candidates = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+        'video/mp4;codecs=avc1,mp4a.40.2',
+        'video/mp4',
+    ];
+    for (const c of candidates) {
+        if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(c)) {
+            return c;
+        }
+    }
+    return '';
+}
+
+async function createCombinedRecordingStream(): Promise<CombinedRecordingResult> {
+    // 1. Capture screen/window/tab display media
+    const displayStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true, // Captures tab or system audio if shared by user
+    });
+
+    // 2. Capture microphone audio so the speaker's voice is included
+    let micStream: MediaStream | null = null;
+    try {
+        micStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+            },
+            video: false,
+        });
+    } catch (micErr) {
+        console.warn("Microphone access could not be obtained for recording:", micErr);
+    }
+
+    const displayAudioTracks = displayStream.getAudioTracks();
+    const micAudioTracks = micStream ? micStream.getAudioTracks() : [];
+    const finalAudioTracks: MediaStreamTrack[] = [];
+    let audioContext: AudioContext | null = null;
+
+    // 3. Mix display audio and microphone audio using Web Audio API
+    const AudioContextClass = typeof window !== 'undefined'
+        ? (window.AudioContext || (window as any).webkitAudioContext)
+        : null;
+
+    if (AudioContextClass && (displayAudioTracks.length > 0 || micAudioTracks.length > 0)) {
+        try {
+            audioContext = new AudioContextClass();
+            if (audioContext.state === 'suspended') {
+                await audioContext.resume();
+            }
+            const destination = audioContext.createMediaStreamDestination();
+
+            if (displayAudioTracks.length > 0) {
+                const displaySource = audioContext.createMediaStreamSource(new MediaStream([displayAudioTracks[0]]));
+                displaySource.connect(destination);
+            }
+
+            if (micAudioTracks.length > 0) {
+                const micSource = audioContext.createMediaStreamSource(new MediaStream([micAudioTracks[0]]));
+                micSource.connect(destination);
+            }
+
+            const mixedTracks = destination.stream.getAudioTracks();
+            if (mixedTracks.length > 0) {
+                finalAudioTracks.push(mixedTracks[0]);
+            }
+        } catch (ctxErr) {
+            console.warn("AudioContext mixing failed, falling back to direct tracks:", ctxErr);
+            if (micAudioTracks.length > 0) finalAudioTracks.push(micAudioTracks[0]);
+            else if (displayAudioTracks.length > 0) finalAudioTracks.push(displayAudioTracks[0]);
+        }
+    } else {
+        if (micAudioTracks.length > 0) finalAudioTracks.push(micAudioTracks[0]);
+        else if (displayAudioTracks.length > 0) finalAudioTracks.push(displayAudioTracks[0]);
+    }
+
+    const recordingStream = new MediaStream([
+        ...displayStream.getVideoTracks(),
+        ...finalAudioTracks,
+    ]);
+
+    return {
+        recordingStream,
+        displayStream,
+        micStream,
+        audioContext,
+    };
+}
+
+function cleanupRecordingResources(
+    displayStream?: MediaStream | null,
+    micStream?: MediaStream | null,
+    recordingStream?: MediaStream | null,
+    audioContext?: AudioContext | null,
+) {
+    if (displayStream) {
+        displayStream.getTracks().forEach(track => track.stop());
+    }
+    if (micStream) {
+        micStream.getTracks().forEach(track => track.stop());
+    }
+    if (recordingStream) {
+        recordingStream.getTracks().forEach(track => track.stop());
+    }
+    if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close().catch(() => {});
+    }
+}
+
 /* ── Jitsi PiP — Jitsi Meet External API SDK ── */
 function LiveCameraFeed({
     hostName,
@@ -2705,6 +2826,9 @@ function LiveCameraFeed({
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const micStreamRef = useRef<MediaStream | null>(null);
+    const combinedStreamRef = useRef<MediaStream | null>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const isModerator = userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator';
@@ -2798,25 +2922,43 @@ function LiveCameraFeed({
         return `${m}:${s}`;
     }, []);
 
+    const stopCustomRecording = useCallback(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+        }
+        cleanupRecordingResources(
+            streamRef.current,
+            micStreamRef.current,
+            combinedStreamRef.current,
+            audioContextRef.current
+        );
+        streamRef.current = null;
+        micStreamRef.current = null;
+        combinedStreamRef.current = null;
+        audioContextRef.current = null;
+        if (timerIntervalRef.current) {
+            clearInterval(timerIntervalRef.current);
+        }
+    }, []);
+
     const startCustomRecording = useCallback(async (mode: 'local' | 'file') => {
         try {
-            // Request display media for tab/window capture
-            const stream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    displaySurface: "browser",
-                },
-                audio: true
-            });
+            const {
+                recordingStream,
+                displayStream,
+                micStream,
+                audioContext
+            } = await createCombinedRecordingStream();
 
-            streamRef.current = stream;
+            streamRef.current = displayStream;
+            micStreamRef.current = micStream;
+            combinedStreamRef.current = recordingStream;
+            audioContextRef.current = audioContext;
 
-            const options = { mimeType: 'video/webm;codecs=vp9,opus' };
-            let recorder: MediaRecorder;
-            try {
-                recorder = new MediaRecorder(stream, options);
-            } catch (e) {
-                recorder = new MediaRecorder(stream);
-            }
+            const mimeType = getSupportedRecordingMimeType();
+            const recorder = mimeType
+                ? new MediaRecorder(recordingStream, { mimeType })
+                : new MediaRecorder(recordingStream);
 
             const chunks: Blob[] = [];
             recorder.ondataavailable = (e) => {
@@ -2826,14 +2968,21 @@ function LiveCameraFeed({
             };
 
             recorder.onstop = () => {
-                const blob = new Blob(chunks, { type: 'video/webm' });
+                const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
                 setRecordedBlob(blob);
                 setCustomRecordingState('finished');
                 setShowSaveModal(true);
 
-                if (streamRef.current) {
-                    streamRef.current.getTracks().forEach(track => track.stop());
-                }
+                cleanupRecordingResources(
+                    streamRef.current,
+                    micStreamRef.current,
+                    combinedStreamRef.current,
+                    audioContextRef.current
+                );
+                streamRef.current = null;
+                micStreamRef.current = null;
+                combinedStreamRef.current = null;
+                audioContextRef.current = null;
             };
 
             mediaRecorderRef.current = recorder;
@@ -2849,19 +2998,15 @@ function LiveCameraFeed({
                 setRecordingDuration(prev => prev + 1);
             }, 1000);
 
+            if (displayStream.getVideoTracks().length > 0) {
+                displayStream.getVideoTracks()[0].onended = () => {
+                    stopCustomRecording();
+                };
+            }
         } catch (err) {
             console.error("Failed to start custom screen recording:", err);
         }
-    }, []);
-
-    const stopCustomRecording = useCallback(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-        }
-        if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current);
-        }
-    }, []);
+    }, [stopCustomRecording]);
 
     const toggleRecording = useCallback(() => {
         if (customRecordingState === 'recording') {
@@ -4233,10 +4378,19 @@ export default function WatchRoom({ room, onBack }: Props) {
         return () => clearInterval(timer);
     }, []);
 
+    const isFetchingEngagementsRef = useRef(false);
+    const lastEngagementFetchTimeRef = useRef(0);
+    const sessionUserId = (session?.user as any)?.userId || (session?.user as any)?.email;
+
     // Real-time sync with backend Engagements (FlipArena / Admin panel questions)
     const fetchLiveEngagements = useCallback(async () => {
+        if (isFetchingEngagementsRef.current || Date.now() - lastEngagementFetchTimeRef.current < 4000) {
+            return;
+        }
+        isFetchingEngagementsRef.current = true;
+        lastEngagementFetchTimeRef.current = Date.now();
         try {
-            const currentUserId = authUser?.userId || (session?.user as any)?.userId;
+            const currentUserId = authUser?.userId || sessionUserId;
             const items = await engagementService.getEngagements({
                 status: "active",
                 userId: currentUserId || undefined,
@@ -4246,11 +4400,13 @@ export default function WatchRoom({ room, onBack }: Props) {
             }
         } catch (err) {
             console.error("Error fetching live engagements in WatchRoom:", err);
+        } finally {
+            isFetchingEngagementsRef.current = false;
         }
-    }, [authUser?.userId, session?.user]);
+    }, [authUser?.userId, sessionUserId]);
 
     // Track boundary checks when a quiz's questions finish to prevent redundant fetches
-    const lastCheckedEndQuizId = useRef<string | null>(null);
+    const checkedEndQuizKeysRef = useRef<Set<string>>(new Set());
 
     // Fetch once on mount + on tab visibility change (0 continuous polling reads)
     useEffect(() => {
@@ -4295,8 +4451,8 @@ export default function WatchRoom({ room, onBack }: Props) {
                 // check ONCE if the admin added more questions to this quiz
                 if (currentIndex >= questionList.length) {
                     const checkKey = `${e.id}_count_${questionList.length}`;
-                    if (lastCheckedEndQuizId.current !== checkKey) {
-                        lastCheckedEndQuizId.current = checkKey;
+                    if (!checkedEndQuizKeysRef.current.has(checkKey)) {
+                        checkedEndQuizKeysRef.current.add(checkKey);
                         fetchLiveEngagements();
                     }
                 }
@@ -4529,15 +4685,49 @@ export default function WatchRoom({ room, onBack }: Props) {
     const [micOn, setMicOn] = useState(true);
     const [vidOn, setVidOn] = useState(true);
 
-    // Custom recording state
+    // Custom recording state with mixed audio capture (Mic + System/Tab Audio)
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordedChunksRef = useRef<Blob[]>([]);
+    const recordingDisplayStreamRef = useRef<MediaStream | null>(null);
+    const recordingMicStreamRef = useRef<MediaStream | null>(null);
+    const recordingCombinedStreamRef = useRef<MediaStream | null>(null);
+    const recordingAudioContextRef = useRef<AudioContext | null>(null);
+
+    const stopRecording = useCallback(() => {
+        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+            mediaRecorderRef.current.stop();
+        }
+        cleanupRecordingResources(
+            recordingDisplayStreamRef.current,
+            recordingMicStreamRef.current,
+            recordingCombinedStreamRef.current,
+            recordingAudioContextRef.current
+        );
+        recordingDisplayStreamRef.current = null;
+        recordingMicStreamRef.current = null;
+        recordingCombinedStreamRef.current = null;
+        recordingAudioContextRef.current = null;
+    }, []);
 
     const startRecording = async () => {
         try {
-            const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+            const {
+                recordingStream,
+                displayStream,
+                micStream,
+                audioContext
+            } = await createCombinedRecordingStream();
+
+            recordingDisplayStreamRef.current = displayStream;
+            recordingMicStreamRef.current = micStream;
+            recordingCombinedStreamRef.current = recordingStream;
+            recordingAudioContextRef.current = audioContext;
+
+            const mimeType = getSupportedRecordingMimeType();
+            const mediaRecorder = mimeType
+                ? new MediaRecorder(recordingStream, { mimeType })
+                : new MediaRecorder(recordingStream);
 
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
@@ -4549,7 +4739,18 @@ export default function WatchRoom({ room, onBack }: Props) {
                 // Instantly update the UI so the button reverts to "Record Session"
                 setIsRecording(false);
 
-                const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
+                cleanupRecordingResources(
+                    recordingDisplayStreamRef.current,
+                    recordingMicStreamRef.current,
+                    recordingCombinedStreamRef.current,
+                    recordingAudioContextRef.current
+                );
+                recordingDisplayStreamRef.current = null;
+                recordingMicStreamRef.current = null;
+                recordingCombinedStreamRef.current = null;
+                recordingAudioContextRef.current = null;
+
+                const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
 
                 // Alert the user that the background upload is starting
                 alert("Recording stopped! Uploading to Google Drive in the background...");
@@ -4583,19 +4784,14 @@ export default function WatchRoom({ room, onBack }: Props) {
             setIsRecording(true);
 
             // Stop recording when user stops sharing via browser bar
-            stream.getVideoTracks()[0].onended = () => {
-                stopRecording();
-            };
+            if (displayStream.getVideoTracks().length > 0) {
+                displayStream.getVideoTracks()[0].onended = () => {
+                    stopRecording();
+                };
+            }
         } catch (err) {
             console.error("Error starting screen record:", err);
             alert("Could not start screen recording.");
-        }
-    };
-
-    const stopRecording = () => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-            mediaRecorderRef.current.stop();
-            mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
         }
     };
 
