@@ -4189,7 +4189,7 @@ function WatchRoomEngagementDialog({
                                     {quizResult?.isCorrect ? (
                                         <span>Correct! You earned {quizResult?.pointsEarned || pointsReward} PTS</span>
                                     ) : (
-                                        <span>{explanation || `Incorrect. Correct answer is ${correctOptionId}`}</span>
+                                        <span>Incorrect! Better luck next time</span>
                                     )}
                                 </div>
                             )}
@@ -4845,6 +4845,8 @@ function QuizLeaderboardDialog({
 
 /* ── EXPERTS OVERLAY DIALOG ── */
 function ExpertsDialog({ onClose }: { onClose: () => void }) {
+    const visibleExperts = EXPERT_USERNAMES.filter(name => name !== "Anand Vasu");
+
     return (
         <div
             onClick={(e) => {
@@ -4861,7 +4863,7 @@ function ExpertsDialog({ onClose }: { onClose: () => void }) {
                             <span>Expert Commentators</span>
                         </span>
                         <span className="text-[9px] font-bold text-gray-400 bg-white/5 border border-white/10 px-1.5 py-0.2 rounded-full">
-                            {EXPERT_USERNAMES.length}
+                            {visibleExperts.length}
                         </span>
                     </div>
                     <button
@@ -4876,7 +4878,7 @@ function ExpertsDialog({ onClose }: { onClose: () => void }) {
 
                 {/* Body: Experts Name & Images */}
                 <div className="p-3 flex flex-col gap-2 bg-[#0e111a]">
-                    {EXPERT_USERNAMES.map((name) => (
+                    {visibleExperts.map((name) => (
                         <div
                             key={name}
                             className="rounded-xl bg-[#141724] border border-white/5 p-2.5 flex items-center gap-3 select-none"
