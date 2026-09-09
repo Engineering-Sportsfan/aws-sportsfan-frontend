@@ -2075,6 +2075,98 @@ const [expertFlipLoading, setExpertFlipLoading] = useState(false);
           return;
         }
 
+        // ── 0.1 Check if viewing an expert profile ───────────────────────
+        const expertName =
+          getExpertCanonicalName(viewingProfile) ||
+          getExpertCanonicalName(fanData?.username) ||
+          getExpertCanonicalName(fanData?.displayName) ||
+          getExpertCanonicalName(fanData?.userId) ||
+          (fanData?.isExpert ? fanData.username : null);
+
+        if (expertName) {
+          const expertAvatar = EXPERT_AVATARS[expertName] || "/images/dolly.png";
+          const expertBio = EXPERT_BIOS[expertName] || "SportsFan360 Expert Commentator & Analyst";
+          const expertRole = EXPERT_ROLES[expertName] || "Expert";
+
+          setProfileMetadata({
+            user: {
+              username: expertName,
+              displayName: expertName,
+              avatarUrl: expertAvatar,
+              avatar: expertAvatar,
+              about: expertBio,
+              badge: expertRole,
+              isExpert: true,
+              role: expertRole,
+              favPlayer: "All Stars",
+              predictions: [],
+              hotTakes: [],
+              debates: [],
+              posts: [],
+              activityCounts: { ROAR_POST: 0 },
+            },
+            rival: null,
+            predictions: [],
+            hotTakes: [],
+            debates: [],
+            posts: [],
+          });
+          setUserBadge?.(expertRole);
+          setSelectedAvatar(expertAvatar);
+          setLoading(false);
+
+          // Asynchronously query flipline to get cards for this expert
+          try {
+            setExpertFlipLoading(true);
+            const actRes = await axios.get("/api/flipline");
+            const allCards = Array.isArray(actRes.data?.data) ? actRes.data.data : [];
+            const matchedCards = allCards.filter((c: any) => {
+              const authorCanon = getExpertCanonicalName(c.author) || getExpertCanonicalName(c.source);
+              return authorCanon === expertName;
+            });
+
+            setExpertFlipCards(matchedCards);
+
+            if (matchedCards.length > 0) {
+              const mappedCardActivities = matchedCards.map((c: any, i: number) => ({
+                id: c.id || `flipline_card_${i}`,
+                type: "ROAR_POST",
+                label: c.content,
+                createdAt: c.timeMs || (c.createdAt ? Number(c.createdAt) || Date.parse(c.createdAt) : Date.now()),
+                metadata: {
+                  statement: c.content,
+                  roomName: c.source || "FlipLine",
+                },
+                likes: c.likes || 0,
+                commentsCount: c.commentsCount || (c.comments ? c.comments.length : 0),
+              }));
+
+              setFetchedActivities(mappedCardActivities);
+              setActivityCounts({ ROAR_POST: mappedCardActivities.length });
+              setProfileMetadata((prev: any) => ({
+                ...prev,
+                posts: mappedCardActivities.map((a: any) => ({
+                  id: a.id,
+                  content: a.label || a.metadata?.statement,
+                  createdAt: a.createdAt,
+                  type: "post",
+                  likes: a.likes,
+                })),
+                user: {
+                  ...prev?.user,
+                  activityCounts: { ROAR_POST: mappedCardActivities.length },
+                },
+              }));
+            }
+          } catch {
+            // Silently keep empty if flipline fails
+          } finally {
+            setExpertFlipLoading(false);
+          }
+
+          return;
+        }
+
         if (!isOtherProfile) {
           const profileQuery = loggedInUserId ? `?userId=${encodeURIComponent(loggedInUserId)}` : "";
           const res = await axios.get(`/api/roar/profile${profileQuery}`, { withCredentials: true });

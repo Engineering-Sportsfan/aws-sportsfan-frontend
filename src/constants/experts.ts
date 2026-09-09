@@ -19,8 +19,8 @@ export const EXPERT_ROLES: Record<string, string> = {
 
 export const EXPERT_AVATARS: Record<string, string> = {
   "Anand Vasu": "/images/anandvasu.jpeg",
-  // "Gaurav Kalra": "...",
-  // "G Rajaraman": "...",
+  "Gaurav Kalra": "/images/gauravkalra.jpeg",   
+  "G Rajaraman": "/images/grajaraman.jpeg",
 };
 
 export const EXPERT_TAGS: Record<string, string[]> = {

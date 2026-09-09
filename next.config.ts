@@ -89,6 +89,16 @@ const nextConfig = {
           source: "/api/cricket-articles/:path*",
           destination: `${apiTarget}/api/cricket-articles/:path*`,
         },
+
+        // ── FlipLong Rewrites ──
+        {
+          source: "/api/flipLong",
+          destination: `${apiTarget}/api/flipLong`,
+        },
+        {
+          source: "/api/flipLong/:path*",
+          destination: `${apiTarget}/api/flipLong/:path*`,
+        },
       ],
 
       afterFiles: [

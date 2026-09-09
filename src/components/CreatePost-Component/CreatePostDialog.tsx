@@ -423,6 +423,8 @@ export default function CreatePostDialog({
         year: "numeric",
       });
 
+      const userTitle = (user?.title || (user as any)?.title || "").trim() || "post";
+
       formData.append("userId", userId);
       formData.append("author", userName);
       formData.append("userName", userName);
@@ -430,7 +432,7 @@ export default function CreatePostDialog({
       formData.append("userHandle", `@${userName.replace(/\s+/g, "").toLowerCase()}`);
       formData.append("content", content.trim());
       formData.append("sport", sport);
-      formData.append("type", "post");
+      formData.append("type", userTitle);
       formData.append("source", "FlipLine");
       formData.append("likes", "0");
       formData.append("isKey", "false");
@@ -470,6 +472,16 @@ export default function CreatePostDialog({
       if (adminPhoto) {
         formData.append("adminPhoto", adminPhoto);
         formData.append("authorPhoto", adminPhoto);
+      }
+
+      const isVerified =
+        (user as any)?.isVerified === true ||
+        (user as any)?.verifiedFlipLineAdmin === true ||
+        user?.role === "FlipLineAdmin" ||
+        user?.role === "Admin" ||
+        user?.role === "SuperAdmin";
+      if (isVerified) {
+        formData.append("isVerified", "true");
       }
 
       mediaList.forEach((item) => {
@@ -612,6 +624,7 @@ export default function CreatePostDialog({
               </div>
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
                 {[
+                  { id: "general", label: "General", emoji: "📢" },
                   { id: "cricket", label: "Cricket", emoji: "🏏" },
                   { id: "football", label: "Football", emoji: "⚽" },
                   { id: "athletics", label: "Athletics", emoji: "🏃" },
