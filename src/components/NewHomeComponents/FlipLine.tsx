@@ -1310,11 +1310,11 @@ export function FlipCardItem({
                       BOT
                     </span>
                   ) : (
-                    card.isVerified && (
+                    (card.isVerified === true || String(card.isVerified) === 'true') ? (
                       <span
                         className="inline-flex items-center justify-center bg-[#1d9bf0] text-white rounded-full shrink-0"
                         style={{ width: 14, height: 14 }}
-                        title="Verified Admin"
+                        title="Verified"
                       >
                         <svg
                           className="w-2.5 h-2.5 fill-none stroke-current"
@@ -1326,7 +1326,7 @@ export function FlipCardItem({
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       </span>
-                    )
+                    ) : null
                   )}
                   {card.type !== 'bot' && displayHandle && (
                     <span
@@ -1348,7 +1348,7 @@ export function FlipCardItem({
                       color: card.type === 'bot' ? 'rgb(96, 165, 250)' : themeColor,
                     }}
                   >
-                    {/* {card.type === 'bot' ? 'Live Updates' : themeLabel} */}
+                    {card.type === 'bot' ? 'Live Updates' : themeLabel}
                   </span>
                 </div>
               </div>
