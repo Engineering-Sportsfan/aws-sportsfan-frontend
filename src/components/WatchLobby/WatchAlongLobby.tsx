@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useAuth } from "@/context/AuthContext";
+import { EXPERT_USERNAMES, EXPERT_AVATARS, EXPERT_ROLES, EXPERT_TAGS } from "@/src/constants/experts";
 import LiveTicker from "@/src/components/Ticker/LiveTicker";
 type Props = {
     onEnterRoom: (roomId: string) => void;
@@ -217,7 +218,8 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                     style={{
                         position: "fixed", top: 0, right: 0, zIndex: 200,
                         display: "flex", alignItems: "center", justifyContent: "space-between",
-                        padding: "14px 16px 12px",
+                        height: 56,
+                        padding: "0 16px",
                         background: "rgba(0,0,0,0.95)", backdropFilter: "blur(20px)",
                         borderBottom: "1px solid rgba(255,255,255,0.06)",
                         transition: "left 0.3s ease-out",
@@ -225,15 +227,15 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                 >
                     <Link href="/MainModules/HomePage" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "white" }}>
                         <button style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}>
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M15 18l-6-6 6-6" />
                             </svg>
                         </button>
                         <div>
-                            <h3 style={{ color: "white", margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "0.01em", lineHeight: 1.2 }}>
+                            <h3 style={{ color: "white", margin: 0, fontSize: 16, fontWeight: 700, letterSpacing: "0.01em", lineHeight: 1.2 }}>
                                 📺 Watch Along
                             </h3>
-                            <p style={{ color: "rgba(255,255,255,0.4)", margin: 0, fontSize: 11 }}>Join live rooms with friends</p>
+                            <p style={{ color: "rgba(255,255,255,0.4)", margin: 0, fontSize: 10.5 }}>Join live rooms with friends</p>
                         </div>
                     </Link>
                     {/* <button
@@ -248,7 +250,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                     </button> */}
                 </div>
                 {/* Spacer */}
-                <div style={{ height: 68 }} />
+                <div style={{ height: 56 }} />
 
                 {/* Global Live Ticker */}
                 {/* <div className="w-full mb-4">
@@ -256,12 +258,12 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                 </div> */}
 
                 {/* Filter pills */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-1 mt-3 mb-5" style={{ scrollbarWidth: "none" }}>
-                    {["ALL", "LIVE", "Cricket", "Football"].map((tag, i) => (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 mt-2.5 mb-3" style={{ scrollbarWidth: "none" }}>
+                    {["ALL", "LIVE"].map((tag, i) => (
                         <button
                             key={tag}
                             onClick={() => setActiveTab(i)}
-                            className="shrink-0 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all cursor-pointer"
+                            className="shrink-0 px-3.5 py-1 rounded-full text-[12px] font-semibold transition-all cursor-pointer"
                             style={{
                                 background: activeTab === i ? (tag === "ALL" ? "linear-gradient(90deg,#e91e8c,#ff6b35)" : "#1e1e1e") : "#1a1a1a",
                                 border: activeTab === i && tag !== "ALL" ? "1px solid rgba(255,255,255,0.2)" : "1px solid transparent",
@@ -320,12 +322,12 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
 
                 {/* LIVE NOW */}
                 {liveRooms.length > 0 && (
-                    <div className="mb-8">
-                        <div className="flex items-center gap-2 mb-4">
+                    <div className="mb-3">
+                        <div className="flex items-center gap-1.5 mb-1.5">
                             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                             <span className="text-[11px] font-black uppercase tracking-widest text-gray-400">Live Now</span>
                         </div>
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2.5">
                             {liveRooms.map(room => (
                                 <ExpertCard
                                     key={room.id}
@@ -341,14 +343,86 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                     </div>
                 )}
 
+                {/* EXPERTS */}
+                <div className="mb-5">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-sm">🎙️</span>
+                            <span className="text-[11px] font-black uppercase tracking-widest text-gray-300">
+                                Expert Commentators
+                            </span>
+                        </div>
+                        <span className="text-[10px] font-bold text-gray-500">
+                            {EXPERT_USERNAMES.length} Experts
+                        </span>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                        {EXPERT_USERNAMES.map((name) => (
+                            <Link
+                                key={name}
+                                href={`/MainModules/Profile?userId=${encodeURIComponent(name)}`}
+                                className="rounded-xl overflow-hidden bg-[#141414] border border-white/5 px-3 py-2.5 flex items-center justify-between gap-3 hover:bg-[#1a1a1a] hover:border-white/10 transition-all group shadow-sm cursor-pointer"
+                            >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                    <div className="w-10 h-10 rounded-full border border-white/10 bg-[#2a2a2a] overflow-hidden shrink-0 shadow-md">
+                                        {EXPERT_AVATARS[name] ? (
+                                            <img
+                                                src={EXPERT_AVATARS[name]}
+                                                alt={name}
+                                                className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                                                onError={(e) => {
+                                                    (e.currentTarget as HTMLElement).style.display = "none";
+                                                    const parent = e.currentTarget.parentElement;
+                                                    const fallback = parent?.querySelector(".expert-fallback") as HTMLElement;
+                                                    if (fallback) fallback.style.display = "flex";
+                                                }}
+                                            />
+                                        ) : null}
+                                        <div className={`expert-fallback w-full h-full ${EXPERT_AVATARS[name] ? "hidden" : "flex"} items-center justify-center text-white font-black text-xs bg-gradient-to-br from-pink-600 to-orange-500`}>
+                                            {name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                                        </div>
+                                    </div>
+
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex items-center gap-1.5">
+                                            <p className="text-white font-bold text-[13px] truncate group-hover:text-pink-400 transition-colors">
+                                                {name}
+                                            </p>
+                                            <span className="text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full bg-pink-500/15 text-pink-400 border border-pink-500/30">
+                                                EXPERT
+                                            </span>
+                                        </div>
+                                        <p className="text-gray-400 text-[10.5px] truncate mt-0.5">
+                                            {EXPERT_ROLES[name]}
+                                        </p>
+                                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                            {(EXPERT_TAGS[name] || []).slice(0, 3).map(tag => (
+                                                <span key={tag} className="text-[8.5px] px-1.5 py-0.5 rounded-full bg-white/8 text-gray-300 border border-white/5">
+                                                    {tag}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="shrink-0 flex items-center gap-1 text-[11px] font-bold text-gray-400 group-hover:text-white transition-colors pl-2">
+                                    <span>Profile</span>
+                                    <span className="group-hover:translate-x-0.5 transition-transform">→</span>
+                                </div>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+
                 {/* UPCOMING */}
                 {upcomingRooms.length > 0 && (
-                    <div className="mb-8">
-                        <div className="flex items-center gap-2 mb-4">
+                    <div className="mb-5">
+                        <div className="flex items-center gap-1.5 mb-2">
                             <span className="text-[11px]">🗓️</span>
                             <span className="text-[11px] font-black uppercase tracking-widest text-gray-400">Upcoming</span>
                         </div>
-                        <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-2.5">
                             {upcomingRooms.map(room => (
                                 <ExpertCard
                                     key={room.id}
@@ -513,37 +587,37 @@ function ExpertCard({
     return (
         <div className="rounded-2xl overflow-hidden bg-[#141414] border border-white/5 flex flex-col">
             {/* Gradient banner */}
-            <div className="relative px-4 pt-4 pb-4 flex-1" style={{ background: gradient }}>
+            <div className="relative px-3.5 pt-3 pb-3 flex-1" style={{ background: gradient }}>
                 <button
                     onClick={(e) => { e.stopPropagation(); onShare(); }}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/20 flex items-center justify-center animate-fade-in"
+                    className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/20 flex items-center justify-center animate-fade-in hover:bg-black/40 transition-colors"
                     aria-label="Share"
                 >
-                    <Share2 size={15} className="text-white/80" />
+                    <Share2 size={13} className="text-white/80" />
                 </button>
-                {isLive && (
-                    <span className="absolute top-3 left-4 bg-[#22c55e] text-white text-[10px] font-black px-2.5 py-0.5 rounded-full tracking-wide uppercase">
+                {/* {isLive && (
+                    <span className="absolute top-2.5 left-3 bg-[#22c55e] text-white text-[9px] font-black px-2 py-0.5 rounded-full tracking-wide uppercase">
                         ● LIVE
                     </span>
-                )}
-                <div className="mt-7 flex items-center gap-3">
-                    <span className="text-3xl shrink-0 select-none">{bannerIcon}</span>
+                )} */}
+                <div className="mt-4 flex items-center gap-2.5">
+                    {/* <span className="text-2xl shrink-0 select-none">{bannerIcon}</span> */}
                     <div className="min-w-0">
-                        <p className="text-white font-black text-[16px] leading-snug pr-10">{cardTitle}</p>
-                        <p className="text-white/70 text-[12px] mt-0.5">{cardSubtitle}</p>
+                        <p className="text-white font-black text-[15px] leading-snug pr-8">{cardTitle}</p>
+                        <p className="text-white/70 text-[11px] mt-0.5 line-clamp-1">{cardSubtitle}</p>
                     </div>
                 </div>
             </div>
 
             {/* Host info row */}
-            <div className="bg-[#1c1c1c] border-t border-white/5 px-3 py-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
+            <div className="bg-[#1c1c1c] border-t border-white/5 px-3 py-2 flex items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5 min-w-0">
                     {/* Avatar */}
-                    <div className="w-10 h-10 rounded-full border border-white/10 bg-[#2a2a2a] flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
+                    <div className="w-8 h-8 rounded-full border border-white/10 bg-[#2a2a2a] flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
                         {room.displayPicture ? (
                             <img src={room.displayPicture} alt={cleanHostName} className="w-full h-full object-cover rounded-full" />
                         ) : (
-                            <span className="text-white font-bold text-sm">
+                            <span className="text-white font-bold text-xs">
                                 {cleanHostName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
                             </span>
                         )}
@@ -551,24 +625,24 @@ function ExpertCard({
 
                     <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wider">HOST</span>
-                            <span className="text-white font-bold text-[13px] truncate">{cleanHostName}</span>
-                            <span className="text-gray-600 text-[11px]">|</span>
-                            <span className="text-[11px] text-gray-400 font-medium">👥 {formatNumber(room.watching)} watching</span>
+                            <span className="text-[9px] text-gray-500 font-extrabold uppercase tracking-wider">HOST</span>
+                            <span className="text-white font-bold text-[12px] truncate">{cleanHostName}</span>
+                            {/* <span className="text-gray-600 text-[10px]">|</span> */}
+                            {/* <span className="text-[10.5px] text-gray-400 font-medium">👥 {formatNumber(room.watching)} watching</span> */}
                         </div>
-                        <div className="flex items-center gap-1 mt-1 flex-wrap">
+                        {/* <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                             {tags.map(tag => (
-                                <span key={tag} className="text-[10px] px-2 py-0.5 rounded-full bg-white/8 text-gray-300 border border-white/5">
+                                <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/8 text-gray-300 border border-white/5">
                                     {tag}
                                 </span>
                             ))}
-                        </div>
+                        </div> */}
                     </div>
                 </div>
 
                 <button
                     onClick={onEnter}
-                    className="shrink-0 px-5 py-2 rounded-full text-white text-[12px] font-black transition-all cursor-pointer active:scale-95 hover:opacity-90 shadow-md"
+                    className="shrink-0 px-4 py-1.5 rounded-full text-white text-[11px] font-black transition-all cursor-pointer active:scale-95 hover:opacity-90 shadow-md"
                     style={isLive
                         ? { background: "linear-gradient(90deg, #e91e8c, #ff6b35)" }
                         : { background: "#222", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }

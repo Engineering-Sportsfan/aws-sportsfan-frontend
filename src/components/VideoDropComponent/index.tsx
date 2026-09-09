@@ -506,13 +506,13 @@ export default function VideoDropCard() {
 
           {/* Send Signal - Responsive button */}
           {/* <button className="w-full bg-[#1a1a1a] border border-[#888888] rounded-[12px] sm:rounded-[14px] py-[20px] pb-[30px] sm:py-[15px] md:py-[20px] flex items-center justify-center gap-1.5 sm:gap-2 text-[#888888] text-[13px] sm:text-[15px] md:text-[16px] font-medium hover:bg-[#222222] transition cursor-pointer"> */}
-          <button className="w-full bg-[#1a1a1a] mb-10 border border-[#888888] rounded-[12px] sm:rounded-[14px] py-[14px] sm:py-[15px] md:py-[16px] flex items-center justify-center gap-1.5 sm:gap-2 text-[#888888] text-[13px] sm:text-[15px] md:text-[16px] font-medium hover:bg-[#222222] transition cursor-pointer">
+          {/* <button className="w-full bg-[#1a1a1a] mb-10 border border-[#888888] rounded-[12px] sm:rounded-[14px] py-[14px] sm:py-[15px] md:py-[16px] flex items-center justify-center gap-1.5 sm:gap-2 text-[#888888] text-[13px] sm:text-[15px] md:text-[16px] font-medium hover:bg-[#222222] transition cursor-pointer">
             <svg className="w-[14px] h-[14px] sm:w-[17px] sm:h-[17px]" viewBox="0 0 17 17" fill="none">
               <path d="M8.5 1.5C5.5 1.5 3 3.8 3 6.5c0 1.4.6 2.6 1.7 3.5L4 14l3.2-1.1c.4.1.8.1 1.3.1C11.5 13 14 10.7 14 8s-2.5-6.5-5.5-6.5z" stroke="#888888" strokeWidth="1.3" strokeLinejoin="round" />
               <path d="M6 8h5M8.5 5.5v5" stroke="#888888" strokeWidth="1.3" strokeLinecap="round" />
             </svg>
             Send Signal
-          </button>
+          </button> */}
         </div>
       </div>
     </div>

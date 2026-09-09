@@ -2578,9 +2578,10 @@ import ConfettiWrapper from "./ConfettiWrapper";
 import Telestrator, { Stroke } from "./Telestrator";
 // Live camera feed via native getUserMedia API
 import Link from "next/link";
-import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown, TrendingUp, Flame, MoreHorizontal, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, MessageSquare, Users, Check, XCircle } from "lucide-react";
+import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown, TrendingUp, Flame, MoreHorizontal, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, MessageSquare, Users, Check, XCircle, Trophy, RotateCw, Search, Medal } from "lucide-react";
 import { engagementService } from "@/services/engagement.service";
 import { EngagementItem } from "@/types/engagements";
+import { EXPERT_USERNAMES, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 
 const JitsiMeeting = dynamic<any>(
     () =>
@@ -3766,6 +3767,7 @@ interface WatchRoomEngagementDialogProps {
     userId?: string;
     submitQuizAnswer?: any;
     votePrediction?: any;
+    onQuizPerformed?: () => void;
 }
 
 function WatchRoomEngagementDialog({
@@ -3780,6 +3782,7 @@ function WatchRoomEngagementDialog({
     userId,
     submitQuizAnswer,
     votePrediction,
+    onQuizPerformed,
 }: WatchRoomEngagementDialogProps) {
     // Timer computed from persistent expiry timestamp
     const [timeLeft, setTimeLeft] = useState(() => {
@@ -3845,6 +3848,7 @@ function WatchRoomEngagementDialog({
                             pointsEarned: pointsReward,
                             correctAnswer: correctOptionId,
                         });
+                        onQuizPerformed?.();
                     } else if (type === 'polls') {
                         setPollSelected(res.selectedOptionId);
                         setPollVoted(true);
@@ -3917,6 +3921,7 @@ function WatchRoomEngagementDialog({
         if (question?.id) {
             onAnswer(question.id, question.key);
         }
+        onQuizPerformed?.();
 
         const isRightImmediate =
             optId.toUpperCase() === correctOptionId.toUpperCase() ||
@@ -4289,6 +4294,637 @@ function WatchRoomEngagementDialog({
     );
 }
 
+/* ── QUIZ LEADERBOARD OVERLAY DIALOG ── */
+interface QuizLeaderboardDialogProps {
+    onClose: () => void;
+    room?: any;
+    currentUserId?: string;
+    currentUserName?: string;
+    currentUserEmail?: string;
+    activeQuizEngagementId?: string;
+}
+
+function LeaderboardAvatar({
+    avatar,
+    username,
+    alt,
+    placeholderOnly = false,
+}: {
+    avatar?: string;
+    username: string;
+    alt?: string;
+    placeholderOnly?: boolean;
+}) {
+    const [imgError, setImgError] = useState(false);
+
+    const getInitials = (name: string) => {
+        if (!name) return "SF";
+        const parts = name.trim().split(" ");
+        if (parts.length >= 2) {
+            return (parts[0][0] + parts[1][0]).toUpperCase();
+        }
+        return name.slice(0, 2).toUpperCase();
+    };
+
+    const getAvatarBg = (name: string) => {
+        const bgList = [
+            "bg-gradient-to-br from-amber-600 to-yellow-600",
+            "bg-gradient-to-br from-purple-600 to-indigo-600",
+            "bg-gradient-to-br from-pink-600 to-rose-600",
+            "bg-gradient-to-br from-blue-600 to-cyan-600",
+            "bg-gradient-to-br from-emerald-600 to-teal-600",
+            "bg-gradient-to-br from-orange-600 to-red-600",
+        ];
+        let hash = 0;
+        for (let i = 0; i < (name || "").length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        return bgList[Math.abs(hash) % bgList.length];
+    };
+
+    if (!placeholderOnly && avatar && !imgError) {
+        return (
+            <img
+                src={avatar}
+                alt={alt || username || "User"}
+                className="w-full h-full object-cover rounded-full"
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
+            />
+        );
+    }
+
+    return (
+        <div className={`w-full h-full rounded-full ${getAvatarBg(username)} flex items-center justify-center font-black text-white select-none`}>
+            {getInitials(username)}
+        </div>
+    );
+}
+
+function QuizLeaderboardDialog({
+    onClose,
+    room,
+    currentUserId,
+    currentUserName,
+    currentUserEmail,
+    activeQuizEngagementId,
+}: QuizLeaderboardDialogProps) {
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [totalParticipants, setTotalParticipants] = useState<number>(0);
+
+    const fetchLeaderboard = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            const params = new URLSearchParams();
+            if (activeQuizEngagementId) params.append("engagementId", activeQuizEngagementId);
+            if (room?.liveMatchId) params.append("matchId", room.liveMatchId);
+            if (room?.id) params.append("roomId", room.id);
+            const qs = params.toString();
+            const endpoint = `/api/engagements/quiz/leaderboard${qs ? `?${qs}` : ""}`;
+
+            let res: any;
+            try {
+                res = await axios.get(endpoint);
+            } catch (firstErr: any) {
+                if (qs) {
+                    res = await axios.get("/api/engagements/quiz/leaderboard");
+                } else {
+                    throw firstErr;
+                }
+            }
+
+            const resData = res?.data;
+            let rawList: any[] = [];
+            if (Array.isArray(resData)) {
+                rawList = resData;
+            } else if (Array.isArray(resData?.leaderboard)) {
+                rawList = resData.leaderboard;
+            } else if (Array.isArray(resData?.data?.entries)) {
+                rawList = resData.data.entries;
+            } else if (Array.isArray(resData?.data?.leaderboard)) {
+                rawList = resData.data.leaderboard;
+            } else if (Array.isArray(resData?.data)) {
+                rawList = resData.data;
+            } else if (Array.isArray(resData?.entries)) {
+                rawList = resData.entries;
+            } else if (Array.isArray(resData?.participants)) {
+                rawList = resData.participants;
+            } else if (Array.isArray(resData?.allParticipants)) {
+                rawList = resData.allParticipants;
+            }
+
+            const normalized = rawList.map((entry: any, index: number) => {
+                const username =
+                    entry.userName ||
+                    entry.username ||
+                    entry.name ||
+                    entry.displayName ||
+                    entry.user?.userName ||
+                    entry.user?.name ||
+                    entry.user?.username ||
+                    (entry.userEmail ? entry.userEmail.split("@")[0] : `Fan ${index + 1}`);
+                const points = Number(entry.totalPoints ?? entry.points ?? entry.score ?? entry.pts ?? 0);
+                const userId =
+                    entry.userId ||
+                    entry.id ||
+                    entry._id ||
+                    entry.user?.id ||
+                    entry.user?._id ||
+                    entry.userEmail ||
+                    String(index);
+                const avatar =
+                    entry.userAvatar ||
+                    entry.avatar ||
+                    entry.image ||
+                    entry.displayPicture ||
+                    entry.user?.userAvatar ||
+                    entry.user?.avatar ||
+                    entry.user?.image ||
+                    "";
+                const correctCount = entry.correctCount ?? entry.correctAnswers ?? entry.correct;
+                const totalCount = entry.totalAnswered ?? entry.totalQuestions ?? entry.totalAnswers ?? entry.total;
+                const accuracy = entry.accuracy;
+                const isCurrent = Boolean(
+                    (currentUserId && (userId === currentUserId || entry.user === currentUserId || entry.userEmail === currentUserId)) ||
+                    (currentUserName && (username.toLowerCase() === currentUserName.toLowerCase() || entry.userEmail?.toLowerCase() === currentUserName.toLowerCase())) ||
+                    (currentUserEmail && entry.userEmail && entry.userEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
+                    entry.isCurrentUser ||
+                    (resData?.currentUser && (userId === resData.currentUser.userId || username === resData.currentUser.userName))
+                );
+                return {
+                    userId,
+                    username,
+                    points,
+                    rank: Number(entry.rank || index + 1),
+                    avatar,
+                    correctCount,
+                    totalCount,
+                    accuracy,
+                    isCurrent,
+                };
+            });
+
+            // Sort descending by points
+            normalized.sort((a, b) => {
+                if (b.points !== a.points) return b.points - a.points;
+                return a.rank - b.rank;
+            });
+
+            // Assign ranks sequentially
+            normalized.forEach((item, idx) => {
+                item.rank = idx + 1;
+            });
+
+            setLeaderboard(normalized);
+            setTotalParticipants(resData?.totalParticipants || normalized.length);
+        } catch (err: any) {
+            console.error("Quiz leaderboard fetch error:", err);
+            setError(err?.response?.data?.message || err?.message || "Failed to load leaderboard.");
+        } finally {
+            setLoading(false);
+        }
+    }, [activeQuizEngagementId, room?.liveMatchId, room?.id, currentUserId, currentUserName, currentUserEmail]);
+
+    useEffect(() => {
+        fetchLeaderboard();
+    }, [fetchLeaderboard]);
+
+    const top10 = leaderboard.slice(0, 10);
+    const filteredAll = searchQuery.trim()
+        ? leaderboard.filter((item) => item.username.toLowerCase().includes(searchQuery.toLowerCase()))
+        : leaderboard;
+
+    const currentUserEntry = leaderboard.find((item) => item.isCurrent);
+
+    return (
+        <div
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+            className="fixed inset-0 z-[150] flex items-center justify-center p-3 bg-black/40 backdrop-blur-[2px] animate-in fade-in duration-150"
+        >
+            <div className="w-full max-w-md bg-[#0e111a] border-l-4 border-l-amber-500 border-y border-r border-white/[0.08] rounded-xl overflow-hidden shadow-2xl shadow-[0_4px_25px_rgba(0,0,0,0.6)] flex flex-col relative max-h-[85vh]">
+                {/* Glowing Top Accent Bar */}
+                <div className="w-full h-1 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 shrink-0" />
+
+                {/* Header */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between border-b border-white/[0.06] bg-[#121522] shrink-0">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border bg-amber-500/10 text-amber-400 border-amber-500/30 flex items-center gap-1.5">
+                            <Trophy size={11} className="text-amber-400" />
+                            <span>QUIZ LEADERBOARD</span>
+                        </span>
+                        <span className="text-[9px] font-black uppercase text-gray-400 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                            {totalParticipants || leaderboard.length} Participants
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                        <button
+                            onClick={fetchLeaderboard}
+                            disabled={loading}
+                            className="text-gray-400 hover:text-amber-400 p-1 rounded hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-40"
+                            title="Refresh Leaderboard"
+                        >
+                            <RotateCw size={14} className={loading ? "animate-spin text-amber-400" : ""} />
+                        </button>
+                        <button
+                            onClick={onClose}
+                            className="text-gray-400 hover:text-white p-1 rounded hover:bg-white/10 transition-colors cursor-pointer"
+                            title="Close"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+
+                {/* Dialog Body */}
+                <div className="p-3.5 flex-1 overflow-y-auto space-y-3.5 bg-[#0e111a]">
+                    {loading && leaderboard.length === 0 ? (
+                        <div className="py-12 flex flex-col items-center justify-center gap-3">
+                            <div className="w-8 h-8 rounded-full border-2 border-amber-500/30 border-t-amber-400 animate-spin" />
+                            <p className="text-xs font-bold text-gray-400 animate-pulse">Loading Quiz Rankings...</p>
+                        </div>
+                    ) : error && leaderboard.length === 0 ? (
+                        <div className="py-8 px-4 rounded-xl bg-red-500/10 border border-red-500/30 text-center space-y-2">
+                            <p className="text-xs font-bold text-red-400">{error}</p>
+                            <button
+                                onClick={fetchLeaderboard}
+                                className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-bold border border-red-500/40 transition-all cursor-pointer"
+                            >
+                                Try Again
+                            </button>
+                        </div>
+                    ) : leaderboard.length === 0 ? (
+                        <div className="py-12 flex flex-col items-center justify-center text-center px-4 space-y-2">
+                            <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 mb-1">
+                                <Trophy size={22} />
+                            </div>
+                            <p className="text-sm font-black text-white">No Quiz Scores Yet</p>
+                            <p className="text-xs text-gray-400 max-w-[240px]">
+                                Answer flash quizzes during the live match to earn points and claim your spot on the leaderboard!
+                            </p>
+                        </div>
+                    ) : (
+                        <>
+                            {/* ── 1. TOP 10 HIGHLIGHTING ── */}
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5">
+                                        <Crown size={14} className="text-amber-400" />
+                                        <span className="text-[11px] font-black uppercase tracking-wider text-white">
+                                            Top 10 Champions
+                                        </span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-amber-400/80 bg-amber-400/10 px-2 py-0.5 rounded-full border border-amber-400/20">
+                                        Highlighted
+                                    </span>
+                                </div>
+
+                                {/* Top 3 Podium Cards */}
+                                <div className="grid grid-cols-3 gap-2 pt-1">
+                                    {/* 2nd Place */}
+                                    {top10[1] ? (
+                                        <div
+                                            className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative ${
+                                                top10[1].isCurrent
+                                                    ? "bg-gradient-to-b from-pink-500/20 to-slate-400/10 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.25)]"
+                                                    : "bg-gradient-to-b from-slate-400/15 via-slate-500/10 to-transparent border-slate-300/30 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+                                            }`}
+                                        >
+                                            <span className="text-base mb-1">🥈</span>
+                                            <div className="w-8 h-8 rounded-full overflow-hidden mb-1 ring-2 ring-slate-300/50 flex items-center justify-center font-black text-[11px] text-white">
+                                                <LeaderboardAvatar username={top10[1].username} placeholderOnly />
+                                            </div>
+                                            <p className="text-[11px] font-black text-white truncate max-w-full">
+                                                {top10[1].username}
+                                            </p>
+                                            {top10[1].isCurrent && (
+                                                <span className="text-[8px] font-black text-pink-400 bg-pink-500/15 px-1 rounded uppercase">YOU</span>
+                                            )}
+                                            <p className="text-[11px] font-black text-slate-200 mt-0.5">
+                                                {top10[1].points} <span className="text-[9px] font-bold text-slate-400">PTS</span>
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2 flex items-center justify-center text-[10px] text-gray-500">
+                                            #2 Open
+                                        </div>
+                                    )}
+
+                                    {/* 1st Place (Gold / Champion) */}
+                                    {top10[0] ? (
+                                        <div
+                                            className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative -mt-1.5 ${
+                                                top10[0].isCurrent
+                                                    ? "bg-gradient-to-b from-pink-500/25 via-yellow-500/15 to-transparent border-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.35)]"
+                                                    : "bg-gradient-to-b from-yellow-500/20 via-amber-500/10 to-transparent border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.2)]"
+                                            }`}
+                                        >
+                                            <span className="text-xl mb-1">🥇</span>
+                                            <div className="w-9 h-9 rounded-full overflow-hidden mb-1 ring-2 ring-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.4)] flex items-center justify-center font-black text-xs text-white">
+                                                <LeaderboardAvatar username={top10[0].username} placeholderOnly />
+                                            </div>
+                                            <p className="text-xs font-black text-yellow-300 truncate max-w-full">
+                                                {top10[0].username}
+                                            </p>
+                                            {top10[0].isCurrent ? (
+                                                <span className="text-[8px] font-black text-pink-400 bg-pink-500/15 px-1 rounded uppercase">YOU</span>
+                                            ) : (
+                                                <span className="text-[8px] font-black text-amber-300 bg-amber-400/15 px-1 rounded uppercase">LEADER</span>
+                                            )}
+                                            <p className="text-xs font-black text-yellow-300 mt-0.5">
+                                                {top10[0].points} <span className="text-[9px] font-bold text-yellow-500">PTS</span>
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2 flex items-center justify-center text-[10px] text-gray-500">
+                                            #1 Open
+                                        </div>
+                                    )}
+
+                                    {/* 3rd Place */}
+                                    {top10[2] ? (
+                                        <div
+                                            className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative ${
+                                                top10[2].isCurrent
+                                                    ? "bg-gradient-to-b from-pink-500/20 to-amber-600/10 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.25)]"
+                                                    : "bg-gradient-to-b from-amber-600/15 via-amber-700/10 to-transparent border-amber-600/30 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+                                            }`}
+                                        >
+                                            <span className="text-base mb-1">🥉</span>
+                                            <div className="w-8 h-8 rounded-full overflow-hidden mb-1 ring-2 ring-amber-600/50 flex items-center justify-center font-black text-[11px] text-white">
+                                                <LeaderboardAvatar username={top10[2].username} placeholderOnly />
+                                            </div>
+                                            <p className="text-[11px] font-black text-white truncate max-w-full">
+                                                {top10[2].username}
+                                            </p>
+                                            {top10[2].isCurrent && (
+                                                <span className="text-[8px] font-black text-pink-400 bg-pink-500/15 px-1 rounded uppercase">YOU</span>
+                                            )}
+                                            <p className="text-[11px] font-black text-amber-400 mt-0.5">
+                                                {top10[2].points} <span className="text-[9px] font-bold text-amber-600">PTS</span>
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2 flex items-center justify-center text-[10px] text-gray-500">
+                                            #3 Open
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Ranks 4 to 10 (Highlighted Rows) */}
+                                {top10.slice(3).length > 0 && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                                        {top10.slice(3).map((entry) => (
+                                            <div
+                                                key={entry.userId + '-' + entry.rank}
+                                                className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
+                                                    entry.isCurrent
+                                                        ? "bg-pink-500/15 border-pink-500/60 shadow-[0_0_12px_rgba(236,72,153,0.2)]"
+                                                        : "bg-[#131624] border-purple-500/20 hover:border-purple-500/40"
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2 overflow-hidden">
+                                                    <span className="text-[10px] font-black text-purple-300 bg-purple-500/15 border border-purple-500/20 w-5 h-5 rounded flex items-center justify-center shrink-0">
+                                                        #{entry.rank}
+                                                    </span>
+                                                    <span className="text-xs font-bold text-white truncate">
+                                                        {entry.username}
+                                                    </span>
+                                                    {entry.isCurrent && (
+                                                        <span className="text-[8px] font-black text-pink-400 bg-pink-500/15 px-1 rounded shrink-0 uppercase">
+                                                            YOU
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <span className="text-xs font-black text-amber-400 shrink-0 ml-2">
+                                                    {entry.points} <span className="text-[9px] text-amber-400/60">PTS</span>
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* ── 2. ALL PARTICIPANTS LIST ── */}
+                            <div className="space-y-2 pt-2 border-t border-white/[0.06]">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[11px] font-black uppercase tracking-wider text-gray-300 flex items-center gap-1.5">
+                                        <Users size={13} className="text-gray-400" />
+                                        <span>All Participants ({leaderboard.length})</span>
+                                    </span>
+                                    {currentUserEntry && (
+                                        <span className="text-[10px] font-black text-pink-400 bg-pink-500/15 border border-pink-500/30 px-2 py-0.5 rounded-full">
+                                            Your Rank: #{currentUserEntry.rank}
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Participant Filter Input */}
+                                {leaderboard.length > 5 && (
+                                    <div className="relative">
+                                        <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+                                        <input
+                                            type="text"
+                                            value={searchQuery}
+                                            onChange={(e) => setSearchQuery(e.target.value)}
+                                            placeholder="Search participant by name..."
+                                            className="w-full bg-[#121520] border border-white/[0.08] focus:border-amber-500/50 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-gray-600 outline-none transition-all"
+                                        />
+                                        {searchQuery && (
+                                            <button
+                                                onClick={() => setSearchQuery("")}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white text-[10px] cursor-pointer"
+                                            >
+                                                ✕
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Complete Members List */}
+                                <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1">
+                                    {filteredAll.map((entry) => (
+                                        <div
+                                            key={entry.userId + '-full-' + entry.rank}
+                                            className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
+                                                entry.isCurrent
+                                                    ? "bg-pink-500/15 border-pink-500/60 shadow-[0_0_12px_rgba(236,72,153,0.15)]"
+                                                    : entry.rank <= 3
+                                                    ? "bg-amber-500/[0.04] border-amber-500/20"
+                                                    : "bg-[#121520] border-white/[0.05] hover:bg-white/[0.03]"
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2.5 overflow-hidden">
+                                                <span
+                                                    className={`text-[10px] font-black w-6 text-center shrink-0 ${
+                                                        entry.rank === 1
+                                                            ? "text-yellow-400"
+                                                            : entry.rank === 2
+                                                            ? "text-slate-300"
+                                                            : entry.rank === 3
+                                                            ? "text-amber-500"
+                                                            : "text-gray-400"
+                                                    }`}
+                                                >
+                                                    {entry.rank === 1
+                                                        ? "🥇"
+                                                        : entry.rank === 2
+                                                        ? "🥈"
+                                                        : entry.rank === 3
+                                                        ? "🥉"
+                                                        : `#${entry.rank}`}
+                                                </span>
+
+                                                <div className="flex items-center gap-1.5 truncate">
+                                                    <span className={`text-xs font-bold truncate ${entry.isCurrent ? "text-pink-300 font-black" : "text-gray-200"}`}>
+                                                        {entry.username}
+                                                    </span>
+                                                    {entry.isCurrent && (
+                                                        <span className="text-[8px] font-black text-pink-400 bg-pink-500/20 px-1 py-0.2 rounded shrink-0 uppercase">
+                                                            YOU
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                <span
+                                                    className={`text-xs font-black ${
+                                                        entry.rank === 1
+                                                            ? "text-yellow-400"
+                                                            : entry.rank === 2
+                                                            ? "text-slate-200"
+                                                            : entry.rank === 3
+                                                            ? "text-amber-400"
+                                                            : "text-gray-300"
+                                                    }`}
+                                                >
+                                                    {entry.points} <span className="text-[9px] text-gray-500 font-bold">PTS</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {filteredAll.length === 0 && (
+                                        <div className="py-4 text-center text-xs text-gray-500">
+                                            No participants match &quot;{searchQuery}&quot;
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Sticky Current User Footer */}
+                {currentUserEntry && (
+                    <div className="px-3.5 py-2.5 border-t border-white/[0.08] bg-[#121522] flex items-center justify-between shrink-0 shadow-lg">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-pink-400 bg-pink-500/15 border border-pink-500/30 px-2 py-0.5 rounded-full">
+                                YOUR RANK #{currentUserEntry.rank}
+                            </span>
+                            <span className="text-xs font-bold text-white truncate max-w-[180px]">
+                                {currentUserEntry.username}
+                            </span>
+                        </div>
+                        <div className="text-xs font-black text-amber-400">
+                            {currentUserEntry.points} <span className="text-[10px] text-amber-400/70 font-bold">PTS</span>
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/* ── EXPERTS OVERLAY DIALOG ── */
+function ExpertsDialog({ onClose }: { onClose: () => void }) {
+    return (
+        <div
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+            className="fixed inset-0 z-[150] flex items-center justify-center p-3 bg-black/60 backdrop-blur-[2px] animate-in fade-in duration-150"
+        >
+            <div className="w-full max-w-sm bg-[#0e111a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col relative animate-in zoom-in-95 duration-150">
+                {/* Header */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between border-b border-white/[0.06] bg-[#121522] shrink-0">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border bg-purple-500/10 text-purple-400 border-purple-500/30 flex items-center gap-1.5">
+                            <span>🎙️</span>
+                            <span>Expert Commentators</span>
+                        </span>
+                        <span className="text-[9px] font-bold text-gray-400 bg-white/5 border border-white/10 px-1.5 py-0.2 rounded-full">
+                            {EXPERT_USERNAMES.length}
+                        </span>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Close"
+                        aria-label="Close"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+
+                {/* Body: Experts Name & Images */}
+                <div className="p-3 flex flex-col gap-2 bg-[#0e111a]">
+                    {EXPERT_USERNAMES.map((name) => (
+                        <div
+                            key={name}
+                            className="rounded-xl bg-[#141724] border border-white/5 p-2.5 flex items-center gap-3 select-none"
+                        >
+                            {/* Expert Image */}
+                            <div className="w-11 h-11 rounded-full border border-white/10 bg-[#252836] overflow-hidden shrink-0 shadow-md">
+                                {EXPERT_AVATARS[name] ? (
+                                    <img
+                                        src={EXPERT_AVATARS[name]}
+                                        alt={name}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            (e.currentTarget as HTMLElement).style.display = "none";
+                                            const parent = e.currentTarget.parentElement;
+                                            const fallback = parent?.querySelector(".expert-fallback") as HTMLElement;
+                                            if (fallback) fallback.style.display = "flex";
+                                        }}
+                                    />
+                                ) : null}
+                                <div className={`expert-fallback w-full h-full ${EXPERT_AVATARS[name] ? "hidden" : "flex"} items-center justify-center text-white font-black text-xs bg-gradient-to-br from-pink-600 to-orange-500`}>
+                                    {name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                                </div>
+                            </div>
+
+                            {/* Expert Name & Role */}
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                    <p className="text-white font-bold text-[13px] truncate">
+                                        {name}
+                                    </p>
+                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                                        EXPERT
+                                    </span>
+                                </div>
+                                {EXPERT_ROLES[name] && (
+                                    <p className="text-gray-400 text-[11px] truncate mt-0.5">
+                                        {EXPERT_ROLES[name]}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function WatchRoom({ room, onBack }: Props) {
     const { data: session, status } = useSession();
     const { user: authUser } = useAuth();
@@ -4319,6 +4955,34 @@ export default function WatchRoom({ room, onBack }: Props) {
     // ── Engagement Question Lifecycle & Persistent Timer (Quiz, Polls, Prediction) ──
     const STORAGE_KEY_ANSWERED = "watchroom_answered_quiz_questions";
     const STORAGE_KEY_EXPIRED = "watchroom_expired_quiz_questions";
+    const STORAGE_KEY_QUIZ_PERFORMED = "watchroom_has_performed_quiz";
+
+    const [hasPerformedFirstQuiz, setHasPerformedFirstQuiz] = useState<boolean>(() => {
+        if (typeof window === "undefined") return false;
+        try {
+            if (localStorage.getItem(STORAGE_KEY_QUIZ_PERFORMED) === "true") return true;
+            const savedAnswered = localStorage.getItem(STORAGE_KEY_ANSWERED);
+            if (savedAnswered) {
+                const parsed = JSON.parse(savedAnswered);
+                if (Object.keys(parsed).length > 0) return true;
+            }
+        } catch {
+            return false;
+        }
+        return false;
+    });
+
+    const [isQuizLeaderboardOpen, setIsQuizLeaderboardOpen] = useState(false);
+    const [isExpertsOpen, setIsExpertsOpen] = useState(false);
+
+    const handleQuizPerformed = useCallback(() => {
+        setHasPerformedFirstQuiz(true);
+        try {
+            localStorage.setItem(STORAGE_KEY_QUIZ_PERFORMED, "true");
+        } catch (e) {
+            console.warn("Failed to persist quiz performed status:", e);
+        }
+    }, []);
 
     const [answeredQuestionIds, setAnsweredQuestionIds] = useState<Record<string, boolean>>(() => {
         if (typeof window === "undefined") return {};
@@ -4351,7 +5015,10 @@ export default function WatchRoom({ room, onBack }: Props) {
             }
             return next;
         });
-    }, []);
+        if (engagementModalType === 'quiz') {
+            handleQuizPerformed();
+        }
+    }, [engagementModalType, handleQuizPerformed]);
 
     const markQuestionExpired = useCallback((qId: string, key?: string) => {
         setExpiredQuestionIds((prev) => {
@@ -5695,6 +6362,15 @@ export default function WatchRoom({ room, onBack }: Props) {
                     </button> */}
 
                     <button
+                        onClick={() => setIsExpertsOpen(true)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-600/15 border border-purple-500/30 hover:bg-purple-600/25 active:scale-95 text-purple-300 hover:text-purple-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm"
+                        title="View Expert Commentators"
+                    >
+                        <span className="text-xs">🎙️</span>
+                        <span>Experts</span>
+                    </button>
+
+                    <button
                         onClick={handleShare}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-600/10 border border-pink-500/30 hover:bg-pink-600/20 active:scale-95 text-pink-400 hover:text-pink-300 text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 shadow-[0_0_15px_rgba(236,72,153,0.15)] hover:shadow-[0_0_20px_rgba(236,72,153,0.25)] cursor-pointer"
                         title="Copy Invite Link"
@@ -6083,15 +6759,17 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
 
                             {/* Right: Expand Chat Button */}
-                            <button
-                                onClick={() => setIsSidebarCollapsed(false)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-600/15 border border-pink-500/30 hover:bg-pink-600/25 text-pink-400 hover:text-pink-300 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_0_15px_rgba(236,72,153,0.15)] cursor-pointer"
-                                title="Expand Chat & Participants"
-                            >
-                                <PanelRightOpen size={13} />
-                                <span className="hidden sm:inline">Chat & Members</span>
-                                <span className="sm:hidden">Chat</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setIsSidebarCollapsed(false)}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-600/15 border border-pink-500/30 hover:bg-pink-600/25 text-pink-400 hover:text-pink-300 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_0_15px_rgba(236,72,153,0.15)] cursor-pointer"
+                                    title="Expand Chat & Participants"
+                                >
+                                    <PanelRightOpen size={13} />
+                                    <span className="hidden sm:inline">Chat & Members</span>
+                                    <span className="sm:hidden">Chat</span>
+                                </button>
+                            </div>
                         </div>
                     ) : (
                         /* ── NORMAL STACKED LAYOUT: controls and reactions below video ── */
@@ -6293,6 +6971,14 @@ export default function WatchRoom({ room, onBack }: Props) {
                     <div className="relative z-20 flex flex-col gap-1.5 px-2 sm:px-6 py-1.5 border-b border-[#222] lg:hidden">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 flex-1">
+                                <button
+                                    onClick={() => setIsExpertsOpen(true)}
+                                    className="flex-shrink-0 text-xs px-3 py-1 rounded-full font-bold transition-all bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
+                                    title="View Expert Commentators"
+                                >
+                                    <span>🎙️</span>
+                                    <span>Experts</span>
+                                </button>
                                 {activeQuizQuestion && (
                                     <button
                                         onClick={() => openEngagement('quiz')}
@@ -6300,6 +6986,16 @@ export default function WatchRoom({ room, onBack }: Props) {
                                     >
                                         <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping"></span>
                                         <span>Quiz</span>
+                                    </button>
+                                )}
+                                {hasPerformedFirstQuiz && (
+                                    <button
+                                        onClick={() => setIsQuizLeaderboardOpen(true)}
+                                        className="flex-shrink-0 text-xs px-3 py-1 rounded-full font-bold transition-all bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
+                                        title="View Quiz Leaderboard"
+                                    >
+                                        <Trophy size={12} className="text-amber-400" />
+                                        <span>Leaderboard</span>
                                     </button>
                                 )}
                                 {activePollQuestion && (
@@ -6380,6 +7076,14 @@ export default function WatchRoom({ room, onBack }: Props) {
                             {/* Tab Header row */}
                             <div className="flex items-center border-b border-[#222] px-2 py-1.5 gap-1.5 bg-[#121214]">
                                 <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1">
+                                    <button
+                                        onClick={() => setIsExpertsOpen(true)}
+                                        className="flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1 rounded-lg font-bold tracking-wide transition-all bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
+                                        title="View Expert Commentators"
+                                    >
+                                        <span>🎙️</span>
+                                        <span>Experts</span>
+                                    </button>
                                     {activeQuizQuestion && (
                                         <button
                                             onClick={() => openEngagement('quiz')}
@@ -6387,6 +7091,16 @@ export default function WatchRoom({ room, onBack }: Props) {
                                         >
                                             <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-ping"></span>
                                             <span>Quiz</span>
+                                        </button>
+                                    )}
+                                    {hasPerformedFirstQuiz && (
+                                        <button
+                                            onClick={() => setIsQuizLeaderboardOpen(true)}
+                                            className="flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1 rounded-lg font-bold tracking-wide transition-all bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
+                                            title="View Quiz Leaderboard"
+                                        >
+                                            <Trophy size={12} className="text-amber-400" />
+                                            <span>Leaderboard</span>
                                         </button>
                                     )}
                                     {activePollQuestion && (
@@ -6982,12 +7696,28 @@ export default function WatchRoom({ room, onBack }: Props) {
                     onExpire={(qId, key) => {
                         markQuestionExpired(qId, key);
                     }}
+                    onQuizPerformed={handleQuizPerformed}
                     room={room}
                     userName={userName || undefined}
                     userId={authUser?.userId || (session?.user as any)?.userId}
                     submitQuizAnswer={submitQuizAnswer}
                     votePrediction={votePrediction}
                 />
+            )}
+
+            {isQuizLeaderboardOpen && (
+                <QuizLeaderboardDialog
+                    onClose={() => setIsQuizLeaderboardOpen(false)}
+                    room={room}
+                    currentUserId={authUser?.userId || (session?.user as any)?.userId || (authUser as any)?.id}
+                    currentUserName={userName || (authUser as any)?.name || (session?.user as any)?.name || undefined}
+                    currentUserEmail={(authUser as any)?.email || (session?.user as any)?.email || undefined}
+                    activeQuizEngagementId={activeQuizQuestion?.engagementId}
+                />
+            )}
+
+            {isExpertsOpen && (
+                <ExpertsDialog onClose={() => setIsExpertsOpen(false)} />
             )}
 
         </div>
