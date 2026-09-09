@@ -81,7 +81,14 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      filter: drop-shadow(0 0 16px rgba(255, 40, 85, 0.5));
+      filter: drop-shadow(0 0 16px rgba(255, 90, 30, 0.45));
+    }
+
+    .brand-logo-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
     }
 
     .logo-text {
@@ -97,7 +104,7 @@
       font-size: 1.15rem;
       font-weight: 900;
       letter-spacing: 0.06em;
-      color: #ffffff;
+      color: #ff5a1e;
       text-transform: uppercase;
     }
 
@@ -496,17 +503,11 @@
     <header class="brand-header">
       <div class="logo-wrapper">
         <div class="logo-icon">
-          <svg viewBox="0 0 48 48" width="44" height="44" fill="none">
-            <defs>
-              <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#FF1E56" />
-                <stop offset="100%" stop-color="#FF6A00" />
-              </linearGradient>
-            </defs>
-            <path d="M24 4C14 4 6 12 6 22c0 11 14 20 18 22 4-2 18-11 18-22 0-10-8-18-18-18z" fill="url(#shieldGrad)" />
-            <path d="M24 8c-7.7 0-14 6.3-14 14 0 8.5 11 15.5 14 17.5 3-2 14-9 14-17.5 0-7.7-6.3-14-14-14z" fill="#090A10" />
-            <path d="M20 16h10v4h-6v3h5v4h-5v5h-4V16z" fill="url(#shieldGrad)" />
-          </svg>
+          <img
+            src="/images/logo (3).png"
+            alt="SportsFan360 Logo"
+            class="brand-logo-img"
+          />
         </div>
         <div class="logo-text">
           <span class="logo-title-top">SPORTS</span>
@@ -525,8 +526,8 @@
     <!-- ─── TOP BANNER POSTER ───────────────────────────────────── -->
     <section class="glow-card poster-card">
       <div class="poster-image-wrap">
-      <img
-          src="/assets/images/fliplive_event_banner.jpg"
+        <img
+          src="/images/fliplive_event_banner.jpg"
           alt="Indian Athletics Final Series - FlipLive Event"
           class="poster-image"
         />
@@ -668,6 +669,42 @@
             </div>
           </div>
 
+          <!-- Institution / University (Optional) -->
+          <div class="input-field-wrap">
+            <input
+              type="text"
+              id="institution"
+              name="institution"
+              class="custom-input"
+              placeholder="Institution / University (Optional)"
+            />
+            <div class="input-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z"></path>
+                <path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"></path>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Refer By (Optional) -->
+          <div class="input-field-wrap">
+            <input
+              type="text"
+              id="referBy"
+              name="referBy"
+              class="custom-input"
+              placeholder="Refer By (Optional)"
+            />
+            <div class="input-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <line x1="19" y1="8" x2="19" y2="14"></line>
+                <line x1="22" y1="11" x2="16" y2="11"></line>
+              </svg>
+            </div>
+          </div>
+
           <button type="submit" id="submitBtn" class="submit-btn">
             <span>Join the Waitlist</span>
             <span>&rarr;</span>
@@ -710,6 +747,9 @@
       btn.style.opacity = "0.75";
       btn.style.pointerEvents = "none";
 
+      const institutionVal = (document.getElementById("institution")?.value || "").trim();
+      const referByVal = (document.getElementById("referBy")?.value || "").trim();
+
       const formData = {
         name: document.getElementById("fullName").value.trim(),
         fullName: document.getElementById("fullName").value.trim(),
@@ -717,6 +757,10 @@
         phone: document.getElementById("phone").value.trim(),
         phoneNumber: document.getElementById("phone").value.trim(),
         location: document.getElementById("location").value.trim(),
+        institution: institutionVal,
+        university: institutionVal,
+        referBy: referByVal,
+        referredBy: referByVal,
         timestamp: new Date().toISOString(),
         eventName: "Indian Athletics Final Series - FlipLive"
       };
