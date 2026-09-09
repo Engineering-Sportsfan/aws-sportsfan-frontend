@@ -4189,7 +4189,7 @@ function WatchRoomEngagementDialog({
                                     {quizResult?.isCorrect ? (
                                         <span>Correct! You earned {quizResult?.pointsEarned || pointsReward} PTS</span>
                                     ) : (
-                                        <span>{explanation || `Incorrect. Correct answer is ${correctOptionId}`}</span>
+                                        <span>Incorrect! Better luck next time</span>
                                     )}
                                 </div>
                             )}
