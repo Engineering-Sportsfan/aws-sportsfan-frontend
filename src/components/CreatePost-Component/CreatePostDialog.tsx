@@ -612,6 +612,7 @@ export default function CreatePostDialog({
               </div>
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
                 {[
+                  { id: "general", label: "General", emoji: "📢" },
                   { id: "cricket", label: "Cricket", emoji: "🏏" },
                   { id: "football", label: "Football", emoji: "⚽" },
                   { id: "athletics", label: "Athletics", emoji: "🏃" },

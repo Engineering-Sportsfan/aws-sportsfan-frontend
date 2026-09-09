@@ -205,7 +205,9 @@ function FlipLineSection({
   let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
 
   // Apply hashtag filter chips
-  if (activeFilter === 'cricket') {
+  if (activeFilter === 'general') {
+    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
+  } else if (activeFilter === 'cricket') {
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
   } else if (activeFilter === 'football') {
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
@@ -256,6 +258,7 @@ function FlipLineSection({
       >
         {[
           { id: 'all', label: '#all', emoji: '⚡' },
+          { id: 'general', label: '#general', emoji: '📢' },
           { id: 'cricket', label: '#cricket', emoji: '🏏' },
           { id: 'football', label: '#football', emoji: '⚽' },
           { id: 'athletics', label: '#athletics', emoji: '🏃' },
@@ -366,7 +369,9 @@ export function FlipLineFullScreen({
   let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
 
   // Apply hashtag filter chips
-  if (activeFilter === 'cricket') {
+  if (activeFilter === 'general') {
+    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
+  } else if (activeFilter === 'cricket') {
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
   } else if (activeFilter === 'football') {
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
@@ -519,6 +524,7 @@ export function FlipLineFullScreen({
       >
         {[
           { id: 'all', label: '#all', emoji: '⚡' },
+          { id: 'general', label: '#general', emoji: '📢' },
           { id: 'cricket', label: '#cricket', emoji: '🏏' },
           { id: 'football', label: '#football', emoji: '⚽' },
           { id: 'athletics', label: '#athletics', emoji: '🏃' },
@@ -1342,7 +1348,7 @@ export function FlipCardItem({
                       color: card.type === 'bot' ? 'rgb(96, 165, 250)' : themeColor,
                     }}
                   >
-                    {card.type === 'bot' ? 'Live Updates' : themeLabel}
+                    {/* {card.type === 'bot' ? 'Live Updates' : themeLabel} */}
                   </span>
                 </div>
               </div>

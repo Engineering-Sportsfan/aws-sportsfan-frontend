@@ -12,7 +12,7 @@ import axios from "axios";
 // Add emails here to grant access to the floating Create Post button.
 const CREATE_POST_ALLOWED_EMAILS: string[] = [
   // "someone@sportsfan360.com",
-  "rahul.yadav@sportsfan360.com",
+  // "rahul.yadav@sportsfan360.com",
   "chandu.srikakulam@sportsfan360.com",
   "jignesh@sportsfan360.com",
   "anandvasu@gmail.com",
@@ -111,7 +111,7 @@ export default function GlobalActionBar() {
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04]">
                 <FileText size={16} className="text-white" />
               </span>
-              Articles
+              FlipLONG
             </button>
           </div>
         )}

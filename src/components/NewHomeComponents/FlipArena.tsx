@@ -450,26 +450,14 @@ function DynamicQuizCard({
         })}
       </div>
 
-      {answered && (
+      {answered && isCorrect && (
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`text-[11px] font-black text-center p-2.5 rounded-xl border mb-2 flex items-center justify-center gap-2 ${isCorrect
-            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-            : "bg-red-500/10 border-red-500/30 text-red-400"
-            }`}
+          className="text-[11px] font-black text-center p-2.5 rounded-xl border mb-2 flex items-center justify-center gap-2 bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
         >
-          {isCorrect ? (
-            <>
-              <span>🎉</span>
-              <span>Correct! You earned {pointsReward} PTS!</span>
-            </>
-          ) : (
-            <>
-              <span>❌</span>
-              <span>{explanation || `Incorrect. Correct answer is ${correctOptionId}`}</span>
-            </>
-          )}
+          <span>🎉</span>
+          <span>Correct! You earned {pointsReward} PTS!</span>
         </motion.div>
       )}
 
