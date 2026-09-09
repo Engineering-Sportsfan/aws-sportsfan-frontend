@@ -111,28 +111,18 @@ useEffect(() => {
             hasLocalComplete = localStorage.getItem("roar_v2_complete") === "1";
           } catch { }
 
-          if (completed || hasLocalComplete || isViewingProfileDirectly) {
-            try {
-              localStorage.setItem("roar_v2_complete", "1");
-              localStorage.setItem("roar_badge", u.badge || "RISING_FAN");
-              localStorage.setItem("roar_username", u.username || "RoarUser");
-              if (u.avatarUrl) localStorage.setItem("roar_avatar_url", u.avatarUrl);
-            } catch { }
-            setOnboarded(true);
-            setChecking(false);
-          } else {
-            setOnboarded(false);
-            setChecking(false);
-            if (!isViewingProfileDirectly) {
-              router.replace("/MainModules/HomePage");
-            }
-          }
-        } else {
-          setOnboarded(Boolean(isViewingProfileDirectly));
+          // Onboarding disabled for Dew collaboration - allow all users into ROAR
+          try {
+            localStorage.setItem("roar_v2_complete", "1");
+            localStorage.setItem("roar_badge", u?.badge || "RISING_FAN");
+            localStorage.setItem("roar_username", u?.username || "RoarUser");
+            if (u?.avatarUrl) localStorage.setItem("roar_avatar_url", u.avatarUrl);
+          } catch { }
+          setOnboarded(true);
           setChecking(false);
-          if (!isViewingProfileDirectly) {
-            router.replace("/MainModules/HomePage");
-          }
+        } else {
+          setOnboarded(true);
+          setChecking(false);
         }
       } catch (err: any) {
         const status = err.response?.status;
@@ -142,14 +132,9 @@ useEffect(() => {
           badge = localStorage.getItem("roar_badge") || "RISING_FAN";
         } catch { }
 
-        const allowStay = hasLocal || Boolean(isViewingProfileDirectly);
-        setOnboarded(allowStay);
+        setOnboarded(true);
         setUserBadge(badge);
         setChecking(false);
-
-        if (!allowStay && (status === 400 || status === 404 || status === 401 || !hasLocal)) {
-          router.replace("/MainModules/HomePage");
-        }
       }
     };
     checkProfile();
@@ -345,7 +330,8 @@ const openRecapForRoom = useCallback(async (room: Room) => {
           try { if (res.data.user.avatarUrl) localStorage.setItem("roar_avatar_url", res.data.user.avatarUrl); } catch { }
         }
       } catch (err: any) {
-        if (err.response?.status === 404) { setOnboarded(false); try { localStorage.removeItem("roar_v2_complete"); } catch { } }
+        // Keep onboarded true so new users are not blocked when onboarding is disabled
+        if (err.response?.status === 404) { /* no-op */ }
       }
     };
 
