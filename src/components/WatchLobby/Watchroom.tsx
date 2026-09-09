@@ -2581,6 +2581,7 @@ import Link from "next/link";
 import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown, TrendingUp, Flame, MoreHorizontal, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, MessageSquare, Users, Check, XCircle, Trophy, RotateCw, Search, Medal } from "lucide-react";
 import { engagementService } from "@/services/engagement.service";
 import { EngagementItem } from "@/types/engagements";
+import { EXPERT_USERNAMES, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 
 const JitsiMeeting = dynamic<any>(
     () =>
@@ -4299,21 +4300,22 @@ interface QuizLeaderboardDialogProps {
     room?: any;
     currentUserId?: string;
     currentUserName?: string;
+    currentUserEmail?: string;
     activeQuizEngagementId?: string;
 }
 
-function QuizLeaderboardDialog({
-    onClose,
-    room,
-    currentUserId,
-    currentUserName,
-    activeQuizEngagementId,
-}: QuizLeaderboardDialogProps) {
-    const [leaderboard, setLeaderboard] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [totalParticipants, setTotalParticipants] = useState<number>(0);
+function LeaderboardAvatar({
+    avatar,
+    username,
+    alt,
+    placeholderOnly = false,
+}: {
+    avatar?: string;
+    username: string;
+    alt?: string;
+    placeholderOnly?: boolean;
+}) {
+    const [imgError, setImgError] = useState(false);
 
     const getInitials = (name: string) => {
         if (!name) return "SF";
@@ -4339,6 +4341,39 @@ function QuizLeaderboardDialog({
         }
         return bgList[Math.abs(hash) % bgList.length];
     };
+
+    if (!placeholderOnly && avatar && !imgError) {
+        return (
+            <img
+                src={avatar}
+                alt={alt || username || "User"}
+                className="w-full h-full object-cover rounded-full"
+                referrerPolicy="no-referrer"
+                onError={() => setImgError(true)}
+            />
+        );
+    }
+
+    return (
+        <div className={`w-full h-full rounded-full ${getAvatarBg(username)} flex items-center justify-center font-black text-white select-none`}>
+            {getInitials(username)}
+        </div>
+    );
+}
+
+function QuizLeaderboardDialog({
+    onClose,
+    room,
+    currentUserId,
+    currentUserName,
+    currentUserEmail,
+    activeQuizEngagementId,
+}: QuizLeaderboardDialogProps) {
+    const [leaderboard, setLeaderboard] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [totalParticipants, setTotalParticipants] = useState<number>(0);
 
     const fetchLeaderboard = useCallback(async () => {
         setLoading(true);
@@ -4384,21 +4419,41 @@ function QuizLeaderboardDialog({
 
             const normalized = rawList.map((entry: any, index: number) => {
                 const username =
+                    entry.userName ||
                     entry.username ||
                     entry.name ||
                     entry.displayName ||
+                    entry.user?.userName ||
                     entry.user?.name ||
                     entry.user?.username ||
-                    `Fan ${index + 1}`;
-                const points = Number(entry.points ?? entry.score ?? entry.totalPoints ?? entry.pts ?? 0);
-                const userId = entry.userId || entry.id || entry._id || entry.user?.id || entry.user?._id || String(index);
-                const avatar = entry.avatar || entry.image || entry.displayPicture || entry.user?.image || "";
-                const correctCount = entry.correctAnswers ?? entry.correct ?? entry.correctCount;
-                const totalCount = entry.totalQuestions ?? entry.totalAnswers ?? entry.total;
+                    (entry.userEmail ? entry.userEmail.split("@")[0] : `Fan ${index + 1}`);
+                const points = Number(entry.totalPoints ?? entry.points ?? entry.score ?? entry.pts ?? 0);
+                const userId =
+                    entry.userId ||
+                    entry.id ||
+                    entry._id ||
+                    entry.user?.id ||
+                    entry.user?._id ||
+                    entry.userEmail ||
+                    String(index);
+                const avatar =
+                    entry.userAvatar ||
+                    entry.avatar ||
+                    entry.image ||
+                    entry.displayPicture ||
+                    entry.user?.userAvatar ||
+                    entry.user?.avatar ||
+                    entry.user?.image ||
+                    "";
+                const correctCount = entry.correctCount ?? entry.correctAnswers ?? entry.correct;
+                const totalCount = entry.totalAnswered ?? entry.totalQuestions ?? entry.totalAnswers ?? entry.total;
+                const accuracy = entry.accuracy;
                 const isCurrent = Boolean(
-                    (currentUserId && (userId === currentUserId || entry.user === currentUserId)) ||
-                    (currentUserName && username.toLowerCase() === currentUserName.toLowerCase()) ||
-                    entry.isCurrentUser
+                    (currentUserId && (userId === currentUserId || entry.user === currentUserId || entry.userEmail === currentUserId)) ||
+                    (currentUserName && (username.toLowerCase() === currentUserName.toLowerCase() || entry.userEmail?.toLowerCase() === currentUserName.toLowerCase())) ||
+                    (currentUserEmail && entry.userEmail && entry.userEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
+                    entry.isCurrentUser ||
+                    (resData?.currentUser && (userId === resData.currentUser.userId || username === resData.currentUser.userName))
                 );
                 return {
                     userId,
@@ -4408,6 +4463,7 @@ function QuizLeaderboardDialog({
                     avatar,
                     correctCount,
                     totalCount,
+                    accuracy,
                     isCurrent,
                 };
             });
@@ -4431,7 +4487,7 @@ function QuizLeaderboardDialog({
         } finally {
             setLoading(false);
         }
-    }, [activeQuizEngagementId, room?.liveMatchId, room?.id, currentUserId, currentUserName]);
+    }, [activeQuizEngagementId, room?.liveMatchId, room?.id, currentUserId, currentUserName, currentUserEmail]);
 
     useEffect(() => {
         fetchLeaderboard();
@@ -4542,13 +4598,7 @@ function QuizLeaderboardDialog({
                                         >
                                             <span className="text-base mb-1">🥈</span>
                                             <div className="w-8 h-8 rounded-full overflow-hidden mb-1 ring-2 ring-slate-300/50 flex items-center justify-center font-black text-[11px] text-white">
-                                                {top10[1].avatar ? (
-                                                    <img src={top10[1].avatar} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className={`w-full h-full ${getAvatarBg(top10[1].username)} flex items-center justify-center`}>
-                                                        {getInitials(top10[1].username)}
-                                                    </div>
-                                                )}
+                                                <LeaderboardAvatar username={top10[1].username} placeholderOnly />
                                             </div>
                                             <p className="text-[11px] font-black text-white truncate max-w-full">
                                                 {top10[1].username}
@@ -4577,13 +4627,7 @@ function QuizLeaderboardDialog({
                                         >
                                             <span className="text-xl mb-1">🥇</span>
                                             <div className="w-9 h-9 rounded-full overflow-hidden mb-1 ring-2 ring-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.4)] flex items-center justify-center font-black text-xs text-white">
-                                                {top10[0].avatar ? (
-                                                    <img src={top10[0].avatar} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className={`w-full h-full ${getAvatarBg(top10[0].username)} flex items-center justify-center`}>
-                                                        {getInitials(top10[0].username)}
-                                                    </div>
-                                                )}
+                                                <LeaderboardAvatar username={top10[0].username} placeholderOnly />
                                             </div>
                                             <p className="text-xs font-black text-yellow-300 truncate max-w-full">
                                                 {top10[0].username}
@@ -4614,13 +4658,7 @@ function QuizLeaderboardDialog({
                                         >
                                             <span className="text-base mb-1">🥉</span>
                                             <div className="w-8 h-8 rounded-full overflow-hidden mb-1 ring-2 ring-amber-600/50 flex items-center justify-center font-black text-[11px] text-white">
-                                                {top10[2].avatar ? (
-                                                    <img src={top10[2].avatar} alt="" className="w-full h-full object-cover" />
-                                                ) : (
-                                                    <div className={`w-full h-full ${getAvatarBg(top10[2].username)} flex items-center justify-center`}>
-                                                        {getInitials(top10[2].username)}
-                                                    </div>
-                                                )}
+                                                <LeaderboardAvatar username={top10[2].username} placeholderOnly />
                                             </div>
                                             <p className="text-[11px] font-black text-white truncate max-w-full">
                                                 {top10[2].username}
@@ -4655,15 +4693,6 @@ function QuizLeaderboardDialog({
                                                     <span className="text-[10px] font-black text-purple-300 bg-purple-500/15 border border-purple-500/20 w-5 h-5 rounded flex items-center justify-center shrink-0">
                                                         #{entry.rank}
                                                     </span>
-                                                    <div className="w-5 h-5 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-[9px] font-bold text-white">
-                                                        {entry.avatar ? (
-                                                            <img src={entry.avatar} alt="" className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className={`w-full h-full ${getAvatarBg(entry.username)} flex items-center justify-center`}>
-                                                                {getInitials(entry.username)}
-                                                            </div>
-                                                        )}
-                                                    </div>
                                                     <span className="text-xs font-bold text-white truncate">
                                                         {entry.username}
                                                     </span>
@@ -4752,16 +4781,6 @@ function QuizLeaderboardDialog({
                                                         : `#${entry.rank}`}
                                                 </span>
 
-                                                <div className="w-6 h-6 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-[10px] font-bold text-white">
-                                                    {entry.avatar ? (
-                                                        <img src={entry.avatar} alt="" className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className={`w-full h-full ${getAvatarBg(entry.username)} flex items-center justify-center`}>
-                                                            {getInitials(entry.username)}
-                                                        </div>
-                                                    )}
-                                                </div>
-
                                                 <div className="flex items-center gap-1.5 truncate">
                                                     <span className={`text-xs font-bold truncate ${entry.isCurrent ? "text-pink-300 font-black" : "text-gray-200"}`}>
                                                         {entry.username}
@@ -4775,11 +4794,6 @@ function QuizLeaderboardDialog({
                                             </div>
 
                                             <div className="flex items-center gap-2 shrink-0 ml-2">
-                                                {entry.correctCount !== undefined && (
-                                                    <span className="text-[10px] text-gray-500 font-medium hidden sm:inline">
-                                                        {entry.correctCount} correct
-                                                    </span>
-                                                )}
                                                 <span
                                                     className={`text-xs font-black ${
                                                         entry.rank === 1
@@ -4815,7 +4829,7 @@ function QuizLeaderboardDialog({
                             <span className="text-[10px] font-black text-pink-400 bg-pink-500/15 border border-pink-500/30 px-2 py-0.5 rounded-full">
                                 YOUR RANK #{currentUserEntry.rank}
                             </span>
-                            <span className="text-xs font-bold text-white truncate max-w-[140px]">
+                            <span className="text-xs font-bold text-white truncate max-w-[180px]">
                                 {currentUserEntry.username}
                             </span>
                         </div>
@@ -4824,6 +4838,88 @@ function QuizLeaderboardDialog({
                         </div>
                     </div>
                 )}
+            </div>
+        </div>
+    );
+}
+
+/* ── EXPERTS OVERLAY DIALOG ── */
+function ExpertsDialog({ onClose }: { onClose: () => void }) {
+    return (
+        <div
+            onClick={(e) => {
+                if (e.target === e.currentTarget) onClose();
+            }}
+            className="fixed inset-0 z-[150] flex items-center justify-center p-3 bg-black/60 backdrop-blur-[2px] animate-in fade-in duration-150"
+        >
+            <div className="w-full max-w-sm bg-[#0e111a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col relative animate-in zoom-in-95 duration-150">
+                {/* Header */}
+                <div className="px-3.5 py-2.5 flex items-center justify-between border-b border-white/[0.06] bg-[#121522] shrink-0">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full border bg-purple-500/10 text-purple-400 border-purple-500/30 flex items-center gap-1.5">
+                            <span>🎙️</span>
+                            <span>Expert Commentators</span>
+                        </span>
+                        <span className="text-[9px] font-bold text-gray-400 bg-white/5 border border-white/10 px-1.5 py-0.2 rounded-full">
+                            {EXPERT_USERNAMES.length}
+                        </span>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Close"
+                        aria-label="Close"
+                    >
+                        <X size={14} />
+                    </button>
+                </div>
+
+                {/* Body: Experts Name & Images */}
+                <div className="p-3 flex flex-col gap-2 bg-[#0e111a]">
+                    {EXPERT_USERNAMES.map((name) => (
+                        <div
+                            key={name}
+                            className="rounded-xl bg-[#141724] border border-white/5 p-2.5 flex items-center gap-3 select-none"
+                        >
+                            {/* Expert Image */}
+                            <div className="w-11 h-11 rounded-full border border-white/10 bg-[#252836] overflow-hidden shrink-0 shadow-md">
+                                {EXPERT_AVATARS[name] ? (
+                                    <img
+                                        src={EXPERT_AVATARS[name]}
+                                        alt={name}
+                                        className="w-full h-full object-cover"
+                                        onError={(e) => {
+                                            (e.currentTarget as HTMLElement).style.display = "none";
+                                            const parent = e.currentTarget.parentElement;
+                                            const fallback = parent?.querySelector(".expert-fallback") as HTMLElement;
+                                            if (fallback) fallback.style.display = "flex";
+                                        }}
+                                    />
+                                ) : null}
+                                <div className={`expert-fallback w-full h-full ${EXPERT_AVATARS[name] ? "hidden" : "flex"} items-center justify-center text-white font-black text-xs bg-gradient-to-br from-pink-600 to-orange-500`}>
+                                    {name.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                                </div>
+                            </div>
+
+                            {/* Expert Name & Role */}
+                            <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                    <p className="text-white font-bold text-[13px] truncate">
+                                        {name}
+                                    </p>
+                                    <span className="text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                                        EXPERT
+                                    </span>
+                                </div>
+                                {EXPERT_ROLES[name] && (
+                                    <p className="text-gray-400 text-[11px] truncate mt-0.5">
+                                        {EXPERT_ROLES[name]}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -4877,6 +4973,7 @@ export default function WatchRoom({ room, onBack }: Props) {
     });
 
     const [isQuizLeaderboardOpen, setIsQuizLeaderboardOpen] = useState(false);
+    const [isExpertsOpen, setIsExpertsOpen] = useState(false);
 
     const handleQuizPerformed = useCallback(() => {
         setHasPerformedFirstQuiz(true);
@@ -6265,6 +6362,15 @@ export default function WatchRoom({ room, onBack }: Props) {
                     </button> */}
 
                     <button
+                        onClick={() => setIsExpertsOpen(true)}
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-600/15 border border-purple-500/30 hover:bg-purple-600/25 active:scale-95 text-purple-300 hover:text-purple-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm"
+                        title="View Expert Commentators"
+                    >
+                        <span className="text-xs">🎙️</span>
+                        <span>Experts</span>
+                    </button>
+
+                    <button
                         onClick={handleShare}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-600/10 border border-pink-500/30 hover:bg-pink-600/20 active:scale-95 text-pink-400 hover:text-pink-300 text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 shadow-[0_0_15px_rgba(236,72,153,0.15)] hover:shadow-[0_0_20px_rgba(236,72,153,0.25)] cursor-pointer"
                         title="Copy Invite Link"
@@ -6652,18 +6758,8 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 )}
                             </div>
 
-                            {/* Right: Leaderboard & Expand Chat Button */}
+                            {/* Right: Expand Chat Button */}
                             <div className="flex items-center gap-2">
-                                {hasPerformedFirstQuiz && (
-                                    <button
-                                        onClick={() => setIsQuizLeaderboardOpen(true)}
-                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 text-amber-400 hover:text-amber-300 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_0_15px_rgba(245,158,11,0.15)] cursor-pointer"
-                                        title="View Quiz Leaderboard"
-                                    >
-                                        <Trophy size={13} className="text-amber-400" />
-                                        <span>Leaderboard</span>
-                                    </button>
-                                )}
                                 <button
                                     onClick={() => setIsSidebarCollapsed(false)}
                                     className="flex items-center gap-1.5 px-3 py-1.5 bg-pink-600/15 border border-pink-500/30 hover:bg-pink-600/25 text-pink-400 hover:text-pink-300 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-[0_0_15px_rgba(236,72,153,0.15)] cursor-pointer"
@@ -6875,6 +6971,14 @@ export default function WatchRoom({ room, onBack }: Props) {
                     <div className="relative z-20 flex flex-col gap-1.5 px-2 sm:px-6 py-1.5 border-b border-[#222] lg:hidden">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 flex-1">
+                                <button
+                                    onClick={() => setIsExpertsOpen(true)}
+                                    className="flex-shrink-0 text-xs px-3 py-1 rounded-full font-bold transition-all bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
+                                    title="View Expert Commentators"
+                                >
+                                    <span>🎙️</span>
+                                    <span>Experts</span>
+                                </button>
                                 {activeQuizQuestion && (
                                     <button
                                         onClick={() => openEngagement('quiz')}
@@ -6972,6 +7076,14 @@ export default function WatchRoom({ room, onBack }: Props) {
                             {/* Tab Header row */}
                             <div className="flex items-center border-b border-[#222] px-2 py-1.5 gap-1.5 bg-[#121214]">
                                 <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide flex-1">
+                                    <button
+                                        onClick={() => setIsExpertsOpen(true)}
+                                        className="flex-shrink-0 text-[11px] xl:text-xs px-2.5 py-1 rounded-lg font-bold tracking-wide transition-all bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
+                                        title="View Expert Commentators"
+                                    >
+                                        <span>🎙️</span>
+                                        <span>Experts</span>
+                                    </button>
                                     {activeQuizQuestion && (
                                         <button
                                             onClick={() => openEngagement('quiz')}
@@ -7597,10 +7709,15 @@ export default function WatchRoom({ room, onBack }: Props) {
                 <QuizLeaderboardDialog
                     onClose={() => setIsQuizLeaderboardOpen(false)}
                     room={room}
-                    currentUserId={authUser?.userId || (session?.user as any)?.userId}
-                    currentUserName={userName || undefined}
+                    currentUserId={authUser?.userId || (session?.user as any)?.userId || (authUser as any)?.id}
+                    currentUserName={userName || (authUser as any)?.name || (session?.user as any)?.name || undefined}
+                    currentUserEmail={(authUser as any)?.email || (session?.user as any)?.email || undefined}
                     activeQuizEngagementId={activeQuizQuestion?.engagementId}
                 />
+            )}
+
+            {isExpertsOpen && (
+                <ExpertsDialog onClose={() => setIsExpertsOpen(false)} />
             )}
 
         </div>
