@@ -353,12 +353,12 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                             </span>
                         </div>
                         <span className="text-[10px] font-bold text-gray-500">
-                            {EXPERT_USERNAMES.length} Experts
+                            {EXPERT_USERNAMES.filter(name => name !== "Anand Vasu").length} Experts
                         </span>
                     </div>
 
                     <div className="flex flex-col gap-2">
-                        {EXPERT_USERNAMES.map((name) => (
+                        {EXPERT_USERNAMES.filter(name => name !== "Anand Vasu").map((name) => (
                             <Link
                                 key={name}
                                 href={`/MainModules/Profile?userId=${encodeURIComponent(name)}`}
