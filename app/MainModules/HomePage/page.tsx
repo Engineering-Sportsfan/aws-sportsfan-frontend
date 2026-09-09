@@ -388,7 +388,7 @@ function HomePageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, authReady, isAuthenticated } = useAuth();
-  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [checkingOnboarding, setCheckingOnboarding] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [selectedSport, setSelectedSport] = useState("mixed");
   const REQUEST_TIMEOUT_MS = 12000;
@@ -413,6 +413,15 @@ function HomePageInner() {
   const pendingFlipAskRef = useRef<string | null>(null);
   const justCompletedRef = useRef(false);
 
+  // Ensure roar_v2_complete is set so new users don't get blocked anywhere
+  useEffect(() => {
+    try {
+      localStorage.setItem("roar_v2_complete", "1");
+    } catch {}
+  }, []);
+
+  /*
+  // Onboarding temporarily disabled for Dew collaboration
   useEffect(() => {
     if (!authReady) return;
 
@@ -465,6 +474,7 @@ function HomePageInner() {
 
     checkOnboarding();
   }, [authReady, isAuthenticated, user]);
+  */
 
   useEffect(() => {
     if (showOnboarding) {
@@ -759,6 +769,8 @@ function HomePageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  /*
+  // Onboarding temporarily disabled for Dew collaboration
   if (showOnboarding) {
     return (
       <div className="w-full min-h-screen bg-black relative">
@@ -775,6 +787,7 @@ function HomePageInner() {
       </div>
     );
   }
+  */
 
   return (
     <div className="flex flex-col w-full min-h-screen">

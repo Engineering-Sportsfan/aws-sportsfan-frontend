@@ -33,24 +33,24 @@ export default function WelcomeCard() {
         </div>
 
         {/* Bottom Section */}
-        <div className="w-full">
-          <Link href="/auth/login">
+        <div className="w-full mb-14 md:mb-20">
+          <Link href="/auth/login" className="block">
             <button className="w-full bg-gray-200 text-black py-3 rounded-full font-bold hover:bg-white transition cursor-pointer">
               Start
             </button>
           </Link>
 
-          <Link href="/auth/login">
+          {/* <Link href="/auth/login">
             <button className="w-full text-white mt-4 py-3 border rounded-full font-medium hover:bg-white/10 transition cursor-pointer">
               Use as Guest
             </button>
-          </Link>
+          </Link> */}
 
-          <div className="text-xs text-gray-400 mt-6">
+          {/* <div className="text-xs text-gray-400 mt-6">
             <span className="cursor-pointer hover:text-white">Privacy Policy</span>
             <span className="mx-2">|</span>
             <span className="cursor-pointer hover:text-white">Terms & Conditions</span>
-          </div>
+          </div> */}
         </div>
 
       </div>
