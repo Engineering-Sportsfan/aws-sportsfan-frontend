@@ -1429,7 +1429,7 @@ export default function VideoDropCard() {
                             <p className="text-right text-[11px] text-[#666]">{pct}% watched</p>
                         </div>
 
-                        <button
+                        {/* <button
                             onClick={() => setShowSignalDialog(true)}
                             className="w-full bg-[#1e0a12] border border-[#e0185a] rounded-[14px] py-4 flex items-center justify-center gap-2 text-[#e0185a] text-[15px] font-medium hover:bg-[#2a0f1c] transition mt-auto"
                         >
@@ -1438,7 +1438,7 @@ export default function VideoDropCard() {
                                 <path d="M6.5 8.5h5M9 6v5" stroke="#e0185a" strokeWidth="1.4" strokeLinecap="round" />
                             </svg>
                             Send Signal
-                        </button>
+                        </button> */}
 
                         <CommentsSection contentId={video?.id || ""} contentType="video" contentTitle={video?.title} className="mt-5" />
                     </div>
@@ -1488,7 +1488,7 @@ export default function VideoDropCard() {
             )}
 
             {/* Signal Dialog */}
-            {showSignalDialog && (
+            {/* {showSignalDialog && (
                 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4" onClick={() => setShowSignalDialog(false)}>
                     <div className="bg-[#1a1a1e] rounded-2xl max-w-md w-full p-6" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
@@ -1519,7 +1519,7 @@ export default function VideoDropCard() {
                         )}
                     </div>
                 </div>
-            )}
+            )} */}
         </div>
     );
 }
