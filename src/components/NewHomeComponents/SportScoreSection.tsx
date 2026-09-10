@@ -951,7 +951,7 @@ export default function SportScoreSection({
           className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer transition-all duration-300 hover:border-pink-500/40 hover:opacity-95 max-h-[260px] md:max-h-[300px] flex items-center justify-center bg-black/40"
         >
           <img
-            src="/images/fliplivehomebanner.jpeg"
+            src="/images/fliplivebanner.jpeg"
             alt="Watch Along Banner"
             className="w-full h-auto max-h-[260px] md:max-h-[300px] object-cover"
           />
