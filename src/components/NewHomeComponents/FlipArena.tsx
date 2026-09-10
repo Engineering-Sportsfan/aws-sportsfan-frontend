@@ -998,14 +998,20 @@ export default function FlipArena({
     }
   };
 
-  // Filter engagements based on active filter tab
-  const filteredEngagements = engagements.filter((item) => {
-    if (filter === "all") return true;
-    if (filter === "battle") return item.type === "fan_battle";
-    if (filter === "quiz") return item.type === "quiz";
-    if (filter === "poll") return item.type === "poll" || item.type === "prediction";
-    return true;
-  });
+  // Filter and sort engagements chronologically (latest on top)
+  const filteredEngagements = [...engagements]
+    .filter((item) => {
+      if (filter === "all") return true;
+      if (filter === "battle") return item.type === "fan_battle";
+      if (filter === "quiz") return item.type === "quiz";
+      if (filter === "poll") return item.type === "poll" || item.type === "prediction";
+      return true;
+    })
+    .sort((a, b) => {
+      const timeA = typeof a.createdAt === "number" ? a.createdAt : new Date(a.createdAt || 0).getTime();
+      const timeB = typeof b.createdAt === "number" ? b.createdAt : new Date(b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
 
   return (
     <div className="w-full bg-[#070b14] min-h-screen text-white flex flex-col font-sans pb-12">
