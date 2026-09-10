@@ -4445,9 +4445,22 @@ function QuizLeaderboardDialog({
                     entry.user?.avatar ||
                     entry.user?.image ||
                     "";
-                const correctCount = entry.correctCount ?? entry.correctAnswers ?? entry.correct;
-                const totalCount = entry.totalAnswered ?? entry.totalQuestions ?? entry.totalAnswers ?? entry.total;
+                const correctCount = Number(entry.correctCount ?? entry.correctAnswers ?? entry.correct ?? 0);
+                const totalCount = Number(entry.totalAnswered ?? entry.totalQuestions ?? entry.totalAnswers ?? entry.total ?? entry.answersCount ?? 0);
                 const accuracy = entry.accuracy;
+                // Determine if user has actually answered/participated in any quiz question
+                const hasAnswered = Boolean(
+                    totalCount > 0 ||
+                    correctCount > 0 ||
+                    points > 0 ||
+                    entry.hasAnswered === true ||
+                    entry.answered === true ||
+                    entry.participated === true ||
+                    (Array.isArray(entry.answers) && entry.answers.length > 0) ||
+                    entry.lastAnsweredAt ||
+                    entry.answeredAt ||
+                    entry.submittedAt
+                );
                 const isCurrent = Boolean(
                     (currentUserId && (userId === currentUserId || entry.user === currentUserId || entry.userEmail === currentUserId)) ||
                     (currentUserName && (username.toLowerCase() === currentUserName.toLowerCase() || entry.userEmail?.toLowerCase() === currentUserName.toLowerCase())) ||
@@ -4464,23 +4477,28 @@ function QuizLeaderboardDialog({
                     correctCount,
                     totalCount,
                     accuracy,
+                    hasAnswered,
                     isCurrent,
                 };
             });
 
-            // Sort descending by points
-            normalized.sort((a, b) => {
+            // Only show users who have actually answered at least 1 question
+            const participated = normalized.filter((item) => item.hasAnswered);
+
+            // Sort descending by points, then by correct count
+            participated.sort((a, b) => {
                 if (b.points !== a.points) return b.points - a.points;
+                if (b.correctCount !== a.correctCount) return b.correctCount - a.correctCount;
                 return a.rank - b.rank;
             });
 
-            // Assign ranks sequentially
-            normalized.forEach((item, idx) => {
+            // Assign ranks sequentially (1, 2, 3...) only to users who answered
+            participated.forEach((item, idx) => {
                 item.rank = idx + 1;
             });
 
-            setLeaderboard(normalized);
-            setTotalParticipants(resData?.totalParticipants || normalized.length);
+            setLeaderboard(participated);
+            setTotalParticipants(participated.length);
         } catch (err: any) {
             console.error("Quiz leaderboard fetch error:", err);
             setError(err?.response?.data?.message || err?.message || "Failed to load leaderboard.");
@@ -4611,8 +4629,10 @@ function QuizLeaderboardDialog({
                                             </p>
                                         </div>
                                     ) : (
-                                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2 flex items-center justify-center text-[10px] text-gray-500">
-                                            #2 Open
+                                        <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-2 flex flex-col items-center justify-center text-[10px] text-gray-500 min-h-[90px]">
+                                            <span className="text-sm opacity-40 mb-1">🥈</span>
+                                            <span className="font-bold text-gray-400">Rank #2</span>
+                                            <span className="text-[9px] text-gray-600 mt-0.5">Waiting...</span>
                                         </div>
                                     )}
 
@@ -4642,8 +4662,10 @@ function QuizLeaderboardDialog({
                                             </p>
                                         </div>
                                     ) : (
-                                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2 flex items-center justify-center text-[10px] text-gray-500">
-                                            #1 Open
+                                        <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-2 flex flex-col items-center justify-center text-[10px] text-gray-500 min-h-[90px]">
+                                            <span className="text-sm opacity-40 mb-1">🥇</span>
+                                            <span className="font-bold text-gray-400">Rank #1</span>
+                                            <span className="text-[9px] text-gray-600 mt-0.5">Waiting...</span>
                                         </div>
                                     )}
 
@@ -4671,8 +4693,10 @@ function QuizLeaderboardDialog({
                                             </p>
                                         </div>
                                     ) : (
-                                        <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2 flex items-center justify-center text-[10px] text-gray-500">
-                                            #3 Open
+                                        <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] p-2 flex flex-col items-center justify-center text-[10px] text-gray-500 min-h-[90px]">
+                                            <span className="text-sm opacity-40 mb-1">🥉</span>
+                                            <span className="font-bold text-gray-400">Rank #3</span>
+                                            <span className="text-[9px] text-gray-600 mt-0.5">Waiting...</span>
                                         </div>
                                     )}
                                 </div>
