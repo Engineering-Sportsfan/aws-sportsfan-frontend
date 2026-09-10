@@ -19,7 +19,11 @@ const CREATE_POST_ALLOWED_EMAILS: string[] = [
   "tushar.deshmukh@sportsfan360.com",
   "prisha.dureja@sportsfan360.com",
   "dinod.withanawasam@sportsfan360.com",
-  "albrain.antony@sportsfan360.com"
+  "albrain.antony@sportsfan360.com",
+  "gauravkalrasports@gmail.com",
+  "amieyrakhoslla@gmail.com",
+  "khyati.wiz@gmail.com",
+  "rajsport@gmail.com"
 ];
 
 export default function GlobalActionBar() {
