@@ -941,8 +941,38 @@ export default function SportScoreSection({
   }, [selectedSport, router]);
 
   return (
-    <div className="w-full relative">
-      <HeroCarousel cards={roanuzHeroCards} loading={heroLoading} />
+    <div className="w-full relative flex flex-col gap-3">
+      {/* <HeroCarousel cards={roanuzHeroCards} loading={heroLoading} /> */}
+
+      {/* Watch Along Banner */}
+      <div className="w-full max-w-lg md:max-w-xl mx-auto flex flex-col gap-2 my-1">
+        <div
+          onClick={() => router.push("/MainModules/WatchAlong")}
+          className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer transition-all duration-300 hover:border-pink-500/40 hover:opacity-95 max-h-[260px] md:max-h-[300px] flex items-center justify-center bg-black/40"
+        >
+          <img
+            src="/images/fliplivehomebanner.jpeg"
+            alt="Watch Along Banner"
+            className="w-full h-auto max-h-[260px] md:max-h-[300px] object-cover"
+          />
+        </div>
+
+        {/* Join Button */}
+        <div className="flex justify-center w-full">
+          <motion.button
+            whileTap={{ scale: 0.96 }}
+            onClick={() => router.push("/MainModules/WatchAlong")}
+            className="w-auto px-6 py-2 sm:px-8 sm:py-2.5 rounded-xl font-bold text-white text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-[0_4px_16px_rgba(233,30,140,0.3)] transition-all cursor-pointer hover:opacity-95"
+            style={{
+              background: "linear-gradient(135deg, #E91E8C 0%, #FF6B35 100%)",
+            }}
+          >
+            <span>Join</span>
+            <ChevronRight size={16} />
+          </motion.button>
+        </div>
+      </div>
+
       <IndiaStatsBar data={MOCK_INDIA_STATS} onAllSportsClick={() => setIsAllSportsOpen(true)} />
       {/* <MatchesStrip cards={filteredMatches} /> */}
 

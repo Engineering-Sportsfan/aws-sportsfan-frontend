@@ -6330,12 +6330,12 @@ export default function WatchRoom({ room, onBack }: Props) {
                     </button>
                 </Link>
                 <div className="flex flex-1 items-center gap-2 mx-4 min-w-0 justify-center">
-                    {room.isLive && (
+                    {/* {room.isLive && (
                         <span className="bg-pink-600 text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block" />
                             LIVE
                         </span>
-                    )}
+                    )} */}
                     <span className="text-[12px] font-bold whitespace-normal">{room.name || "Watch Room"}</span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -6973,14 +6973,14 @@ export default function WatchRoom({ room, onBack }: Props) {
                     <div className="relative z-20 flex flex-col gap-1.5 px-2 sm:px-6 py-1.5 border-b border-[#222] lg:hidden">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 flex-1">
-                                <button
+                                {/* <button
                                     onClick={() => setIsExpertsOpen(true)}
                                     className="flex-shrink-0 text-xs px-3 py-1 rounded-full font-bold transition-all bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
                                     title="View Expert Commentators"
                                 >
                                     <span>🎙️</span>
                                     <span>Experts</span>
-                                </button>
+                                </button> */}
                                 {activeQuizQuestion && (
                                     <button
                                         onClick={() => openEngagement('quiz')}

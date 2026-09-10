@@ -81,7 +81,7 @@ export default function RootLayout({
                                   <WPLPlayerProfileProvider>
                                     <FifaPlayerProfileProvider>
                                       <RoarNotificationsProvider>
-                                        <Suspense fallback={<div>Loading...</div>}>
+                                        <Suspense fallback={<div>Loading....</div>}>
                                           <RoarProfileProvider>
                                             <UserProfileProvider>
                                             <main className="h-full flex flex-col">{children}</main>

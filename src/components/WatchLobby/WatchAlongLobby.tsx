@@ -57,7 +57,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
 
     const buildShareUrl = (roomId: string) => {
         if (typeof window === "undefined") return "";
-        return `${window.location.origin}/MainModules/WatchAlong/share/${roomId}`;
+        return `${window.location.origin}/MainModules/WatchAlong`;
     };
 
     const buildShareText = (room: Room, match?: Match) => {
@@ -386,7 +386,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
 
                                     <div className="min-w-0 flex-1">
                                         <div className="flex items-center gap-1.5">
-                                            <p className="text-white font-bold text-[13px] truncate group-hover:text-pink-400 transition-colors">
+                                            <p className="text-white font-bold text-[13px] whitespace-wrap group-hover:text-pink-400 transition-colors">
                                                 {name}
                                             </p>
                                             <span className="text-[8px] font-black uppercase px-1.5 py-0.2 rounded-full bg-pink-500/15 text-pink-400 border border-pink-500/30">
@@ -584,38 +584,83 @@ function ExpertCard({
         bannerIcon = "🌎";
     }
 
+    const bannerImage =
+        room.displayPicture ||
+        (cleanHostName.toLowerCase().includes("anand") || room.name.toLowerCase().includes("anand") ? "/images/with_ananad.png" : "") ||
+        (match as any)?.banner ||
+        "/images/watchalong_welcome.jpg";
+
+    const hostAvatar =
+        EXPERT_AVATARS[cleanHostName] ||
+        (cleanHostName.toLowerCase().includes("anand") ? "/images/anandvasu.jpeg" : "") ||
+        (room.displayPicture && !room.displayPicture.includes("banner") && !room.displayPicture.includes("welcome") ? room.displayPicture : undefined);
+
     return (
-        <div className="rounded-2xl overflow-hidden bg-[#141414] border border-white/5 flex flex-col">
-            {/* Gradient banner */}
-            <div className="relative px-3.5 pt-3 pb-3 flex-1" style={{ background: gradient }}>
-                <button
-                    onClick={(e) => { e.stopPropagation(); onShare(); }}
-                    className="absolute top-2.5 right-2.5 w-7 h-7 rounded-full bg-black/20 flex items-center justify-center animate-fade-in hover:bg-black/40 transition-colors"
-                    aria-label="Share"
-                >
-                    <Share2 size={13} className="text-white/80" />
-                </button>
-                {/* {isLive && (
-                    <span className="absolute top-2.5 left-3 bg-[#22c55e] text-white text-[9px] font-black px-2 py-0.5 rounded-full tracking-wide uppercase">
-                        ● LIVE
-                    </span>
-                )} */}
-                <div className="mt-4 flex items-center gap-2.5">
-                    {/* <span className="text-2xl shrink-0 select-none">{bannerIcon}</span> */}
-                    <div className="min-w-0">
-                        <p className="text-white font-black text-[15px] leading-snug pr-8">{cardTitle}</p>
-                        <p className="text-white/70 text-[11px] mt-0.5 line-clamp-1">{cardSubtitle}</p>
-                    </div>
+        <div className="rounded-2xl overflow-hidden bg-[#141414] border border-white/10 hover:border-white/20 transition-all flex flex-col shadow-lg group">
+            {/* Banner Section */}
+            <div
+                onClick={onEnter}
+                className="relative w-full h-44 sm:h-52 overflow-hidden bg-[#1c1c1c] cursor-pointer"
+            >
+                <img
+                    src={bannerImage}
+                    alt={cardTitle}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = "none";
+                        const parent = e.currentTarget.parentElement;
+                        const fallback = parent?.querySelector(".banner-fallback") as HTMLElement;
+                        if (fallback) fallback.style.display = "flex";
+                    }}
+                />
+
+                <div
+                    className="banner-fallback hidden absolute inset-0 items-center justify-center"
+                    style={{ background: gradient }}
+                />
+
+                {/* Gradient overlay for readability */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent pointer-events-none" />
+
+                {/* Top overlay items: Live status + Share button */}
+                <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-10">
+                    {isLive ? (
+                        <span className="bg-red-600/90 backdrop-blur-md text-white text-[10px] font-black px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-md uppercase tracking-wider">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                            LIVE
+                        </span>
+                    ) : (
+                        <span className="bg-black/60 backdrop-blur-md text-white/80 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-white/10">
+                            {room.badge || "Upcoming"}
+                        </span>
+                    )}
+
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onShare(); }}
+                        className="w-8 h-8 rounded-full bg-black/50 backdrop-blur-md border border-white/15 flex items-center justify-center text-white/90 hover:bg-black/80 hover:text-white transition-all shadow-md active:scale-95 cursor-pointer"
+                        aria-label="Share"
+                    >
+                        <Share2 size={14} />
+                    </button>
+                </div>
+
+                {/* Title and Subtitle over bottom of banner */}
+                <div className="absolute bottom-3 left-3.5 right-3.5 z-10 pointer-events-none">
+                    <p className="text-white font-black text-[16px] sm:text-[17px] leading-tight drop-shadow-md line-clamp-1 pr-2">
+                        {cardTitle}
+                    </p>
+                    <p className="text-white/80 text-[11px] sm:text-[12px] mt-0.5 line-clamp-1 drop-shadow">
+                        {cardSubtitle}
+                    </p>
                 </div>
             </div>
 
-            {/* Host info row */}
-            <div className="bg-[#1c1c1c] border-t border-white/5 px-3 py-2 flex items-center justify-between gap-2.5">
+            {/* Below banner: Host info on the left, Join button on the right */}
+            <div className="bg-[#1c1c1c] border-t border-white/5 px-3.5 py-2.5 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
-                    {/* Avatar */}
-                    <div className="w-8 h-8 rounded-full border border-white/10 bg-[#2a2a2a] flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
-                        {room.displayPicture ? (
-                            <img src={room.displayPicture} alt={cleanHostName} className="w-full h-full object-cover rounded-full" />
+                    <div className="w-8 h-8 rounded-full border border-white/10 bg-[#2a2a2a] flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden shadow-sm">
+                        {hostAvatar ? (
+                            <img src={hostAvatar} alt={cleanHostName} className="w-full h-full object-cover rounded-full" />
                         ) : (
                             <span className="text-white font-bold text-xs">
                                 {cleanHostName.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
@@ -624,31 +669,21 @@ function ExpertCard({
                     </div>
 
                     <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                            <span className="text-[9px] text-gray-500 font-extrabold uppercase tracking-wider">HOST</span>
-                            <span className="text-white font-bold text-[12px] truncate">{cleanHostName}</span>
-                            {/* <span className="text-gray-600 text-[10px]">|</span> */}
-                            {/* <span className="text-[10.5px] text-gray-400 font-medium">👥 {formatNumber(room.watching)} watching</span> */}
-                        </div>
-                        {/* <div className="flex items-center gap-1 mt-0.5 flex-wrap">
-                            {tags.map(tag => (
-                                <span key={tag} className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/8 text-gray-300 border border-white/5">
-                                    {tag}
-                                </span>
-                            ))}
-                        </div> */}
+                        <span className="text-[9px] text-gray-500 font-extrabold uppercase tracking-wider block leading-none mb-0.5">HOST</span>
+                        <span className="text-white font-bold text-[13px] truncate block leading-tight">{cleanHostName}</span>
                     </div>
                 </div>
 
                 <button
                     onClick={onEnter}
-                    className="shrink-0 px-4 py-1.5 rounded-full text-white text-[11px] font-black transition-all cursor-pointer active:scale-95 hover:opacity-90 shadow-md"
+                    className="shrink-0 px-5 py-2 rounded-full text-white text-[12px] font-black transition-all cursor-pointer active:scale-95 hover:opacity-90 shadow-md flex items-center gap-1.5"
                     style={isLive
                         ? { background: "linear-gradient(90deg, #e91e8c, #ff6b35)" }
-                        : { background: "#222", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }
+                        : { background: "#2a2a2a", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.9)" }
                     }
                 >
-                    {isLive ? "📺 Join" : "Join"}
+                    {isLive && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                    <span>{isLive ? "Join Live" : "Join"}</span>
                 </button>
             </div>
         </div>

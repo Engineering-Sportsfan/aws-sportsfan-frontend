@@ -1305,6 +1305,7 @@
 // }
 
 
+
 // src\components\NewROARComponent\screens\Profile.tsx
 
 "use client";
@@ -1320,10 +1321,49 @@ import BackButton from "../../ReusableComponent/BackButton";
 import { useActivity } from "@/context/ActivityContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { BOT_TAGS } from "@/src/constants/bots";
 import { EXPERT_TAGS } from "@/src/constants/experts";
 import { getExpertCanonicalName, EXPERT_BIOS, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 import { RoarJourneySection } from "../components/RoarJourneySection";
+
+const EXPERT_STYLE_PRESETS = [
+  {
+    gradient: "linear-gradient(to bottom, #2b0b2e 0%, #0d0614 100%)",
+    glowColor: "rgba(233, 30, 140, 0.4)",
+    badgeBg: "rgba(233, 30, 140, 0.2)",
+    badgeTextColor: "#FF52B5",
+  },
+  {
+    gradient: "linear-gradient(to bottom, #3b1c0b 0%, #120805 100%)",
+    glowColor: "rgba(249, 115, 22, 0.4)",
+    badgeBg: "rgba(249, 115, 22, 0.2)",
+    badgeTextColor: "#FFA07A",
+  },
+  {
+    gradient: "linear-gradient(to bottom, #0b1f3b 0%, #030814 100%)",
+    glowColor: "rgba(6, 182, 212, 0.4)",
+    badgeBg: "rgba(6, 182, 212, 0.2)",
+    badgeTextColor: "#00E5FF",
+  },
+];
+
+function formatVideoTimestamp(isoDate?: string | number): string {
+  if (!isoDate) return "";
+  const date = typeof isoDate === "number" ? new Date(isoDate) : new Date(isoDate);
+  if (isNaN(date.getTime())) return "";
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 import {
   BOT_USERNAMES,
   BOT_BIOS,
@@ -1655,12 +1695,15 @@ export default function Profile({
   isViewingOther, fanData, onBack,
 }: Props) {
 
+  const router = useRouter();
   const isOtherProfile = !!(viewingProfile || isViewingOther);
   const handleBack = onBack ?? onClose;
 
-  const [activeExpertTab, setActiveExpertTab] = useState<"posts" | "videos">("posts");
-const [expertFlipCards, setExpertFlipCards] = useState<any[]>([]);
-const [expertFlipLoading, setExpertFlipLoading] = useState(false);
+  const [activeExpertTab, setActiveExpertTab] = useState<"videos" | "posts">("videos");
+  const [expertFlipCards, setExpertFlipCards] = useState<any[]>([]);
+  const [expertFlipLoading, setExpertFlipLoading] = useState(false);
+  const [expertVideos, setExpertVideos] = useState<any[]>([]);
+  const [expertVideosLoading, setExpertVideosLoading] = useState(false);
 
   const { activities, loading: activityLoading, refreshActivities, profileStats } = useActivity();
   const { user: authUser, getUserDisplayName, loading: authLoading } = useAuth();
@@ -2346,24 +2389,91 @@ const [expertFlipLoading, setExpertFlipLoading] = useState(false);
   }, [isOtherProfile, headerDisplayName]);
 
   useEffect(() => {
-  const canon = getExpertCanonicalName(profileMetadata?.user?.username);
-  if (!canon) return;
-  let cancelled = false;
-  setExpertFlipLoading(true);
-  axios.get("/api/flipline")
-    .then((res) => {
-      if (cancelled) return;
-      const allCards = Array.isArray(res.data?.data) ? res.data.data : [];
-      const matched = allCards.filter((c: any) => {
-        const authorCanon = getExpertCanonicalName(c.author) || getExpertCanonicalName(c.source);
-        return authorCanon === canon;
-      });
-      setExpertFlipCards(matched);
-    })
-    .catch(() => setExpertFlipCards([]))
-    .finally(() => { if (!cancelled) setExpertFlipLoading(false); });
-  return () => { cancelled = true; };
-}, [profileMetadata?.user?.username]);
+    const canon = getExpertCanonicalName(profileMetadata?.user?.username);
+    if (!canon) return;
+    let cancelled = false;
+    setExpertFlipLoading(true);
+    setExpertVideosLoading(true);
+
+    // Fetch FlipLine posts for this expert
+    axios.get("/api/flipline")
+      .then((res) => {
+        if (cancelled) return;
+        const allCards = Array.isArray(res.data?.data) ? res.data.data : [];
+        const matched = allCards.filter((c: any) => {
+          const authorCanon = getExpertCanonicalName(c.author) || getExpertCanonicalName(c.source);
+          return authorCanon === canon;
+        });
+        setExpertFlipCards(matched);
+      })
+      .catch(() => setExpertFlipCards([]))
+      .finally(() => { if (!cancelled) setExpertFlipLoading(false); });
+
+    // Fetch videos from flipLong and cloudinary cricket-media (like PlaybookDrops.tsx)
+    Promise.allSettled([
+      axios.get("/api/flipLong").then((r) => r.data),
+      axios.get("/api/cloudinary/cricket-media").then((r) => r.data),
+    ])
+      .then(([flipLongRes, cloudinaryRes]) => {
+        if (cancelled) return;
+        const allVideos: any[] = [];
+        const seenUrls = new Set<string>();
+
+        if (flipLongRes.status === "fulfilled" && flipLongRes.value?.success && Array.isArray(flipLongRes.value.videos)) {
+          flipLongRes.value.videos.forEach((v: any, idx: number) => {
+            const mediaUrl = v.videoUrl || v.url || v.mediaUrl || "";
+            if (mediaUrl && !seenUrls.has(mediaUrl)) {
+              seenUrls.add(mediaUrl);
+              allVideos.push({
+                id: v.id || v.videoId || `fliplong-${idx}`,
+                title: (v.title || "Untitled Video").replace(/\s[a-z0-9]{5,8}$/i, ""),
+                duration: v.duration || "0:00",
+                mediaUrl,
+                thumbnailUrl: v.thumbnailUrl || "",
+                author: v.author || "",
+                createdAt: v.createdAt || v.createdAtMs,
+                type: "VIDEO",
+              });
+            }
+          });
+        }
+
+        if (cloudinaryRes.status === "fulfilled" && cloudinaryRes.value?.success && Array.isArray(cloudinaryRes.value.mediaFiles)) {
+          cloudinaryRes.value.mediaFiles.forEach((item: any) => {
+            if (item.url && !seenUrls.has(item.url)) {
+              seenUrls.add(item.url);
+              allVideos.push({
+                id: item.id,
+                title: (item.title || "Untitled Video").replace(/\s[a-z0-9]{5,8}$/i, ""),
+                duration: item.duration || "0:00",
+                mediaUrl: item.url,
+                thumbnailUrl: item.thumbnailUrl || "",
+                author: item.author || "",
+                createdAt: item.createdAt,
+                type: item.resourceType === "video" ? "VIDEO" : "AUDIO",
+              });
+            }
+          });
+        }
+
+        // Match videos for this expert by name tokens in title or author
+        const target = canon.toLowerCase();
+        const tokens = target.split(/\s+/).filter((t: string) => t.length >= 3 && t !== "the");
+
+        const matched = allVideos.filter((v: any) => {
+          const title = (v.title || "").toLowerCase();
+          const author = (v.author || "").toLowerCase();
+          if (title.includes(target) || author.includes(target)) return true;
+          return tokens.some((tok: string) => title.includes(tok) || author.includes(tok));
+        });
+
+        setExpertVideos(matched);
+      })
+      .catch(() => setExpertVideos([]))
+      .finally(() => { if (!cancelled) setExpertVideosLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [profileMetadata?.user?.username]);
 
   if (loading || !profileMetadata) {
     return (
@@ -3022,60 +3132,216 @@ const [expertFlipLoading, setExpertFlipLoading] = useState(false);
       )}
 
       {isExpertProfile && (
-  <div style={{ padding: "0 14px 40px" }}>
-    <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-      {(["posts", "videos"] as const).map((tab) => (
-        <button
-          key={tab}
-          onClick={() => setActiveExpertTab(tab)}
-          style={{
-            flex: 1, padding: "9px 0", borderRadius: 20, border: "none", cursor: "pointer",
-            fontSize: 13, fontWeight: 700,
-            background: activeExpertTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
-            color: activeExpertTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
-            transition: "all 0.18s",
-          }}
-        >
-          {tab === "posts" ? "Posts" : "Videos"}
-        </button>
-      ))}
-    </div>
-
-    {activeExpertTab === "posts" ? (
-      expertFlipLoading ? (
-        <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading posts...</p>
-      ) : expertFlipCards.length === 0 ? (
-        <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No posts yet.</p>
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {expertFlipCards
-            .slice()
-            .sort((a: any, b: any) => (b.timeMs || 0) - (a.timeMs || 0))
-            .map((c: any, i: number) => (
-              <div key={c.id ?? `expert-post-${i}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                    {(c.source || "FlipLine").toUpperCase()}
-                  </span>
-                </div>
-                <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>{c.content}</p>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
-                  <span>{c.time || ""}</span>
-                  {c.likes !== undefined && <span>❤️ {c.likes} likes</span>}
-                </div>
-              </div>
+        <div style={{ padding: "0 14px 40px" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            {(["videos", "posts"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveExpertTab(tab)}
+                style={{
+                  flex: 1, padding: "9px 0", borderRadius: 20, border: "none", cursor: "pointer",
+                  fontSize: 13, fontWeight: 700,
+                  background: activeExpertTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
+                  color: activeExpertTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
+                  transition: "all 0.18s",
+                }}
+              >
+                {tab === "videos" ? "Videos" : "Posts"}
+              </button>
             ))}
+          </div>
+
+          {activeExpertTab === "videos" ? (
+            expertVideosLoading ? (
+              <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading videos...</p>
+            ) : expertVideos.length === 0 ? (
+              <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No videos yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+                {expertVideos.map((video, idx) => {
+                  const preset = EXPERT_STYLE_PRESETS[idx % EXPERT_STYLE_PRESETS.length];
+                  return (
+                    <motion.div
+                      key={video.id || idx}
+                      onClick={() => {
+                        const isAudio = video.type === "AUDIO";
+                        const route = isAudio ? "/MainModules/AudioDrop" : "/MainModules/VideoDrop";
+                        router.push(
+                          `${route}?url=${encodeURIComponent(video.mediaUrl)}&title=${encodeURIComponent(video.title)}`
+                        );
+                      }}
+                      whileHover={{ scale: 1.02, y: -3 }}
+                      whileTap={{ scale: 0.98 }}
+                      style={{
+                        borderRadius: 18,
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                        cursor: "pointer",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        boxShadow: "0 8px 20px -4px rgba(0, 0, 0, 0.5)",
+                        background: "#121622",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "100%",
+                          height: 130,
+                          position: "relative",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                          background: preset.gradient,
+                        }}
+                      >
+                        {video.thumbnailUrl && (
+                          <img
+                            src={video.thumbnailUrl}
+                            alt={video.title}
+                            style={{
+                              position: "absolute",
+                              inset: 0,
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              opacity: 0.75,
+                            }}
+                          />
+                        )}
+
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: 10,
+                            left: 10,
+                            zIndex: 10,
+                            fontSize: 8.5,
+                            fontWeight: 800,
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                            background: preset.badgeBg,
+                            color: preset.badgeTextColor,
+                          }}
+                        >
+                          {video.type}
+                        </span>
+
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "rgba(0, 0, 0, 0.25)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: "50%",
+                              border: "1px solid rgba(255, 255, 255, 0.2)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: "rgba(255, 255, 255, 0.15)",
+                              backdropFilter: "blur(2px)",
+                              WebkitBackdropFilter: "blur(2px)",
+                            }}
+                          >
+                            <svg width="12" height="14" viewBox="0 0 14 16" fill="none" style={{ marginLeft: 2 }}>
+                              <path d="M13 8L1 15V1L13 8Z" fill="#fff" />
+                            </svg>
+                          </div>
+                        </div>
+
+                        {video.duration && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              bottom: 8,
+                              right: 8,
+                              zIndex: 10,
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: "#fff",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: "rgba(0, 0, 0, 0.7)",
+                              lineHeight: 1,
+                            }}
+                          >
+                            {video.duration}
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ width: "100%", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+                        <h4
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "#fff",
+                            lineHeight: 1.35,
+                            textAlign: "left",
+                            margin: 0,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {video.title}
+                        </h4>
+
+                        {video.createdAt && (
+                          <span style={{ fontSize: 9.5, fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", marginTop: "auto", paddingTop: 4 }}>
+                            {formatVideoTimestamp(video.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            expertFlipLoading ? (
+              <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading posts...</p>
+            ) : expertFlipCards.length === 0 ? (
+              <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No posts yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {expertFlipCards
+                  .slice()
+                  .sort((a: any, b: any) => (b.timeMs || 0) - (a.timeMs || 0))
+                  .map((c: any, i: number) => (
+                    <div key={c.id ?? `expert-post-${i}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                          {(c.source || "FlipLine").toUpperCase()}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>{c.content}</p>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                        <span>{c.time || ""}</span>
+                        {c.likes !== undefined && <span>❤️ {c.likes} likes</span>}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )
+          )}
         </div>
-      )
-    ) : (
-      <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
-        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No videos yet.</p>
-      </div>
-    )}
-  </div>
-)}
+      )}
 
       {!isBotProfile && !isExpertProfile && (
         <>
