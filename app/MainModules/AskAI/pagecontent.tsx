@@ -390,7 +390,7 @@
 //             </Link>
 //           )}
 //           <h3 style={{ color: 'white', margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: '0.01em' }}>
-//             {view === 'history' ? 'Chat History' : 'Ask Dolly'}
+//             {view === 'history' ? 'Chat History' : 'Ask Flip'}
 //           </h3>
 //         </div>
 
@@ -992,7 +992,7 @@ export default function AskAI() {
       return parseBold(text)
     }
 
-    // ── User bubble: matches DollyPanel's right-aligned question bubble ──
+    // ── User bubble: matches FlipPanel's right-aligned question bubble ──
     if (m.role === 'user') {
       return (
         <div key={m.id || i} className="flex justify-end mb-3">
@@ -1007,7 +1007,7 @@ export default function AskAI() {
       )
     }
 
-    // ── Assistant bubble: matches DollyPanel's avatar + left-aligned answer bubble ──
+    // ── Assistant bubble: matches FlipPanel's avatar + left-aligned answer bubble ──
     return (
       <div key={m.id || i} className="flex gap-2 items-start mb-3">
         <div className="w-[26px] h-[26px] rounded-full overflow-hidden shrink-0">
@@ -1067,7 +1067,7 @@ export default function AskAI() {
         }
       `}</style>
 
-      {/* Header bar — matches DollyPanel's header: avatar, name, AI badge, Private lock line */}
+      {/* Header bar — matches FlipPanel's header: avatar, name, AI badge, Private lock line */}
       <div
         className="askai-bar"
         style={{
@@ -1108,7 +1108,7 @@ export default function AskAI() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="font-extrabold text-[15px] text-white">
-              {view === 'history' ? 'Chat History' : 'Dolly'}
+              {view === 'history' ? 'Chat History' : 'Flip'}
             </span>
             {view === 'chat' && (
               <span className="text-[9px] font-extrabold text-blue-400 bg-blue-500/15 border border-blue-500/35 rounded-md px-1.5 py-px">AI</span>
@@ -1144,7 +1144,7 @@ export default function AskAI() {
       <div style={{ height: 60, flexShrink: 0 }} />
 
       {view === 'history' ? (
-        /* ── History view — matches DollyPanel's history rows ── */
+        /* ── History view — matches FlipPanel's history rows ── */
         <div className="flex-1 min-h-0 overflow-y-auto px-3 py-2.5">
           <button
             type="button"
@@ -1303,7 +1303,7 @@ export default function AskAI() {
         </div>
       ) : (
         <>
-          {/* Landing state — matches DollyPanel greeting bubble */}
+          {/* Landing state — matches FlipPanel greeting bubble */}
           {!hasMessages && (
             <div className="flex-1 min-h-0 overflow-y-auto p-3.5 flex flex-col gap-3">
               <div className="flex gap-2 items-start">
@@ -1312,7 +1312,7 @@ export default function AskAI() {
                 </div>
                 <div className="bg-white/[0.08] border border-blue-500/30 rounded-tl-[4px] rounded-tr-2xl rounded-bl-2xl rounded-br-2xl px-3 py-2.5 max-w-[82%]">
                   <p className="m-0 text-[13px] leading-relaxed text-white">
-                    Hey! I'm Dolly 🐬 Ask me anything about IPL, T20, players, matches, stats and more!
+                    Hey! I'm Flip 🐬 Ask me anything about IPL, T20, players, matches, stats and more!
                   </p>
                 </div>
               </div>
@@ -1355,7 +1355,7 @@ export default function AskAI() {
             </div>
           )}
 
-          {/* Conversation area — matches DollyPanel body */}
+          {/* Conversation area — matches FlipPanel body */}
           {hasMessages && (
             <div ref={messagesRef} className="flex-1 min-h-0 overflow-y-auto p-3.5 flex flex-col gap-0 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]">
               {messages.map((m, i) => renderMessage(m, i))}
@@ -1368,7 +1368,7 @@ export default function AskAI() {
                   <div className="bg-white/[0.08] border border-blue-500/30 rounded-tl-[4px] rounded-tr-2xl rounded-bl-2xl rounded-br-2xl px-3 py-2.5">
                     <img
                       src="/gifs/memory/Ask_Dolly_2.gif"
-                      alt="Dolly is thinking…"
+                      alt="Flip is thinking…"
                       className="h-15 w-10 block object-fit"
                     />
                   </div>
@@ -1391,7 +1391,7 @@ export default function AskAI() {
             </div>
           )}
 
-          {/* Footer input — matches DollyPanel's pill input + send button */}
+          {/* Footer input — matches FlipPanel's pill input + send button */}
           <div className="px-3 py-2.5 border-t border-white/[0.08] shrink-0">
             <div className="flex items-center gap-2 bg-white/5 border border-blue-500/30 rounded-full py-1.5 pl-3.5 pr-1.5">
               <input
@@ -1416,7 +1416,7 @@ export default function AskAI() {
               </button>
             </div>
           </div>
-          <p className="text-[8px] text-gray-300 mb-2 ml-4">Ask Dolly loves sports but isn't always right. Double-check important information.</p>
+          <p className="text-[8px] text-gray-300 mb-2 ml-4">Ask Flip loves sports but isn't always right. Double-check important information.</p>
         </>
       )}
     </div>

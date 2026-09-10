@@ -12,13 +12,14 @@ import axios from "axios";
 // Add emails here to grant access to the floating Create Post button.
 const CREATE_POST_ALLOWED_EMAILS: string[] = [
   // "someone@sportsfan360.com",
-  "rahul.yadav@sportsfan360.com",
+  // "rahul.yadav@sportsfan360.com",
   "chandu.srikakulam@sportsfan360.com",
   "jignesh@sportsfan360.com",
   "anandvasu@gmail.com",
   "tushar.deshmukh@sportsfan360.com",
   "prisha.dureja@sportsfan360.com",
-  "dinod.withanawasam@sportsfan360.com"
+  "dinod.withanawasam@sportsfan360.com",
+  "albrain.antony@sportsfan360.com"
 ];
 
 export default function GlobalActionBar() {
@@ -48,6 +49,12 @@ export default function GlobalActionBar() {
     const res = await axios.post("/api/flipline", formData, {
       headers: { "Content-Type": "multipart/form-data" },
     });
+    if (typeof res.data === "string" && res.data.includes("<html")) {
+      throw new Error("Server returned an invalid HTML response. Please check backend connection.");
+    }
+    if (res.data && res.data.success === false) {
+      throw new Error(res.data.error || "Failed to create post. Please try again.");
+    }
     if (typeof window !== "undefined") {
       window.dispatchEvent(new Event("flipline-post-created"));
     }
@@ -104,7 +111,7 @@ export default function GlobalActionBar() {
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04]">
                 <FileText size={16} className="text-white" />
               </span>
-              Articles
+              FlipLONG
             </button>
           </div>
         )}

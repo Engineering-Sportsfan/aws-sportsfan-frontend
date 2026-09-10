@@ -16,28 +16,62 @@ export interface GetEngagementsParams {
   userId?: string;
 }
 
+// In-flight deduplication and short-lived caching to prevent duplicate network calls
+const inFlightRequests = new Map<string, Promise<EngagementItem[]>>();
+const cachedEngagements = new Map<string, { data: EngagementItem[]; timestamp: number }>();
+const CACHE_TTL_MS = 4000; // 4-second cache
+
 export const engagementService = {
+  /**
+   * Invalidate in-memory cache
+   */
+  invalidateCache: () => {
+    cachedEngagements.clear();
+  },
+
   /**
    * Fetch engagements feed list with optional filters
    */
   getEngagements: async (params: GetEngagementsParams = {}): Promise<EngagementItem[]> => {
-    try {
-      const queryParams = new URLSearchParams();
-      if (params.type && params.type !== "all") queryParams.append("type", params.type);
-      if (params.sport && params.sport !== "all" && params.sport !== "mixed") queryParams.append("sport", params.sport);
-      if (params.status && params.status !== "all") queryParams.append("status", params.status);
-      if (params.limit) queryParams.append("limit", String(params.limit));
-      if (params.userId) queryParams.append("userId", params.userId);
+    const queryParams = new URLSearchParams();
+    if (params.type && params.type !== "all") queryParams.append("type", params.type);
+    if (params.sport && params.sport !== "all" && params.sport !== "mixed") queryParams.append("sport", params.sport);
+    if (params.status && params.status !== "all") queryParams.append("status", params.status);
+    if (params.limit) queryParams.append("limit", String(params.limit));
+    if (params.userId) queryParams.append("userId", params.userId);
 
-      const queryString = queryParams.toString();
-      const url = `/api/engagements${queryString ? `?${queryString}` : ""}`;
-      
-      const res = await axios.get<EngagementsListResponse>(url);
-      return res.data?.engagements || [];
-    } catch (error) {
-      console.error("engagementService.getEngagements error:", error);
-      return [];
+    const queryString = queryParams.toString();
+    const url = `/api/engagements${queryString ? `?${queryString}` : ""}`;
+
+    // 1. Check in-memory cache
+    const cached = cachedEngagements.get(url);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
     }
+
+    // 2. Check if identical request is already in-flight
+    const existingPromise = inFlightRequests.get(url);
+    if (existingPromise) {
+      return existingPromise;
+    }
+
+    // 3. Initiate request with deduplication
+    const fetchPromise = (async () => {
+      try {
+        const res = await axios.get<EngagementsListResponse>(url);
+        const list = res.data?.engagements || [];
+        cachedEngagements.set(url, { data: list, timestamp: Date.now() });
+        return list;
+      } catch (error) {
+        console.error("engagementService.getEngagements error:", error);
+        return [];
+      } finally {
+        inFlightRequests.delete(url);
+      }
+    })();
+
+    inFlightRequests.set(url, fetchPromise);
+    return fetchPromise;
   },
 
   /**
@@ -72,6 +106,7 @@ export const engagementService = {
         ...(questionId ? { questionId } : {}),
       }
     );
+    cachedEngagements.clear();
     return res.data;
   },
 
@@ -105,6 +140,7 @@ export const engagementService = {
       `/api/engagements/${encodeURIComponent(id)}/like`,
       { userId }
     );
+    cachedEngagements.clear();
     return res.data;
   },
 

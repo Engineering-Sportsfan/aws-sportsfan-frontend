@@ -92,6 +92,8 @@ export default function VideoDropCard() {
   const videoIndex = parseInt(searchParams.get("videoIndex") || "0");
   const shortId = searchParams.get("shortId"); // New parameter for short ID
   const [playing, setPlaying] = useState(false);
+  const [showCenterIcon, setShowCenterIcon] = useState(true);
+  const iconTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [videoDrop, setVideoDrop] = useState<VideoDrop | null>(null);
   const [loading, setLoading] = useState(true);
@@ -267,6 +269,16 @@ export default function VideoDropCard() {
     }
   };
 
+  const triggerCenterIcon = () => {
+    setShowCenterIcon(true);
+    if (iconTimeoutRef.current) {
+      clearTimeout(iconTimeoutRef.current);
+    }
+    iconTimeoutRef.current = setTimeout(() => {
+      setShowCenterIcon(false);
+    }, 1200);
+  };
+
   // Handle video end
   const handleVideoEnd = () => {
     setPlaying(false);
@@ -274,6 +286,7 @@ export default function VideoDropCard() {
     if (videoRef.current) {
       videoRef.current.currentTime = 0;
     }
+    setShowCenterIcon(true);
   };
 
   // Handle play/pause
@@ -290,12 +303,35 @@ export default function VideoDropCard() {
       });
       setPlaying(true);
     }
+    triggerCenterIcon();
+  };
+
+  // Handle share (matches FlipLine implementation)
+  const handleShare = () => {
+    if (!videoDrop) return;
+    const shareTitle = videoDrop.title || "Video Drop on SportsFan360";
+    const shareText = videoDrop.description || videoDrop.title || "Check out this video drop on SportsFan360!";
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+
+    if (typeof window !== "undefined" && navigator.share) {
+      navigator
+        .share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        })
+        .catch((err) => console.log("Share cancelled or failed:", err));
+    } else if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(shareUrl || `"${shareTitle}" on SportsFan360`);
+      alert("Link copied to clipboard!");
+    }
   };
 
   // Cleanup timer
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (iconTimeoutRef.current) clearTimeout(iconTimeoutRef.current);
     };
   }, []);
 
@@ -352,7 +388,11 @@ export default function VideoDropCard() {
               <p className="text-[#777] text-[11px] sm:text-[12px] mt-0.5">{videoDrop.subtitle || "Video Drops"}</p>
             </div>
           </div>
-          <button className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition">
+          <button
+            onClick={handleShare}
+            title="Share"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition active:scale-95"
+          >
             <svg className="w-[13px] h-[13px] sm:w-[15px] sm:h-[15px]" viewBox="0 0 15 15" fill="none">
               <circle cx="11.5" cy="2.5" r="1.7" stroke="#aaa" strokeWidth="1.3" />
               <circle cx="11.5" cy="12.5" r="1.7" stroke="#aaa" strokeWidth="1.3" />
@@ -369,6 +409,8 @@ export default function VideoDropCard() {
             className="relative w-full bg-[#0e0e12] flex items-center justify-center cursor-pointer"
             style={{ aspectRatio: "16/9" }}
             onClick={togglePlay}
+            onMouseMove={triggerCenterIcon}
+            onTouchStart={triggerCenterIcon}
           >
             {videoDrop.thumbnail && !playing && !videoError && (
               <img src={videoDrop.thumbnail} alt={videoDrop.title} className="absolute inset-0 w-full h-full object-cover opacity-60" />
@@ -402,15 +444,20 @@ export default function VideoDropCard() {
 
             <button
               onClick={e => { e.stopPropagation(); togglePlay(); }}
-              className="relative z-10 w-[48px] h-[48px] sm:w-[54px] sm:h-[54px] md:w-[60px] md:h-[60px] rounded-full bg-[#888888] hover:bg-[#666666] flex items-center justify-center border-none cursor-pointer transition"
+              className={`relative z-10 w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] md:w-[64px] md:h-[64px] rounded-full bg-black/50 backdrop-blur-sm border border-white/20 hover:bg-black/70 flex items-center justify-center cursor-pointer transition-all duration-500 shadow-2xl ${
+                showCenterIcon
+                  ? "opacity-100 scale-100 pointer-events-auto"
+                  : "opacity-0 scale-110 pointer-events-none"
+              }`}
+              aria-label={playing ? "Pause" : "Play"}
             >
               {playing ? (
                 <svg className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" viewBox="0 0 22 22" fill="none">
-                  <rect x="6" y="4" width="3" height="14" rx="1" fill="#fff" />
-                  <rect x="13" y="4" width="3" height="14" rx="1" fill="#fff" />
+                  <rect x="6" y="4" width="3.5" height="14" rx="1.5" fill="#fff" />
+                  <rect x="12.5" y="4" width="3.5" height="14" rx="1.5" fill="#fff" />
                 </svg>
               ) : (
-                <svg className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px]" viewBox="0 0 22 22" fill="none">
+                <svg className="w-[18px] h-[18px] sm:w-[22px] sm:h-[22px] ml-0.5" viewBox="0 0 22 22" fill="none">
                   <path d="M8 5L18 11L8 17V5Z" fill="#fff" />
                 </svg>
               )}
@@ -443,7 +490,7 @@ export default function VideoDropCard() {
           </p>
 
           {/* Stats - Responsive grid and padding */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-5">
+          {/* <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-4 sm:mb-5">
             {[
               { label: "Views", value: videoDrop.views.toLocaleString(), color: "#888888", green: false },
               { label: "Signals", value: videoDrop.signals.toLocaleString(), color: "#888888", green: false },
@@ -473,7 +520,7 @@ export default function VideoDropCard() {
                 </span>
               </div>
             ))}
-          </div>
+          </div> */}
 
           {/* Meta - Responsive text and gap */}
           <div className="flex items-center gap-2 sm:gap-3.5 text-[11px] sm:text-[12px] text-[#666] mb-3 sm:mb-4">
@@ -506,13 +553,13 @@ export default function VideoDropCard() {
 
           {/* Send Signal - Responsive button */}
           {/* <button className="w-full bg-[#1a1a1a] border border-[#888888] rounded-[12px] sm:rounded-[14px] py-[20px] pb-[30px] sm:py-[15px] md:py-[20px] flex items-center justify-center gap-1.5 sm:gap-2 text-[#888888] text-[13px] sm:text-[15px] md:text-[16px] font-medium hover:bg-[#222222] transition cursor-pointer"> */}
-          <button className="w-full bg-[#1a1a1a] mb-10 border border-[#888888] rounded-[12px] sm:rounded-[14px] py-[14px] sm:py-[15px] md:py-[16px] flex items-center justify-center gap-1.5 sm:gap-2 text-[#888888] text-[13px] sm:text-[15px] md:text-[16px] font-medium hover:bg-[#222222] transition cursor-pointer">
+          {/* <button className="w-full bg-[#1a1a1a] mb-10 border border-[#888888] rounded-[12px] sm:rounded-[14px] py-[14px] sm:py-[15px] md:py-[16px] flex items-center justify-center gap-1.5 sm:gap-2 text-[#888888] text-[13px] sm:text-[15px] md:text-[16px] font-medium hover:bg-[#222222] transition cursor-pointer">
             <svg className="w-[14px] h-[14px] sm:w-[17px] sm:h-[17px]" viewBox="0 0 17 17" fill="none">
               <path d="M8.5 1.5C5.5 1.5 3 3.8 3 6.5c0 1.4.6 2.6 1.7 3.5L4 14l3.2-1.1c.4.1.8.1 1.3.1C11.5 13 14 10.7 14 8s-2.5-6.5-5.5-6.5z" stroke="#888888" strokeWidth="1.3" strokeLinejoin="round" />
               <path d="M6 8h5M8.5 5.5v5" stroke="#888888" strokeWidth="1.3" strokeLinecap="round" />
             </svg>
             Send Signal
-          </button>
+          </button> */}
         </div>
       </div>
     </div>

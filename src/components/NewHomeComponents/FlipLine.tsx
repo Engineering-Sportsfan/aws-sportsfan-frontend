@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { getBotCanonicalName } from '@/src/constants/bots';
 import {
   Heart,
   MessageSquare,
@@ -204,7 +205,9 @@ function FlipLineSection({
   let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
 
   // Apply hashtag filter chips
-  if (activeFilter === 'cricket') {
+  if (activeFilter === 'general') {
+    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
+  } else if (activeFilter === 'cricket') {
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
   } else if (activeFilter === 'football') {
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
@@ -255,6 +258,7 @@ function FlipLineSection({
       >
         {[
           { id: 'all', label: '#all', emoji: '⚡' },
+          { id: 'general', label: '#general', emoji: '📢' },
           { id: 'cricket', label: '#cricket', emoji: '🏏' },
           { id: 'football', label: '#football', emoji: '⚽' },
           { id: 'athletics', label: '#athletics', emoji: '🏃' },
@@ -365,7 +369,9 @@ export function FlipLineFullScreen({
   let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
 
   // Apply hashtag filter chips
-  if (activeFilter === 'cricket') {
+  if (activeFilter === 'general') {
+    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
+  } else if (activeFilter === 'cricket') {
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
   } else if (activeFilter === 'football') {
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
@@ -518,6 +524,7 @@ export function FlipLineFullScreen({
       >
         {[
           { id: 'all', label: '#all', emoji: '⚡' },
+          { id: 'general', label: '#general', emoji: '📢' },
           { id: 'cricket', label: '#cricket', emoji: '🏏' },
           { id: 'football', label: '#football', emoji: '⚽' },
           { id: 'athletics', label: '#athletics', emoji: '🏃' },
@@ -1109,10 +1116,71 @@ export function FlipCardItem({
   };
 
   // ── 10. Open User Profile Navigation ─────────────────────────────────────────
+  // const handleOpenAuthorProfile = () => {
+  //   if (card.type === 'bot') {
+  //     const botName = card.author === 'Flip' ? 'Dolly' : card.author;
+  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botName)}`);
+  //     return;
+  //   }
+
+  //   const targetUser =
+  //     card.userId ||
+  //     card.email ||
+  //     (card.handle && card.handle !== '@fan' && card.handle !== '@you' ? card.handle.replace(/^@/, '') : null) ||
+  //     (card.author && card.author !== 'Fan' && card.author !== 'You' ? card.author : null) ||
+  //     (isCurrentUser ? (currentUserEmail || currentUserId) : null);
+
+  //   if (targetUser) {
+  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+  //   } else {
+  //     router.push('/MainModules/ROAR');
+  //   }
+  // };
+
+  // const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
+  //   const targetUser =
+  //     targetUserId ||
+  //     (targetHandle && targetHandle !== '@fan' && targetHandle !== '@you' ? targetHandle.replace(/^@/, '') : null) ||
+  //     (targetName && targetName !== 'Fan' && targetName !== 'You' ? targetName : null) ||
+  //     (currentUserEmail || currentUserId);
+
+  //   if (targetUser) {
+  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+  //   } else {
+  //     router.push('/MainModules/ROAR');
+  //   }
+  // };
+
+
+    const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
+    const botCanon = getBotCanonicalName(targetName) || getBotCanonicalName(targetUserId);
+    if (botCanon) {
+      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botCanon)}`);
+      return;
+    }
+
+    const targetUser =
+      targetUserId ||
+      (targetHandle && targetHandle !== '@fan' && targetHandle !== '@you' ? targetHandle.replace(/^@/, '') : null) ||
+      (targetName && targetName !== 'Fan' && targetName !== 'You' ? targetName : null) ||
+      (currentUserEmail || currentUserId);
+
+    if (targetUser) {
+      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+    } else {
+      router.push('/MainModules/ROAR');
+    }
+  };
+
+
+    // ── 10. Open User Profile Navigation ─────────────────────────────────────────
   const handleOpenAuthorProfile = () => {
-    if (card.type === 'bot') {
-      const botName = card.author === 'Flip' ? 'Dolly' : card.author;
-      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botName)}`);
+    const botCanon = card.type === 'bot'
+      ? (getBotCanonicalName(card.author) || 'Dolly')
+      : getBotCanonicalName(card.author);
+
+    if (botCanon) {
+      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botCanon)}`);
       return;
     }
 
@@ -1130,19 +1198,6 @@ export function FlipCardItem({
     }
   };
 
-  const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
-    const targetUser =
-      targetUserId ||
-      (targetHandle && targetHandle !== '@fan' && targetHandle !== '@you' ? targetHandle.replace(/^@/, '') : null) ||
-      (targetName && targetName !== 'Fan' && targetName !== 'You' ? targetName : null) ||
-      (currentUserEmail || currentUserId);
-
-    if (targetUser) {
-      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
-    } else {
-      router.push('/MainModules/ROAR');
-    }
-  };
 
   // Total comment count = sum of comments + sum of replies
   const totalCommentsCount = commentsList.reduce(
@@ -1255,11 +1310,11 @@ export function FlipCardItem({
                       BOT
                     </span>
                   ) : (
-                    card.isVerified && (
+                    (card.isVerified === true || String(card.isVerified) === 'true') ? (
                       <span
                         className="inline-flex items-center justify-center bg-[#1d9bf0] text-white rounded-full shrink-0"
                         style={{ width: 14, height: 14 }}
-                        title="Verified Admin"
+                        title="Verified"
                       >
                         <svg
                           className="w-2.5 h-2.5 fill-none stroke-current"
@@ -1271,7 +1326,7 @@ export function FlipCardItem({
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       </span>
-                    )
+                    ) : null
                   )}
                   {card.type !== 'bot' && displayHandle && (
                     <span

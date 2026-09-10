@@ -1,5 +1,43 @@
 import { avatarUrl, BADGE_CONFIG } from "../constants";
 
+export function sanitizeAvatarUrl(raw: string | null | undefined): string | null {
+  if (!raw || typeof raw !== "string") return null;
+  let trimmed = raw.trim();
+  if (!trimmed || trimmed === "undefined" || trimmed === "null") return null;
+
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    trimmed = trimmed.slice(1, -1).trim();
+  }
+
+  if (trimmed.startsWith("data:")) {
+    trimmed = trimmed.replace(/\r?\n|\r|\s/g, "");
+    const commaIdx = trimmed.indexOf(",");
+    if (commaIdx !== -1) {
+      const b64 = trimmed.slice(commaIdx + 1);
+      if (b64.startsWith("/9j/")) {
+        return `data:image/jpeg;base64,${b64}`;
+      } else if (b64.startsWith("iVBORw0KGgo")) {
+        return `data:image/png;base64,${b64}`;
+      } else if (b64.startsWith("R0lGOD")) {
+        return `data:image/gif;base64,${b64}`;
+      } else if (b64.startsWith("UklGR")) {
+        return `data:image/webp;base64,${b64}`;
+      }
+    }
+    return trimmed;
+  }
+
+  const cleanedNoSpace = trimmed.replace(/\r?\n|\r|\s/g, "");
+  if (cleanedNoSpace.startsWith("/9j/")) {
+    return `data:image/jpeg;base64,${cleanedNoSpace}`;
+  }
+  if (cleanedNoSpace.startsWith("iVBORw0KGgo")) {
+    return `data:image/png;base64,${cleanedNoSpace}`;
+  }
+
+  return trimmed;
+}
+
 interface Props {
   username: string;
   badge?: string;
@@ -21,6 +59,7 @@ export default function AvatarWithBadge({ username, badge = "RISING_FAN", size =
   const radius = (s.ring - s.stroke) / 2;
   const cx = s.outer / 2;
   const circ = 2 * Math.PI * radius;
+  const resolvedAvatar = sanitizeAvatarUrl(customAvatarUrl);
 
   return (
     <div
@@ -83,10 +122,17 @@ export default function AvatarWithBadge({ username, badge = "RISING_FAN", size =
         }}
       >
         <img
-          src={customAvatarUrl || avatarUrl(username)}
+          src={resolvedAvatar || avatarUrl(username)}
           alt={username}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
           loading="lazy"
+          onError={(e) => {
+            const target = e.currentTarget as HTMLImageElement;
+            const fallback = avatarUrl(username);
+            if (target.src !== fallback) {
+              target.src = fallback;
+            }
+          }}
         />
       </div>
       <div

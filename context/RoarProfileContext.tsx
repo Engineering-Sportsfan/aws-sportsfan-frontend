@@ -115,6 +115,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import axios from "axios";
+import { getBotCanonicalName, BOT_AVATARS, BOT_BIOS } from "@/src/constants/bots";
 
 export interface ProfileContextType {
   viewingUserId: string | null;          // ← CHANGED: was viewingUsername
@@ -163,6 +164,25 @@ export const RoarProfileProvider = ({ children }: { children: ReactNode }) => {
     const fetchProfile = async () => {
       if (!viewingUserId) {
         setProfileData(null);
+        return;
+      }
+      const botName = getBotCanonicalName(viewingUserId);
+      if (botName) {
+        setProfileData({
+          success: true,
+          user: {
+            username: botName,
+            displayName: botName,
+            avatarUrl: BOT_AVATARS[botName] || "/images/dolly.png",
+            about: BOT_BIOS[botName] || "SportsFan360 bot — automated fan companion.",
+            badge: "BOT",
+            isBot: true,
+          },
+          predictions: [],
+          hotTakes: [],
+          debates: [],
+          posts: [],
+        });
         return;
       }
       setLoading(true);

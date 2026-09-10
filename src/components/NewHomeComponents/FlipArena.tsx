@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Poll } from "@/types/Polls";
 import { EngagementItem } from "@/types/engagements";
@@ -450,26 +450,14 @@ function DynamicQuizCard({
         })}
       </div>
 
-      {answered && (
+      {answered && isCorrect && (
         <motion.div
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`text-[11px] font-black text-center p-2.5 rounded-xl border mb-2 flex items-center justify-center gap-2 ${isCorrect
-            ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-            : "bg-red-500/10 border-red-500/30 text-red-400"
-            }`}
+          className="text-[11px] font-black text-center p-2.5 rounded-xl border mb-2 flex items-center justify-center gap-2 bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
         >
-          {isCorrect ? (
-            <>
-              <span>🎉</span>
-              <span>Correct! You earned {pointsReward} PTS!</span>
-            </>
-          ) : (
-            <>
-              <span>❌</span>
-              <span>{explanation || `Incorrect. Correct answer is ${correctOptionId}`}</span>
-            </>
-          )}
+          <span>🎉</span>
+          <span>Correct! You earned {pointsReward} PTS!</span>
         </motion.div>
       )}
 
@@ -938,8 +926,16 @@ export default function FlipArena({
     setTimeout(() => setToastMessage(null), 3000);
   }, []);
 
+  const isFetchingEngagementsRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+
   // Fetch live engagements from backend API
   const fetchEngagements = useCallback(async () => {
+    if (isFetchingEngagementsRef.current || Date.now() - lastFetchTimeRef.current < 4000) {
+      return;
+    }
+    isFetchingEngagementsRef.current = true;
+    lastFetchTimeRef.current = Date.now();
     setLoadingEngagements(true);
     try {
       const liveItems = await engagementService.getEngagements({
@@ -959,6 +955,7 @@ export default function FlipArena({
       setEngagements(FALLBACK_ENGAGEMENTS);
     } finally {
       setLoadingEngagements(false);
+      isFetchingEngagementsRef.current = false;
     }
   }, [selectedSport, activeUserId]);
 
@@ -1001,14 +998,20 @@ export default function FlipArena({
     }
   };
 
-  // Filter engagements based on active filter tab
-  const filteredEngagements = engagements.filter((item) => {
-    if (filter === "all") return true;
-    if (filter === "battle") return item.type === "fan_battle";
-    if (filter === "quiz") return item.type === "quiz";
-    if (filter === "poll") return item.type === "poll" || item.type === "prediction";
-    return true;
-  });
+  // Filter and sort engagements chronologically (latest on top)
+  const filteredEngagements = [...engagements]
+    .filter((item) => {
+      if (filter === "all") return true;
+      if (filter === "battle") return item.type === "fan_battle";
+      if (filter === "quiz") return item.type === "quiz";
+      if (filter === "poll") return item.type === "poll" || item.type === "prediction";
+      return true;
+    })
+    .sort((a, b) => {
+      const timeA = typeof a.createdAt === "number" ? a.createdAt : new Date(a.createdAt || 0).getTime();
+      const timeB = typeof b.createdAt === "number" ? b.createdAt : new Date(b.createdAt || 0).getTime();
+      return timeB - timeA;
+    });
 
   return (
     <div className="w-full bg-[#070b14] min-h-screen text-white flex flex-col font-sans pb-12">

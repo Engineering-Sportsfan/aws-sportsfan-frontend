@@ -1306,13 +1306,14 @@
 
 
 
+// src\components\NewROARComponent\screens\Profile.tsx
 
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import Image from "next/image";
-import AvatarWithBadge from "../components/AvatarWithBadge";
+import AvatarWithBadge, { sanitizeAvatarUrl } from "../components/AvatarWithBadge";
 import ActivityFeed from "../components/ActivityFeed";
 import { BADGE_CONFIG, BADGE_DETAIL, BADGE_LABELS, BADGES_LIST, RIVAL, CURRENT_USER } from "../constants";
 import { fmt } from "../utils";
@@ -1320,7 +1321,58 @@ import BackButton from "../../ReusableComponent/BackButton";
 import { useActivity } from "@/context/ActivityContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { BOT_TAGS } from "@/src/constants/bots";
+import { EXPERT_TAGS } from "@/src/constants/experts";
+import { getExpertCanonicalName, EXPERT_BIOS, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 import { RoarJourneySection } from "../components/RoarJourneySection";
+
+const EXPERT_STYLE_PRESETS = [
+  {
+    gradient: "linear-gradient(to bottom, #2b0b2e 0%, #0d0614 100%)",
+    glowColor: "rgba(233, 30, 140, 0.4)",
+    badgeBg: "rgba(233, 30, 140, 0.2)",
+    badgeTextColor: "#FF52B5",
+  },
+  {
+    gradient: "linear-gradient(to bottom, #3b1c0b 0%, #120805 100%)",
+    glowColor: "rgba(249, 115, 22, 0.4)",
+    badgeBg: "rgba(249, 115, 22, 0.2)",
+    badgeTextColor: "#FFA07A",
+  },
+  {
+    gradient: "linear-gradient(to bottom, #0b1f3b 0%, #030814 100%)",
+    glowColor: "rgba(6, 182, 212, 0.4)",
+    badgeBg: "rgba(6, 182, 212, 0.2)",
+    badgeTextColor: "#00E5FF",
+  },
+];
+
+function formatVideoTimestamp(isoDate?: string | number): string {
+  if (!isoDate) return "";
+  const date = typeof isoDate === "number" ? new Date(isoDate) : new Date(isoDate);
+  if (isNaN(date.getTime())) return "";
+
+  const diffMs = Date.now() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+import {
+  BOT_USERNAMES,
+  BOT_BIOS,
+  BOT_AVATARS,
+  BOT_ROLES,
+  BOT_SAMPLE_POSTS,
+  getBotCanonicalName,
+  isBotName,
+} from "@/src/constants/bots";
 
 const FIRST_ROAR_BADGE_SRC = "/images/badges/postl1.png";
 const toBadgeImageSrc = (imageUrl: string) => {
@@ -1413,9 +1465,92 @@ function PencilIcon() {
   );
 }
 
+
+function IdentityCard({
+  avatarSrc, name, subtitle, tags, bio, editable, onEditClick,
+}: {
+  avatarSrc?: string | null;
+  name: string;
+  subtitle: string;
+  tags: string[];
+  bio: string;
+  editable?: boolean;
+  onEditClick?: () => void;
+}) {
+  return (
+    <div style={{
+      margin: "-48px 14px 24px",
+      padding: "0 4px 18px",
+      position: "relative",
+    }}>
+      {editable && (
+        <button onClick={onEditClick} aria-label="Edit"
+          style={{
+            position: "absolute", top: 0, right: 4,
+            width: 30, height: 30, borderRadius: "50%",
+            background: "var(--accent-magenta)", border: "none",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer", zIndex: 2,
+          }}>
+          <PencilIcon />
+        </button>
+      )}
+
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+        <div style={{
+          width: 92, height: 92, borderRadius: "50%", overflow: "hidden",
+          flexShrink: 0, background: "#1a1a2e",
+          border: "3px solid rgba(10,10,16,0.97)",
+        }}>
+          {avatarSrc ? (
+            <img src={avatarSrc} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+          ) : null}
+        </div>
+
+        {/* name / role / tags all in this one column, stacked as 3 rows */}
+        <div style={{ minWidth: 0, paddingRight: 36, paddingTop: 22, display: "flex", flexDirection: "column", gap: 6 }}>
+          <h2 className="font-display" style={{ fontSize: 17, fontWeight: 900, color: "#fff", margin: 0, letterSpacing: "0.02em" }}>
+            {name.toUpperCase()}
+          </h2>
+          <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.65)", lineHeight: 1.5, margin: 0 }}>
+            {subtitle}
+          </p>
+         {tags.length > 0 && (
+  <div style={{
+    display: "flex",
+    flexWrap: "nowrap",
+    gap: 4,
+    marginTop: 2,
+    overflowX: "auto",
+    maxWidth: "100%",
+  }}>
+    {tags.map((t) => (
+      <span key={t} style={{
+        fontSize: 10.5, fontWeight: 700, color: "#f472b6",
+        background: "rgba(233,30,140,0.15)", border: "1px solid rgba(233,30,140,0.3)",
+        padding: "4px 8px", borderRadius: 20,
+        whiteSpace: "nowrap",
+        flexShrink: 0,
+      }}>
+        {t}
+      </span>
+    ))}
+  </div>
+)}
+        </div>
+      </div>
+
+      {/* bio starts clearly below the avatar + name/role/tags block */}
+      <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.65, margin: 0 }}>
+        {bio}
+      </p>
+    </div>
+  );
+}
+
 const buildShareUrl = (user: RoarShareUser) => {
   if (typeof window === "undefined") return "";
-  const url = new URL(`${window.location.origin}/MainModules/ROAR`);
+  const url = new URL(`${window.location.origin}/MainModules/HomePage`);
   const key = user?.handle || user?.username || user?.id || user?.userId;
   if (key) url.searchParams.set("profile", String(key).replace(/^@/, ""));
   return url.toString();
@@ -1519,6 +1654,40 @@ function generateProfileShareCard(stats: {
   });
 }
 
+function resolveUsername(userObj: any, fallbackName?: string): string {
+  if (fallbackName && !fallbackName.startsWith("Fan_") && !fallbackName.startsWith("Guest_") && fallbackName !== "Fan" && fallbackName !== "RoarUser") {
+    return fallbackName;
+  }
+  const raw = userObj?.username || userObj?.displayName || userObj?.name;
+  if (raw && !["Fan", "RoarUser", "ROARFAN", "ROAR fan", "ROAR Fan"].includes(raw)) {
+    return raw;
+  }
+  const email = userObj?.email;
+  if (email && typeof email === "string" && email.includes("@")) {
+    const localPart = email.split("@")[0];
+    const cleaned = localPart
+      .replace(/[._-]+/g, " ")
+      .trim()
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+    if (cleaned) return cleaned;
+  }
+  const uid = userObj?.actualUserId || userObj?.userId;
+  if (uid && typeof uid === "string") {
+    const cleaned = uid
+      .replace(/^USER#/i, "")
+      .replace(/_com$|_org$|_net$/i, "")
+      .replace(/[._-]+/g, " ")
+      .trim()
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+    if (cleaned) return cleaned;
+  }
+  return fallbackName || "Fan";
+}
+
 // ─── Component
 export default function Profile({
   userBadge, setUserBadge, onCompose, onToast, setOnboarded, onNavigateTab,
@@ -1526,11 +1695,47 @@ export default function Profile({
   isViewingOther, fanData, onBack,
 }: Props) {
 
+  const router = useRouter();
   const isOtherProfile = !!(viewingProfile || isViewingOther);
   const handleBack = onBack ?? onClose;
 
+  const [activeExpertTab, setActiveExpertTab] = useState<"videos" | "posts">("videos");
+  const [expertFlipCards, setExpertFlipCards] = useState<any[]>([]);
+  const [expertFlipLoading, setExpertFlipLoading] = useState(false);
+  const [expertVideos, setExpertVideos] = useState<any[]>([]);
+  const [expertVideosLoading, setExpertVideosLoading] = useState(false);
+
   const { activities, loading: activityLoading, refreshActivities, profileStats } = useActivity();
   const { user: authUser, getUserDisplayName, loading: authLoading } = useAuth();
+
+  const loggedInUserId = useMemo(() => {
+    const sanitize = (id: string | null | undefined): string | null => {
+      if (!id) return null;
+      const s = String(id).trim();
+      if (!s || s === "undefined" || s === "null") return null;
+      return s.includes("@") || s.includes(".") ? s.replace(/[@.]/g, "_") : s;
+    };
+
+    if (authUser?.actualUserId) return sanitize(authUser.actualUserId);
+    if (authUser?.userId) return sanitize(authUser.userId);
+    if (authUser?.email) return sanitize(authUser.email);
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user");
+        if (stored) {
+          const p = JSON.parse(stored);
+          if (p.actualUserId) return sanitize(p.actualUserId);
+          if (p.userId) return sanitize(p.userId);
+          if (p.email) return sanitize(p.email);
+        }
+      } catch { }
+      const uid = localStorage.getItem("userId");
+      if (uid) return sanitize(uid);
+      const roarUser = localStorage.getItem("roar_username");
+      if (roarUser && !["Fan", "RoarUser", "ROARFAN", "ROAR fan"].includes(roarUser)) return roarUser;
+    }
+    return null;
+  }, [authUser]);
 
   const headerDisplayName = useMemo(() => {
     if (authUser?.name) return authUser.name;
@@ -1545,7 +1750,7 @@ export default function Profile({
           const parsed = JSON.parse(stored);
           if (parsed?.name) return parsed.name;
         }
-      } catch {}
+      } catch { }
       const roarUser = localStorage.getItem("roar_username");
       if (roarUser) return roarUser;
     }
@@ -1561,6 +1766,7 @@ export default function Profile({
 
   const [fetchedActivities, setFetchedActivities] = useState<any[]>([]);
   const [fetchedActivitiesLoading, setFetchedActivitiesLoading] = useState(false);
+  const [activityCounts, setActivityCounts] = useState<Record<string, number>>({});
 
   // Activity pagination: fetch in rolling 7-day windows instead of everything at once
   const ACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -1570,21 +1776,23 @@ export default function Profile({
   const [activityUserId, setActivityUserId] = useState<string | null>(null);
   const activityIdsRef = useRef<Set<string>>(new Set());
 
-  const BOT_USERNAMES = ["Dolly", "Radha", "Krishna"];
-  const BOT_BIOS: Record<string, string> = {
-    Dolly: "SportsFan360's AI companion — answers your questions and keeps the room buzzing.",
-    Radha: "SportsFan360 bot bringing hot takes, banter, and match-day energy to every room.",
-    Krishna: "SportsFan360 bot here to spark debates and keep the predictions coming.",
-  };
-  const BOT_AVATARS: Record<string, string> = {
-   Dolly: "/images/dolly.png",
-  Radha: "/images/radha.png",
-  Krishna: "/images/krishna.png",
-  };
-
+  // const BOT_USERNAMES = ["Dolly", "Radha", "Krishna"];
+  // const BOT_BIOS: Record<string, string> = {
+  //   Dolly: "SportsFan360's AI companion — answers your questions and keeps the room buzzing.",
+  //   Radha: "SportsFan360 bot bringing hot takes, banter, and match-day energy to every room.",
+  //   Krishna: "SportsFan360 bot here to spark debates and keep the predictions coming.",
+  // };
+  // const BOT_AVATARS: Record<string, string> = {
+  //  Dolly: "/images/dolly.png",
   // Room name lookup: roomId -> { name, icon } (from /api/roar/rooms), used to label
   // activity cards with the actual room name instead of falling back to "General Room".
+
+  
   const [roomsById, setRoomsById] = useState<Record<string, { name: string; icon?: string }>>({});
+  const EXTENDED_BOT_PROFILE_NAMES = ["Arjun Mehta", "Neha Iyer", "Riya Kapoor", "Kabir Sharma"];
+
+  const toExtendedBotUserId = (canonicalName: string) =>
+    `bot_${canonicalName.trim().toLowerCase().replace(/\s+/g, "_")}`;
 
   useEffect(() => {
     const fetchRooms = async () => {
@@ -1603,6 +1811,8 @@ export default function Profile({
     };
     fetchRooms();
   }, []);
+
+  
 
   const getRoomName = (roomId?: string, fallback?: string) =>
     (roomId && roomsById[roomId]?.name) || fallback || "General Room";
@@ -1637,17 +1847,6 @@ export default function Profile({
   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
   const [specialBadges, setSpecialBadges] = useState<any[]>([]);
 
-  // Fetches a single 7-day window of activity. By default fetches the most
-  // recent 7 days. Pass `before` (an epoch ms timestamp) to page further back
-  // in time — e.g. "Load more" fetches the 7 days immediately preceding the
-  // oldest window already loaded. `append` controls whether results are
-  // merged onto the existing list or replace it (used when switching profiles).
-  //
-  // NOTE: we also filter client-side by createdAt, because some backends
-  // silently ignore startDate/endDate query params and return everything —
-  // that was the cause of "first fetch" showing weeks-old activity even
-  // though only a 7-day window was requested.
-
   // Refetch on return-to-screen, since posting happens elsewhere (ComposeModal's
   // parent room screen) with no direct link back to this component — the only
   // reliable signal that "something may have changed" is the user navigating
@@ -1658,25 +1857,46 @@ export default function Profile({
       refreshActivities(); // clears ActivityContext's 30s cache
 
       if (!isOtherProfile) {
-        axios.get("/api/roar/profile", { withCredentials: true })
+        const profileQuery = loggedInUserId ? `?userId=${encodeURIComponent(loggedInUserId)}` : "";
+        axios.get(`/api/roar/profile${profileQuery}`, { withCredentials: true })
           .then((res) => {
             if (!res.data?.success) return;
+            const apiUser = res.data.user || {};
+            const resolved = resolveUsername(apiUser);
+            const rawBackendAvatar =
+              apiUser.avatarUrl ||
+              apiUser.avatar ||
+              apiUser.photoURL ||
+              apiUser.image ||
+              apiUser.profilePicture ||
+              authUser?.avatar ||
+              authUser?.photoURL;
+            const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
+
             setProfileMetadata((prev: any) => {
-              const apiUser = res.data.user || {};
               return {
                 ...prev,
                 user: {
                   ...apiUser,
-                  username: apiUser.username || prev?.user?.username,
+                  avatarUrl: backendAvatar || apiUser.avatarUrl || prev?.user?.avatarUrl,
+                  username: resolved || apiUser.username,
                 },
+                predictions: res.data.predictions ?? apiUser.predictions ?? prev?.predictions ?? [],
+                hotTakes: res.data.hotTakes ?? apiUser.hotTakes ?? prev?.hotTakes ?? [],
+                debates: res.data.debates ?? apiUser.debates ?? prev?.debates ?? [],
+                posts: res.data.posts ?? apiUser.posts ?? prev?.posts ?? [],
               };
             });
             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
             if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
+            if (backendAvatar) {
+              setSelectedAvatar(backendAvatar);
+              try { localStorage.setItem("roar_avatar_url", backendAvatar); } catch { }
+            }
 
-            const actualUid = res.data.user?.actualUserId;
+            const actualUid = res.data.user?.actualUserId || res.data.user?.userId || loggedInUserId;
             if (actualUid) fetchActivities(actualUid);
           })
           .catch(() => { });
@@ -1689,7 +1909,7 @@ export default function Profile({
       document.removeEventListener("visibilitychange", reload);
       window.removeEventListener("focus", reload);
     };
-  }, [isOtherProfile]);
+  }, [isOtherProfile, loggedInUserId, authUser]);
 
   const fetchActivities = async (
     actualUserId: string,
@@ -1699,40 +1919,44 @@ export default function Profile({
     const endDate = opts?.before ?? Date.now();
     const startDate = endDate - ACTIVITY_WINDOW_MS;
     const isAppend = !!opts?.append;
+    const isInitial = !isAppend && !opts?.before;
     const setLoadingFlag = isAppend ? setLoadingMoreActivities : setFetchedActivitiesLoading;
 
     setLoadingFlag(true);
     if (!isAppend) activityIdsRef.current = new Set();
     try {
-      const actRes = await axios.get(
-        `/api/user-activity?userId=${encodeURIComponent(actualUserId)}&limit=200&startDate=${startDate}&endDate=${endDate}`
-      );
+      const url = isInitial
+        ? `/api/user-activity?userId=${encodeURIComponent(actualUserId)}&limit=200`
+        : `/api/user-activity?userId=${encodeURIComponent(actualUserId)}&limit=200&startDate=${startDate}&endDate=${endDate}`;
+      const actRes = await axios.get(url);
       if (actRes.data?.success) {
+        if (actRes.data.counts) {
+          setActivityCounts((prev) => ({ ...prev, ...actRes.data.counts }));
+        }
         const rawItems: any[] = actRes.data.activities || [];
 
         // Client-side safety net: enforce the requested window regardless of
-        // what the API actually returned.
-        const newItems = rawItems.filter((a: any) => {
-          const ts = a?.createdAt;
-          if (!ts) return true; // keep items with no timestamp rather than silently drop them
-          return ts >= startDate && ts <= endDate;
-        });
+        // what the API actually returned when paging older items.
+        const newItems = isInitial
+          ? rawItems
+          : rawItems.filter((a: any) => {
+            const ts = a?.createdAt;
+            if (!ts) return true;
+            return ts >= startDate && ts <= endDate;
+          });
 
         const deduped = newItems.filter((a: any) => a?.id != null && !activityIdsRef.current.has(a.id));
         deduped.forEach((a: any) => activityIdsRef.current.add(a.id));
 
         setFetchedActivities((prev) => (isAppend ? [...prev, ...deduped] : deduped));
-        // hasMore is based on whether the API returned anything in this window at all,
-        // not just what survived the client-side filter, so paging still advances
-        // correctly even if a window happens to be empty.
-        setActivityHasMore(isAppend ? rawItems.length > 0 : rawItems.length > 0);
+        setActivityHasMore(rawItems.length > 0);
         setActivityWindowStart(startDate);
         setActivityUserId(actualUserId);
       } else if (!isAppend) {
         setFetchedActivities([]);
       }
     } catch {
-      if (!isAppend) setFetchedActivities([]);
+      // non-critical — activity list will remain empty or previously loaded state
     } finally {
       setLoadingFlag(false);
     }
@@ -1754,22 +1978,271 @@ export default function Profile({
       activityIdsRef.current = new Set();
       setCoverPhoto(null);
       try {
+        // ── 0. Check if viewing a bot profile ───────────────────────────
+        // const botName =
+        //   getBotCanonicalName(viewingProfile) ||
+        //   getBotCanonicalName(fanData?.username) ||
+        //   getBotCanonicalName(fanData?.displayName) ||
+        //   (fanData?.isBot ? fanData.username : null);
+
+        const botName =
+          getBotCanonicalName(viewingProfile) ||
+          getBotCanonicalName(fanData?.username) ||
+          getBotCanonicalName(fanData?.displayName) ||
+          getBotCanonicalName(fanData?.userId) ||
+          (fanData?.isBot ? fanData.username : null);
+
+        if (botName) {
+          let botAvatar = BOT_AVATARS[botName] || "/images/dolly.png";
+          let botBio = BOT_BIOS[botName] || "SportsFan360 bot — automated fan companion.";
+          let botRole = BOT_ROLES[botName] || "AI Match Companion";
+          const samplePosts = BOT_SAMPLE_POSTS[botName] || [];
+
+          // Arjun Mehta / Neha Iyer / Riya Kapoor / Kabir Sharma have no row in
+          // /api/roar/profile — fetch their real data from /api/profile instead.
+          if (EXTENDED_BOT_PROFILE_NAMES.includes(botName)) {
+            try {
+              const extRes = await axios.get(
+                `/api/profile?userId=${encodeURIComponent(toExtendedBotUserId(botName))}`
+              );
+              if (extRes.data && !extRes.data.error) {
+                botAvatar = extRes.data.avatarUrl || botAvatar;
+                botBio = extRes.data.description || botBio;
+                botRole = extRes.data.subtitle || extRes.data.role || botRole;
+              }
+            } catch {
+              // fall back silently to local BOT_AVATARS/BOT_BIOS/BOT_ROLES above
+            }
+          }
+
+          const initialActivities = samplePosts.map((sp) => ({
+            id: sp.id,
+            type: "ROAR_POST",
+            label: sp.text,
+            createdAt: Date.now() - 3600000,
+            metadata: {
+              statement: sp.text,
+              roomName: "FlipLine Updates",
+            },
+            likes: sp.likes,
+            commentsCount: sp.commentsCount,
+          }));
+
+          setProfileMetadata({
+            user: {
+              username: botName,
+              displayName: botName,
+              avatarUrl: botAvatar,
+              avatar: botAvatar,
+              about: botBio,
+              badge: "BOT",
+              isBot: true,
+              favPlayer: "All Stars",
+              role: botRole,
+              predictions: [],
+              hotTakes: [],
+              debates: [],
+              posts: samplePosts.map((sp) => ({
+                id: sp.id,
+                content: sp.text,
+                createdAt: Date.now() - 3600000,
+                type: "post",
+                likes: sp.likes,
+              })),
+              activityCounts: {
+                ROAR_POST: samplePosts.length,
+              },
+            },
+            rival: null,
+            predictions: [],
+            hotTakes: [],
+            debates: [],
+            posts: samplePosts.map((sp) => ({
+              id: sp.id,
+              content: sp.text,
+              createdAt: Date.now() - 3600000,
+              type: "post",
+              likes: sp.likes,
+            })),
+          });
+          setUserBadge?.("BOT");
+          setSelectedAvatar(botAvatar);
+          setFetchedActivities(initialActivities);
+          setActivityCounts({ ROAR_POST: samplePosts.length });
+          setLoading(false);
+
+          // Asynchronously query flipline to see if there are any live/db cards by this bot
+          try {
+            const actRes = await axios.get("/api/flipline");
+            const allCards = Array.isArray(actRes.data?.data) ? actRes.data.data : [];
+            const matchedCards = allCards.filter((c: any) => {
+              const auth = (c.author || "").trim().toLowerCase();
+              const bLow = botName.toLowerCase();
+              if (auth === bLow) return true;
+              if (bLow === "dolly" && (auth === "flip" || c.type === "bot")) return true;
+              return false;
+            });
+
+            if (matchedCards.length > 0) {
+              const mappedCardActivities = matchedCards.map((c: any, i: number) => ({
+                id: c.id || `flipline_card_${i}`,
+                type: "ROAR_POST",
+                label: c.content,
+                createdAt: c.timeMs || (c.createdAt ? Number(c.createdAt) || Date.parse(c.createdAt) : Date.now()),
+                metadata: {
+                  statement: c.content,
+                  roomName: c.source || "FlipLine",
+                },
+                likes: c.likes || 0,
+                commentsCount: c.commentsCount || (c.comments ? c.comments.length : 0),
+              }));
+
+              const combined = [...mappedCardActivities, ...initialActivities];
+              setFetchedActivities(combined);
+              setActivityCounts({ ROAR_POST: combined.length });
+              setProfileMetadata((prev: any) => ({
+                ...prev,
+                posts: combined.map((a: any) => ({
+                  id: a.id,
+                  content: a.label || a.metadata?.statement,
+                  createdAt: a.createdAt,
+                  type: "post",
+                  likes: a.likes,
+                })),
+              }));
+            }
+          } catch {
+            // Keep sample posts if flipline fetch fails
+          }
+
+          return;
+        }
+
+        // ── 0.1 Check if viewing an expert profile ───────────────────────
+        const expertName =
+          getExpertCanonicalName(viewingProfile) ||
+          getExpertCanonicalName(fanData?.username) ||
+          getExpertCanonicalName(fanData?.displayName) ||
+          getExpertCanonicalName(fanData?.userId) ||
+          (fanData?.isExpert ? fanData.username : null);
+
+        if (expertName) {
+          const expertAvatar = EXPERT_AVATARS[expertName] || "/images/dolly.png";
+          const expertBio = EXPERT_BIOS[expertName] || "SportsFan360 Expert Commentator & Analyst";
+          const expertRole = EXPERT_ROLES[expertName] || "Expert";
+
+          setProfileMetadata({
+            user: {
+              username: expertName,
+              displayName: expertName,
+              avatarUrl: expertAvatar,
+              avatar: expertAvatar,
+              about: expertBio,
+              badge: expertRole,
+              isExpert: true,
+              role: expertRole,
+              favPlayer: "All Stars",
+              predictions: [],
+              hotTakes: [],
+              debates: [],
+              posts: [],
+              activityCounts: { ROAR_POST: 0 },
+            },
+            rival: null,
+            predictions: [],
+            hotTakes: [],
+            debates: [],
+            posts: [],
+          });
+          setUserBadge?.(expertRole);
+          setSelectedAvatar(expertAvatar);
+          setLoading(false);
+
+          // Asynchronously query flipline to get cards for this expert
+          try {
+            setExpertFlipLoading(true);
+            const actRes = await axios.get("/api/flipline");
+            const allCards = Array.isArray(actRes.data?.data) ? actRes.data.data : [];
+            const matchedCards = allCards.filter((c: any) => {
+              const authorCanon = getExpertCanonicalName(c.author) || getExpertCanonicalName(c.source);
+              return authorCanon === expertName;
+            });
+
+            setExpertFlipCards(matchedCards);
+
+            if (matchedCards.length > 0) {
+              const mappedCardActivities = matchedCards.map((c: any, i: number) => ({
+                id: c.id || `flipline_card_${i}`,
+                type: "ROAR_POST",
+                label: c.content,
+                createdAt: c.timeMs || (c.createdAt ? Number(c.createdAt) || Date.parse(c.createdAt) : Date.now()),
+                metadata: {
+                  statement: c.content,
+                  roomName: c.source || "FlipLine",
+                },
+                likes: c.likes || 0,
+                commentsCount: c.commentsCount || (c.comments ? c.comments.length : 0),
+              }));
+
+              setFetchedActivities(mappedCardActivities);
+              setActivityCounts({ ROAR_POST: mappedCardActivities.length });
+              setProfileMetadata((prev: any) => ({
+                ...prev,
+                posts: mappedCardActivities.map((a: any) => ({
+                  id: a.id,
+                  content: a.label || a.metadata?.statement,
+                  createdAt: a.createdAt,
+                  type: "post",
+                  likes: a.likes,
+                })),
+                user: {
+                  ...prev?.user,
+                  activityCounts: { ROAR_POST: mappedCardActivities.length },
+                },
+              }));
+            }
+          } catch {
+            // Silently keep empty if flipline fails
+          } finally {
+            setExpertFlipLoading(false);
+          }
+
+          return;
+        }
+
         if (!isOtherProfile) {
-          const res = await axios.get("/api/roar/profile", { withCredentials: true });
+          const profileQuery = loggedInUserId ? `?userId=${encodeURIComponent(loggedInUserId)}` : "";
+          const res = await axios.get(`/api/roar/profile${profileQuery}`, { withCredentials: true });
           if (res.data?.success) {
             const apiUser = res.data.user || {};
             const initialName =
               headerDisplayName ||
               (typeof window !== "undefined" ? localStorage.getItem("roar_username") : null) ||
+              resolveUsername(apiUser) ||
               apiUser.username ||
               "";
+
+            const rawBackendAvatar =
+              apiUser.avatarUrl ||
+              apiUser.avatar ||
+              apiUser.photoURL ||
+              apiUser.image ||
+              apiUser.profilePicture ||
+              authUser?.avatar ||
+              authUser?.photoURL;
+            const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
 
             setProfileMetadata({
               user: {
                 ...apiUser,
+                avatarUrl: backendAvatar || apiUser.avatarUrl,
                 username: initialName || apiUser.username || "",
               },
               rival: res.data.rival || null,
+              predictions: res.data.predictions || apiUser.predictions || [],
+              hotTakes: res.data.hotTakes || apiUser.hotTakes || [],
+              debates: res.data.debates || apiUser.debates || [],
+              posts: res.data.posts || apiUser.posts || [],
             });
             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
             if (initialName) setEditName(initialName);
@@ -1781,15 +2254,15 @@ export default function Profile({
             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
             if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
-            if (res.data.user?.avatarUrl) {
-              setSelectedAvatar(res.data.user.avatarUrl);
-              try { localStorage.setItem("roar_avatar_url", res.data.user.avatarUrl); } catch { }
+            if (backendAvatar) {
+              setSelectedAvatar(backendAvatar);
+              try { localStorage.setItem("roar_avatar_url", backendAvatar); } catch { }
             }
             if (res.data.user?.coverPhotoUrl) {
               setCoverPhoto(res.data.user.coverPhotoUrl);
             }
 
-            const actualUid = res.data.user?.actualUserId;
+            const actualUid = res.data.user?.actualUserId || res.data.user?.userId || loggedInUserId;
             if (actualUid) {
               await fetchActivities(actualUid);
             }
@@ -1799,12 +2272,29 @@ export default function Profile({
         }
 
         if (fanData) {
+          const resolvedName = resolveUsername(fanData);
+          const rawBackendAvatar =
+            fanData.avatarUrl ||
+            fanData.avatar ||
+            fanData.photoURL ||
+            fanData.image ||
+            fanData.profilePicture;
+          const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
+
           setProfileMetadata({
-            user: fanData || {},
+            user: {
+              ...(fanData || {}),
+              avatarUrl: backendAvatar || fanData.avatarUrl,
+              username: resolvedName,
+            },
             rival: fanData.rival || null,
+            predictions: fanData.predictions || [],
+            hotTakes: fanData.hotTakes || [],
+            debates: fanData.debates || [],
+            posts: fanData.posts || [],
           });
           if (fanData.badge) setUserBadge(fanData.badge);
-          if (fanData.avatarUrl) setSelectedAvatar(fanData.avatarUrl);
+          if (backendAvatar) setSelectedAvatar(backendAvatar);
           if (fanData.coverPhotoUrl) setCoverPhoto(fanData.coverPhotoUrl);
 
           const uid = fanData.actualUserId || fanData.userId;
@@ -1819,13 +2309,35 @@ export default function Profile({
             `/api/roar/profile?userId=${encodeURIComponent(viewingProfile)}`
           );
           if (res.data?.success) {
+            const apiUser = res.data.user || {};
+            const resolvedName = resolveUsername(apiUser);
+            const rawBackendAvatar =
+              apiUser.avatarUrl ||
+              apiUser.avatar ||
+              apiUser.photoURL ||
+              apiUser.image ||
+              apiUser.profilePicture;
+            const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
+
             setProfileMetadata({
-              user: res.data.user || {},
+              user: {
+                ...apiUser,
+                avatarUrl: backendAvatar || apiUser.avatarUrl,
+                username: resolvedName,
+              },
               rival: res.data.rival || null,
+              predictions: res.data.predictions || apiUser.predictions || [],
+              hotTakes: res.data.hotTakes || apiUser.hotTakes || [],
+              debates: res.data.debates || apiUser.debates || [],
+              posts: res.data.posts || apiUser.posts || [],
             });
             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
-            if (res.data.user?.avatarUrl) setSelectedAvatar(res.data.user.avatarUrl);
+            if (backendAvatar) setSelectedAvatar(backendAvatar);
             if (res.data.user?.coverPhotoUrl) setCoverPhoto(res.data.user.coverPhotoUrl);
+            if (res.data.globalTier) setGlobalTier(res.data.globalTier);
+            if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
+            if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
+            if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
 
             const uid = res.data.user?.actualUserId || res.data.user?.userId || viewingProfile;
             await fetchActivities(uid);
@@ -1847,30 +2359,18 @@ export default function Profile({
     };
 
     fetchProfileData();
-  }, [viewingProfile, isViewingOther, fanData, isOtherProfile]);
+  }, [viewingProfile, isViewingOther, fanData, isOtherProfile, loggedInUserId]);
 
   const user = profileMetadata?.user ?? CURRENT_USER;
 
   const effectiveUsername = useMemo(() => {
     if (isOtherProfile) {
-      return user?.username || "Fan";
+      return resolveUsername(user, user?.username);
     }
     // For logged-in user: strictly match the exact username next to the avatar in Header!
     if (headerDisplayName) return headerDisplayName;
-    if (
-      user?.username &&
-      user.username !== "RoarUser" &&
-      user.username !== "ROARFAN" &&
-      user.username !== "ROAR fan" &&
-      user.username !== "ROAR Fan" &&
-      user.username !== "Fan"
-    ) {
-      return user.username;
-    }
-    if (authUser?.name) return authUser.name;
-    if (typeof getUserDisplayName === "function") return getUserDisplayName();
-    return "Fan";
-  }, [isOtherProfile, headerDisplayName, user?.username, authUser?.name, getUserDisplayName]);
+    return resolveUsername(user, authUser?.name || (typeof getUserDisplayName === "function" ? getUserDisplayName() : undefined));
+  }, [isOtherProfile, headerDisplayName, user, authUser?.name, getUserDisplayName]);
 
   useEffect(() => {
     if (!isOtherProfile && headerDisplayName) {
@@ -1888,6 +2388,93 @@ export default function Profile({
     }
   }, [isOtherProfile, headerDisplayName]);
 
+  useEffect(() => {
+    const canon = getExpertCanonicalName(profileMetadata?.user?.username);
+    if (!canon) return;
+    let cancelled = false;
+    setExpertFlipLoading(true);
+    setExpertVideosLoading(true);
+
+    // Fetch FlipLine posts for this expert
+    axios.get("/api/flipline")
+      .then((res) => {
+        if (cancelled) return;
+        const allCards = Array.isArray(res.data?.data) ? res.data.data : [];
+        const matched = allCards.filter((c: any) => {
+          const authorCanon = getExpertCanonicalName(c.author) || getExpertCanonicalName(c.source);
+          return authorCanon === canon;
+        });
+        setExpertFlipCards(matched);
+      })
+      .catch(() => setExpertFlipCards([]))
+      .finally(() => { if (!cancelled) setExpertFlipLoading(false); });
+
+    // Fetch videos from flipLong and cloudinary cricket-media (like PlaybookDrops.tsx)
+    Promise.allSettled([
+      axios.get("/api/flipLong").then((r) => r.data),
+      axios.get("/api/cloudinary/cricket-media").then((r) => r.data),
+    ])
+      .then(([flipLongRes, cloudinaryRes]) => {
+        if (cancelled) return;
+        const allVideos: any[] = [];
+        const seenUrls = new Set<string>();
+
+        if (flipLongRes.status === "fulfilled" && flipLongRes.value?.success && Array.isArray(flipLongRes.value.videos)) {
+          flipLongRes.value.videos.forEach((v: any, idx: number) => {
+            const mediaUrl = v.videoUrl || v.url || v.mediaUrl || "";
+            if (mediaUrl && !seenUrls.has(mediaUrl)) {
+              seenUrls.add(mediaUrl);
+              allVideos.push({
+                id: v.id || v.videoId || `fliplong-${idx}`,
+                title: (v.title || "Untitled Video").replace(/\s[a-z0-9]{5,8}$/i, ""),
+                duration: v.duration || "0:00",
+                mediaUrl,
+                thumbnailUrl: v.thumbnailUrl || "",
+                author: v.author || "",
+                createdAt: v.createdAt || v.createdAtMs,
+                type: "VIDEO",
+              });
+            }
+          });
+        }
+
+        if (cloudinaryRes.status === "fulfilled" && cloudinaryRes.value?.success && Array.isArray(cloudinaryRes.value.mediaFiles)) {
+          cloudinaryRes.value.mediaFiles.forEach((item: any) => {
+            if (item.url && !seenUrls.has(item.url)) {
+              seenUrls.add(item.url);
+              allVideos.push({
+                id: item.id,
+                title: (item.title || "Untitled Video").replace(/\s[a-z0-9]{5,8}$/i, ""),
+                duration: item.duration || "0:00",
+                mediaUrl: item.url,
+                thumbnailUrl: item.thumbnailUrl || "",
+                author: item.author || "",
+                createdAt: item.createdAt,
+                type: item.resourceType === "video" ? "VIDEO" : "AUDIO",
+              });
+            }
+          });
+        }
+
+        // Match videos for this expert by name tokens in title or author
+        const target = canon.toLowerCase();
+        const tokens = target.split(/\s+/).filter((t: string) => t.length >= 3 && t !== "the");
+
+        const matched = allVideos.filter((v: any) => {
+          const title = (v.title || "").toLowerCase();
+          const author = (v.author || "").toLowerCase();
+          if (title.includes(target) || author.includes(target)) return true;
+          return tokens.some((tok: string) => title.includes(tok) || author.includes(tok));
+        });
+
+        setExpertVideos(matched);
+      })
+      .catch(() => setExpertVideos([]))
+      .finally(() => { if (!cancelled) setExpertVideosLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [profileMetadata?.user?.username]);
+
   if (loading || !profileMetadata) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", color: "var(--text-muted)" }}>
@@ -1896,8 +2483,26 @@ export default function Profile({
     );
   }
 
-  const isBotProfile = BOT_USERNAMES.includes(user?.username);
-  const displayAvatar = selectedAvatar ?? (isBotProfile ? BOT_AVATARS[user.username] : null);
+  const botCanonicalName = getBotCanonicalName(user?.username);
+  const isBotProfile = isBotName(user?.username) || !!botCanonicalName || user?.isBot === true;
+  const expertCanonicalName = getExpertCanonicalName(user?.username);
+  const isExpertProfile = !!expertCanonicalName;
+ const rawAvatar =
+  (isBotProfile && botCanonicalName ? BOT_AVATARS[botCanonicalName] : null) ||
+  (isBotProfile && user?.username && BOT_AVATARS[user.username] ? BOT_AVATARS[user.username] : null) ||
+  (isExpertProfile && expertCanonicalName ? EXPERT_AVATARS[expertCanonicalName] : null) ||
+  user?.avatarUrl ||
+  user?.avatar ||
+  user?.photoURL ||
+  user?.image ||
+  user?.profilePicture ||
+  selectedAvatar ||
+  authUser?.avatar ||
+  authUser?.photoURL ||
+  (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null);
+
+  const displayAvatar = sanitizeAvatarUrl(rawAvatar);
+
   const rival = profileMetadata.rival ?? RIVAL;
 
   const badgesToDisplay = user?.badges?.length ? user.badges : BADGES_LIST;
@@ -1905,52 +2510,72 @@ export default function Profile({
 
   const actCounts = user?.activityCounts ?? {};
 
-  // const derivedCreatedPosts =
-  //   (actCounts.ROAR_POST ?? 0) +
-  //   (actCounts.ROAR_DEBATE ?? 0) +
-  //   (actCounts.ROAR_PREDICTION ?? 0);
-  // const derivedDebates = fetchedActivities.filter((a: any) => a.type === "ROAR_DEBATE_PARTICIPATE").length;
-  // const derivedPredictions = fetchedActivities.filter((a: any) => a.type === "ROAR_PREDICTION_PARTICIPATE").length;
+  const apiPredictions = profileMetadata?.predictions || user?.predictions || [];
+  const apiHotTakes = profileMetadata?.hotTakes || user?.hotTakes || [];
+  const apiDebates = profileMetadata?.debates || user?.debates || [];
+  const apiPosts = profileMetadata?.posts || user?.posts || [];
 
-  // const statPosts = derivedCreatedPosts > 0
-  //   ? derivedCreatedPosts
-  //   : fetchedActivities.filter((a: any) =>
-  //     ["ROAR_POST", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
-  //   ).length;
+  // sourceActivities reflects fetchedActivities (the windowed/fetched list).
+  const sourceActivities = fetchedActivities;
+  const isLoadingActivities = fetchedActivitiesLoading;
 
-  // const statDebates = (actCounts.ROAR_DEBATE_PARTICIPATE && actCounts.ROAR_DEBATE_PARTICIPATE > 0) ? actCounts.ROAR_DEBATE_PARTICIPATE : derivedDebates;
-  // const statPredictions = (actCounts.ROAR_PREDICTION_PARTICIPATE && actCounts.ROAR_PREDICTION_PARTICIPATE > 0) ? actCounts.ROAR_PREDICTION_PARTICIPATE : derivedPredictions;
+  const predictionActivities = sourceActivities.filter((a: any) =>
+    a.type === "ROAR_PREDICTION_PARTICIPATE" || a.type === "ROAR_PREDICTION"
+  );
 
+  const debateActivities = sourceActivities.filter((a: any) =>
+    a.type === "ROAR_DEBATE_PARTICIPATE" || a.type === "ROAR_DEBATE"
+  );
 
-  // Prefer ActivityContext's profileStats — it's driven by /api/user-activity's
-  // `counts` (activityCounts on the user doc), the same source that already
-  // powers badge progress correctly. Only fall back to deriving from the
-  // windowed fetchedActivities list if profileStats hasn't loaded anything yet
-  // (e.g. ActivityContext hasn't resolved a userId).
-  // const hasLiveProfileStats = profileStats && profileStats.totalActivity > 0;
+  const postActivities = sourceActivities.filter((a: any) =>
+    ["ROAR_POST", "ROAR_HOT_TAKE", "ROAR_DEBATE", "ROAR_PREDICTION", "ROAR_RAW_REACTIONS", "ROAR_MEMORY", "ROAR_QUIZ"].includes(a.type)
+  );
 
-  // const derivedDebates = fetchedActivities.filter((a: any) => a.type === "ROAR_DEBATE_PARTICIPATE").length;
-  // const derivedPredictions = fetchedActivities.filter((a: any) => a.type === "ROAR_PREDICTION_PARTICIPATE").length;
-  // const derivedCreatedPosts = fetchedActivities.filter((a: any) =>
-  //   ["ROAR_POST", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
-  // ).length;
-
-  // const statPosts = hasLiveProfileStats ? profileStats.posts : derivedCreatedPosts;
-  // const statDebates = hasLiveProfileStats ? profileStats.debates : derivedDebates;
-  // const statPredictions = (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) > 0
-  //   ? actCounts.ROAR_PREDICTION_PARTICIPATE
-  //   : derivedPredictions;
-
-  const statPosts =
+  const statPosts = Math.max(
     (actCounts.ROAR_POST ?? 0) +
     (actCounts.ROAR_DEBATE ?? 0) +
-    (actCounts.ROAR_PREDICTION ?? 0);
+    (actCounts.ROAR_PREDICTION ?? 0) +
+    (actCounts.ROAR_HOT_TAKE ?? 0),
+    (activityCounts.ROAR_POST ?? 0) +
+    (activityCounts.ROAR_DEBATE ?? 0) +
+    (activityCounts.ROAR_PREDICTION ?? 0) +
+    (activityCounts.ROAR_HOT_TAKE ?? 0),
+    user?.postsCount ?? user?.postCount ?? 0,
+    apiHotTakes.length + apiPosts.length,
+    apiHotTakes.length,
+    apiPosts.length,
+    postActivities.length,
+    profileStats?.posts ?? 0
+  );
 
-  // Debates = debates you participated in (voted on)
-  const statDebates = actCounts.ROAR_DEBATE_PARTICIPATE ?? 0;
+  // Debates = debates you participated in (voted on) or created
+  const statDebates = Math.max(
+    (actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (actCounts.ROAR_DEBATE ?? 0),
+    (activityCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (activityCounts.ROAR_DEBATE ?? 0),
+    actCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
+    actCounts.ROAR_DEBATE ?? 0,
+    activityCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
+    activityCounts.ROAR_DEBATE ?? 0,
+    user?.debatesCount ?? user?.debateCount ?? 0,
+    apiDebates.length,
+    debateActivities.length,
+    profileStats?.debates ?? 0
+  );
 
-  // Predictions = predictions you participated in (voted on)
-  const statPredictions = actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0;
+  // Predictions = predictions you participated in (voted on) or created
+  const statPredictions = Math.max(
+    (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (actCounts.ROAR_PREDICTION ?? 0),
+    (activityCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (activityCounts.ROAR_PREDICTION ?? 0),
+    actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
+    actCounts.ROAR_PREDICTION ?? 0,
+    activityCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
+    activityCounts.ROAR_PREDICTION ?? 0,
+    user?.predictionCount ?? 0,
+    user?.predictionStats?.total ?? user?.predictionStats?.totalPredictions ?? user?.predictionStats?.count ?? 0,
+    apiPredictions.length,
+    predictionActivities.length,
+    profileStats?.predictions ?? 0
+  );
 
   const statAccuracy = user?.accuracy != null ? `${user.accuracy}%` : "N/A";
 
@@ -1958,38 +2583,50 @@ export default function Profile({
   const repMax = Math.max(repScore, 500);
   const repPct = Math.round((repScore / repMax) * 100);
 
-  // sourceActivities now ONLY reflects fetchedActivities (the windowed list).
-  // Falling back to the unwindowed `activities` context caused the "last 7
-  // days" filter to be silently bypassed whenever fetchedActivities was
-  // momentarily empty (e.g. between the profile fetch resolving and the
-  // activity fetch resolving), so that fallback has been removed for the
-  // logged-in-user case — the loading state below covers that gap instead.
-  const sourceActivities = fetchedActivities;
-  const isLoadingActivities = fetchedActivitiesLoading;
-
-  const predictionActivities = sourceActivities.filter((a: any) =>
-    a.type === "ROAR_PREDICTION_PARTICIPATE"
-  );
-
-  const displayPredictions = predictionActivities.map((a: any) => ({
-    id: a.id,
-    postId: a.metadata?.postId,
-    label: a.label,
-    text: (a.metadata?.statement || a.label || "").trim() || `Prediction: ${a.label}`,
-    status: a.metadata?.status || "PENDING",
-    createdAt: a.createdAt,
-    roomId: a.roomId,
-    roomName: a.metadata?.roomName || a.roomName,
-    matchId: a.matchId,
-  }));
+  const displayPredictions = predictionActivities.length > 0
+    ? predictionActivities.map((a: any) => ({
+      id: a.id,
+      postId: a.metadata?.postId,
+      label: a.label,
+      text: (a.metadata?.statement || a.label || "").trim() || `Prediction: ${a.label}`,
+      status: a.metadata?.status || "PENDING",
+      createdAt: a.createdAt,
+      roomId: a.roomId,
+      roomName: a.metadata?.roomName || a.roomName,
+      matchId: a.matchId,
+    }))
+    : apiPredictions.map((p: any) => ({
+      id: p.postId || p.id,
+      postId: p.postId || p.id,
+      label: p.text,
+      text: p.text,
+      status: p.status === "active" ? "PENDING" : p.status || "PENDING",
+      createdAt: p.createdAt,
+      roomId: p.matchId || "general",
+      roomName: p.sport || "General",
+      matchId: p.matchId,
+    }));
 
   const filteredPreds = (displayPredictions || [])
     .slice()
     .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
 
-  const debateActivities = sourceActivities.filter((a: any) =>
-    a.type === "ROAR_DEBATE_PARTICIPATE"
-  );
+  const displayDebates = debateActivities.length > 0
+    ? debateActivities.slice().sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+    : apiDebates.map((d: any) => ({
+      id: d.id || d.postId,
+      type: "ROAR_DEBATE",
+      createdAt: d.createdAt,
+      roomId: d.roomId || d.matchId || "general",
+      roomName: d.roomName || d.sport || "General",
+      text: d.text || d.statement || "Debate",
+      metadata: {
+        statement: d.text || d.statement || "Debate",
+        sideA: d.sideA,
+        sideB: d.sideB,
+        roomName: d.roomName || d.sport,
+      },
+    }));
 
   const handleAvatarSelect = async (src: string) => {
     setSelectedAvatar(src);
@@ -2132,7 +2769,7 @@ export default function Profile({
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         position: "sticky", top: 0, zIndex: 50,
       }}>
-        <Link href="/MainModules/ROAR" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "white" }}>
+        <Link href="/MainModules/HomePage" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "white" }}>
           <button style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M15 18l-6-6 6-6" />
@@ -2182,76 +2819,220 @@ export default function Profile({
       </div>
 
       {/* ── Hero ── */}
-      <div style={{ padding: "24px 20px 0", display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 20 }}>
+      {!isBotProfile && !isExpertProfile && (
+        <div style={{ padding: "24px 20px 0", display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 20 }}>
 
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, marginTop: -48 }}>
-          <div style={{ position: "relative", width: 84, height: 84 }}>
-            <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
-            <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
-            {/* <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, marginTop: -48 }}>
+            <div style={{ position: "relative", width: 84, height: 84 }}>
+              <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
+              <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
+              {/* <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
               {selectedAvatar ? (
                 <img src={selectedAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
                 <AvatarWithBadge username={user.username ?? CURRENT_USER.username} badge={userBadge} size="lg" />
               )}
             </div> */}
-            <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
-              {displayAvatar ? (
-                <img src={displayAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="lg" />
+              <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
+                {displayAvatar ? (
+                  <img
+                    src={displayAvatar}
+                    alt="avatar"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = "none";
+                      const parent = e.currentTarget.parentElement;
+                      const fallback = parent?.querySelector(".avatar-fallback-wrapper") as HTMLElement;
+                      if (fallback) fallback.style.display = "flex";
+                    }}
+                  />
+                ) : null}
+                <div
+                  className="avatar-fallback-wrapper"
+                  style={{
+                    display: displayAvatar ? "none" : "flex",
+                    width: "100%",
+                    height: "100%",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="lg" />
+                </div>
+              </div>
+              {!isOtherProfile && (
+                <button onClick={() => setAvatarPickerOpen(true)} aria-label="Change avatar"
+                  style={{ position: "absolute", bottom: 0, right: 0, zIndex: 10, width: 22, height: 22, borderRadius: "50%", background: "var(--accent-magenta)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid rgba(10,10,16,0.97)", cursor: "pointer", padding: 0, boxShadow: "0 2px 8px rgba(233,30,140,0.7)" }}>
+                  <PencilIcon />
+                </button>
               )}
             </div>
+
             {!isOtherProfile && (
-              <button onClick={() => setAvatarPickerOpen(true)} aria-label="Change avatar"
-                style={{ position: "absolute", bottom: 0, right: 0, zIndex: 10, width: 22, height: 22, borderRadius: "50%", background: "var(--accent-magenta)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid rgba(10,10,16,0.97)", cursor: "pointer", padding: 0, boxShadow: "0 2px 8px rgba(233,30,140,0.7)" }}>
-                <PencilIcon />
+              <button onClick={() => setEditOpen(true)}
+                style={{ marginTop: 12, padding: "4px 8px", background: "none", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 22, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                Edit Profile
               </button>
             )}
           </div>
 
-          {!isOtherProfile && (
-            <button onClick={() => setEditOpen(true)}
-              style={{ marginTop: 12, padding: "4px 8px", background: "none", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 22, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-              Edit Profile
-            </button>
-          )}
-        </div>
-
-        <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-          <h1 className="font-display" style={{ fontSize: 20, fontWeight: 900, letterSpacing: "0.03em", color: "#fff", margin: "0 0 4px" }}>
-            {effectiveUsername}
-          </h1>
-          <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>
-            {BADGE_LABELS[userBadge] ?? "Fan"}
-          </p>
-
-          {(user.favPlayer || editFavPlayer) && (
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
-              Favourite player: <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
+          <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+            <h1 className="font-display" style={{ fontSize: 20, fontWeight: 900, letterSpacing: "0.03em", color: "#fff", margin: "0 0 4px" }}>
+              {effectiveUsername}
+            </h1>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>
+              {isBotProfile
+                ? (BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Official AI Bot")
+                : (globalTier?.label || BADGE_LABELS[userBadge] || "Chant I")}
             </p>
-          )}
-          {(user.about || editAbout) && (
-            <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.5 }}>
-              {user.about || editAbout}
-            </p>
-          )}
+
+            {(user.favPlayer || editFavPlayer) && (
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
+                Favourite player: <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
+              </p>
+            )}
+            {(user.about || editAbout) && (
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.5 }}>
+                {user.about || editAbout}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {isBotProfile ? (
-        <div style={{ padding: "20px 20px 60px" }}>
-          <p style={{
-            fontSize: 13,
-            color: "rgba(255,255,255,0.6)",
-            lineHeight: 1.6,
-            margin: 0,
-            textAlign: "left",
-          }}>
-            {BOT_BIOS[user.username] ?? "SportsFan360 bot — automated fan companion for this room."}
-          </p>
+        <div style={{ padding: "16px 14px 40px" }}>
+          {/* Bot Info Banner */}
+          {/* <div
+            style={{
+              background: "linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(233, 30, 140, 0.12) 100%)",
+              border: "1px solid rgba(59, 130, 246, 0.3)",
+              borderRadius: 16,
+              padding: "16px 18px",
+              marginBottom: 16,
+            }}
+           >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 16 }}>🤖</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#60a5fa", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                Official AI Sports Bot · {BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Analyst"}
+              </span>
+            </div>
+            <p style={{
+              fontSize: 13,
+              color: "rgba(255,255,255,0.85)",
+              lineHeight: 1.6,
+              margin: 0,
+            }}>
+              {BOT_BIOS[user.username] ?? BOT_BIOS[botCanonicalName || ""] ?? "SportsFan360 bot — automated fan companion."}
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 12, background: "rgba(59,130,246,0.2)", color: "#93c5fd" }}>
+                ⚡ Match Insights
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 12, background: "rgba(233,30,140,0.2)", color: "#f472b6" }}>
+                🏏 Cricket Analyst
+              </span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 12, background: "rgba(16,185,129,0.2)", color: "#6ee7b7" }}>
+                💬 Live FlipLine Drops
+              </span>
+            </div>
+          </div> */}
+
+          {/* Bot Info Card */}
+          <IdentityCard
+            avatarSrc={displayAvatar}
+            name={user.username ?? botCanonicalName ?? "Bot"}
+            subtitle={BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Official AI Bot"}
+            tags={BOT_TAGS[user.username] || BOT_TAGS[botCanonicalName || ""] || []}
+            bio={BOT_BIOS[user.username] ?? BOT_BIOS[botCanonicalName || ""] ?? "SportsFan360 bot — automated fan companion."}
+          />
+
+          {/* Bot Stats */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 20 }}>
+            {[
+              { label: "Drops & Takes", value: Math.max(statPosts, sourceActivities.length, (BOT_SAMPLE_POSTS[user.username] || BOT_SAMPLE_POSTS[botCanonicalName || ""] || []).length) },
+              { label: "Specialty", value: (BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Analysis").split(" ")[0] },
+              { label: "Status", value: "Active 🟢" },
+            ].map(({ label, value }) => (
+              <div
+                key={label}
+                className="glass-card"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: "12px 6px",
+                  textAlign: "center",
+                  background: "rgba(18,18,26,0.7)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 14,
+                }}
+              >
+                <span className="font-display" style={{ fontSize: 18, color: "#fff", lineHeight: 1, fontWeight: 800 }}>{value}</span>
+                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>{label}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Bot Activity Feed / Drops */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <span style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>
+                Recent Drops & Match Takes
+              </span>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                {sourceActivities.length} updates
+              </span>
+            </div>
+
+            {sourceActivities.length === 0 ? (
+              <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>
+                  No recent activity found.
+                </p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {sourceActivities.map((a: any) => {
+                  const roomName = getRoomName(a.roomId, a.metadata?.roomName || a.roomName || "FlipLine Updates");
+                  const text = (a.metadata?.statement || a.label || "Take").trim();
+                  return (
+                    <div
+                      key={a.id ?? `${a.type}-${a.createdAt}`}
+                      style={{
+                        background: "rgba(18,18,26,0.7)",
+                        border: "1px solid rgba(255,255,255,0.06)",
+                        borderRadius: 14,
+                        padding: "14px 16px",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                          {roomName.toUpperCase()}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: "#60a5fa", background: "rgba(59,130,246,0.15)", padding: "2px 7px", borderRadius: 4 }}>
+                          BOT DROP
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>
+                        {text}
+                      </p>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                        <span>{formatActivityTimestamp(a.createdAt)}</span>
+                        {a.likes !== undefined && (
+                          <span>❤️ {a.likes} likes</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      ) : (
+      ) : !isExpertProfile ? (
         <>
           {/* ── Stats row ── */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, padding: "22px 14px 0" }}>
@@ -2338,9 +3119,231 @@ export default function Profile({
             ))}
           </div>
         </>
+      ) : null}
+
+      {isExpertProfile && (
+        <IdentityCard
+          avatarSrc={displayAvatar}
+          name={effectiveUsername}
+          subtitle={EXPERT_ROLES[expertCanonicalName!] || "Sports Journalist"}
+          tags={EXPERT_TAGS[expertCanonicalName!] || []}
+          bio={EXPERT_BIOS[expertCanonicalName!] || "Verified sports journalist on SportsFan360."}
+        />
       )}
 
-      {!isBotProfile && (
+      {isExpertProfile && (
+        <div style={{ padding: "0 14px 40px" }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+            {(["videos", "posts"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveExpertTab(tab)}
+                style={{
+                  flex: 1, padding: "9px 0", borderRadius: 20, border: "none", cursor: "pointer",
+                  fontSize: 13, fontWeight: 700,
+                  background: activeExpertTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
+                  color: activeExpertTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
+                  transition: "all 0.18s",
+                }}
+              >
+                {tab === "videos" ? "Videos" : "Posts"}
+              </button>
+            ))}
+          </div>
+
+          {activeExpertTab === "videos" ? (
+            expertVideosLoading ? (
+              <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading videos...</p>
+            ) : expertVideos.length === 0 ? (
+              <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No videos yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+                {expertVideos.map((video, idx) => {
+                  const preset = EXPERT_STYLE_PRESETS[idx % EXPERT_STYLE_PRESETS.length];
+                  return (
+                    <motion.div
+                      key={video.id || idx}
+                      onClick={() => {
+                        const isAudio = video.type === "AUDIO";
+                        const route = isAudio ? "/MainModules/AudioDrop" : "/MainModules/VideoDrop";
+                        router.push(
+                          `${route}?url=${encodeURIComponent(video.mediaUrl)}&title=${encodeURIComponent(video.title)}`
+                        );
+                      }}
+                      whileHover={{ scale: 1.02, y: -3 }}
+                      whileTap={{ scale: 0.98 }}
+                      style={{
+                        borderRadius: 18,
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                        cursor: "pointer",
+                        border: "1px solid rgba(255, 255, 255, 0.08)",
+                        boxShadow: "0 8px 20px -4px rgba(0, 0, 0, 0.5)",
+                        background: "#121622",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "100%",
+                          height: 130,
+                          position: "relative",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          overflow: "hidden",
+                          background: preset.gradient,
+                        }}
+                      >
+                        {video.thumbnailUrl && (
+                          <img
+                            src={video.thumbnailUrl}
+                            alt={video.title}
+                            style={{
+                              position: "absolute",
+                              inset: 0,
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "cover",
+                              opacity: 0.75,
+                            }}
+                          />
+                        )}
+
+                        <span
+                          style={{
+                            position: "absolute",
+                            top: 10,
+                            left: 10,
+                            zIndex: 10,
+                            fontSize: 8.5,
+                            fontWeight: 800,
+                            padding: "2px 8px",
+                            borderRadius: 999,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                            background: preset.badgeBg,
+                            color: preset.badgeTextColor,
+                          }}
+                        >
+                          {video.type}
+                        </span>
+
+                        <div
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "rgba(0, 0, 0, 0.25)",
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: "50%",
+                              border: "1px solid rgba(255, 255, 255, 0.2)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              backgroundColor: "rgba(255, 255, 255, 0.15)",
+                              backdropFilter: "blur(2px)",
+                              WebkitBackdropFilter: "blur(2px)",
+                            }}
+                          >
+                            <svg width="12" height="14" viewBox="0 0 14 16" fill="none" style={{ marginLeft: 2 }}>
+                              <path d="M13 8L1 15V1L13 8Z" fill="#fff" />
+                            </svg>
+                          </div>
+                        </div>
+
+                        {video.duration && (
+                          <span
+                            style={{
+                              position: "absolute",
+                              bottom: 8,
+                              right: 8,
+                              zIndex: 10,
+                              fontSize: 9,
+                              fontWeight: 700,
+                              color: "#fff",
+                              padding: "2px 6px",
+                              borderRadius: 4,
+                              background: "rgba(0, 0, 0, 0.7)",
+                              lineHeight: 1,
+                            }}
+                          >
+                            {video.duration}
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ width: "100%", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+                        <h4
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "#fff",
+                            lineHeight: 1.35,
+                            textAlign: "left",
+                            margin: 0,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {video.title}
+                        </h4>
+
+                        {video.createdAt && (
+                          <span style={{ fontSize: 9.5, fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", marginTop: "auto", paddingTop: 4 }}>
+                            {formatVideoTimestamp(video.createdAt)}
+                          </span>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            expertFlipLoading ? (
+              <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading posts...</p>
+            ) : expertFlipCards.length === 0 ? (
+              <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No posts yet.</p>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {expertFlipCards
+                  .slice()
+                  .sort((a: any, b: any) => (b.timeMs || 0) - (a.timeMs || 0))
+                  .map((c: any, i: number) => (
+                    <div key={c.id ?? `expert-post-${i}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                          {(c.source || "FlipLine").toUpperCase()}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>{c.content}</p>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                        <span>{c.time || ""}</span>
+                        {c.likes !== undefined && <span>❤️ {c.likes} likes</span>}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {!isBotProfile && !isExpertProfile && (
         <>
           {/* ── ROAR Points bar ── */}
           <div style={{ padding: "18px 14px 0" }}>
@@ -2376,8 +3379,8 @@ export default function Profile({
 
           {/* ── Roar Journey ── */}
           <RoarJourneySection
-            predictions={actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0}
-            debates={actCounts.ROAR_DEBATE_PARTICIPATE ?? 0}
+            predictions={statPredictions}
+            debates={statDebates}
             posts={statPosts}
             // badgeSrcs={[
             //   FIRST_ROAR_BADGE_SRC,
@@ -2719,34 +3722,50 @@ export default function Profile({
                   && a.type !== "ROAR_PREDICTION_LIVE"
                   && a.metadata?.predictionType !== "live"
                 );
+                const displayPosts = postActivities.length > 0
+                  ? postActivities
+                    .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+                    .map((p: any) => ({
+                      id: p.id ?? `${p.type}-${p.createdAt}`,
+                      room: getRoomName(p.roomId, p.metadata?.roomName || p.roomName || p.metadata?.sport).toUpperCase(),
+                      badgeText: p.type === "ROAR_PREDICTION" ? "PREDICTION" : p.type === "ROAR_DEBATE" ? "DEBATE" : "POST",
+                      text: p.metadata?.statement || p.label || "Post",
+                      createdAt: p.createdAt,
+                    }))
+                  : apiHotTakes.map((h: any) => ({
+                    id: h.postId || h.id,
+                    room: (h.sport || "Cricket").toUpperCase(),
+                    badgeText: "HOT TAKE",
+                    text: h.text || "Hot take",
+                    createdAt: h.createdAt,
+                  }));
+
                 if (isLoadingActivities) {
                   return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
                 }
-                if (postActivities.length === 0) {
+                if (displayPosts.length === 0) {
                   return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No posts yet.</p>;
                 }
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {postActivities
-                      .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
-                      .map((p: any) => (
-                        <div key={p.id ?? `${p.type}-${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                              Room : {getRoomName(p.roomId, p.metadata?.roomName || p.roomName || p.metadata?.sport).toUpperCase()}
-                            </span>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
-                              {p.type === "ROAR_PREDICTION" ? "PREDICTION" : p.type === "ROAR_DEBATE" ? "DEBATE" : "POST"}
-                            </span>
-                          </div>
-                          <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-                            {truncateText(p.metadata?.statement || p.label || "Post")}
-                          </p>
-                          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                            {formatActivityTimestamp(p.createdAt)}
+                    {displayPosts.map((p: any) => (
+                      <div key={p.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                            Room : {p.room}
+                          </span>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
+                            {p.badgeText}
                           </span>
                         </div>
-                      ))}
+                        <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+                          {truncateText(p.text)}
+                        </p>
+                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                          {formatActivityTimestamp(p.createdAt)}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 );
               })()}
@@ -2789,11 +3808,9 @@ export default function Profile({
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 80 }}>
                   {isLoadingActivities ? (
                     <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading debates...</p>
-                  ) : debateActivities.length === 0 ? (
+                  ) : displayDebates.length === 0 ? (
                     <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No debates yet.</p>
-                  ) : debateActivities
-                    .slice()
-                    .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+                  ) : displayDebates
                     .map((debate: any) => (
                       <div key={debate.id ?? `${debate.type}-${debate.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
@@ -2853,6 +3870,8 @@ export default function Profile({
 
         </>
       )}
+
+
 
       {/* ── Modals ── */}
 
@@ -3025,7 +4044,7 @@ export default function Profile({
                   setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
                   setEditOpen(false);
                   onToast("Profile updated successfully");
-                  try { localStorage.setItem("roar_username", editName); } catch {}
+                  try { localStorage.setItem("roar_username", editName); } catch { }
                   try {
                     await axios.patch("/api/roar/profile", {
                       username: editName,
