@@ -328,6 +328,7 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import TermsModal from "./TermsModal";
 
 //  Create axios instance with relative URL (will use rewrites)
 const api = axios.create({
@@ -343,6 +344,7 @@ export default function LoginCard() {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [showTerms, setShowTerms] = useState(false);
 
     const [showChangePassword, setShowChangePassword] = useState(false);
     const [newPassword, setNewPassword] = useState("");
@@ -384,7 +386,7 @@ export default function LoginCard() {
                     setShowChangePassword(true);
                 } else {
                     try {
-                        localStorage.removeItem("roar_v2_complete");
+                        localStorage.setItem("roar_v2_complete", "1");
                         if (response.data.user) {
                             const u = response.data.user;
                             const fullName =
@@ -557,18 +559,21 @@ export default function LoginCard() {
 //done
     // Render Normal Login Form
     return (
-        <div className="min-h-screen w-full flex flex-col items-center justify-center gap-6 relative bg-gradient-to-b from-[#3a0000] via-black to-[#120000] px-4 py-8">
+        <div className="min-h-screen w-full flex flex-col items-center justify-center gap-3 sm:gap-4 relative bg-gradient-to-b from-[#3a0000] via-black to-[#120000] px-4 py-4 sm:py-6">
             <div className="absolute inset-0 bg-gradient-to-br from-red-900/30 via-transparent to-orange-600/20 pointer-events-none" />
             <div className="flex flex-col items-center z-10">
-                <img src="/images/Logo.png" alt="logo" className="w-10 h-12 sm:w-12 sm:h-14 lg:w-[56px] lg:h-[66.66px] mb-2" />
+                <img src="/images/Logo.png" alt="logo" className="w-10 h-12 sm:w-11 sm:h-13 mb-1 object-contain" />
                 <h1 className="text-white text-xl sm:text-2xl font-semibold text-center">Welcome back!</h1>
+                <p className="text-xs text-orange-400 text-center mt-1 font-medium">
+                    This is beta program and is still under development
+                </p>
             </div>
-            <div className="relative z-10 w-full max-w-sm px-5 py-8 rounded-3xl bg-[#222222] backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
-                <div className="rounded-2xl p-3 space-y-3 mb-6">
+            <div className="relative z-10 w-full max-w-sm px-5 py-5 sm:py-6 rounded-3xl bg-[#222222] backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+                <div className="space-y-2.5 mb-3.5">
                     <input
                         type="email"
                         placeholder="Email Address"
-                        className="w-full bg-black/40 text-white px-4 py-3 rounded-xl text-sm outline-none placeholder:text-gray-500"
+                        className="w-full bg-black/40 text-white px-4 py-2.5 rounded-xl text-sm outline-none placeholder:text-gray-500"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleLogin()}
@@ -577,7 +582,7 @@ export default function LoginCard() {
                         <input
                             type={showPassword ? "text" : "password"}
                             placeholder="Password"
-                            className="w-full bg-black/40 text-white px-4 py-3 rounded-xl text-sm outline-none placeholder:text-gray-500 pr-10"
+                            className="w-full bg-black/40 text-white px-4 py-2.5 rounded-xl text-sm outline-none placeholder:text-gray-500 pr-10"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             onKeyDown={(e) => e.key === "Enter" && handleLogin()}
@@ -592,22 +597,22 @@ export default function LoginCard() {
                     </div>
                     <Link href="/auth/forgot-password">
                         <div className="flex justify-end">
-                            <p className="text-gray-400 text-sm text-right hover:underline cursor-pointer">Forgot Password?</p>
+                            <p className="text-gray-400 text-xs text-right hover:underline cursor-pointer">Forgot Password?</p>
                         </div>
                     </Link>
                 </div>
-                {getAuthError(authError) && <p className="text-red-400 text-sm text-center mb-4">{getAuthError(authError)}</p>}
-                {error && <p className="text-red-400 text-sm text-center mb-4">{error}</p>}
+                {getAuthError(authError) && <p className="text-red-400 text-xs text-center mb-3">{getAuthError(authError)}</p>}
+                {error && <p className="text-red-400 text-xs text-center mb-3">{error}</p>}
                 <button
                     onClick={handleLogin}
                     disabled={loading}
-                    className="w-full bg-gray-300 text-black py-3 rounded-full font-medium mb-6 hover:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-gray-300 text-black py-2.5 rounded-full font-medium mb-3 hover:bg-white transition disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                 >
                     {loading ? "Logging in..." : "Continue"}
                 </button>
-                <div className="flex items-center gap-3 mb-6">
+                <div className="flex items-center gap-3 mb-3">
                     <div className="flex-1 h-[1px] bg-gray-700" />
-                    <span className="text-gray-500 text-xs tracking-widest">OR</span>
+                    <span className="text-gray-500 text-[11px] tracking-widest">OR</span>
                     <div className="flex-1 h-[1px] bg-gray-700" />
                 </div>
                 <button
@@ -617,8 +622,8 @@ export default function LoginCard() {
                             callbackUrl: `${currentOrigin}/MainModules/HomePage`
                         });
                     }}
-                    className="w-full bg-white text-black py-3 rounded-full font-medium flex items-center justify-center gap-2 mb-6 hover:bg-gray-100 transition"
-                >
+                    className="w-full bg-white text-black py-2.5 rounded-full font-medium flex items-center justify-center gap-2 mb-3.5 hover:bg-gray-100 transition text-sm cursor-pointer"
+                 >
                     <svg width="18" height="18" viewBox="0 0 18 18">
                         <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z" />
                         <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z" />
@@ -627,13 +632,25 @@ export default function LoginCard() {
                     </svg>
                     Continue with Google
                 </button>
-                <p className="text-gray-300 text-sm text-center">
+                <p className="text-gray-300 text-xs sm:text-sm text-center">
                     Don&apos;t have an account?{" "}
                     <Link href="/auth/register">
-                        <span className="font-semibold text-white cursor-pointer">Sign Up</span>
+                        <span className="font-semibold text-white cursor-pointer hover:underline">Sign Up</span>
                     </Link>
                 </p>
+                <div className="mt-3 pt-2.5 border-t border-gray-800 text-center">
+                    <button
+                        type="button"
+                        onClick={() => setShowTerms(true)}
+                        className="text-xs text-gray-400 hover:text-white underline underline-offset-4 transition cursor-pointer"
+                    >
+                        Terms &amp; Conditions (Beta)
+                    </button>
+                </div>
             </div>
+
+            {/* Terms, Privacy & Security Modal */}
+            <TermsModal isOpen={showTerms} onClose={() => setShowTerms(false)} />
         </div>
     );
 }
