@@ -941,8 +941,36 @@ export default function SportScoreSection({
   }, [selectedSport, router]);
 
   return (
-    <div className="w-full relative">
-      <HeroCarousel cards={roanuzHeroCards} loading={heroLoading} />
+    <div className="w-full relative flex flex-col gap-3">
+      {/* <HeroCarousel cards={roanuzHeroCards} loading={heroLoading} /> */}
+
+      {/* Watch Along Banner */}
+      <div className="w-full flex flex-col gap-2.5 my-1">
+        <div
+          onClick={() => router.push("/MainModules/WatchAlong")}
+          className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer transition-all duration-300 hover:border-pink-500/40 hover:opacity-95"
+        >
+          <img
+            src="/images/fliplivehomebanner.jpeg"
+            alt="Watch Along Banner"
+            className="w-full h-auto object-cover"
+          />
+        </div>
+
+        {/* Join Button */}
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => router.push("/MainModules/WatchAlong")}
+          className="w-full py-3 sm:py-3.5 rounded-xl sm:rounded-2xl font-black text-white text-sm sm:text-base flex items-center justify-center gap-2 shadow-[0_4px_20px_rgba(233,30,140,0.3)] transition-all cursor-pointer hover:opacity-95"
+          style={{
+            background: "linear-gradient(135deg, #E91E8C 0%, #FF6B35 100%)",
+          }}
+        >
+          <span>Join</span>
+          <ChevronRight size={18} />
+        </motion.button>
+      </div>
+
       <IndiaStatsBar data={MOCK_INDIA_STATS} onAllSportsClick={() => setIsAllSportsOpen(true)} />
       {/* <MatchesStrip cards={filteredMatches} /> */}
 
