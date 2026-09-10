@@ -382,7 +382,7 @@ function DynamicQuizCard({
     setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
-    const text = `🧠 Cricket Quiz: "${quiz.question}" — Can you answer? Play on SportsFan360!`;
+    const text = `🧠  Quiz: "${quiz.question}" — Can you answer? Play on SportsFan360!`;
     if (navigator.share) {
       navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
     } else {
@@ -412,7 +412,7 @@ function DynamicQuizCard({
         <span>{formattedTime}</span>
       </div>
 
-      <h3 className="text-sm font-black mb-1">{item.title}</h3>
+      {/* <h3 className="text-sm font-black mb-1">{item.title}</h3> */}
       <p className="text-xs font-semibold text-white/70 mb-4">{quiz.question}</p>
 
       <div className="grid grid-cols-2 gap-3.5 mb-4">

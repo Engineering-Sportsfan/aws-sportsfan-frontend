@@ -599,13 +599,13 @@ function ExpertCard({
         <div className="rounded-2xl overflow-hidden bg-[#141414] border border-white/10 hover:border-white/20 transition-all flex flex-col shadow-lg group">
             {/* Banner Section */}
             <div
-                onClick={onEnter}
-                className="relative w-full h-44 sm:h-52 overflow-hidden bg-[#1c1c1c] cursor-pointer"
+                onClick={isLive ? onEnter : undefined}
+                className={`relative w-full h-44 sm:h-52 overflow-hidden bg-[#1c1c1c] ${isLive ? "cursor-pointer" : "cursor-default"}`}
             >
                 <img
                     src={bannerImage}
                     alt={cardTitle}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className={`w-full h-full object-cover transition-transform duration-500 ${isLive ? "group-hover:scale-105" : ""}`}
                     onError={(e) => {
                         (e.currentTarget as HTMLElement).style.display = "none";
                         const parent = e.currentTarget.parentElement;
@@ -655,7 +655,7 @@ function ExpertCard({
                 </div>
             </div>
 
-            {/* Below banner: Host info on the left, Join button on the right */}
+            {/* Below banner: Host info on the left, Join button on the right (only when live) */}
             <div className="bg-[#1c1c1c] border-t border-white/5 px-3.5 py-2.5 flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 rounded-full border border-white/10 bg-[#2a2a2a] flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden shadow-sm">
@@ -674,17 +674,16 @@ function ExpertCard({
                     </div>
                 </div>
 
-                <button
-                    onClick={onEnter}
-                    className="shrink-0 px-5 py-2 rounded-full text-white text-[12px] font-black transition-all cursor-pointer active:scale-95 hover:opacity-90 shadow-md flex items-center gap-1.5"
-                    style={isLive
-                        ? { background: "linear-gradient(90deg, #e91e8c, #ff6b35)" }
-                        : { background: "#2a2a2a", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.9)" }
-                    }
-                >
-                    {isLive && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
-                    <span>{isLive ? "Join Live" : "Join"}</span>
-                </button>
+                {isLive && (
+                    <button
+                        onClick={onEnter}
+                        className="shrink-0 px-5 py-2 rounded-full text-white text-[12px] font-black transition-all cursor-pointer active:scale-95 hover:opacity-90 shadow-md flex items-center gap-1.5"
+                        style={{ background: "linear-gradient(90deg, #e91e8c, #ff6b35)" }}
+                    >
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                        <span>Join Live</span>
+                    </button>
+                )}
             </div>
         </div>
     );
