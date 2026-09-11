@@ -945,7 +945,7 @@ export default function SportScoreSection({
       {/* <HeroCarousel cards={roanuzHeroCards} loading={heroLoading} /> */}
 
       {/* Watch Along Banner */}
-      <div className="w-full max-w-lg md:max-w-xl mx-auto flex flex-col gap-2 my-1">
+      {/* <div className="w-full max-w-lg md:max-w-xl mx-auto flex flex-col gap-2 my-1">
         <div
           onClick={() => router.push("/MainModules/WatchAlong")}
           className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer transition-all duration-300 hover:border-pink-500/40 hover:opacity-95 max-h-[260px] md:max-h-[300px] flex items-center justify-center bg-black/40"
@@ -957,7 +957,7 @@ export default function SportScoreSection({
           />
         </div>
 
-        {/* Join Button */}
+       
         <div className="flex justify-center w-full">
           <motion.button
             whileTap={{ scale: 0.96 }}
@@ -971,7 +971,7 @@ export default function SportScoreSection({
             <ChevronRight size={16} />
           </motion.button>
         </div>
-      </div>
+      </div> */}
 
       <IndiaStatsBar data={MOCK_INDIA_STATS} onAllSportsClick={() => setIsAllSportsOpen(true)} />
       {/* <MatchesStrip cards={filteredMatches} /> */}
