@@ -344,7 +344,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                 )}
 
                 {/* EXPERTS */}
-                <div className="mb-5">
+                {/* <div className="mb-5">
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1.5">
                             <span className="text-sm">🎙️</span>
@@ -413,7 +413,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                             </Link>
                         ))}
                     </div>
-                </div>
+                </div> */}
 
                 {/* UPCOMING */}
                 {upcomingRooms.length > 0 && (
