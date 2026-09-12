@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 //done
 type VideoDrop = {
@@ -143,6 +143,7 @@ const findVideoDropByUrl = (playlists: Playlist[], url: string): { drop: VideoDr
 };
 
 export default function VideoDropCard() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const idParam = searchParams.get("id") || searchParams.get("cId");
   const cParam = searchParams.get("c"); // Cloudinary short path (e.g. q_auto/video.mp4 or public_id)
@@ -167,6 +168,23 @@ export default function VideoDropCard() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Intelligent back navigation: goes back if there's internal history, otherwise falls back to Home
+  const handleGoBack = () => {
+    if (typeof window !== "undefined") {
+      const historyIdx = window.history.state?.idx;
+      const hasInternalReferrer =
+        document.referrer && document.referrer.startsWith(window.location.origin);
+
+      if ((typeof historyIdx === "number" && historyIdx > 0) || (hasInternalReferrer && window.history.length > 1)) {
+        router.back();
+      } else {
+        router.push("/MainModules/HomePage");
+      }
+    } else {
+      router.push("/MainModules/HomePage");
+    }
+  };
 
   useEffect(() => {
     fetchVideoData();
@@ -650,8 +668,8 @@ export default function VideoDropCard() {
         <div className="text-center">
           <p className="text-red-400 mb-4">{error || "Video not found"}</p>
           <button
-            onClick={() => window.history.back()}
-            className="bg-pink-500 px-4 py-2 rounded text-white hover:bg-pink-600"
+            onClick={handleGoBack}
+            className="bg-pink-500 px-4 py-2 rounded text-white hover:bg-pink-600 cursor-pointer"
           >
             Go Back
           </button>
@@ -676,7 +694,7 @@ export default function VideoDropCard() {
         {/* Topbar - Responsive padding */}
         <div className="flex items-center justify-between px-4 sm:px-5 md:px-6 pt-4 pb-3 sm:pt-5 sm:pb-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <button onClick={() => window.history.back()} className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition">
+            <button onClick={handleGoBack} title="Go Back" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition">
               <svg className="w-3 h-3 sm:w-[13px] sm:h-[13px]" viewBox="0 0 13 13" fill="none">
                 <path d="M8.5 2L4 6.5L8.5 11" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
@@ -719,7 +737,7 @@ export default function VideoDropCard() {
               <video
                 ref={videoRef}
                 src={videoDrop.videoUrl}
-                className="absolute inset-0 w-full h-full object-contain"
+                className="absolute inset-0 w-full h-full object-fill"
                 onLoadedMetadata={handleLoadedMetadata}
                 onDurationChange={handleLoadedMetadata}
                 onTimeUpdate={handleTimeUpdate}

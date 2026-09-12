@@ -11,9 +11,14 @@ jest.mock("axios", () => ({
 
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 const mockUseSearchParams = jest.fn();
+const mockRouter = {
+  push: jest.fn(),
+  back: jest.fn(),
+};
 
 jest.mock("next/navigation", () => ({
   useSearchParams: () => mockUseSearchParams(),
+  useRouter: () => mockRouter,
 }));
 
 describe("VideoDropCard", () => {
@@ -262,7 +267,7 @@ describe("VideoDropCard", () => {
     });
 
     fireEvent.click(screen.getByText("Go Back"));
-    expect(historyBackSpy).toHaveBeenCalled();
+    expect(mockRouter.push).toHaveBeenCalledWith("/MainModules/HomePage");
   });
 
   it("shows a no-playlists error when the response contains no playlists", async () => {
