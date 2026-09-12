@@ -61,14 +61,34 @@ const formatDate = (timestamp: number): string => {
 
 // Generate short ID from playlist ID and video index
 const generateShortId = (playlistId: string, videoIndex: number): string => {
-    const shortId = Buffer.from(`${playlistId}:${videoIndex}`).toString('base64').slice(0, 12);
-    return shortId;
+    try {
+        const raw = `${playlistId}:${videoIndex}`;
+        if (typeof window !== "undefined" && window.btoa) {
+            return window.btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+        if (typeof Buffer !== "undefined") {
+            return Buffer.from(raw).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+        return `${playlistId}_${videoIndex}`;
+    } catch {
+        return `${playlistId}_${videoIndex}`;
+    }
 };
 
-// Generate short ID from playlist ID and video index
+// Generate short ID from playlist ID and audio index
 const generateAudioShortId = (playlistId: string, audioIndex: number): string => {
-    const shortId = Buffer.from(`${playlistId}:${audioIndex}`).toString('base64').slice(0, 12);
-    return shortId;
+    try {
+        const raw = `${playlistId}:${audioIndex}`;
+        if (typeof window !== "undefined" && window.btoa) {
+            return window.btoa(raw).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+        if (typeof Buffer !== "undefined") {
+            return Buffer.from(raw).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+        return `${playlistId}_${audioIndex}`;
+    } catch {
+        return `${playlistId}_${audioIndex}`;
+    }
 };
 
 export default function FullPlaylistPage() {
