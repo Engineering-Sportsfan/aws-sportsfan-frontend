@@ -68,10 +68,31 @@ describe("VideoDropCard", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockUseSearchParams.mockReset();
+    mockedAxios.get.mockImplementation((url: string) => {
+      if (url === "/api/team360-playlist") {
+        return Promise.resolve(mockPlaylistResponse);
+      }
+      if (url === "/api/cloudinary/cricket-media") {
+        return Promise.resolve({
+          data: {
+            success: true,
+            mediaFiles: [
+              {
+                id: "cricket-1",
+                title: "Match Highlights",
+                url: "https://example.com/cricket1.mp4",
+                duration: "3:00",
+                durationSeconds: 180,
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: { success: false } });
+    });
   });
 
   it("shows the loading indicator while fetching video data", async () => {
-    mockedAxios.get.mockResolvedValueOnce(mockPlaylistResponse);
     mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
 
     render(<VideoDropCard />);
@@ -92,7 +113,7 @@ describe("VideoDropCard", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { level: 1, name: "A Winning Strategy" })).toBeInTheDocument();
       expect(screen.getByText("How the champions prepared.")).toBeInTheDocument();
-      expect(screen.getByText(/2,40,000|240,000/)).toBeInTheDocument();
+      expect(screen.getByText("72% engagement")).toBeInTheDocument();
       expect(screen.getAllByText("4:32").length).toBeGreaterThan(0);
     });
 
@@ -125,8 +146,112 @@ describe("VideoDropCard", () => {
     });
   });
 
+  it("decodes URL-safe shortId (with - and _) correctly", async () => {
+    // URL-safe base64
+    const shortId = Buffer.from("playlist-1:0").toString("base64").replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    mockedAxios.get.mockResolvedValueOnce(mockPlaylistResponse);
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(`?shortId=${shortId}`));
+
+    render(<VideoDropCard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1, name: "A Winning Strategy" })).toBeInTheDocument();
+      expect(screen.getByText("How the champions prepared.")).toBeInTheDocument();
+    });
+  });
+
+  it("decodes standalone video token 'v' with JSON payload safely", async () => {
+    const payload = JSON.stringify({
+      u: "https://res.cloudinary.com/dflnsufit/video/upload/custom_video.mp4",
+      t: "Devaki Dhar PB Comeback",
+    });
+    const vToken = Buffer.from(payload).toString("base64").replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    mockedAxios.get.mockResolvedValueOnce(mockPlaylistResponse);
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(`?v=${vToken}`));
+
+    render(<VideoDropCard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1, name: "Devaki Dhar PB Comeback" })).toBeInTheDocument();
+    });
+  });
+
+  it("loads video from short Cloudinary path 'c'", async () => {
+    mockedAxios.get.mockResolvedValueOnce(mockPlaylistResponse);
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("?c=q_auto/Devaki_Dhar_national-level_Delhi_sprinter_8-year_PB_comeback_and_her_journey_with_epilepsy._rgknov.mp4"));
+
+    render(<VideoDropCard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
+      expect(screen.getByText(/Devaki Dhar/i)).toBeInTheDocument();
+    });
+  });
+
+  it("calls navigator.share with canonical short URL when share button is clicked", async () => {
+    const shareMock = jest.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "share", {
+      value: shareMock,
+      writable: true,
+      configurable: true,
+    });
+
+    mockedAxios.get.mockResolvedValueOnce(mockPlaylistResponse);
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("?playlistId=playlist-1&videoIndex=0"));
+
+    render(<VideoDropCard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1, name: "A Winning Strategy" })).toBeInTheDocument();
+    });
+
+    const shareButton = screen.getByTitle("Share");
+    fireEvent.click(shareButton);
+
+    expect(shareMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "A Winning Strategy",
+        url: expect.stringContaining("/MainModules/VideoDrop?playlistId=playlist-1&videoIndex=0"),
+      })
+    );
+  });
+
+  it("copies short link to clipboard and displays toast when navigator.share is unavailable", async () => {
+    Object.defineProperty(navigator, "share", {
+      value: undefined,
+      writable: true,
+      configurable: true,
+    });
+
+    const writeTextMock = jest.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: writeTextMock },
+      writable: true,
+      configurable: true,
+    });
+
+    mockedAxios.get.mockResolvedValueOnce(mockPlaylistResponse);
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("?playlistId=playlist-1&videoIndex=0"));
+
+    render(<VideoDropCard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1, name: "A Winning Strategy" })).toBeInTheDocument();
+    });
+
+    const shareButton = screen.getByTitle("Share");
+    fireEvent.click(shareButton);
+
+    await waitFor(() => {
+      expect(writeTextMock).toHaveBeenCalledWith(
+        expect.stringContaining("/MainModules/VideoDrop?playlistId=playlist-1&videoIndex=0")
+      );
+      expect(screen.getByText("Link copied to clipboard!")).toBeInTheDocument();
+    });
+  });
+
   it("shows an error message when the API call fails", async () => {
-    mockedAxios.get.mockRejectedValueOnce(new Error("API Error"));
+    mockedAxios.get.mockImplementation(() => Promise.reject(new Error("API Error")));
     mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
 
     render(<VideoDropCard />);
@@ -141,10 +266,11 @@ describe("VideoDropCard", () => {
   });
 
   it("shows a no-playlists error when the response contains no playlists", async () => {
-    mockedAxios.get.mockResolvedValueOnce({
+    mockedAxios.get.mockImplementation(() => Promise.resolve({
       data: {
         success: false,
         playlists: [],
+        mediaFiles: [],
         pagination: {
           currentPage: 1,
           totalPages: 0,
@@ -152,7 +278,7 @@ describe("VideoDropCard", () => {
           itemsPerPage: 10,
         },
       },
-    });
+    }));
     mockUseSearchParams.mockReturnValue(new URLSearchParams(""));
 
     render(<VideoDropCard />);
