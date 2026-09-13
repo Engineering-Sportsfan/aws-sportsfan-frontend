@@ -88,7 +88,7 @@ function formatErrorMessage(err: any): string {
       try {
         const str = JSON.stringify(data.error);
         if (str !== "{}") return str;
-      } catch {}
+      } catch { }
     }
     if (typeof data.message === "string") return data.message;
   }
@@ -99,7 +99,7 @@ function formatErrorMessage(err: any): string {
   try {
     const json = JSON.stringify(err);
     if (json && json !== "{}") return json;
-  } catch {}
+  } catch { }
 
   return "Failed to save post. Please check media sizes and try again.";
 }
@@ -545,11 +545,10 @@ export default function CreatePostDialog({
             <button
               type="button"
               onClick={() => setActiveTab("create")}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
-                activeTab === "create"
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${activeTab === "create"
                   ? "bg-gradient-to-r from-[#C9115F] to-[#e85d04] text-white border-transparent shadow-md shadow-pink-500/20"
                   : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border-white/5"
-              }`}
+                }`}
             >
               <span>✍️</span>
               <span>{editingPost ? "Edit Post" : "Create Post"}</span>
@@ -561,11 +560,10 @@ export default function CreatePostDialog({
                 setActiveTab("scheduled");
                 fetchUserScheduledPosts();
               }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${
-                activeTab === "scheduled"
+              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer border ${activeTab === "scheduled"
                   ? "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-md shadow-amber-500/10"
                   : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border-white/5"
-              }`}
+                }`}
             >
               <Clock size={13} className={scheduledPosts.length > 0 ? "text-amber-400 animate-pulse" : "text-gray-400"} />
               <span>Scheduled</span>
@@ -635,11 +633,10 @@ export default function CreatePostDialog({
                       key={s.id}
                       type="button"
                       onClick={() => setSport(s.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${
-                        isSelected
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${isSelected
                           ? "bg-gradient-to-r from-[#C9115F] to-[#e85d04] text-white border-transparent shadow-md shadow-pink-500/20 ring-2 ring-pink-500/30 scale-[1.02]"
                           : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border-white/10"
-                      }`}
+                        }`}
                     >
                       <span className="text-xs">{s.emoji}</span>
                       <span>{s.label}</span>
@@ -876,24 +873,23 @@ export default function CreatePostDialog({
                 {/* Live Preview Info Banner */}
                 {scheduledTs && (
                   <div
-                    className={`p-2.5 rounded-lg text-xs font-medium flex items-center gap-2 border ${
-                      isPastTime
+                    className={`p-2.5 rounded-lg text-xs font-medium flex items-center gap-2 border ${isPastTime
                         ? "bg-red-500/10 border-red-500/30 text-red-400"
                         : "bg-amber-500/10 border-amber-500/25 text-amber-300"
-                    }`}
+                      }`}
                   >
                     <Clock size={13} className="shrink-0" />
                     <span>
                       {isPastTime
                         ? "⚠️ Selected time is in the past. Please choose a future time."
                         : `Will go live on ${new Date(scheduledTs).toLocaleString("en-US", {
-                            weekday: "short",
-                            month: "short",
-                            day: "numeric",
-                            hour: "numeric",
-                            minute: "2-digit",
-                            hour12: true,
-                          })}`}
+                          weekday: "short",
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "2-digit",
+                          hour12: true,
+                        })}`}
                     </span>
                   </div>
                 )}
@@ -938,11 +934,10 @@ export default function CreatePostDialog({
                       }
                       setShowSchedule((prev) => !prev);
                     }}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${
-                      showSchedule
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer ${showSchedule
                         ? "bg-amber-500/20 border-amber-500/40 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.15)]"
                         : "bg-white/5 hover:bg-white/10 text-gray-300 border-white/10"
-                    }`}
+                      }`}
                   >
                     <Clock size={14} className="text-amber-400" />
                     <span>{showSchedule ? "Scheduled" : "Schedule"}</span>
@@ -957,11 +952,10 @@ export default function CreatePostDialog({
                     (!content.trim() && mediaList.length === 0 && !existingMediaPreview && !showPoll) ||
                     (showSchedule && (isPastTime || !scheduledTs))
                   }
-                  className={`flex items-center gap-2 px-5 py-2 rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg active:scale-95 cursor-pointer shrink-0 ${
-                    showSchedule
+                  className={`flex items-center gap-2 px-5 py-2 rounded-xl text-white font-bold text-xs uppercase tracking-wider transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg active:scale-95 cursor-pointer shrink-0 ${showSchedule
                       ? "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 shadow-amber-500/20"
                       : "bg-gradient-to-r from-[#C9115F] to-[#e85d04] hover:from-[#db1b6e] hover:to-[#f06e18] shadow-pink-500/20"
-                  }`}
+                    }`}
                 >
                   {submitting ? (
                     <>
