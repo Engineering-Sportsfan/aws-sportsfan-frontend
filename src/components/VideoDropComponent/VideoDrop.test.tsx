@@ -315,4 +315,56 @@ describe("VideoDropCard", () => {
       expect(screen.getByText(/Unable to play video/i)).toBeInTheDocument();
     });
   });
+
+  it("decodes a compact direct shortId and renders the video drop", async () => {
+    // Cloudinary compact format: c:<path>
+    const token = Buffer.from(
+      "c:q_auto/Devaki_Dhar_national-level_Delhi_sprinter_8-year_PB_comeback_and_her_journey_with_epilepsy._rgknov.mp4"
+    ).toString("base64");
+    mockedAxios.get.mockResolvedValueOnce(mockPlaylistResponse);
+    mockUseSearchParams.mockReturnValue(new URLSearchParams(`?shortId=${token}`));
+
+    render(<VideoDropCard />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", {
+          level: 1,
+          name: /Devaki Dhar national level Delhi sprinter 8 year PB comeback/i,
+        })
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("copies a short share link when sharing even if navigated via a long url query", async () => {
+    const writeTextMock = jest.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: writeTextMock,
+      },
+    });
+    window.alert = jest.fn();
+
+    mockedAxios.get.mockResolvedValueOnce(mockPlaylistResponse);
+    const longUrl = "https://res.cloudinary.com/dflnsufit/video/upload/q_auto/Devaki_Dhar_test.mp4?_a=BAMABkkS0";
+    const longTitle = "Devaki Dhar Test Video";
+    mockUseSearchParams.mockReturnValue(
+      new URLSearchParams(`?url=${encodeURIComponent(longUrl)}&title=${encodeURIComponent(longTitle)}`)
+    );
+
+    render(<VideoDropCard />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { level: 1, name: longTitle })).toBeInTheDocument();
+    });
+
+    const shareButton = screen.getByTitle("Share");
+    fireEvent.click(shareButton);
+
+    expect(writeTextMock).toHaveBeenCalled();
+    const copiedUrl = writeTextMock.mock.calls[0][0];
+    expect(copiedUrl).toContain("/MainModules/VideoDrop?shortId=");
+    // Ensure the raw long cloudinary url is NOT present in the copied share link
+    expect(copiedUrl).not.toContain("https%3A%2F%2Fres.cloudinary.com");
+  });
 });
