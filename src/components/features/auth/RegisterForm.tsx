@@ -354,6 +354,7 @@ import { useState } from "react";
 import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 
 type Step = "register" | "otp" | "password";
 

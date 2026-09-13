@@ -62,14 +62,132 @@ const formatDate = (timestamp: number): string => {
   });
 };
 
-// Helper to decode short ID back to playlistId and videoIndex
-const decodeShortId = (shortId: string): { playlistId: string; videoIndex: number } | null => {
+// Clean readable title from Cloudinary URL or filename
+const cleanTitleFromUrl = (urlOrPath: string): string => {
   try {
-    const decoded = Buffer.from(shortId, 'base64').toString();
+    const cleanPath = urlOrPath.split('?')[0];
+    const filename = cleanPath.split('/').pop() || "";
+    const withoutExt = filename.replace(/\.[a-zA-Z0-9]+$/, "");
+    let readable = withoutExt.replace(/[_-]+/g, " ");
+    readable = readable.replace(/\s[a-z0-9]{5,8}$/i, "").trim();
+    return readable || "Video Drop";
+  } catch {
+    return "Video Drop";
+  }
+};
+
+export interface DecodedShortId {
+  type: 'playlist' | 'direct';
+  playlistId?: string;
+  videoIndex?: number;
+  url?: string;
+  title?: string;
+}
+
+// Helper to decode short ID back to playlistId:videoIndex or direct video details
+export const decodeShortId = (shortId: string): DecodedShortId | null => {
+  try {
+    let base64 = shortId.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    const decoded = typeof Buffer !== 'undefined'
+      ? Buffer.from(base64, 'base64').toString('utf-8')
+      : atob(base64);
+
+    // Case 1: Cloudinary compact format "c:<path>" or "c:<path>|<title>"
+    if (decoded.startsWith('c:')) {
+      const rest = decoded.slice(2);
+      const pipeIndex = rest.indexOf('|');
+      const path = pipeIndex !== -1 ? rest.slice(0, pipeIndex) : rest;
+      const title = pipeIndex !== -1 ? rest.slice(pipeIndex + 1) : "";
+      const url = path.startsWith('http')
+        ? path
+        : `https://res.cloudinary.com/dflnsufit/video/upload/${path}`;
+      return {
+        type: 'direct',
+        url,
+        title: title || cleanTitleFromUrl(path)
+      };
+    }
+
+    // Case 2: Generic direct URL format "u:<url>" or "u:<url>|<title>"
+    if (decoded.startsWith('u:')) {
+      const rest = decoded.slice(2);
+      const pipeIndex = rest.indexOf('|');
+      const url = pipeIndex !== -1 ? rest.slice(0, pipeIndex) : rest;
+      const title = pipeIndex !== -1 ? rest.slice(pipeIndex + 1) : "";
+      return {
+        type: 'direct',
+        url,
+        title: title || cleanTitleFromUrl(url)
+      };
+    }
+
+    // Case 3: JSON encoded format
+    if (decoded.startsWith('{')) {
+      const parsed = JSON.parse(decoded);
+      if (parsed.p && typeof parsed.i === 'number') {
+        return { type: 'playlist', playlistId: parsed.p, videoIndex: parsed.i };
+      }
+      if (parsed.u) {
+        return { type: 'direct', url: parsed.u, title: parsed.t };
+      }
+    }
+
+    // Case 4: Playlist format "playlistId:videoIndex" (legacy support)
     const [playlistId, videoIndexStr] = decoded.split(':');
-    return { playlistId, videoIndex: parseInt(videoIndexStr) };
+    const videoIndex = parseInt(videoIndexStr, 10);
+    if (playlistId && !isNaN(videoIndex)) {
+      return { type: 'playlist', playlistId, videoIndex };
+    }
+
+    return null;
   } catch {
     return null;
+  }
+};
+
+// Helper to encode video information into a clean, short URL-safe token
+export const encodeShortId = (options: {
+  playlistId?: string;
+  videoIndex?: number;
+  url?: string;
+  title?: string;
+}): string => {
+  let str = "";
+  if (options.playlistId && options.videoIndex !== undefined && options.videoIndex >= 0) {
+    str = `${options.playlistId}:${options.videoIndex}`;
+  } else if (options.url) {
+    const cloudinaryPrefix = "https://res.cloudinary.com/dflnsufit/video/upload/";
+    if (options.url.startsWith(cloudinaryPrefix)) {
+      let path = options.url.slice(cloudinaryPrefix.length);
+      // Remove redundant query analytics like ?_a=...
+      path = path.replace(/[?&]_a=[^&]+/, "").replace(/\?$/, "");
+      const inferredTitle = cleanTitleFromUrl(path);
+      if (options.title && options.title !== inferredTitle && options.title !== "Video Track") {
+        str = `c:${path}|${options.title}`;
+      } else {
+        str = `c:${path}`;
+      }
+    } else {
+      if (options.title && options.title !== "Video Track") {
+        str = `u:${options.url}|${options.title}`;
+      } else {
+        str = `u:${options.url}`;
+      }
+    }
+  }
+
+  if (!str) return "";
+
+  try {
+    const base64 = typeof Buffer !== "undefined"
+      ? Buffer.from(str, "utf-8").toString("base64")
+      : btoa(unescape(encodeURIComponent(str)));
+    return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  } catch {
+    return "";
   }
 };
 
@@ -90,7 +208,8 @@ export default function VideoDropCard() {
   const titleParam = searchParams.get("title");
   const playlistId = searchParams.get("playlistId");
   const videoIndex = parseInt(searchParams.get("videoIndex") || "0");
-  const shortId = searchParams.get("shortId"); // New parameter for short ID
+  const shortId = searchParams.get("shortId"); // Short ID parameter
+  const [currentShortId, setCurrentShortId] = useState<string | null>(shortId || null);
   const [playing, setPlaying] = useState(false);
   const [showCenterIcon, setShowCenterIcon] = useState(true);
   const iconTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -105,6 +224,18 @@ export default function VideoDropCard() {
   useEffect(() => {
     fetchVideoData();
   }, [playlistId, videoIndex, urlParam, shortId]);
+
+  // Keep browser address bar clean and short without reloading
+  useEffect(() => {
+    if (typeof window !== "undefined" && currentShortId && (urlParam || playlistId)) {
+      try {
+        const newUrl = `${window.location.pathname}?shortId=${currentShortId}`;
+        window.history.replaceState(null, "", newUrl);
+      } catch {
+        // Ignore replaceState restrictions in environments where not permitted
+      }
+    }
+  }, [currentShortId, urlParam, playlistId]);
 
   const fetchVideoData = async () => {
     try {
@@ -122,23 +253,56 @@ export default function VideoDropCard() {
 
       const playlists = response.data.playlists;
 
-      // Case 1: Short ID provided (new approach)
+      // Case 1: Short ID provided
       if (shortId) {
+        setCurrentShortId(shortId);
         const decoded = decodeShortId(shortId);
         if (decoded) {
-          const targetPlaylist = playlists.find(p => p.id === decoded.playlistId);
-          if (targetPlaylist && targetPlaylist.videoDrops[decoded.videoIndex]) {
-            const drop = targetPlaylist.videoDrops[decoded.videoIndex];
-            const durationSecs = parseDurationToSeconds(drop.duration);
-            setVideoDrop({
-              ...drop,
-              videoUrl: drop.mediaUrl,
-              durationSecs,
-              subtitle: "Video Drops",
-              date: formatDate(targetPlaylist.createdAt),
-              room: "Video Room",
-              views: drop.listens || drop.views || 0
-            });
+          if (decoded.type === 'playlist' && decoded.playlistId) {
+            const targetPlaylist = playlists.find(p => p.id === decoded.playlistId);
+            const idx = decoded.videoIndex ?? 0;
+            if (targetPlaylist && targetPlaylist.videoDrops[idx]) {
+              const drop = targetPlaylist.videoDrops[idx];
+              const durationSecs = parseDurationToSeconds(drop.duration);
+              setVideoDrop({
+                ...drop,
+                videoUrl: drop.mediaUrl,
+                durationSecs,
+                subtitle: "Video Drops",
+                date: formatDate(targetPlaylist.createdAt),
+                room: "Video Room",
+                views: drop.listens || drop.views || 0
+              });
+              setLoading(false);
+              return;
+            }
+          } else if (decoded.type === 'direct' && decoded.url) {
+            const { drop, playlist } = findVideoDropByUrl(playlists, decoded.url);
+            if (drop && playlist) {
+              const durationSecs = parseDurationToSeconds(drop.duration);
+              setVideoDrop({
+                ...drop,
+                videoUrl: drop.mediaUrl,
+                durationSecs,
+                subtitle: "Video Drops",
+                date: formatDate(playlist.createdAt),
+                room: "Video Room",
+                views: drop.listens || drop.views || 0
+              });
+            } else {
+              setVideoDrop({
+                title: decoded.title || cleanTitleFromUrl(decoded.url),
+                description: "",
+                views: 0,
+                signals: 0,
+                duration: "0:00",
+                durationSecs: 0,
+                engagement: 0,
+                mediaUrl: decoded.url,
+                videoUrl: decoded.url,
+                subtitle: "Video Drops"
+              });
+            }
             setLoading(false);
             return;
           }
@@ -148,9 +312,11 @@ export default function VideoDropCard() {
       // Case 2: URL parameter provided - find the video drop by URL
       if (urlParam) {
         const decodedUrl = decodeURIComponent(urlParam);
-        const { drop, playlist } = findVideoDropByUrl(playlists, decodedUrl);
+        const { drop, playlist, index } = findVideoDropByUrl(playlists, decodedUrl);
 
         if (drop && playlist) {
+          const generatedId = encodeShortId({ playlistId: playlist.id, videoIndex: index });
+          setCurrentShortId(generatedId);
           const durationSecs = parseDurationToSeconds(drop.duration);
           setVideoDrop({
             ...drop,
@@ -162,21 +328,11 @@ export default function VideoDropCard() {
             views: drop.listens || drop.views || 0
           });
         } else {
-          // If not found in playlists, still show with basic info
-          // setVideoDrop({
-          //   title: "Video Track",
-          //   description: "",
-          //   views: 0,
-          //   signals: 0,
-          //   duration: "0:00",
-          //   durationSecs: 0,
-          //   engagement: 0,
-          //   mediaUrl: decodedUrl,
-          //   videoUrl: decodedUrl,
-          //   subtitle: "Video Drops"
-          // });
+          const displayTitle = titleParam ? decodeURIComponent(titleParam) : cleanTitleFromUrl(decodedUrl);
+          const generatedId = encodeShortId({ url: decodedUrl, title: displayTitle });
+          setCurrentShortId(generatedId);
           setVideoDrop({
-            title: titleParam ? decodeURIComponent(titleParam) : "Video Track",
+            title: displayTitle,
             description: "",
             views: 0,
             signals: 0,
@@ -203,6 +359,8 @@ export default function VideoDropCard() {
 
       if (targetPlaylist && targetPlaylist.videoDrops[videoIndex]) {
         const drop = targetPlaylist.videoDrops[videoIndex];
+        const generatedId = encodeShortId({ playlistId: targetPlaylist.id, videoIndex });
+        setCurrentShortId(generatedId);
         const durationSecs = parseDurationToSeconds(drop.duration);
         setVideoDrop({
           ...drop,
@@ -216,6 +374,8 @@ export default function VideoDropCard() {
       } else if (targetPlaylist && targetPlaylist.videoDrops.length > 0) {
         // Fallback to first video drop
         const drop = targetPlaylist.videoDrops[0];
+        const generatedId = encodeShortId({ playlistId: targetPlaylist.id, videoIndex: 0 });
+        setCurrentShortId(generatedId);
         const durationSecs = parseDurationToSeconds(drop.duration);
         setVideoDrop({
           ...drop,
@@ -306,12 +466,21 @@ export default function VideoDropCard() {
     triggerCenterIcon();
   };
 
-  // Handle share (matches FlipLine implementation)
+  // Handle share with short link
   const handleShare = () => {
     if (!videoDrop) return;
     const shareTitle = videoDrop.title || "Video Drop on SportsFan360";
     const shareText = videoDrop.description || videoDrop.title || "Check out this video drop on SportsFan360!";
-    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+
+    let shareUrl = "";
+    if (typeof window !== "undefined") {
+      const activeShortId = currentShortId || (videoDrop.mediaUrl ? encodeShortId({ url: videoDrop.mediaUrl, title: videoDrop.title }) : null);
+      if (activeShortId) {
+        shareUrl = `${window.location.origin}/MainModules/VideoDrop?shortId=${activeShortId}`;
+      } else {
+        shareUrl = window.location.href;
+      }
+    }
 
     if (typeof window !== "undefined" && navigator.share) {
       navigator
@@ -482,7 +651,7 @@ export default function VideoDropCard() {
         {/* Body - Responsive padding and text sizes */}
         {/* <div className="px-4 sm:px-5 md:px-6 pt-3.5 sm:pt-4 md:pt-5 pb-4 sm:pb-5 md:pb-6"> */}
         <div className="px-4 sm:px-5 md:px-6 pt-3.5 sm:pt-4 md:pt-5 pb-6 sm:pb-7 md:pb-8">
-          <h1 className="text-white text-[18px] sm:text-[20px] md:text-[22px] lg:text-[24px] font-medium leading-snug mb-2 sm:mb-3">
+          <h1 className="text-white text-[12px] sm:text-[14px] md:text-[16px] lg:text-[16px] font-medium leading-snug mb-2 sm:mb-3">
             {videoDrop.title}
           </h1>
           <p className="text-[#777] text-[12px] sm:text-[13px] md:text-[14px] leading-relaxed mb-4 sm:mb-5">

@@ -675,13 +675,13 @@ export function FlipCardItem({
   card: FlipCard;
   index: number;
   totalCards: number;
-    askOpen: number | string | null;
-    setAskOpen: (id: number | string | null) => void;
+  askOpen: number | string | null;
+  setAskOpen: (id: number | string | null) => void;
   typeColorMap: Record<string, string>;
   typeLabelMap: Record<string, string>;
   router: any;
-    handleCtaClick: (ctaType: 'room' | 'watchalong' | 'drop' | string) => void;
-    onCardUpdate?: (updatedCard: FlipCard) => void;
+  handleCtaClick: (ctaType: 'room' | 'watchalong' | 'drop' | string) => void;
+  onCardUpdate?: (updatedCard: FlipCard) => void;
 }) {
   const { user, getUserName, getUserDisplayName } = useAuth();
   const currentUserId =
@@ -1152,7 +1152,7 @@ export function FlipCardItem({
   // };
 
 
-    const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
+  const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
     const botCanon = getBotCanonicalName(targetName) || getBotCanonicalName(targetUserId);
     if (botCanon) {
       router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botCanon)}`);
@@ -1173,7 +1173,7 @@ export function FlipCardItem({
   };
 
 
-    // ── 10. Open User Profile Navigation ─────────────────────────────────────────
+  // ── 10. Open User Profile Navigation ─────────────────────────────────────────
   const handleOpenAuthorProfile = () => {
     const botCanon = card.type === 'bot'
       ? (getBotCanonicalName(card.author) || 'Dolly')
@@ -1437,66 +1437,66 @@ export function FlipCardItem({
                       <Volume2 size={15} />
                     </div>
                     <div className="flex-1 flex items-center gap-[2.5px] h-4">
-                        {[30, 80, 45, 90, 60, 35, 75, 40, 65, 80, 50, 70, 45, 85, 30, 60, 45, 90, 55, 35].map(
-                          (h, i) => (
-                            <div
-                              key={i}
-                              className="flex-1 bg-white/30 rounded-full"
-                              style={{ height: `${h}%` }}
-                            />
-                          )
-                        )}
+                      {[30, 80, 45, 90, 60, 35, 75, 40, 65, 80, 50, 70, 45, 85, 30, 60, 45, 90, 55, 35].map(
+                        (h, i) => (
+                          <div
+                            key={i}
+                            className="flex-1 bg-white/30 rounded-full"
+                            style={{ height: `${h}%` }}
+                          />
+                        )
+                      )}
                     </div>
                   </div>
                 </div>
               ) : (
                 <>
-                      {card.image && (
-                        <img
-                          src={typeof card.image === 'object' ? card.image.src : card.image}
-                          alt="Moment media"
-                          className="w-full h-full object-cover max-h-[220px] cursor-zoom-in"
-                          onClick={() => setIsFullscreen(true)}
-                        />
-                      )}
+                  {card.image && (
+                    <img
+                      src={typeof card.image === 'object' ? card.image.src : card.image}
+                      alt="Moment media"
+                      className="w-full h-full object-cover max-h-[220px] cursor-zoom-in"
+                      onClick={() => setIsFullscreen(true)}
+                    />
+                  )}
 
-                      {card.mediaType === 'video' && (
-                        <div
-                          onClick={() => setIsFullscreen(true)}
-                          className="absolute inset-0 bg-black/35 flex items-center justify-center cursor-pointer"
-                        >
-                          <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white transition-transform hover:scale-105">
-                            <Play size={18} fill="currentColor" className="ml-0.5" />
-                          </div>
-                        </div>
-                      )}
+                  {card.mediaType === 'video' && (
+                    <div
+                      onClick={() => setIsFullscreen(true)}
+                      className="absolute inset-0 bg-black/35 flex items-center justify-center cursor-pointer"
+                    >
+                      <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white transition-transform hover:scale-105">
+                        <Play size={18} fill="currentColor" className="ml-0.5" />
+                      </div>
+                    </div>
+                  )}
 
-                      {(card.image || card.mediaType === 'video') && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setIsFullscreen(true);
-                          }}
-                          className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/85 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100"
-                          title="View Fullscreen"
-                        >
-                          <svg
-                            width="13"
-                            height="13"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          >
-                            <polyline points="15 3 21 3 21 9" />
-                            <polyline points="9 21 3 21 3 15" />
-                            <line x1="21" y1="3" x2="14" y2="10" />
-                            <line x1="3" y1="21" x2="10" y2="14" />
-                          </svg>
-                        </button>
-                      )}
+                  {(card.image || card.mediaType === 'video') && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsFullscreen(true);
+                      }}
+                      className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/85 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100"
+                      title="View Fullscreen"
+                    >
+                      <svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="15 3 21 3 21 9" />
+                        <polyline points="9 21 3 21 3 15" />
+                        <line x1="21" y1="3" x2="14" y2="10" />
+                        <line x1="3" y1="21" x2="10" y2="14" />
+                      </svg>
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -1573,9 +1573,8 @@ export function FlipCardItem({
               {/* Comment Toggle Button */}
               <button
                 onClick={() => setCommentOpen((prev) => !prev)}
-                className={`flex items-center gap-2 transition-all cursor-pointer ${
-                  commentOpen ? 'text-sky-400 font-black' : 'text-white/40 hover:text-sky-400'
-                }`}
+                className={`flex items-center gap-2 transition-all cursor-pointer ${commentOpen ? 'text-sky-400 font-black' : 'text-white/40 hover:text-sky-400'
+                  }`}
                 title="Comments"
               >
                 <MessageSquare
@@ -1681,8 +1680,8 @@ export function FlipCardItem({
                               type="button"
                               onClick={() => setSelectedReportTag(isSel ? null : tag)}
                               className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${isSel
-                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
-                                  : 'bg-white/[0.04] text-white/50 border border-white/[0.06] hover:text-white/80 hover:bg-white/[0.08]'
+                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
+                                : 'bg-white/[0.04] text-white/50 border border-white/[0.06] hover:text-white/80 hover:bg-white/[0.08]'
                                 }`}
                             >
                               {tag}
@@ -1797,7 +1796,7 @@ export function FlipCardItem({
                       {isSubmittingComment ? (
                         <Loader2 size={13} className="animate-spin" />
                       ) : (
-                          <Send size={13} className="ml-0.5" />
+                        <Send size={13} className="ml-0.5" />
                       )}
                     </button>
                   </div>
@@ -2475,13 +2474,13 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
           setActiveTab={setActiveTab}
         />
       ) : (
-          <FlipLineSection
-            selectedSport={selectedSport}
-            onViewFull={() => router.push('/MainModules/FlipLine')}
-            cards={combinedCards}
-            loading={loading}
-            onCardUpdate={handleCardUpdate}
-          />
+        <FlipLineSection
+          selectedSport={selectedSport}
+          onViewFull={() => router.push('/MainModules/FlipLine')}
+          cards={combinedCards}
+          loading={loading}
+          onCardUpdate={handleCardUpdate}
+        />
       )}
     </div>
   );
