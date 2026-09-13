@@ -193,12 +193,43 @@ export default function PlaybookDrops() {
     };
   }, [fetchMedia]);
 
+// Helper to encode payload into URL-safe Base64
+const toBase64Url = (str: string): string => {
+  try {
+    if (typeof Buffer !== "undefined") {
+      return Buffer.from(str, "utf-8")
+        .toString("base64")
+        .replace(/\+/g, "-")
+        .replace(/\//g, "_")
+        .replace(/=+$/, "");
+    }
+    const bytes = new TextEncoder().encode(str);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  } catch {
+    return encodeURIComponent(str);
+  }
+};
+
   const handleCardClick = (drop: PlaybookDrop) => {
     const isAudio = drop.type === "AUDIO";
-    const route = isAudio ? "/MainModules/AudioDrop" : "/MainModules/VideoDrop";
-    router.push(
-      `${route}?url=${encodeURIComponent(drop.mediaUrl)}&title=${encodeURIComponent(drop.title)}`
-    );
+    if (isAudio) {
+      router.push(
+        `/MainModules/AudioDrop?url=${encodeURIComponent(drop.mediaUrl)}&title=${encodeURIComponent(drop.title)}`
+      );
+    } else if (drop.id) {
+      router.push(`/MainModules/VideoDrop?id=${encodeURIComponent(drop.id)}`);
+    } else {
+      const cloudMatch = drop.mediaUrl.match(/res\.cloudinary\.com\/[^/]+\/video\/upload\/(?:v\d+\/)?(.+?)(?:\?.*)?$/);
+      if (cloudMatch && cloudMatch[1]) {
+        router.push(`/MainModules/VideoDrop?c=${encodeURIComponent(cloudMatch[1])}`);
+      } else {
+        router.push(`/MainModules/VideoDrop?url=${encodeURIComponent(drop.mediaUrl)}&title=${encodeURIComponent(drop.title)}`);
+      }
+    }
   };
 
   if (loading) {

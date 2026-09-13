@@ -213,6 +213,17 @@ function FlipLineSection({
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
   } else if (activeFilter === 'athletics') {
     displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'athletics');
+  } else if (activeFilter === 'expert') {
+    const filtered = displayCards.filter(
+      (c) =>
+        c.type === 'expert' ||
+        c.type === 'analyst' ||
+        c.type === 'bot' ||
+        c.author?.toLowerCase().includes('expert') ||
+        c.source?.toLowerCase().includes('expert') ||
+        c.tags?.some((t) => t.toLowerCase().includes('expert'))
+    );
+    if (filtered.length > 0) displayCards = filtered;
   } else if (activeFilter === 'analysts') {
     const filtered = displayCards.filter(
       (c) =>
@@ -262,6 +273,7 @@ function FlipLineSection({
           { id: 'cricket', label: '#cricket', emoji: '🏏' },
           { id: 'football', label: '#football', emoji: '⚽' },
           { id: 'athletics', label: '#athletics', emoji: '🏃' },
+          { id: 'expert', label: '#expert', emoji: '🎯' },
           { id: 'analysts', label: '#analysts', emoji: '🎙' },
 
           // { id: 'sf360-live', label: '#sf360-live', emoji: '📡' },
