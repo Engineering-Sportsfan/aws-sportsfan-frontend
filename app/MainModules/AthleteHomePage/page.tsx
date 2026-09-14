@@ -693,7 +693,7 @@ export default function AthleteHomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {filtered.map((athlete, i) => (
                 <div
-                  key={athlete.entityId ?? i}
+                  key={`${athlete.entityId || athlete.athleteId || 'athlete'}-${i}`}
                   className="fade-in-up"
                   style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
                 >
@@ -712,7 +712,7 @@ export default function AthleteHomePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {filteredClubs.map((club, i) => (
                 <div
-                  key={club.entityId ?? i}
+                  key={`${club.entityId || club.team_id || 'club'}-${i}`}
                   className="fade-in-up"
                   style={{ animationDelay: `${Math.min(i * 40, 400)}ms` }}
                 >
