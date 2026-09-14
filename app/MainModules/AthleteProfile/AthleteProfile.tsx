@@ -59,6 +59,7 @@ export default function AthleteProfile({ athleteId, isClub }: Props) {
   const [loading, setLoading] = useState(!!athleteId);
   const [error, setError] = useState<string | null>(null);
   const [selectedSeasonYear, setSelectedSeasonYear] = useState<string>("");
+  const [cricketStatTab, setCricketStatTab] = useState<"batting" | "bowling">("batting");
 
   useEffect(() => {
     if (athlete) {
@@ -1462,9 +1463,9 @@ export default function AthleteProfile({ athleteId, isClub }: Props) {
                   </h3>
                   {availableSeasonYears.length > 1 && (
                     <div className="flex items-center gap-1 bg-black/40 p-1 rounded-xl border border-white/5 overflow-x-auto no-scrollbar max-w-[220px]">
-                      {availableSeasonYears.map((yr) => (
+                      {availableSeasonYears.map((yr, idx) => (
                         <button
-                          key={yr}
+                          key={`season-yr-${yr}-${idx}`}
                           onClick={() => setSelectedSeasonYear(yr)}
                           className={`px-2.5 py-0.5 text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${currentActiveYear === yr
                             ? "bg-pink-500 text-white shadow-sm"

@@ -1061,7 +1061,7 @@ export default function NewsCenter() {
             type="button"
             onClick={prevSlide}
             aria-label="Previous news articles"
-            className="absolute left-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
+            className="absolute left-4 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
           >
             <ChevronLeft size={20} />
           </button>
@@ -1225,7 +1225,7 @@ export default function NewsCenter() {
             type="button"
             onClick={nextSlide}
             aria-label="Next news articles"
-            className="absolute right-2 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
+            className="absolute right-8 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
           >
             <ChevronRight size={20} />
           </button>
