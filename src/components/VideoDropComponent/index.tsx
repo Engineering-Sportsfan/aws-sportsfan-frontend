@@ -1126,10 +1126,10 @@ export default function VideoDropCard() {
         {/* Body - Responsive padding and text sizes */}
         {/* <div className="px-4 sm:px-5 md:px-6 pt-3.5 sm:pt-4 md:pt-5 pb-4 sm:pb-5 md:pb-6"> */}
         <div className="px-4 sm:px-5 md:px-6 pt-3.5 sm:pt-4 md:pt-5 pb-6 sm:pb-7 md:pb-8">
-          <h1 className="text-white text-[18px] sm:text-[20px] md:text-[22px] lg:text-[24px] font-medium leading-snug mb-2 sm:mb-3">
+          <h1 className="text-white text-[12px] sm:text-[15px] md:text-[15px] lg:text-[15px] font-medium leading-snug mb-2 sm:mb-3">
             {videoDrop.title}
           </h1>
-          <p className="text-[#777] text-[12px] sm:text-[13px] md:text-[14px] leading-relaxed mb-4 sm:mb-5">
+          <p className="text-[#777] text-[8px] sm:text-[13px] md:text-[14px] leading-relaxed mb-4 sm:mb-5">
             {videoDrop.description}
           </p>
 
