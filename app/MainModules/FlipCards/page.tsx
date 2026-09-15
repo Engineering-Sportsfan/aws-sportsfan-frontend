@@ -354,7 +354,8 @@ export default function FlipCardsPage() {
             {/* Header with Back Button */}
             <div className="flex items-center gap-3 mb-5">
               <button
-                onClick={() => router.push("/MainModules/HomePage")}
+                // onClick={() => router.push("/MainModules/HomePage")}
+                 onClick={() => router.back()}
                 className="w-9 h-9 rounded-full flex items-center justify-center text-white/80 hover:text-white bg-white/10 hover:bg-white/15 transition-all cursor-pointer border border-white/10 shrink-0 active:scale-95"
                 aria-label="Back to HomePage"
               >
