@@ -502,7 +502,7 @@ export default function RoarRooms() {
   return (
     <div className="w-full mt-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[17px] font-extrabold text-white">Roar Rooms</h3>
+        <h3 className="text-[17px] font-extrabold text-white">RoAR Rooms</h3>
         <button
           type="button"
           className="flex items-center gap-0.5 text-[12px] font-bold"

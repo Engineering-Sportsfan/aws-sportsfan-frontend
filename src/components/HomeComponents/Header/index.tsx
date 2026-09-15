@@ -988,7 +988,7 @@ const ChatButton = memo(function ChatButton({
   const capped = Math.min(unreadCount, 99);
   return (
     <Link href="/MainModules/Chat">
-      <div className="relative w-8 h-8 flex items-center justify-center bg-[#111] border border-white/10 rounded-full hover:bg-pink-500/10 transition-colors">
+      {/* <div className="relative w-8 h-8 flex items-center justify-center bg-[#111] border border-white/10 rounded-full hover:bg-pink-500/10 transition-colors">
         <MessageCircle size={14} className="text-pink-400" />
         {capped > 0 && (
           <span
@@ -1000,7 +1000,7 @@ const ChatButton = memo(function ChatButton({
             {capped}
           </span>
         )}
-      </div>
+      </div> */}
     </Link>
   );
 });
@@ -1075,7 +1075,7 @@ const AskAIButton = memo(function AskAIButton({
         className={`flex items-center bg-[#1a1a1a] border border-white/5 text-gray-600 font-medium rounded-full whitespace-nowrap cursor-not-allowed opacity-50 shrink-0 ${sizeClasses}`}
       >
         <Sparkles size={iconSize} />
-        Ask AI
+        ASKFlip
       </button>
     );
   }
@@ -1625,17 +1625,17 @@ export default function Header() {
       {/* ── TABLET (768px – 1279px) ───────────────────────────────────────── */}
       <header
         id="global-header-tablet"
-        className="hidden md:flex xl:hidden w-full items-center gap-2 px-3 py-1.5 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100"
+        className="hidden md:flex  xl:hidden w-full items-center gap-2 px-3 py-1.5 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100"
       >
-        {/* <Link href="/MainModules/HomePage" className="flex-shrink-0">
+        <Link href="/MainModules/HomePage" className="flex-shrink-0 lg:hidden">
           <Image
-            src="/images/Logo.png"
+            src="/images/sportsfan360logo.png"
             alt="SportsFan360 logo"
-            width={28}
-            height={32}
-            className="shrink-0"
+            width={64}
+            height={68}
+            className="shrink-0 lg:hidden"
           />
-        </Link> */}
+        </Link> 
 
         <div className="relative flex-1" ref={dropdownRef}>
           <div className="flex items-center bg-[#111] border border-white/10 rounded-full overflow-hidden pr-1">
@@ -1707,7 +1707,7 @@ export default function Header() {
       {/* ── MOBILE (< 768px) ──────────────────────────────────────────────── */}
       <header
         id="global-header-mobile"
-        className="flex md:hidden flex-col bg-[#0a0a0a] border-b border-white/5"
+        className="flex md:hidden lg:hidden xl:hidden flex-col bg-[#0a0a0a] border-b border-white/5"
         style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100 }}
       >
         {/* Row 1: Logo + text on the left, notifications + avatar on the right */}
@@ -1717,15 +1717,15 @@ export default function Header() {
             className="flex items-center gap-1.5 flex-shrink-0 min-w-0"
           >
             <Image
-              src="/images/Logo.png"
+              src="/images/sportsfan360logo.png"
               alt="SportsFan360 logo"
-              width={24}
-              height={28}
+              width={64}
+              height={68}
               className="shrink-0"
             />
-            <span className="text-white font-extrabold tracking-wide text-xs truncate">
+            {/* <span className="text-white font-extrabold tracking-wide text-xs truncate">
               SportsFan<span className="text-orange-500 mt-2">360</span>
-            </span>
+            </span> */}
           </Link>
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
