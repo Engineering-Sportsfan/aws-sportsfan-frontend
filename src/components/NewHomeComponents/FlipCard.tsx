@@ -89,7 +89,7 @@ export default function FlipCard() {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 sm:gap-2">
             <p className="text-[14px] sm:text-[15px] font-extrabold text-white leading-none">
-              FlipFlex
+              FlipFLEX
             </p>
             <Zap size={13} className="text-amber-400" fill="currentColor" />
             <span

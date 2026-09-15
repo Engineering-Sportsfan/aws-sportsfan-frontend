@@ -183,7 +183,7 @@ export default function BottomNav() {
       url: "/MainModules/HomePage"
     },
     {
-      name: "Roar",
+      name: "RoAR",
       logoInactive: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5 shrink-0">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c4.4 0 8 3.6 8 8 0 3.8-2.7 7-6.3 7.8-.6.1-1 .6-1 1.2v.5c0 .8-.7 1.5-1.5 1.5S9.7 21.3 9.7 20.5V20c0-.6-.4-1.1-1-1.2C5.1 18 2.4 14.8 2.4 11c0-4.4 3.6-8 8-8h1.6Z" />
@@ -201,19 +201,19 @@ export default function BottomNav() {
       url: "/MainModules/ROAR"
     },
     {
-      name: "Watch Along",
+      name: "FlipLIVE",
       logoInactive: "/images/watchalong2.png",
       logoActive: "/images/watchalongactive.png",
       url: "/MainModules/WatchAlong"
     },
      {
-      name: "Flip Guru",
+      name: "FlipGURU",
       logoInactive: "/images/dollyavatar.png",
       logoActive: "/images/dollyavatar.png",
       url: "/MainModules/flipGuru"
     },
     {
-      name: "Ask Flip",
+      name: "ASKFlip",
       // logoInactive: <Sparkles className="w-5 h-5 text-gray-400" />,
       logoInactive: "/images/dollyavatar.png",
       // logoActive: <Sparkles className="w-5 h-5 text-pink-500 drop-shadow-[0_0_6px_rgba(244,114,182,0.7)]" />,

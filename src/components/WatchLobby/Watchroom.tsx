@@ -2832,6 +2832,8 @@ function LiveCameraFeed({
     const audioContextRef = useRef<AudioContext | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
+    const [hasLeftMeeting, setHasLeftMeeting] = useState(false);
+
     const isModerator = userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator';
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2861,6 +2863,13 @@ function LiveCameraFeed({
         api.addListener("recordingStatusChanged", (data: { on: boolean; mode?: string }) => {
             setCustomRecordingState(data.on ? 'recording' : 'idle');
             setCustomRecordingMode((data.mode || 'local') as 'local' | 'file');
+        });
+
+        api.addListener("videoConferenceLeft", () => {
+            setHasLeftMeeting(true);
+        });
+        api.addListener("readyToClose", () => {
+            setHasLeftMeeting(true);
         });
 
         // Listen for custom Jitsi endpoint text messages (used for real-time reactions)
@@ -3071,83 +3080,111 @@ function LiveCameraFeed({
                 <div className="h-full relative w-full">
                     {/* Jitsi SDK React component wrapped in ErrorBoundary */}
                     <JitsiErrorBoundary>
-                        <JitsiMeeting
-                            key={isModerator ? 'moderator' : 'viewer'}
-                            domain="meet.uxexpert.in"
-                            roomName={roomName}
+                        {hasLeftMeeting ? (
+                            <div className="h-full w-full flex flex-col items-center justify-center bg-gray-950 text-white p-6 rounded-xl border border-white/10 text-center select-none">
+                                <div className="w-12 h-12 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center mb-3">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 8l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M5 3a2 2 0 00-2 2v1c0 8.284 6.716 15 15 15h1a2 2 0 002-2v-3.28a1 1 0 00-.684-.948l-4.493-1.498a1 1 0 00-1.21.502l-1.13 2.257a11.042 11.042 0 01-5.516-5.517l2.257-1.128a1 1 0 00.502-1.21L9.228 3.683A1 1 0 008.279 3H5z" />
+                                    </svg>
+                                </div>
+                                <h3 className="text-base font-semibold text-white mb-1">Session Ended</h3>
+                                <p className="text-xs text-gray-400 mb-4">You have left the video room.</p>
+                                <button
+                                    onClick={() => setHasLeftMeeting(false)}
+                                    className="px-4 py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white rounded-lg text-xs font-semibold shadow-lg shadow-red-600/20 transition-all cursor-pointer"
+                                >
+                                    Rejoin Room
+                                </button>
+                            </div>
+                        ) : (
+                            <JitsiMeeting
+                                key={isModerator ? 'moderator' : 'viewer'}
+                                domain="meet.uxexpert.in"
+                                roomName={roomName}
 
-                            configOverwrite={{
-                                prejoinPageEnabled: false,
-                                prejoinConfig: {
-                                    enabled: false,
-                                },
-                                welcomePage: {
-                                    disabled: true,
-                                },
-                                startWithAudioMuted: !isModerator,
-                                startWithVideoMuted: !isModerator,
-                                startSilent: false, // Fully connect viewers so WebRTC data channels and participants list synchronize correctly
-                                disableDeepLinking: true,
-                                enableWelcomePage: false,
-                                hideConferenceSubject: true,
-                                hideConferenceTimer: true,
-                                disableThirdPartyRequests: true,
-                                p2p: { enabled: false },
-                                defaultLogoUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-                                logoImageUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-                                logoClickUrl: '',
-                                disableUnsupportedBrowserPage: true,
-                                disableJoinLeaveSounds: true,
-                                disabledSounds: ['TALK_WHILE_MUTED_SOUND', 'INCOMING_MSG_SOUND', 'PARTICIPANT_JOINED_SOUND', 'PARTICIPANT_LEFT_SOUND', 'REACTIONS_SOUND'],
-                                disabledNotifications: [
-                                    'notify.connected',
-                                    'notify.disconnected',
-                                    'notify.left',
-                                    'notify.joined',
-                                    'notify.participantLeft',
-                                    'notify.participantJoined',
-                                    'notify.invited',
-                                    'notify.screenSharing',
-                                    'notify.startSilent',
-                                    'notify.grantModerator',
-                                    'notify.raisedHand'
-                                ],
+                                configOverwrite={{
+                                    prejoinPageEnabled: false,
+                                    prejoinConfig: {
+                                        enabled: false,
+                                    },
+                                    welcomePage: {
+                                        disabled: true,
+                                    },
+                                    enableClosePage: false,
+                                    feedbackPercentage: 0,
+                                    requireDisplayName: false,
+                                    startWithAudioMuted: !isModerator,
+                                    startWithVideoMuted: !isModerator,
+                                    startSilent: false, // Fully connect viewers so WebRTC data channels and participants list synchronize correctly
+                                    disableDeepLinking: true,
+                                    enableWelcomePage: false,
+                                    hideConferenceSubject: true,
+                                    hideConferenceTimer: true,
+                                    disableThirdPartyRequests: true,
+                                    p2p: { enabled: false },
+                                    defaultLogoUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+                                    logoImageUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+                                    logoClickUrl: '',
+                                    disableUnsupportedBrowserPage: true,
+                                    disableJoinLeaveSounds: true,
+                                    disabledSounds: ['TALK_WHILE_MUTED_SOUND', 'INCOMING_MSG_SOUND', 'PARTICIPANT_JOINED_SOUND', 'PARTICIPANT_LEFT_SOUND', 'REACTIONS_SOUND'],
+                                    disabledNotifications: [
+                                        'notify.connected',
+                                        'notify.disconnected',
+                                        'notify.left',
+                                        'notify.joined',
+                                        'notify.participantLeft',
+                                        'notify.participantJoined',
+                                        'notify.invited',
+                                        'notify.screenSharing',
+                                        'notify.startSilent',
+                                        'notify.grantModerator',
+                                        'notify.raisedHand'
+                                    ],
+                                }}
+                                interfaceConfigOverwrite={{
+                                    SHOW_PROMOTIONAL_CLOSE_PAGE: false,
+                                    ENABLE_FEEDBACK_CONTAINER: false,
+                                    SHOW_CHROME_EXTENSION_BANNER: false,
+                                    RECENT_LIST_ENABLED: false,
+                                    SHOW_JITSI_WATERMARK: false,
+                                    SHOW_BRAND_WATERMARK: false,
+                                    SHOW_POWERED_BY: false,
+                                    DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
+                                    DISABLE_NOTIFICATIONS: true,
+                                    DEFAULT_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+                                    DEFAULT_WELCOME_PAGE_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+                                    BRAND_WATERMARK_LINK: '',
+                                    JITSI_WATERMARK_LINK: '',
+                                    TOOLBAR_BUTTONS: isModerator
+                                        ? ['microphone', 'camera', 'desktop', 'fullscreen', 'hangup', 'settings', 'raisehand', 'videoquality', 'participants-pane', 'recording', 'localrecording', 'select-background']
+                                        : ['microphone', 'hangup'],
+                                    FILM_STRIP_MAX_HEIGHT: isModerator ? undefined : 0,
+                                    DISABLE_VIDEO_BACKGROUND: true,
+                                }}
+                                userInfo={{
+                                    displayName: userName || "Anonymous Viewer",
+                                    email: userEmail || `${(userName || "viewer").toLowerCase().replace(/\s+/g, '')}@sportsfan360.com`,
+                                }}
+                                onApiReady={handleApiReady}
+                                 onReadyToClose={() => {
+                                setHasLeftMeeting(true);
                             }}
-                            interfaceConfigOverwrite={{
-                                SHOW_JITSI_WATERMARK: false,
-                                SHOW_BRAND_WATERMARK: false,
-                                SHOW_POWERED_BY: false,
-                                DISABLE_JOIN_LEAVE_NOTIFICATIONS: true,
-                                DISABLE_NOTIFICATIONS: true,
-                                DEFAULT_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-                                DEFAULT_WELCOME_PAGE_LOGO_URL: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
-                                BRAND_WATERMARK_LINK: '',
-                                JITSI_WATERMARK_LINK: '',
-                                TOOLBAR_BUTTONS: isModerator
-                                    ? ['microphone', 'camera', 'desktop', 'fullscreen', 'hangup', 'settings', 'raisehand', 'videoquality', 'participants-pane', 'recording', 'localrecording', 'select-background']
-                                    : ['microphone', 'hangup'],
-                                FILM_STRIP_MAX_HEIGHT: isModerator ? undefined : 0,
-                                DISABLE_VIDEO_BACKGROUND: true,
-                            }}
-                            userInfo={{
-                                displayName: userName || "Anonymous Viewer",
-                                email: userEmail || `${(userName || "viewer").toLowerCase().replace(/\s+/g, '')}@sportsfan360.com`,
-                            }}
-                            onApiReady={handleApiReady}
-                            getIFrameRef={(wrapperDiv: HTMLDivElement) => {
-                                wrapperDiv.style.width = '100%';
-                                wrapperDiv.style.height = '100%';
-                                wrapperDiv.style.border = 'none';
+                                getIFrameRef={(wrapperDiv: HTMLDivElement) => {
+                                    wrapperDiv.style.width = '100%';
+                                    wrapperDiv.style.height = '100%';
+                                    wrapperDiv.style.border = 'none';
 
-                                const iframe = wrapperDiv.querySelector('iframe');
-                                if (iframe) {
-                                    iframe.style.width = '100%';
-                                    iframe.style.height = '100%';
-                                    iframe.style.border = 'none';
-                                    iframe.setAttribute('allow', 'camera; microphone; display-capture; autoplay; clipboard-write');
-                                }
-                            }}
-                        />
+                                    const iframe = wrapperDiv.querySelector('iframe');
+                                    if (iframe) {
+                                        iframe.style.width = '100%';
+                                        iframe.style.height = '100%';
+                                        iframe.style.border = 'none';
+                                        iframe.setAttribute('allow', 'camera; microphone; display-capture; autoplay; clipboard-write');
+                                    }
+                                }}
+                            />
+                        )}
                     </JitsiErrorBoundary>
 
                     {/* Telestrator Drawing Board Overlay */}
@@ -4609,8 +4646,8 @@ function QuizLeaderboardDialog({
                                     {top10[1] ? (
                                         <div
                                             className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative ${top10[1].isCurrent
-                                                    ? "bg-gradient-to-b from-pink-500/20 to-slate-400/10 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.25)]"
-                                                    : "bg-gradient-to-b from-slate-400/15 via-slate-500/10 to-transparent border-slate-300/30 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+                                                ? "bg-gradient-to-b from-pink-500/20 to-slate-400/10 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.25)]"
+                                                : "bg-gradient-to-b from-slate-400/15 via-slate-500/10 to-transparent border-slate-300/30 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
                                                 }`}
                                         >
                                             <span className="text-base mb-1">🥈</span>
@@ -4639,8 +4676,8 @@ function QuizLeaderboardDialog({
                                     {top10[0] ? (
                                         <div
                                             className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative -mt-1.5 ${top10[0].isCurrent
-                                                    ? "bg-gradient-to-b from-pink-500/25 via-yellow-500/15 to-transparent border-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.35)]"
-                                                    : "bg-gradient-to-b from-yellow-500/20 via-amber-500/10 to-transparent border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.2)]"
+                                                ? "bg-gradient-to-b from-pink-500/25 via-yellow-500/15 to-transparent border-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.35)]"
+                                                : "bg-gradient-to-b from-yellow-500/20 via-amber-500/10 to-transparent border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.2)]"
                                                 }`}
                                         >
                                             <span className="text-xl mb-1">🥇</span>
@@ -4671,8 +4708,8 @@ function QuizLeaderboardDialog({
                                     {top10[2] ? (
                                         <div
                                             className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative ${top10[2].isCurrent
-                                                    ? "bg-gradient-to-b from-pink-500/20 to-amber-600/10 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.25)]"
-                                                    : "bg-gradient-to-b from-amber-600/15 via-amber-700/10 to-transparent border-amber-600/30 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
+                                                ? "bg-gradient-to-b from-pink-500/20 to-amber-600/10 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.25)]"
+                                                : "bg-gradient-to-b from-amber-600/15 via-amber-700/10 to-transparent border-amber-600/30 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
                                                 }`}
                                         >
                                             <span className="text-base mb-1">🥉</span>
@@ -4705,8 +4742,8 @@ function QuizLeaderboardDialog({
                                             <div
                                                 key={entry.userId + '-' + entry.rank}
                                                 className={`flex items-center justify-between p-2 rounded-lg border transition-all ${entry.isCurrent
-                                                        ? "bg-pink-500/15 border-pink-500/60 shadow-[0_0_12px_rgba(236,72,153,0.2)]"
-                                                        : "bg-[#131624] border-purple-500/20 hover:border-purple-500/40"
+                                                    ? "bg-pink-500/15 border-pink-500/60 shadow-[0_0_12px_rgba(236,72,153,0.2)]"
+                                                    : "bg-[#131624] border-purple-500/20 hover:border-purple-500/40"
                                                     }`}
                                             >
                                                 <div className="flex items-center gap-2 overflow-hidden">
@@ -4773,21 +4810,21 @@ function QuizLeaderboardDialog({
                                         <div
                                             key={entry.userId + '-full-' + entry.rank}
                                             className={`flex items-center justify-between p-2 rounded-lg border transition-all ${entry.isCurrent
-                                                    ? "bg-pink-500/15 border-pink-500/60 shadow-[0_0_12px_rgba(236,72,153,0.15)]"
-                                                    : entry.rank <= 3
-                                                        ? "bg-amber-500/[0.04] border-amber-500/20"
-                                                        : "bg-[#121520] border-white/[0.05] hover:bg-white/[0.03]"
+                                                ? "bg-pink-500/15 border-pink-500/60 shadow-[0_0_12px_rgba(236,72,153,0.15)]"
+                                                : entry.rank <= 3
+                                                    ? "bg-amber-500/[0.04] border-amber-500/20"
+                                                    : "bg-[#121520] border-white/[0.05] hover:bg-white/[0.03]"
                                                 }`}
                                         >
                                             <div className="flex items-center gap-2.5 overflow-hidden">
                                                 <span
                                                     className={`text-[10px] font-black w-6 text-center shrink-0 ${entry.rank === 1
-                                                            ? "text-yellow-400"
-                                                            : entry.rank === 2
-                                                                ? "text-slate-300"
-                                                                : entry.rank === 3
-                                                                    ? "text-amber-500"
-                                                                    : "text-gray-400"
+                                                        ? "text-yellow-400"
+                                                        : entry.rank === 2
+                                                            ? "text-slate-300"
+                                                            : entry.rank === 3
+                                                                ? "text-amber-500"
+                                                                : "text-gray-400"
                                                         }`}
                                                 >
                                                     {entry.rank === 1
@@ -4814,12 +4851,12 @@ function QuizLeaderboardDialog({
                                             <div className="flex items-center gap-2 shrink-0 ml-2">
                                                 <span
                                                     className={`text-xs font-black ${entry.rank === 1
-                                                            ? "text-yellow-400"
-                                                            : entry.rank === 2
-                                                                ? "text-slate-200"
-                                                                : entry.rank === 3
-                                                                    ? "text-amber-400"
-                                                                    : "text-gray-300"
+                                                        ? "text-yellow-400"
+                                                        : entry.rank === 2
+                                                            ? "text-slate-200"
+                                                            : entry.rank === 3
+                                                                ? "text-amber-400"
+                                                                : "text-gray-300"
                                                         }`}
                                                 >
                                                     {entry.points} <span className="text-[9px] text-gray-500 font-bold">PTS</span>
@@ -5371,58 +5408,131 @@ export default function WatchRoom({ room, onBack }: Props) {
     const [micOn, setMicOn] = useState(true);
     const [vidOn, setVidOn] = useState(true);
 
+
     // Custom recording state with mixed audio capture (Mic + System/Tab Audio)
+       // Custom recording state with mixed audio capture (Mic + System/Tab Audio)
+    // ---------------------------------------------------------------------------
+    // 30-MINUTE AUTO-CHUNKING LOGIC:
+    // Every CHUNK_DURATION_MS, the current MediaRecorder flushes its data as a
+    // numbered part (Part-01, Part-02...) and uploads it to Google Drive in the
+    // background. The screen share & audio streams are NEVER interrupted.
+    // ---------------------------------------------------------------------------
+    const CHUNK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+
     const [isRecording, setIsRecording] = useState(false);
+    const [uploadingParts, setUploadingParts] = useState<number[]>([]); // part numbers currently uploading
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const recordedChunksRef = useRef<Blob[]>([]);
     const recordingDisplayStreamRef = useRef<MediaStream | null>(null);
     const recordingMicStreamRef = useRef<MediaStream | null>(null);
     const recordingCombinedStreamRef = useRef<MediaStream | null>(null);
     const recordingAudioContextRef = useRef<AudioContext | null>(null);
+    const chunkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const partNumberRef = useRef<number>(1);
+    const sessionIdRef = useRef<string>('');
+    const mimeTypeRef = useRef<string>('');
 
-    const stopRecording = useCallback(() => {
-        if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-            mediaRecorderRef.current.stop();
-        }
-        cleanupRecordingResources(
-            recordingDisplayStreamRef.current,
-            recordingMicStreamRef.current,
-            recordingCombinedStreamRef.current,
-            recordingAudioContextRef.current
-        );
-        recordingDisplayStreamRef.current = null;
-        recordingMicStreamRef.current = null;
-        recordingCombinedStreamRef.current = null;
-        recordingAudioContextRef.current = null;
-    }, []);
+    // ─── Upload a single chunk blob to Google Drive in the background ──────────
+    const uploadChunkToDrive = async (blob: Blob, partNumber: number, isFinal: boolean) => {
+        const sessionId = sessionIdRef.current;
+        const mimeType = mimeTypeRef.current;
+        console.log(`[Recording] Uploading Part ${partNumber} (${(blob.size / 1024 / 1024).toFixed(1)} MB) | final=${isFinal}`);
 
-    const startRecording = async () => {
+        setUploadingParts(prev => [...prev, partNumber]);
+
+        const formData = new FormData();
+        const partStr = String(partNumber).padStart(2, '0');
+        formData.append('video', blob, `recording-${sessionId}-part-${partStr}.webm`);
+        formData.append('part', String(partNumber));
+        formData.append('sessionId', sessionId);
+        formData.append('isFinal', String(isFinal));
+        formData.append('mimeType', mimeType || 'video/webm');
+
         try {
-            const {
-                recordingStream,
-                displayStream,
-                micStream,
-                audioContext
-            } = await createCombinedRecordingStream();
-
-            recordingDisplayStreamRef.current = displayStream;
-            recordingMicStreamRef.current = micStream;
-            recordingCombinedStreamRef.current = recordingStream;
-            recordingAudioContextRef.current = audioContext;
-
-            const mimeType = getSupportedRecordingMimeType();
-            const mediaRecorder = mimeType
-                ? new MediaRecorder(recordingStream, { mimeType })
-                : new MediaRecorder(recordingStream);
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) {
-                    recordedChunksRef.current.push(event.data);
+            const response = await fetch('/api/upload-recording', {
+                method: 'POST',
+                body: formData
+            });
+            let data: any = null;
+            const contentType = response.headers.get('content-type') || '';
+            if (contentType.includes('application/json')) {
+                data = await response.json();
+            } else {
+                const text = await response.text();
+                if (!response.ok) {
+                    throw new Error(`Server ${response.status}: ${text.slice(0, 100)}`);
                 }
-            };
+            }
+            if (data && data.success) {
+                console.log(`[Recording] Part ${partNumber} saved to Google Drive: ${data.name}`);
+                if (isFinal) {
+                    alert(`Recording complete! All ${partNumber} part(s) saved to Google Drive.`);
+                }
+            } else {
+                const errMsg = data?.error || response.statusText || 'Upload failed';
+                console.error(`[Recording] Part ${partNumber} upload failed:`, errMsg);
+                if (isFinal) alert(`Failed to upload Part ${partNumber} to Google Drive: ${errMsg}`);
+            }
+        } catch (err: any) {
+            console.error(`[Recording] Part ${partNumber} network error:`, err);
+            if (isFinal) alert(`Network error while uploading Part ${partNumber}: ${err?.message || err}`);
+        } finally {
+            setUploadingParts(prev => prev.filter(p => p !== partNumber));
+        }
+    };
 
-            mediaRecorder.onstop = async () => {
-                // Instantly update the UI so the button reverts to "Record Session"
+    // ─── Rotate chunk: stop current recorder, upload blob, start a fresh one ──
+    const rotateChunk = () => {
+        const currentRecorder = mediaRecorderRef.current;
+        const stream = recordingCombinedStreamRef.current;
+        const mimeType = mimeTypeRef.current;
+        if (!currentRecorder || currentRecorder.state === 'inactive' || !stream) return;
+
+        const partNumber = partNumberRef.current;
+        partNumberRef.current += 1;
+
+        // When this recorder stops, upload the blob then start a fresh recorder
+        currentRecorder.onstop = async () => {
+            const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
+            recordedChunksRef.current = []; // free browser memory immediately
+
+            // Upload in background — don't await, recording continues on new recorder
+            uploadChunkToDrive(blob, partNumber, false);
+        };
+
+        currentRecorder.stop(); // triggers onstop above
+
+        // Start fresh MediaRecorder on the SAME stream (screen share is uninterrupted)
+        const newRecorder = mimeType
+            ? new MediaRecorder(stream, { mimeType })
+            : new MediaRecorder(stream);
+
+        newRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                recordedChunksRef.current.push(event.data);
+            }
+        };
+
+        mediaRecorderRef.current = newRecorder;
+        newRecorder.start();
+        console.log(`[Recording] Started Part ${partNumberRef.current} recorder.`);
+    };
+
+    // ─── Stop recording entirely: finalize last chunk and clean up ─────────────
+    const stopRecording = useCallback(() => {
+        // Clear the auto-chunk interval
+        if (chunkIntervalRef.current) {
+            clearInterval(chunkIntervalRef.current);
+            chunkIntervalRef.current = null;
+        }
+
+        const currentRecorder = mediaRecorderRef.current;
+        const mimeType = mimeTypeRef.current;
+        const partNumber = partNumberRef.current;
+
+        if (currentRecorder && currentRecorder.state !== 'inactive') {
+            // Override onstop to upload the FINAL chunk and clean up streams
+            currentRecorder.onstop = async () => {
                 setIsRecording(false);
 
                 cleanupRecordingResources(
@@ -5437,37 +5547,76 @@ export default function WatchRoom({ room, onBack }: Props) {
                 recordingAudioContextRef.current = null;
 
                 const blob = new Blob(recordedChunksRef.current, { type: mimeType || 'video/webm' });
-
-                // Alert the user that the background upload is starting
-                alert("Recording stopped! Uploading to Google Drive in the background...");
-
-                const formData = new FormData();
-                formData.append('video', blob, 'recording.webm');
-
-                try {
-                    const response = await fetch('/api/upload-recording', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    const data = await response.json();
-                    if (data.success) {
-                        alert("Video successfully saved to Google Drive!");
-                    } else {
-                        console.error("Upload failed:", data.error);
-                        alert("Failed to upload to Google Drive: " + data.error);
-                    }
-                } catch (err) {
-                    console.error("Upload network error:", err);
-                    alert("Network error while uploading.");
-                }
-
                 recordedChunksRef.current = [];
+
+                if (blob.size > 0) {
+                    alert(`Recording stopped! Uploading Part ${partNumber} (final) to Google Drive in the background...`);
+                    uploadChunkToDrive(blob, partNumber, true);
+                } else {
+                    // Edge case: user stopped exactly at a chunk boundary — all done
+                    alert(`Recording complete! All ${partNumber - 1} part(s) already saved to Google Drive.`);
+                }
             };
+            currentRecorder.stop();
+        } else {
+            // Recorder was already stopped (e.g. at chunk boundary)
+            setIsRecording(false);
+            cleanupRecordingResources(
+                recordingDisplayStreamRef.current,
+                recordingMicStreamRef.current,
+                recordingCombinedStreamRef.current,
+                recordingAudioContextRef.current
+            );
+            recordingDisplayStreamRef.current = null;
+            recordingMicStreamRef.current = null;
+            recordingCombinedStreamRef.current = null;
+            recordingAudioContextRef.current = null;
+        }
+    }, []);
+
+    // ─── Start recording: initialize stream + MediaRecorder + 30-min timer ────
+    const startRecording = async () => {
+        try {
+            const {
+                recordingStream,
+                displayStream,
+                micStream,
+                audioContext
+            } = await createCombinedRecordingStream();
+
+            recordingDisplayStreamRef.current = displayStream;
+            recordingMicStreamRef.current = micStream;
+            recordingCombinedStreamRef.current = recordingStream;
+            recordingAudioContextRef.current = audioContext;
+
+            // Reset part counter and create a unique session ID for this recording
+            partNumberRef.current = 1;
+            sessionIdRef.current = new Date().toISOString().split('T')[0] + '-' + Date.now().toString().slice(-5);
+
+            const mimeType = getSupportedRecordingMimeType();
+            mimeTypeRef.current = mimeType || '';
+
+            const mediaRecorder = mimeType
+                ? new MediaRecorder(recordingStream, { mimeType })
+                : new MediaRecorder(recordingStream);
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunksRef.current.push(event.data);
+                }
+            };
+
+            // onstop is set dynamically by rotateChunk() and stopRecording()
 
             mediaRecorderRef.current = mediaRecorder;
             mediaRecorder.start();
             setIsRecording(true);
+            console.log(`[Recording] Session started: ${sessionIdRef.current} | Chunk interval: ${CHUNK_DURATION_MS / 60000} min`);
+
+            // ── 30-minute auto-chunk interval ─────────────────────────────────────
+            chunkIntervalRef.current = setInterval(() => {
+                rotateChunk();
+            }, CHUNK_DURATION_MS);
 
             // Stop recording when user stops sharing via browser bar
             if (displayStream.getVideoTracks().length > 0) {
@@ -6181,17 +6330,17 @@ export default function WatchRoom({ room, onBack }: Props) {
     }, [status, session, authUser, room.id, room.hostUserId, room.coHostUserId, room.name]);
 
     // Automatically register viewer presence so all participants are recorded in DB
-useEffect(() => {
-    if (!room?.id || !userName) return;
-    const email = userEmail || authUser?.email || session?.user?.email || "";
-    axios.post("/api/watch-along/token", {
-        roomName: room.id,
-        userName,
-        userEmail: email,
-        avatarUrl: authUser?.avatar || session?.user?.image || "",
-        role: userRole,
-    }).catch((err) => console.warn("WatchAlong presence tracking notice:", err));
-}, [room?.id, userName, userEmail, userRole, authUser, session]);
+    useEffect(() => {
+        if (!room?.id || !userName) return;
+        const email = userEmail || authUser?.email || session?.user?.email || "";
+        axios.post("/api/watch-along/token", {
+            roomName: room.id,
+            userName,
+            userEmail: email,
+            avatarUrl: authUser?.avatar || session?.user?.image || "",
+            role: userRole,
+        }).catch((err) => console.warn("WatchAlong presence tracking notice:", err));
+    }, [room?.id, userName, userEmail, userRole, authUser, session]);
 
 
     // Fetch match details when room has liveMatchId
