@@ -2769,7 +2769,7 @@ function cleanupRecordingResources(
         recordingStream.getTracks().forEach(track => track.stop());
     }
     if (audioContext && audioContext.state !== 'closed') {
-        audioContext.close().catch(() => {});
+        audioContext.close().catch(() => { });
     }
 }
 
@@ -4082,8 +4082,8 @@ function WatchRoomEngagementDialog({
                     <div
                         style={{ width: `${Math.min(100, Math.max(0, (timeLeft / 30) * 100))}%` }}
                         className={`h-full transition-all duration-1000 ${timeLeft <= 10
-                                ? "bg-gradient-to-r from-red-500 to-orange-500 animate-pulse"
-                                : "bg-gradient-to-r from-pink-500 to-purple-500"
+                            ? "bg-gradient-to-r from-red-500 to-orange-500 animate-pulse"
+                            : "bg-gradient-to-r from-pink-500 to-purple-500"
                             }`}
                     />
                 </div>
@@ -4183,8 +4183,8 @@ function WatchRoomEngagementDialog({
                             {/* Quiz Result Banner */}
                             {quizAnswered && (
                                 <div className={`py-1.5 px-2.5 rounded-lg border text-[11px] font-black flex items-center justify-center gap-1.5 ${quizResult?.isCorrect
-                                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                                        : "bg-red-500/10 border-red-500/30 text-red-400"
+                                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                                    : "bg-red-500/10 border-red-500/30 text-red-400"
                                     }`}>
                                     {quizResult?.isCorrect ? (
                                         <span>Correct! You earned {quizResult?.pointsEarned || pointsReward} PTS</span>
@@ -4214,8 +4214,8 @@ function WatchRoomEngagementDialog({
                                             onClick={() => handlePollVote(opt.text, opt.id)}
                                             disabled={pollVoted || timeLeft === 0 || isSubmitting}
                                             className={`w-full relative rounded-lg border overflow-hidden py-2 px-3 flex items-center justify-between text-xs font-bold text-left transition-all cursor-pointer ${isSelected
-                                                    ? "border-blue-500/60 bg-blue-500/[0.08]"
-                                                    : "border-white/[0.08] bg-[#141722] hover:bg-white/[0.05]"
+                                                ? "border-blue-500/60 bg-blue-500/[0.08]"
+                                                : "border-white/[0.08] bg-[#141722] hover:bg-white/[0.05]"
                                                 }`}
                                         >
                                             {pollVoted && (
@@ -4251,10 +4251,10 @@ function WatchRoomEngagementDialog({
                                     onClick={() => handlePredChoice("left", leftOptText)}
                                     disabled={predLocked || timeLeft === 0 || isSubmitting}
                                     className={`col-span-3 rounded-lg py-2 px-2.5 border transition-all cursor-pointer relative overflow-hidden text-center ${predChoice === "left"
-                                            ? "bg-[#FF3D57]/15 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.2)]"
-                                            : predChoice === "right"
-                                                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                                                : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
+                                        ? "bg-[#FF3D57]/15 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.2)]"
+                                        : predChoice === "right"
+                                            ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                                            : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
                                         }`}
                                 >
                                     <span className="text-base font-black block">{leftOptText}</span>
@@ -4272,10 +4272,10 @@ function WatchRoomEngagementDialog({
                                     onClick={() => handlePredChoice("right", rightOptText)}
                                     disabled={predLocked || timeLeft === 0 || isSubmitting}
                                     className={`col-span-3 rounded-lg py-2 px-2.5 border transition-all cursor-pointer relative overflow-hidden text-center ${predChoice === "right"
-                                            ? "bg-[#FF7B02]/15 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.2)]"
-                                            : predChoice === "left"
-                                                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                                                : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
+                                        ? "bg-[#FF7B02]/15 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.2)]"
+                                        : predChoice === "left"
+                                            ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                                            : "bg-[#141722] border-white/[0.08] hover:bg-white/[0.05] active:scale-[0.98]"
                                         }`}
                                 >
                                     <span className="text-base font-black block">{rightOptText}</span>
@@ -4608,11 +4608,10 @@ function QuizLeaderboardDialog({
                                     {/* 2nd Place */}
                                     {top10[1] ? (
                                         <div
-                                            className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative ${
-                                                top10[1].isCurrent
+                                            className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative ${top10[1].isCurrent
                                                     ? "bg-gradient-to-b from-pink-500/20 to-slate-400/10 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.25)]"
                                                     : "bg-gradient-to-b from-slate-400/15 via-slate-500/10 to-transparent border-slate-300/30 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
-                                            }`}
+                                                }`}
                                         >
                                             <span className="text-base mb-1">🥈</span>
                                             <div className="w-8 h-8 rounded-full overflow-hidden mb-1 ring-2 ring-slate-300/50 flex items-center justify-center font-black text-[11px] text-white">
@@ -4639,11 +4638,10 @@ function QuizLeaderboardDialog({
                                     {/* 1st Place (Gold / Champion) */}
                                     {top10[0] ? (
                                         <div
-                                            className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative -mt-1.5 ${
-                                                top10[0].isCurrent
+                                            className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative -mt-1.5 ${top10[0].isCurrent
                                                     ? "bg-gradient-to-b from-pink-500/25 via-yellow-500/15 to-transparent border-pink-500 shadow-[0_0_20px_rgba(236,72,153,0.35)]"
                                                     : "bg-gradient-to-b from-yellow-500/20 via-amber-500/10 to-transparent border-yellow-500/50 shadow-[0_0_20px_rgba(234,179,8,0.2)]"
-                                            }`}
+                                                }`}
                                         >
                                             <span className="text-xl mb-1">🥇</span>
                                             <div className="w-9 h-9 rounded-full overflow-hidden mb-1 ring-2 ring-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.4)] flex items-center justify-center font-black text-xs text-white">
@@ -4672,11 +4670,10 @@ function QuizLeaderboardDialog({
                                     {/* 3rd Place */}
                                     {top10[2] ? (
                                         <div
-                                            className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative ${
-                                                top10[2].isCurrent
+                                            className={`flex flex-col items-center p-2.5 rounded-xl border transition-all text-center relative ${top10[2].isCurrent
                                                     ? "bg-gradient-to-b from-pink-500/20 to-amber-600/10 border-pink-500 shadow-[0_0_15px_rgba(236,72,153,0.25)]"
                                                     : "bg-gradient-to-b from-amber-600/15 via-amber-700/10 to-transparent border-amber-600/30 shadow-[0_4px_12px_rgba(0,0,0,0.3)]"
-                                            }`}
+                                                }`}
                                         >
                                             <span className="text-base mb-1">🥉</span>
                                             <div className="w-8 h-8 rounded-full overflow-hidden mb-1 ring-2 ring-amber-600/50 flex items-center justify-center font-black text-[11px] text-white">
@@ -4707,11 +4704,10 @@ function QuizLeaderboardDialog({
                                         {top10.slice(3).map((entry) => (
                                             <div
                                                 key={entry.userId + '-' + entry.rank}
-                                                className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
-                                                    entry.isCurrent
+                                                className={`flex items-center justify-between p-2 rounded-lg border transition-all ${entry.isCurrent
                                                         ? "bg-pink-500/15 border-pink-500/60 shadow-[0_0_12px_rgba(236,72,153,0.2)]"
                                                         : "bg-[#131624] border-purple-500/20 hover:border-purple-500/40"
-                                                }`}
+                                                    }`}
                                             >
                                                 <div className="flex items-center gap-2 overflow-hidden">
                                                     <span className="text-[10px] font-black text-purple-300 bg-purple-500/15 border border-purple-500/20 w-5 h-5 rounded flex items-center justify-center shrink-0">
@@ -4776,33 +4772,31 @@ function QuizLeaderboardDialog({
                                     {filteredAll.map((entry) => (
                                         <div
                                             key={entry.userId + '-full-' + entry.rank}
-                                            className={`flex items-center justify-between p-2 rounded-lg border transition-all ${
-                                                entry.isCurrent
+                                            className={`flex items-center justify-between p-2 rounded-lg border transition-all ${entry.isCurrent
                                                     ? "bg-pink-500/15 border-pink-500/60 shadow-[0_0_12px_rgba(236,72,153,0.15)]"
                                                     : entry.rank <= 3
-                                                    ? "bg-amber-500/[0.04] border-amber-500/20"
-                                                    : "bg-[#121520] border-white/[0.05] hover:bg-white/[0.03]"
-                                            }`}
+                                                        ? "bg-amber-500/[0.04] border-amber-500/20"
+                                                        : "bg-[#121520] border-white/[0.05] hover:bg-white/[0.03]"
+                                                }`}
                                         >
                                             <div className="flex items-center gap-2.5 overflow-hidden">
                                                 <span
-                                                    className={`text-[10px] font-black w-6 text-center shrink-0 ${
-                                                        entry.rank === 1
+                                                    className={`text-[10px] font-black w-6 text-center shrink-0 ${entry.rank === 1
                                                             ? "text-yellow-400"
                                                             : entry.rank === 2
-                                                            ? "text-slate-300"
-                                                            : entry.rank === 3
-                                                            ? "text-amber-500"
-                                                            : "text-gray-400"
-                                                    }`}
+                                                                ? "text-slate-300"
+                                                                : entry.rank === 3
+                                                                    ? "text-amber-500"
+                                                                    : "text-gray-400"
+                                                        }`}
                                                 >
                                                     {entry.rank === 1
                                                         ? "🥇"
                                                         : entry.rank === 2
-                                                        ? "🥈"
-                                                        : entry.rank === 3
-                                                        ? "🥉"
-                                                        : `#${entry.rank}`}
+                                                            ? "🥈"
+                                                            : entry.rank === 3
+                                                                ? "🥉"
+                                                                : `#${entry.rank}`}
                                                 </span>
 
                                                 <div className="flex items-center gap-1.5 truncate">
@@ -4819,15 +4813,14 @@ function QuizLeaderboardDialog({
 
                                             <div className="flex items-center gap-2 shrink-0 ml-2">
                                                 <span
-                                                    className={`text-xs font-black ${
-                                                        entry.rank === 1
+                                                    className={`text-xs font-black ${entry.rank === 1
                                                             ? "text-yellow-400"
                                                             : entry.rank === 2
-                                                            ? "text-slate-200"
-                                                            : entry.rank === 3
-                                                            ? "text-amber-400"
-                                                            : "text-gray-300"
-                                                    }`}
+                                                                ? "text-slate-200"
+                                                                : entry.rank === 3
+                                                                    ? "text-amber-400"
+                                                                    : "text-gray-300"
+                                                        }`}
                                                 >
                                                     {entry.points} <span className="text-[9px] text-gray-500 font-bold">PTS</span>
                                                 </span>
@@ -5598,6 +5591,7 @@ export default function WatchRoom({ room, onBack }: Props) {
     // Auth and Roles
     const [userName, setUserName] = useState<string | null>(null);
     const [userRole, setUserRole] = useState<string>("Viewer");
+    const [userEmail, setUserEmail] = useState<string>("");
 
     // New Expert/Sportscaster Experience States
     const [activeInterview, setActiveInterview] = useState<string | null>(null);
@@ -6116,12 +6110,20 @@ export default function WatchRoom({ room, onBack }: Props) {
         let resolvedUserId = "";
         let resolvedEmail = "";
 
+        // if (isUserLoggedIn && actualName) {
+        //     resolvedName = actualName;
+        //     resolvedUserId = authUser?.userId || (session?.user as { userId?: string })?.userId || session?.user?.id || "";
+        //     resolvedEmail = authUser?.email || session?.user?.email || "";
+        //     setUserName(actualName);
+        // } else {
         if (isUserLoggedIn && actualName) {
             resolvedName = actualName;
             resolvedUserId = authUser?.userId || (session?.user as { userId?: string })?.userId || session?.user?.id || "";
             resolvedEmail = authUser?.email || session?.user?.email || "";
             setUserName(actualName);
+            setUserEmail(resolvedEmail);
         } else {
+
             const stored = typeof window !== "undefined" ? localStorage.getItem("watchalong_user_name") : null;
             const guestName = stored || `Viewer_${Math.floor(100 + Math.random() * 900)}`;
             if (typeof window !== "undefined" && !stored) {
@@ -6177,6 +6179,19 @@ export default function WatchRoom({ room, onBack }: Props) {
             setUserRole(demoRoleOverride);
         }
     }, [status, session, authUser, room.id, room.hostUserId, room.coHostUserId, room.name]);
+
+    // Automatically register viewer presence so all participants are recorded in DB
+useEffect(() => {
+    if (!room?.id || !userName) return;
+    const email = userEmail || authUser?.email || session?.user?.email || "";
+    axios.post("/api/watch-along/token", {
+        roomName: room.id,
+        userName,
+        userEmail: email,
+        avatarUrl: authUser?.avatar || session?.user?.image || "",
+        role: userRole,
+    }).catch((err) => console.warn("WatchAlong presence tracking notice:", err));
+}, [room?.id, userName, userEmail, userRole, authUser, session]);
 
 
     // Fetch match details when room has liveMatchId
@@ -6630,7 +6645,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 roomName={room.id ? `Watch-${room.id}` : 'Sportsfan-Watchalong'}
                                 userRole={userRole}
                                 userName={userName}
-                                userEmail={authUser?.email || session?.user?.email || ""}
+                                userEmail={userEmail || authUser?.email || session?.user?.email || ""}
                                 activeInterview={activeInterview}
                                 telestratorActive={isTelestratorActive}
                                 telestratorStrokes={telestratorStrokes}

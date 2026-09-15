@@ -2314,9 +2314,33 @@ export default function CricketArticleDetail() {
         </>
       )}
 
-      <div className="flex flex-col gap-4 mb-6">
+      {/* <div className="flex flex-col gap-4 mb-6">
         {article.description.map((para, index) => (
           <p key={index} className="text-gray-300 leading-relaxed text-[15px]" dangerouslySetInnerHTML={{ __html: para }} />
+        ))}
+      </div> */}
+      
+      <div className="flex flex-col gap-4 mb-6">
+        {article.description.map((para, index) => (
+          <div
+            key={index}
+            className="text-gray-300 leading-relaxed text-[15px]
+              [&_strong]:font-bold [&_strong]:text-white
+              [&_b]:font-bold [&_b]:text-white
+              [&_em]:italic [&_i]:italic
+              [&_u]:underline
+              [&_s]:line-through
+              [&_h1]:text-2xl [&_h1]:font-black [&_h1]:text-white [&_h1]:mt-6 [&_h1]:mb-3
+              [&_h2]:text-xl [&_h2]:font-bold [&_h2]:text-white [&_h2]:mt-5 [&_h2]:mb-2
+              [&_h3]:text-lg [&_h3]:font-bold [&_h3]:text-white [&_h3]:mt-4 [&_h3]:mb-2
+              [&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-3
+              [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-3
+              [&_li]:my-1
+              [&_blockquote]:border-l-4 [&_blockquote]:border-pink-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_blockquote]:my-4 [&_blockquote]:text-gray-400
+              [&_a]:text-pink-400 [&_a]:underline hover:[&_a]:text-pink-300
+              [&_p]:mb-4 [&_p:last-child]:mb-0"
+            dangerouslySetInnerHTML={{ __html: para }}
+          />
         ))}
       </div>
 
