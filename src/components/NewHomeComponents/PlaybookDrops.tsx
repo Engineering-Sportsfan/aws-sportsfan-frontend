@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { ChevronRight } from "lucide-react";
 
 interface FlipLongVideoItem {
   id: string;
@@ -74,7 +75,7 @@ const STYLE_PRESETS = [
 ];
 
 function cleanTitle(title: string): string {
-  return (title || "").replace(/\s[a-z0-9]{5,8}$/i, "");
+  return (title || "").replace(/\s[a-z0-9]{5,8}$/i, "").trim();
 }
 
 function formatTimestamp(isoDate?: string | number): string {
@@ -193,27 +194,6 @@ export default function PlaybookDrops() {
     };
   }, [fetchMedia]);
 
-// Helper to encode payload into URL-safe Base64
-const toBase64Url = (str: string): string => {
-  try {
-    if (typeof Buffer !== "undefined") {
-      return Buffer.from(str, "utf-8")
-        .toString("base64")
-        .replace(/\+/g, "-")
-        .replace(/\//g, "_")
-        .replace(/=+$/, "");
-    }
-    const bytes = new TextEncoder().encode(str);
-    let binary = "";
-    for (let i = 0; i < bytes.length; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    return window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  } catch {
-    return encodeURIComponent(str);
-  }
-};
-
   const handleCardClick = (drop: PlaybookDrop) => {
     const isAudio = drop.type === "AUDIO";
     if (isAudio) {
@@ -236,17 +216,20 @@ const toBase64Url = (str: string): string => {
     return (
       <div className="w-full mt-5">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-[17px] font-extrabold text-white">FlipLONG Drops</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-[17px] font-extrabold text-white">FlipLONG Drops</h3>
+          </div>
+          <div className="w-20 h-6 rounded-full bg-white/10 animate-pulse" />
         </div>
-        <div className="flex gap-4 overflow-x-auto pb-3 -mx-4 px-4">
-          {[1, 2, 3].map((i) => (
+        <div className="flex gap-4 overflow-x-auto pb-3 -mx-4 px-4 scrollbar-hide">
+          {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
               className="shrink-0 w-[210px] rounded-[24px] bg-white/5 overflow-hidden"
               style={{ border: "1px solid rgba(255, 255, 255, 0.08)" }}
             >
               <div className="w-full h-[160px] bg-white/[0.06] animate-pulse" />
-              <div className="w-full min-h-[62px] p-4 flex flex-col justify-center gap-2 bg-[#121622]">
+              <div className="w-full h-[66px] p-3.5 flex flex-col justify-between bg-[#121622]">
                 <div className="h-3 w-4/5 rounded bg-white/10 animate-pulse" />
                 <div className="h-2.5 w-1/3 rounded bg-white/[0.06] animate-pulse" />
               </div>
@@ -262,7 +245,22 @@ const toBase64Url = (str: string): string => {
   return (
     <div className="w-full mt-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[17px] font-extrabold text-white">FlipLONG Drops</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-[17px] font-extrabold text-white">FlipLONG Drops</h3>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/15 text-rose-400 border border-rose-500/25">
+            {drops.length}
+          </span>
+        </div>
+
+        <button
+          onClick={() => router.push("/MainModules/FlipLong")}
+          className="flex items-center gap-0.5 text-[12px] font-bold hover:cursor-pointer"
+          style={{ color: "#E91E8C" }}
+
+        >
+          <span>View All</span>
+          <ChevronRight size={14} />
+        </button>
       </div>
 
       <div className="flex gap-4 overflow-x-auto pb-3 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory">
@@ -291,7 +289,7 @@ const toBase64Url = (str: string): string => {
               )}
 
               <span
-                className="absolute top-4 left-4 z-10 text-[9px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider"
+                className="absolute top-4 left-4 z-10 text-[9px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm"
                 style={{ background: drop.badgeBg, color: drop.badgeTextColor }}
               >
                 {drop.type}
@@ -299,7 +297,7 @@ const toBase64Url = (str: string): string => {
 
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                 <div
-                  className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center"
+                  className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"
                   style={{
                     backgroundColor: "rgba(255, 255, 255, 0.12)",
                     backdropFilter: "blur(2px)",
@@ -314,25 +312,26 @@ const toBase64Url = (str: string): string => {
 
               {/* Duration badge, bottom-right of the thumbnail */}
               <span
-                className="absolute bottom-2.5 right-2.5 z-10 text-[10px] font-bold text-white px-2 py-0.5 rounded-md leading-none"
-                style={{ background: "rgba(0, 0, 0, 0.6)" }}
+                className="absolute bottom-2.5 right-2.5 z-10 text-[10px] font-bold text-white px-2 py-0.5 rounded-md leading-none backdrop-blur-sm"
+                style={{ background: "rgba(0, 0, 0, 0.65)" }}
               >
                 {drop.duration}
               </span>
             </div>
 
-            <div className="w-full min-h-[62px] bg-[#121622] p-4 flex flex-col justify-start gap-1.5">
-              <h4 className="text-[10.5px] font-bold text-white leading-[1.3] text-left">
+            <div className="w-full h-[66px] bg-[#121622] p-3 flex flex-col justify-between">
+              <h4
+                className="text-[11px] font-bold text-white leading-[1.3] text-left line-clamp-2 overflow-hidden text-ellipsis h-[28px]"
+                title={drop.title}
+              >
                 {drop.title}
               </h4>
 
-              {drop.timestamp && (
-                <div className="w-full flex justify-start">
-                  <span className="text-[10.5px] font-semibold text-white/30 leading-none">
-                    {drop.timestamp}
-                  </span>
-                </div>
-              )}
+              <div className="w-full flex justify-start items-center">
+                <span className="text-[10px] font-medium text-white/40 leading-none truncate">
+                  {drop.timestamp || "Recent drop"}
+                </span>
+              </div>
             </div>
           </motion.div>
         ))}

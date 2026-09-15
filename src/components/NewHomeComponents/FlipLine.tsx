@@ -157,8 +157,22 @@ function formatCommentTimestamp(createdAt?: number | string, fallbackTime?: stri
 
 function renderFormattedContent(content: string) {
   if (!content) return null;
-  const parts = content.split(/(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)/g);
+  const parts = content.split(/(https?:\/\/[^\s]+|#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)/g);
   return parts.map((part, index) => {
+    if (part.startsWith('http://') || part.startsWith('https://')) {
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-sky-400 hover:text-sky-300 underline underline-offset-2 break-all hover:opacity-90 transition-opacity cursor-pointer font-medium"
+        >
+          {part}
+        </a>
+      );
+    }
     if (part.startsWith('#')) {
       return (
         <span
@@ -1890,7 +1904,7 @@ export function FlipCardItem({
 
                             {/* Comment Text */}
                             <p className="text-[12.5px] text-white/85 font-medium leading-relaxed pl-1 break-words">
-                              {comm.content}
+                              {renderFormattedContent(comm.content)}
                             </p>
 
                             {/* Comment Action Footer (Like & Reply buttons) */}
@@ -2037,7 +2051,7 @@ export function FlipCardItem({
 
                                       {/* Reply Content */}
                                       <p className="text-[11.5px] text-white/80 font-medium leading-relaxed pl-1 break-words">
-                                        {rep.content}
+                                        {renderFormattedContent(rep.content)}
                                       </p>
 
                                       {/* Reply Like Action */}
