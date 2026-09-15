@@ -109,10 +109,13 @@ const encodeShortId = (playlistId: string, videoIndex: number): string => {
   return toBase64Url(`${playlistId}:${videoIndex}`);
 };
 
-// Helper to decode short ID back to playlistId and videoIndex
-const decodeShortId = (shortId: string): { playlistId: string; videoIndex: number } | null => {
+// Helper to decode short ID back to playlistId and videoIndex, or Cloudinary path
+const decodeShortId = (shortId: string): { playlistId: string; videoIndex: number; cloudinaryPath?: string } | null => {
   try {
     const decoded = fromBase64Url(shortId);
+    if (decoded.startsWith('c:')) {
+      return { playlistId: '', videoIndex: 0, cloudinaryPath: decoded.slice(2) };
+    }
     const [playlistId, videoIndexStr] = decoded.split(':');
     if (playlistId && videoIndexStr !== undefined && !isNaN(parseInt(videoIndexStr, 10))) {
       return { playlistId, videoIndex: parseInt(videoIndexStr, 10) };
@@ -156,6 +159,8 @@ export default function VideoDropCard() {
   const [playing, setPlaying] = useState(false);
   const [showCenterIcon, setShowCenterIcon] = useState(true);
   const iconTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const [showSpeedMenu, setShowSpeedMenu] = useState<boolean>(false);
   const [elapsed, setElapsed] = useState(0);
   const [videoDrop, setVideoDrop] = useState<VideoDrop | null>(null);
   const [activePlaylistId, setActivePlaylistId] = useState<string | null>(playlistId || null);
@@ -306,6 +311,35 @@ export default function VideoDropCard() {
       // Case 3: Short ID provided (?shortId=...)
       if (shortId) {
         const decoded = decodeShortId(shortId);
+        if (decoded?.cloudinaryPath) {
+          const cleanPath = decoded.cloudinaryPath.replace(/^\/+/, '');
+          const fullUrl = cleanPath.startsWith("http")
+            ? cleanPath
+            : `https://res.cloudinary.com/dflnsufit/video/upload/${cleanPath}`;
+
+          const rawFileName = cleanPath.split('/').pop()?.replace(/\.[^/.]+$/, "") || "Video Track";
+          const titleFromFilename = rawFileName
+            .replace(/_[a-z0-9]{5,8}$/i, "")
+            .replace(/[_-]+/g, " ")
+            .trim();
+
+          setActiveCloudinaryPath(cleanPath);
+          setVideoDrop({
+            title: titleParam ? decodeURIComponent(titleParam) : titleFromFilename,
+            description: "",
+            views: 0,
+            signals: 0,
+            duration: "0:00",
+            durationSecs: 0,
+            engagement: 0,
+            mediaUrl: fullUrl,
+            videoUrl: fullUrl,
+            subtitle: "Video Drops"
+          });
+          setLoading(false);
+          return;
+        }
+
         if (decoded && playlists.length > 0) {
           const targetPlaylist = playlists.find(p => p.id === decoded.playlistId);
           if (targetPlaylist && targetPlaylist.videoDrops[decoded.videoIndex]) {
@@ -488,14 +522,39 @@ export default function VideoDropCard() {
     setPlaying(false);
   };
 
-  // Trigger center icon animation
+  // Handle native video play/pause events
+  const handlePlayEvent = () => {
+    setPlaying(true);
+    if (iconTimeoutRef.current) {
+      clearTimeout(iconTimeoutRef.current);
+    }
+    iconTimeoutRef.current = setTimeout(() => {
+      setShowCenterIcon(false);
+    }, 1200);
+  };
+
+  const handlePauseEvent = () => {
+    setPlaying(false);
+    setShowCenterIcon(true);
+    if (iconTimeoutRef.current) {
+      clearTimeout(iconTimeoutRef.current);
+    }
+  };
+
+  // Trigger center icon animation / toggle visibility when touching or moving over video
   const triggerCenterIcon = () => {
+    const isPaused = !videoRef.current || videoRef.current.paused;
+    if (isPaused) {
+      setShowCenterIcon(true);
+      return;
+    }
+
     setShowCenterIcon(true);
     if (iconTimeoutRef.current) {
       clearTimeout(iconTimeoutRef.current);
     }
     iconTimeoutRef.current = setTimeout(() => {
-      if (playing) {
+      if (videoRef.current && !videoRef.current.paused) {
         setShowCenterIcon(false);
       }
     }, 2000);
@@ -522,17 +581,51 @@ export default function VideoDropCard() {
   const togglePlay = () => {
     if (!videoRef.current) return;
 
-    if (playing) {
-      videoRef.current.pause();
-      setPlaying(false);
-    } else {
-      videoRef.current.play().catch(err => {
+    if (showSpeedMenu) {
+      setShowSpeedMenu(false);
+    }
+
+    if (videoRef.current.paused) {
+      videoRef.current.play().then(() => {
+        setPlaying(true);
+        setShowCenterIcon(true);
+        if (iconTimeoutRef.current) clearTimeout(iconTimeoutRef.current);
+        iconTimeoutRef.current = setTimeout(() => {
+          setShowCenterIcon(false);
+        }, 1200);
+      }).catch(err => {
         console.error("Error playing video:", err);
         setVideoError(true);
       });
-      setPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setPlaying(false);
+      setShowCenterIcon(true);
+      if (iconTimeoutRef.current) clearTimeout(iconTimeoutRef.current);
     }
-    triggerCenterIcon();
+  };
+
+  // Handle playback speed change
+  const handleSpeedChange = (speed: number) => {
+    setPlaybackSpeed(speed);
+    if (videoRef.current) {
+      videoRef.current.playbackRate = speed;
+    }
+    setShowSpeedMenu(false);
+  };
+
+  // Handle seek bar interaction
+  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!videoRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+    const targetPct = clickX / rect.width;
+    const duration = videoRef.current.duration || totalSecs;
+    if (duration > 0) {
+      const targetTime = targetPct * duration;
+      videoRef.current.currentTime = targetTime;
+      setElapsed(targetTime);
+    }
   };
 
   // Build clean, compact, minimal share URL
@@ -564,18 +657,20 @@ export default function VideoDropCard() {
 
     // 4. If Cloudinary relative path is available
     if (activeCloudinaryPath) {
+      const shortToken = toBase64Url(`c:${activeCloudinaryPath}`);
       const url = new URL(`${origin}/MainModules/VideoDrop`);
-      url.searchParams.set("c", activeCloudinaryPath);
+      url.searchParams.set("shortId", shortToken);
       return url.toString();
     }
 
     const rawMedia = videoDrop?.mediaUrl || videoDrop?.videoUrl || "";
 
-    // 5. If Cloudinary URL, extract short path
+    // 5. If Cloudinary URL, encode as shortId token: c:<path>
     const cloudMatch = rawMedia.match(/res\.cloudinary\.com\/[^/]+\/video\/upload\/(?:v\d+\/)?(.+?)(?:\?.*)?$/);
     if (cloudMatch && cloudMatch[1]) {
+      const shortToken = toBase64Url(`c:${cloudMatch[1]}`);
       const url = new URL(`${origin}/MainModules/VideoDrop`);
-      url.searchParams.set("c", cloudMatch[1]);
+      url.searchParams.set("shortId", shortToken);
       return url.toString();
     }
 
@@ -722,14 +817,20 @@ export default function VideoDropCard() {
         <div className="mx-3 sm:mx-4 md:mx-5 rounded-[14px] overflow-hidden bg-[#1a1a1e]">
           {/* Video area */}
           <div
-            className="relative w-full bg-[#0e0e12] flex items-center justify-center cursor-pointer"
+            className="relative w-full bg-[#0e0e12] flex items-center justify-center cursor-pointer select-none"
             style={{ aspectRatio: "16/9" }}
-            onClick={togglePlay}
+            onClick={() => {
+              if (showSpeedMenu) {
+                setShowSpeedMenu(false);
+                return;
+              }
+              togglePlay();
+            }}
             onMouseMove={triggerCenterIcon}
             onTouchStart={triggerCenterIcon}
           >
             {videoDrop.thumbnail && !playing && !videoError && (
-              <img src={videoDrop.thumbnail} alt={videoDrop.title} className="absolute inset-0 w-full h-full object-cover opacity-60" />
+              <img src={videoDrop.thumbnail} alt={videoDrop.title} className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none" />
             )}
 
             {/* Video element */}
@@ -741,6 +842,8 @@ export default function VideoDropCard() {
                 onLoadedMetadata={handleLoadedMetadata}
                 onDurationChange={handleLoadedMetadata}
                 onTimeUpdate={handleTimeUpdate}
+                onPlay={handlePlayEvent}
+                onPause={handlePauseEvent}
                 onEnded={handleVideoEnd}
                 onError={handleVideoError}
                 playsInline
@@ -759,8 +862,12 @@ export default function VideoDropCard() {
             )}
 
             <button
-              onClick={e => { e.stopPropagation(); togglePlay(); }}
-              className={`relative z-10 w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] md:w-[64px] md:h-[64px] rounded-full bg-black/50 backdrop-blur-sm border border-white/20 hover:bg-black/70 flex items-center justify-center cursor-pointer transition-all duration-500 shadow-2xl ${
+              onClick={e => {
+                e.stopPropagation();
+                if (showSpeedMenu) setShowSpeedMenu(false);
+                togglePlay();
+              }}
+              className={`relative z-10 w-[50px] h-[50px] sm:w-[56px] sm:h-[56px] md:w-[64px] md:h-[64px] rounded-full bg-black/60 backdrop-blur-md border border-white/20 hover:bg-black/80 flex items-center justify-center cursor-pointer transition-all duration-300 shadow-2xl active:scale-95 ${
                 showCenterIcon
                   ? "opacity-100 scale-100 pointer-events-auto"
                   : "opacity-0 scale-110 pointer-events-none"
@@ -780,18 +887,71 @@ export default function VideoDropCard() {
             </button>
           </div>
 
-          {/* Progress */}
-          <div className="h-[3px] bg-[#2a2a2e]">
+          {/* Progress Bar with Seek capability */}
+          <div
+            className="h-[5px] bg-[#2a2a2e] cursor-pointer relative group flex items-center"
+            onClick={handleSeek}
+          >
             <div
-              className="h-full bg-[#888888] transition-all duration-300"
+              className="h-full bg-gradient-to-r from-pink-500 to-orange-500 transition-all duration-100"
               style={{ width: `${pct}%` }}
             />
           </div>
 
-          {/* Timestamps */}
-          <div className="flex justify-between px-2 sm:px-2.5 py-1 sm:py-1.5 text-[10px] sm:text-[11px] text-[#555] font-mono">
-            <span>{timeStr}</span>
-            <span>{videoDrop.duration}</span>
+          {/* Timestamps & Playback Speed Controls Bar */}
+          <div className="flex items-center justify-between px-2.5 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-[11px] text-[#888] font-mono bg-[#141418]">
+            <div className="flex items-center gap-1.5">
+              <span className="text-white/90 font-semibold">{timeStr}</span>
+              <span className="text-white/30">/</span>
+              <span className="text-white/50">{videoDrop.duration}</span>
+            </div>
+
+            {/* Playback Speed selector */}
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowSpeedMenu((prev) => !prev);
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/15 active:scale-95 transition text-[10px] sm:text-[11px] font-bold text-white border border-white/10 cursor-pointer shadow-sm"
+                title="Playback Speed"
+              >
+                <span className="text-pink-400">⚡</span>
+                <span>{playbackSpeed}x</span>
+                <svg
+                  className={`w-2.5 h-2.5 transition-transform duration-200 ${showSpeedMenu ? "rotate-180" : ""}`}
+                  viewBox="0 0 10 6"
+                  fill="none"
+                >
+                  <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+
+              {showSpeedMenu && (
+                <div className="absolute right-0 bottom-full mb-2 bg-[#1a1a24] border border-white/15 rounded-xl shadow-2xl p-1 z-30 flex flex-col min-w-[76px] backdrop-blur-md">
+                  <div className="px-2 py-1 text-[9px] uppercase font-bold text-gray-400 border-b border-white/5 mb-1">
+                    Speed
+                  </div>
+                  {[0.5, 0.75, 1, 1.25, 1.5, 2].map((s) => (
+                    <button
+                      key={s}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSpeedChange(s);
+                      }}
+                      className={`px-2.5 py-1 text-left text-[11px] font-bold rounded-lg transition-colors cursor-pointer flex items-center justify-between ${
+                        playbackSpeed === s
+                          ? "bg-pink-500 text-white"
+                          : "text-gray-300 hover:bg-white/10 hover:text-white"
+                      }`}
+                    >
+                      <span>{s}x</span>
+                      {playbackSpeed === s && <span className="text-[10px]">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

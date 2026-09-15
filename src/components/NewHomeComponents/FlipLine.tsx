@@ -50,15 +50,23 @@ function formatCardDate(day?: string, timeMs?: number, createdAt?: number | stri
     if (cleanDay.toLowerCase().startsWith('day ') || isNaN(Date.parse(cleanDay))) {
       return cleanDay;
     }
-    // If it's a parseable date string, format it nicely
+    // If it's a parseable date string, check if today or format it nicely
     const parsed = new Date(cleanDay);
     if (!isNaN(parsed.getTime())) {
+      const isToday = new Date().toDateString() === parsed.toDateString();
+      if (isToday) {
+        return 'Today';
+      }
       return parsed.toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
       });
     }
+  }
+
+  if (cleanDay.toLowerCase() === 'today') {
+    return 'Today';
   }
 
   const ts =
@@ -69,11 +77,12 @@ function formatCardDate(day?: string, timeMs?: number, createdAt?: number | stri
 
   const d = new Date(ts);
   if (isNaN(d.getTime())) {
-    return new Date().toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return 'Today';
+  }
+
+  const isToday = new Date().toDateString() === d.toDateString();
+  if (isToday) {
+    return 'Today';
   }
 
   return d.toLocaleDateString('en-US', {

@@ -1,3 +1,5 @@
+// \src\components\features\auth\CreatePassword.tsx
+
 'use client';
 
 import Link from "next/link";
