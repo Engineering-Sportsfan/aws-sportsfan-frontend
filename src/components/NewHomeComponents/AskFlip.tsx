@@ -184,7 +184,7 @@ export default function AskFlip({ onAsk, matchContext }: AskFlipProps) {
         </div>
         <div>
           <p className="text-[14px] sm:text-[15px] font-extrabold text-white leading-none">
-            Ask Flip ✨
+            ASKFlip ✨
           </p>
           <p
             className="text-[10px] sm:text-[11px] font-medium mt-0.5"
@@ -234,7 +234,7 @@ export default function AskFlip({ onAsk, matchContext }: AskFlipProps) {
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          placeholder="Ask Flip anything about sports..."
+          placeholder="ASKFlip anything about sports..."
           className="flex-1 bg-transparent text-[12px] sm:text-[13px] font-medium text-white placeholder:text-white/30 outline-none border-none"
         />
         <motion.button

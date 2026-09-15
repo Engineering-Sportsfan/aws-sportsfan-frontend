@@ -102,7 +102,8 @@ export default function TeamRecords() {
     const columns = COLUMNS_BY_CATEGORY[selectedCategory];
 
     const handleBack = () => {
-        router.push("/MainModules/HomePage");
+        // router.push("/MainModules/HomePage");
+          router.back();
     };
 
     return (
