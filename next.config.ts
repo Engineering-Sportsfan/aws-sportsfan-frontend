@@ -52,6 +52,10 @@ const nextConfig = {
           destination: `${apiTarget}/api/auth/set-password`,
         },
         {
+          source: "/api/auth/google-signup",
+          destination: `${apiTarget}/api/auth/google-signup`,
+        },
+        {
           source: "/api/auth/host/:path*",
           destination: `${apiTarget}/api/auth/host/:path*`,
         },
@@ -623,10 +627,10 @@ const nextConfig = {
           destination: `${apiTarget}/api/feedback/submissions/:path*`,
         },
 
-        {
-          source: "/api/auth/google-signup",
-          destination: `${apiTarget}/api/auth/google-signup`,
-        },
+        // {
+        //   source: "/api/auth/google-signup",
+        //   destination: `${apiTarget}/api/auth/google-signup`,
+        // },
 
         { source: "/api/upload", destination: `${apiTarget}/api/upload` },
         {
