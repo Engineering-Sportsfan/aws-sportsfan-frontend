@@ -212,18 +212,22 @@ export function usePlayerSearch() {
       throw new Error("Generation timed out. Please try again in a moment.");
     } catch (err: any) {
       console.error("[usePlayerSearch] generate error:", err);
-      const raw = err.response?.data?.message || err.message || "";
-      const isTech =
-        raw.includes("PERMISSION_DENIED") ||
-        raw.includes("403") ||
-        raw.includes("500") ||
-        raw.includes("googleapis") ||
-        raw.includes("aiplatform") ||
-        raw.includes("{");
-      const friendly = isTech
-        ? "AI athlete profile generation is currently unavailable. Please try again shortly."
-        : raw || "Failed to create athlete profile";
-      setStatusMessage(`Error: ${friendly}`);
+      const raw = String(err.response?.data?.message || err.message || "").toLowerCase();
+
+      let friendly = "Unable to generate athlete profile right now. Please try again shortly.";
+      if (
+        raw.includes("not found") ||
+        raw.includes("not a real") ||
+        raw.includes("cannot confirm") ||
+        raw.includes("could not confirm") ||
+        raw.includes("rejected")
+      ) {
+        friendly = "Athlete not found. Please verify the athlete's name or try another player.";
+      } else if (raw.includes("timeout") || raw.includes("timed out")) {
+        friendly = "Generation is taking longer than expected. Please check again in a moment.";
+      }
+
+      setStatusMessage(friendly);
       throw new Error(friendly);
     } finally {
       setGenerating(false);

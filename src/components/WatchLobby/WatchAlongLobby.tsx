@@ -233,7 +233,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                         </button>
                         <div>
                             <h3 style={{ color: "white", margin: 0, fontSize: 16, fontWeight: 700, letterSpacing: "0.01em", lineHeight: 1.2 }}>
-                                📺 Watch Along
+                                📺 FlipLIVE
                             </h3>
                             <p style={{ color: "rgba(255,255,255,0.4)", margin: 0, fontSize: 10.5 }}>Join live rooms with friends</p>
                         </div>
