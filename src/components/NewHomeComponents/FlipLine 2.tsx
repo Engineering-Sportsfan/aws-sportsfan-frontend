@@ -630,11 +630,17 @@ export function FlipTimeline({
 
                 {/* Inline Image or Video/Audio media */}
                 {card.image && (
-                  <div className="relative rounded-xl overflow-hidden mt-1 max-h-[220px]">
+                  <div className="relative group rounded-xl overflow-hidden mt-2 bg-[#050608] border border-white/10 flex items-center justify-center w-full max-h-[380px] sm:max-h-[420px]">
+                    <img 
+                      src={typeof card.image === 'object' ? card.image.src : card.image} 
+                      alt="" 
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-25 scale-125 pointer-events-none select-none" 
+                    />
                     <img 
                       src={typeof card.image === 'object' ? card.image.src : card.image} 
                       alt="Moment media" 
-                      className="w-full h-full object-fill" 
+                      className="relative z-10 w-auto max-w-full h-auto max-h-[380px] sm:max-h-[420px] object-contain mx-auto block rounded-lg" 
                     />
                     
                     {card.mediaType === 'video' && (
