@@ -529,7 +529,7 @@
 
 "use client";
 
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Heart, Share2, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
 import { NewsArticle } from '../../../../types/news';
@@ -645,19 +645,43 @@ export default function NewsCenter() {
   const { user, getUserName } = useAuth();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({ status: 'loading' });
-  const [startIndex, setStartIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
   const [sharedArticle, setSharedArticle] = useState<NewsArticle | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [copied, setCopied] = useState(false);
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
-  const animationId = useId();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollLeft, clientWidth } = scrollContainerRef.current;
+    if (clientWidth > 0) {
+      const newIndex = Math.round(scrollLeft / clientWidth);
+      if (newIndex !== activeIndex) {
+        setActiveIndex(newIndex);
+      }
+    }
+  };
+
+  const scrollToIndex = (idx: number) => {
+    if (!scrollContainerRef.current) return;
+    const width = scrollContainerRef.current.clientWidth;
+    scrollContainerRef.current.scrollTo({
+      left: idx * width,
+      behavior: 'smooth',
+    });
+    setActiveIndex(idx);
+  };
 
   const getLikeActorId = () => user?.userId || `guest:${getUserName ? getUserName() : 'user'}`;
 
-  const openShareDialog = (article: NewsArticle) => {
+  const openShareDialog = (article: NewsArticle, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setSharedArticle(article);
     setShowShareDialog(true);
   };
@@ -704,17 +728,11 @@ export default function NewsCenter() {
     }
   };
 
-  const nextSlide = () => {
-    if (articles.length === 0) return;
-    setStartIndex((current) => (current + 1) % articles.length);
-  };
-
-  const prevSlide = () => {
-    if (articles.length === 0) return;
-    setStartIndex((current) => (current - 1 + articles.length) % articles.length);
-  };
-
-  const toggleLike = async (article: NewsArticle, currentLikes: number = 0) => {
+  const toggleLike = async (article: NewsArticle, currentLikes: number = 0, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     const articleId = article.id || String(article.rank);
     const isCurrentlyLiked = userLikes.has(articleId);
     const count = (likeCounts[articleId] !== undefined) ? likeCounts[articleId] : (article.likes || currentLikes || 0);
@@ -1010,7 +1028,7 @@ export default function NewsCenter() {
     return (
       <div className="w-full flex flex-col gap-2 py-4 rounded-xl">
         <div className="flex justify-between items-center px-2">
-          <h3 className="text-[17px] font-extrabold text-white">Articles</h3>
+          <h3 className="text-[17px] font-extrabold text-white">FlipLONG Articles</h3>
         </div>
         <div className="w-full p-6 rounded-2xl border border-gray-800 bg-[#111111] text-center">
           <p className="text-gray-400 text-sm">No articles available</p>
@@ -1019,29 +1037,21 @@ export default function NewsCenter() {
     );
   }
 
-  const hasMultiple = articles.length > 1;
-  const safeAnimationId = `news-scroll-${animationId.replace(/:/g, '')}`;
-  const durationSeconds = Math.max(40, articles.length * 8);
-  const rotatedArticles = [...articles.slice(startIndex), ...articles.slice(0, startIndex)];
-  const duplicated = hasMultiple ? [...rotatedArticles, ...rotatedArticles] : rotatedArticles;
+  const displayArticles = articles.slice(0, 2);
 
   return (
     <div className="w-full flex flex-col gap-4 py-4 rounded-xl">
       <div className="flex justify-between items-center px-2">
-        <div>
-          {/* <h2 className="text-2xl font-bold text-white">News Center</h2> */}
-         
-          {/* <h2 className="text-[17px] font-bold text-white">Cricket Articles</h2> */}
-           <h3 className="text-[17px] font-extrabold text-white">FlipLONG Articles</h3>
-          {/* <p className="text-sm text-gray-400">Top stories, match previews & records from around the cricket world.</p> */}
+        <div className="flex items-center gap-2">
+          <h3 className="text-[17px] font-extrabold text-white">FlipLONG Articles</h3>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500/20 to-orange-500/20 text-rose-400 border border-rose-500/30">
+            {articles.length}
+          </span>
         </div>
-        {/* <Link href="/MainModules/CricketArticles" className="flex items-center gap-2 px-4 py-2 border border-orange-500 text-orange-500 rounded-full hover:bg-orange-500 hover:text-white transition-all text-sm shrink-0">
-          View All <ArrowRight size={16} />
-        </Link> */}
         <button
           type="button"
           onClick={() => router.push("/MainModules/CricketArticles")}
-          className="flex items-center gap-0.5 text-[12px] font-bold"
+          className="flex items-center gap-0.5 text-[12px] font-bold cursor-pointer hover:opacity-80 transition-opacity"
           style={{ color: "#E91E8C" }}
         >
           View all
@@ -1049,198 +1059,125 @@ export default function NewsCenter() {
         </button>
       </div>
 
-      <div
-        className="relative flex items-center group w-full bg-[#111111] p-3 rounded-2xl border border-gray-800"
-        onMouseEnter={() => setIsPaused(true)}
-        onMouseLeave={() => setIsPaused(false)}
-        onFocus={() => setIsPaused(true)}
-        onBlur={() => setIsPaused(false)}
-      >
-        {hasMultiple && (
-          <button
-            type="button"
-            onClick={prevSlide}
-            aria-label="Previous news articles"
-            className="absolute left-4 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
-          >
-            <ChevronLeft size={20} />
-          </button>
-        )}
+      <div className="relative group w-full bg-[#111111] p-3 sm:p-4 rounded-2xl border border-gray-800">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="w-full flex overflow-x-auto snap-x snap-mandatory scroll-smooth scrollbar-hide"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {displayArticles.map((article: NewsArticle, index: number) => {
+            const articleKey = article.id || String(article.rank);
+            const isLiked = userLikes.has(articleKey);
+            const currentLikes = (likeCounts[articleKey] !== undefined) ? likeCounts[articleKey] : (article.likes || 0);
+            const isInternal = Boolean(
+              article.source === 'SportsFan360' ||
+              article.url?.startsWith('/MainModules/') ||
+              article.url?.includes('/CricketArticles/')
+            );
 
-        <div className="overflow-hidden w-full px-4">
-          {hasMultiple && (
-            <style>{`
-              @keyframes ${safeAnimationId} {
-                from { transform: translateX(0); }
-                to { transform: translateX(-50%); }
-              }
-            `}</style>
-          )}
-          <div
-            className="flex gap-2"
-            style={
-              hasMultiple
-                ? {
-                    width: 'max-content',
-                    animationName: safeAnimationId,
-                    animationDuration: `${durationSeconds}s`,
-                    animationTimingFunction: 'linear',
-                    animationIterationCount: 'infinite',
-                    animationPlayState: isPaused ? 'paused' : 'running',
-                  }
-                : { width: '100%' }
-            }
-          >
-            {duplicated.map((article: NewsArticle, index: number) => {
-              const authorText = article.author || (article.source && article.source !== 'SportsFan360' ? article.source : '');
-              const articleKey = article.id || String(article.rank);
-              const isLiked = userLikes.has(articleKey);
-              const currentLikes = (likeCounts[articleKey] !== undefined) ? likeCounts[articleKey] : (article.likes || 0);
-
-              const isInternalLink = Boolean(
-                article.url?.startsWith('/MainModules/') || article.url?.includes('/CricketArticles/')
-              );
-
-              return (
-                <div key={`${article.rank}-${index}`} className={hasMultiple ? "flex-none w-[calc(90vw-3rem)] sm:w-[calc(50vw-3rem)] max-w-[690px] flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2" : "w-full flex flex-col justify-between border-l-2 border-orange-500 pl-3 py-2"}>
-                  <div>
-                    <div className="flex justify-between items-start mb-3 gap-2">
-                      <div className="flex items-start gap-3">
-                        {article.url ? (
-                          isInternalLink ? (
-                            <Link href={article.url} className="shrink-0 cursor-pointer block group/img">
-                              <img
-                                src={article.cdn_url || '/images/News_center_Default.png'}
-                                alt={article.title}
-                                className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg group-hover/img:opacity-85 transition-opacity"
-                                onError={(e) => {
-                                  e.currentTarget.src = '/images/News_center_Default.png';
-                                }}
-                              />
-                            </Link>
-                          ) : (
-                            <a href={article.url} target="_blank" rel="noreferrer" className="shrink-0 cursor-pointer block group/img">
-                              <img
-                                src={article.cdn_url || '/images/News_center_Default.png'}
-                                alt={article.title}
-                                className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg group-hover/img:opacity-85 transition-opacity"
-                                onError={(e) => {
-                                  e.currentTarget.src = '/images/News_center_Default.png';
-                                }}
-                              />
-                            </a>
-                          )
-                        ) : (
-                          <img
-                            src={article.cdn_url || '/images/News_center_Default.png'}
-                            alt={article.title}
-                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
-                            onError={(e) => {
-                              e.currentTarget.src = '/images/News_center_Default.png';
-                            }}
-                          />
-                        )}
-                        <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider h-fit">
-                          {article.tag}
-                        </span>
-                      </div>
-                    </div>
-
-                    {article.url ? (
-                      isInternalLink ? (
-                        <Link href={article.url} className="block group/title">
-                          <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2 group-hover/title:text-pink-400 transition-colors cursor-pointer">
-                            {article.title}
-                          </h3>
-                        </Link>
-                      ) : (
-                        <a href={article.url} target="_blank" rel="noreferrer" className="block group/title">
-                          <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2 group-hover/title:text-pink-400 transition-colors cursor-pointer">
-                            {article.title}
-                          </h3>
-                        </a>
-                      )
-                    ) : (
-                      <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2">
-                        {article.title}
-                      </h3>
-                    )}
-
-                    <p className="text-sm text-gray-400 line-clamp-3 mb-3">
-                      {stripHtmlTags(article.summary)}
-                    </p>
-
-                    {article.tags && article.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mb-3">
-                        {article.tags.slice(0, 4).map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-colors"
-                          >
-                            #{tag}
-                          </span>
-                        ))}
-                        {article.tags.length > 4 && (
-                          <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-400">
-                            +{article.tags.length - 4} more
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 mb-4">
-                      {authorText ? `${authorText} · ` : ''}
-                      {formatDate(article.createdAt)}
-                    </p>
-                    <div className="flex items-center justify-between border-t border-gray-800 pt-3">
-                      <div className="flex gap-4">
-                        <button onClick={() => toggleLike(article, currentLikes)} className={`flex items-center gap-1 text-sm transition-colors ${isLiked ? 'text-pink-500' : 'text-gray-400 hover:text-pink-400'}`}>
-                          <Heart size={16} fill={isLiked ? 'currentColor' : 'none'} /> {currentLikes}
-                        </button>
-                        <button onClick={() => openShareDialog(article)} className="flex items-center gap-1 text-gray-400 hover:text-white text-sm">
-                          <Share2 size={16} /> Share
-                        </button>
-                      </div>
-                      {article.url?.startsWith('/MainModules/') || article.url?.includes('/CricketArticles/') ? (
-                        <Link href={article.url} className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold">
-                          Read More <ArrowRight size={14} />
-                        </Link>
-                      ) : (
-                        <a href={article.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold">
-                          Read More <ArrowRight size={14} />
-                        </a>
-                      )}
-                    </div>
+            const cardHeaderAndBody = (
+              <div className="cursor-pointer group/card">
+                <div className="flex justify-between items-start mb-2 sm:mb-3 gap-2">
+                  <div className="flex items-start gap-2.5 sm:gap-3">
+                    <img
+                      src={article.source === 'SportsFan360' && article.cdn_url ? article.cdn_url : (article.cdn_url || '/images/News_center_Default.png')}
+                      alt={article.title}
+                      className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg shrink-0 group-hover/card:opacity-90 transition-opacity"
+                      onError={(e) => {
+                        e.currentTarget.src = '/images/News_center_Default.png';
+                      }}
+                    />
+                    <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-[9px] sm:text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider h-fit">
+                      {article.tag}
+                    </span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
+                <p className="text-xs sm:text-sm text-gray-400 group-hover/card:text-gray-200 line-clamp-2 mb-3 sm:mb-4 transition-colors">
+                  {stripHtmlTags(article.summary)}
+                </p>
+              </div>
+            );
+
+            return (
+              <div
+                key={`${articleKey}-${index}`}
+                className="w-full min-w-full flex-shrink-0 snap-center flex flex-col justify-between border-l-2 border-orange-500 pl-3 sm:pl-4 py-1 sm:py-2"
+              >
+                {isInternal && article.url ? (
+                  <Link href={article.url} className="block">
+                    {cardHeaderAndBody}
+                  </Link>
+                ) : article.url ? (
+                  <a href={article.url} target="_blank" rel="noreferrer" className="block">
+                    {cardHeaderAndBody}
+                  </a>
+                ) : (
+                  cardHeaderAndBody
+                )}
+
+                <div>
+                  <p className="text-[11px] sm:text-xs text-gray-500 mb-2 sm:mb-4 truncate">
+                    {article.source || 'SportsFan360'} • {formatDate(article.createdAt)}
+                  </p>
+                  <div className="flex items-center justify-between border-t border-gray-800 pt-2 sm:pt-3">
+                    <div className="flex gap-2.5 sm:gap-4">
+                      <button
+                        type="button"
+                        onClick={(e) => toggleLike(article, currentLikes, e)}
+                        className={`flex items-center gap-1 text-xs sm:text-sm transition-colors cursor-pointer ${
+                          isLiked ? 'text-pink-500 font-semibold' : 'text-gray-400 hover:text-pink-400'
+                        }`}
+                      >
+                        <Heart size={15} fill={isLiked ? 'currentColor' : 'none'} />
+                        <span>{currentLikes || 0}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => openShareDialog(article, e)}
+                        className="flex items-center gap-1 text-gray-400 hover:text-white text-xs sm:text-sm cursor-pointer"
+                      >
+                        <Share2 size={15} />
+                        <span className="hidden sm:inline">Share</span>
+                      </button>
+                    </div>
+                    {isInternal && article.url ? (
+                      <Link
+                        href={article.url}
+                        className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-xs sm:text-sm font-semibold"
+                      >
+                        Read More <ArrowRight size={13} />
+                      </Link>
+                    ) : article.url ? (
+                      <a
+                        href={article.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-xs sm:text-sm font-semibold"
+                      >
+                        Read More <ArrowRight size={13} />
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-        {hasMultiple && (
-          <button
-            type="button"
-            onClick={nextSlide}
-            aria-label="Next news articles"
-            className="absolute right-8 z-10 p-2 bg-black/50 text-white rounded-full border border-gray-600 hover:bg-black transition-all"
-          >
-            <ChevronRight size={20} />
-          </button>
-        )}
-
-        {hasMultiple && (
-          <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-            {articles.map((_, idx) => (
+        {/* Swipe dot indicators */}
+        {displayArticles.length > 1 && (
+          <div className="flex justify-center items-center gap-1.5 mt-2.5">
+            {displayArticles.map((_, idx) => (
               <button
                 key={idx}
                 type="button"
-                onClick={() => setStartIndex(idx)}
-                aria-label={`Go to article slide ${idx + 1}`}
-                className={`w-4 h-1 rounded-full transition-all cursor-pointer ${
-                  startIndex === idx ? 'bg-pink-500' : 'bg-gray-600 hover:bg-gray-500'
+                onClick={() => scrollToIndex(idx)}
+                aria-label={`Go to article ${idx + 1}`}
+                className={`transition-all duration-300 rounded-full cursor-pointer ${
+                  activeIndex === idx
+                    ? "w-4 h-1.5 bg-gradient-to-r from-rose-500 to-orange-500"
+                    : "w-1.5 h-1.5 bg-white/20 hover:bg-white/40"
                 }`}
               />
             ))}

@@ -3167,9 +3167,9 @@ function LiveCameraFeed({
                                     email: userEmail || `${(userName || "viewer").toLowerCase().replace(/\s+/g, '')}@sportsfan360.com`,
                                 }}
                                 onApiReady={handleApiReady}
-                                 onReadyToClose={() => {
-                                setHasLeftMeeting(true);
-                            }}
+                                onReadyToClose={() => {
+                                    setHasLeftMeeting(true);
+                                }}
                                 getIFrameRef={(wrapperDiv: HTMLDivElement) => {
                                     wrapperDiv.style.width = '100%';
                                     wrapperDiv.style.height = '100%';
@@ -5410,7 +5410,7 @@ export default function WatchRoom({ room, onBack }: Props) {
 
 
     // Custom recording state with mixed audio capture (Mic + System/Tab Audio)
-       // Custom recording state with mixed audio capture (Mic + System/Tab Audio)
+    // Custom recording state with mixed audio capture (Mic + System/Tab Audio)
     // ---------------------------------------------------------------------------
     // 30-MINUTE AUTO-CHUNKING LOGIC:
     // Every CHUNK_DURATION_MS, the current MediaRecorder flushes its data as a
@@ -5441,38 +5441,50 @@ export default function WatchRoom({ room, onBack }: Props) {
 
         setUploadingParts(prev => [...prev, partNumber]);
 
-        const formData = new FormData();
         const partStr = String(partNumber).padStart(2, '0');
-        formData.append('video', blob, `recording-${sessionId}-part-${partStr}.webm`);
-        formData.append('part', String(partNumber));
-        formData.append('sessionId', sessionId);
-        formData.append('isFinal', String(isFinal));
-        formData.append('mimeType', mimeType || 'video/webm');
+        const fileName = `Watchroom-Recording-${sessionId}-Part-${partStr}.webm`;
 
         try {
-            const response = await fetch('/api/upload-recording', {
+            console.log(`[Recording] Initializing Direct Google Drive Upload for Part ${partNumber}...`);
+            const initRes = await fetch('/api/upload-recording/init', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fileName,
+                    mimeType: mimeType || 'video/webm',
+                    sessionId,
+                    part: partNumber
+                })
             });
-            let data: any = null;
-            const contentType = response.headers.get('content-type') || '';
-            if (contentType.includes('application/json')) {
-                data = await response.json();
-            } else {
-                const text = await response.text();
-                if (!response.ok) {
-                    throw new Error(`Server ${response.status}: ${text.slice(0, 100)}`);
-                }
+
+            if (!initRes.ok) {
+                const text = await initRes.text();
+                throw new Error(`Init Server Error ${initRes.status}: ${text.slice(0, 100)}`);
             }
-            if (data && data.success) {
-                console.log(`[Recording] Part ${partNumber} saved to Google Drive: ${data.name}`);
-                if (isFinal) {
-                    alert(`Recording complete! All ${partNumber} part(s) saved to Google Drive.`);
-                }
-            } else {
-                const errMsg = data?.error || response.statusText || 'Upload failed';
-                console.error(`[Recording] Part ${partNumber} upload failed:`, errMsg);
-                if (isFinal) alert(`Failed to upload Part ${partNumber} to Google Drive: ${errMsg}`);
+
+            const initData = await initRes.json();
+            if (!initData.success || !initData.uploadUrl) {
+                throw new Error(`Init Failed: ${initData.error || 'No upload URL received'}`);
+            }
+
+            console.log(`[Recording] Got Direct Upload URL. Pushing ${fileName} (${(blob.size / 1024 / 1024).toFixed(1)} MB) to Google servers directly...`);
+
+            const uploadRes = await fetch(initData.uploadUrl, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': mimeType || 'video/webm'
+                },
+                body: blob
+            });
+
+            if (!uploadRes.ok) {
+                const text = await uploadRes.text();
+                throw new Error(`Google Drive PUT failed: ${uploadRes.status} ${text.slice(0, 100)}`);
+            }
+
+            console.log(`[Recording] ✅ Part ${partNumber} saved to Google Drive: ${fileName}`);
+            if (isFinal) {
+                alert(`Recording complete! All ${partNumber} part(s) saved directly to Google Drive.`);
             }
         } catch (err: any) {
             console.error(`[Recording] Part ${partNumber} network error:`, err);
@@ -5481,7 +5493,6 @@ export default function WatchRoom({ room, onBack }: Props) {
             setUploadingParts(prev => prev.filter(p => p !== partNumber));
         }
     };
-
     // ─── Rotate chunk: stop current recorder, upload blob, start a fresh one ──
     const rotateChunk = () => {
         const currentRecorder = mediaRecorderRef.current;
