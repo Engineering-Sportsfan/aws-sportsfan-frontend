@@ -5417,7 +5417,8 @@ export default function WatchRoom({ room, onBack }: Props) {
     // numbered part (Part-01, Part-02...) and uploads it to Google Drive in the
     // background. The screen share & audio streams are NEVER interrupted.
     // ---------------------------------------------------------------------------
-    const CHUNK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+    // const CHUNK_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+    const CHUNK_DURATION_MS = 1 * 60 * 1000; // 1 minute
 
     const [isRecording, setIsRecording] = useState(false);
     const [uploadingParts, setUploadingParts] = useState<number[]>([]); // part numbers currently uploading

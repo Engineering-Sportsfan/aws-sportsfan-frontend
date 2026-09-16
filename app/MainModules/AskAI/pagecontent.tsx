@@ -1416,7 +1416,7 @@ export default function AskAI() {
               </button>
             </div>
           </div>
-          <p className="text-[8px] text-gray-300 mb-2 ml-4">Ask Flip loves sports but isn't always right. Double-check important information.</p>
+          <p className="text-[8px] text-gray-300 mb-2 ml-4">ASKFlip loves sports but isn't always right. Double-check important information.</p>
         </>
       )}
     </div>
