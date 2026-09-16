@@ -69,6 +69,34 @@ const QUICK_REACT_OPTS = [
     { id: "qr_wave", label: "Wave!", emoji: "🌊", sport: "both" },
 ];
 
+function formatChannelName(rawName?: string, rawSlug?: string): { name: string; slug: string; icon: string } {
+    const slug = (rawSlug || "").toLowerCase().trim();
+    let name = (rawName || "").trim();
+
+    // If no name is provided or if name looks like an internal hash (12+ alphanumeric characters without space)
+    const looksLikeHash = !name || /^[a-zA-Z0-9_-]{12,}$/.test(name);
+    if (looksLikeHash) {
+        if (slug && !/^[a-zA-Z0-9_-]{12,}$/.test(slug)) {
+            name = slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        } else {
+            name = "Channel";
+        }
+    }
+
+    const cleanSlug = slug || name.toLowerCase().replace(/\s+/g, "-");
+    const icon = cleanSlug.includes("cricket")
+        ? "🏏"
+        : cleanSlug.includes("foot") || cleanSlug.includes("soccer")
+            ? "⚽"
+            : cleanSlug.includes("basket")
+                ? "🏀"
+                : cleanSlug.includes("tennis")
+                    ? "🎾"
+                    : "💬";
+
+    return { name, slug: cleanSlug, icon };
+}
+
 function displayUsername(raw: string | undefined | null): string {
     if (!raw) return "RoarUser";
     const trimmed = raw.trim();
@@ -259,11 +287,36 @@ export default function OpenRoomDiscussionRoom({
 
     // ── CHANNELS STATE ──
     const [channels, setChannels] = useState<Channel[]>([]);
-    const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
+    const [selectedChannelId, setSelectedChannelId] = useState<string | null>("all");
     const [channelsLoading, setChannelsLoading] = useState(true);
 
+    const allVisiblePosts = React.useMemo(() => {
+        const seen = new Set<string>();
+        return [...morePosts, ...posts].filter(p => {
+            if (p.type === "predictions_live") return false;
+            if (seen.has(p.id)) return false;
+            seen.add(p.id);
+            return true;
+        });
+    }, [morePosts, posts]);
+
+    // ── Derive displayChannels dynamically from fetched channels ──
+    const displayChannels = React.useMemo(() => {
+        return channels.filter(c => c.isActive !== false);
+    }, [channels]);
+
+    // If active channel was deleted/removed from backend, safely fallback to "all"
     useEffect(() => {
-        onChannelChange?.(selectedChannelId);
+        if (selectedChannelId && selectedChannelId !== "all" && displayChannels.length > 0) {
+            const exists = displayChannels.some(c => c.channelId === selectedChannelId);
+            if (!exists) {
+                setSelectedChannelId("all");
+            }
+        }
+    }, [displayChannels, selectedChannelId]);
+
+    useEffect(() => {
+        onChannelChange?.(selectedChannelId === "all" ? null : selectedChannelId);
     }, [selectedChannelId, onChannelChange]);
 
     // ── CHANNEL MENTION STATE ──
@@ -283,9 +336,23 @@ export default function OpenRoomDiscussionRoom({
         try {
             const res = await axios.get(`/api/roar/rooms/${roomId}/channels`, { timeout: REQUEST_TIMEOUT_MS });
             if (channelsFetchTokenRef.current !== requestId) return; // stale response, ignore
-            const fetchedChannels = res.data?.channels ?? [];
+            const rawChannels: any[] = res.data?.channels ?? [];
+            const fetchedChannels: Channel[] = rawChannels.map((ch: any) => {
+                const id = String(ch.channelId || "").replace(/^CHANNEL#/, "");
+                const { name, slug, icon } = formatChannelName(ch.name, ch.slug);
+                return {
+                    channelId: id,
+                    name,
+                    slug,
+                    icon: ch.icon || icon,
+                    isActive: ch.isActive !== false,
+                    order: typeof ch.order === "number" ? ch.order : 0,
+                };
+            }).filter((ch: Channel) => Boolean(ch.channelId));
+
+            fetchedChannels.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             setChannels(fetchedChannels);
-            setSelectedChannelId(prev => prev ?? (fetchedChannels[0]?.channelId ?? null));
+            setSelectedChannelId(prev => prev ?? "all");
         } catch (error) {
             if (channelsFetchTokenRef.current !== requestId) return;
             console.error("Failed to fetch channels:", error);
@@ -304,12 +371,6 @@ export default function OpenRoomDiscussionRoom({
     const handleChannelSelect = (channelId: string) => {
         if (selectedChannelId === channelId) return;
         setSelectedChannelId(channelId);
-        // Reset posts when channel changes
-        latestCreatedAtRef.current = null;
-        setPosts([]);
-        setMorePosts([]);
-        setHasMoreMsgs(true);
-        setLoading(true);
     };
 
     // ── Channel mention handler ──
@@ -322,9 +383,13 @@ export default function OpenRoomDiscussionRoom({
             const afterHash = before.slice(hashIndex + 1);
             // Check if there's a space after the # (meaning it's not a valid mention anymore)
             if (!afterHash.includes(" ")) {
+                const mentionOptions = [
+                    { channelId: "all", name: "all", slug: "all", icon: "🌐", isActive: true, order: -1 },
+                    ...displayChannels,
+                ];
                 const filtered = afterHash.trim() === ""
-                    ? channels.slice(0, 8)
-                    : channels.filter(ch =>
+                    ? mentionOptions.slice(0, 8)
+                    : mentionOptions.filter(ch =>
                         ch.name.toLowerCase().includes(afterHash.toLowerCase()) ||
                         ch.slug.toLowerCase().includes(afterHash.toLowerCase())
                     ).slice(0, 8);
@@ -543,14 +608,9 @@ export default function OpenRoomDiscussionRoom({
                 ? `/api/roar/rooms/${roomId}/messages?since=${latestCreatedAtRef.current}&t=${Date.now()}`
                 : `/api/roar/rooms/${roomId}/messages?t=${Date.now()}`;
 
-            // ALWAYS filter by selected channel ID
-            if (selectedChannelId) {
+            // Only filter by channel if a specific channel (not "all") is selected
+            if (selectedChannelId && selectedChannelId !== "all") {
                 url += `&channelId=${encodeURIComponent(selectedChannelId)}`;
-            } else if (channels.length > 0) {
-                // If no channel selected, default to the first channel
-                const defaultChannelId = channels[0].channelId;
-                setSelectedChannelId(defaultChannelId);
-                url += `&channelId=${encodeURIComponent(defaultChannelId)}`;
             }
 
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
@@ -575,7 +635,7 @@ export default function OpenRoomDiscussionRoom({
             }
         } catch (e) { console.error(e); }
         finally { setLoading(false); }
-    }, [roomId, mapMessage, selectedChannelId, channels, playSound]);
+    }, [roomId, mapMessage, selectedChannelId, playSound]);
 
     // ── Load more messages WITH channel filter ──
     const loadMoreMsgs = useCallback(async () => {
@@ -586,7 +646,7 @@ export default function OpenRoomDiscussionRoom({
         loadingMoreMsgsRef.current = true; setLoadingMoreMsgs(true);
         try {
             let url = `/api/roar/rooms/${roomId}/messages?limit=15&lastCreatedAt=${oldestCreatedAt}`;
-            if (selectedChannelId) {
+            if (selectedChannelId && selectedChannelId !== "all") {
                 url += `&channelId=${encodeURIComponent(selectedChannelId)}`;
             }
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
@@ -621,7 +681,7 @@ export default function OpenRoomDiscussionRoom({
         if (!roomId) return;
         try {
             let url = `/api/roar/rooms/${roomId}/messages?t=${Date.now()}`;
-            if (selectedChannelId) {
+            if (selectedChannelId && selectedChannelId !== "all") {
                 url += `&channelId=${encodeURIComponent(selectedChannelId)}`;
             }
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
@@ -828,6 +888,7 @@ export default function OpenRoomDiscussionRoom({
         setTopReactionsMap({});
         setOpenInlinePostId(null);
         setActiveFilter("all");
+        setSelectedChannelId("all");
     }, [roomId]);
 
     useEffect(() => {
@@ -972,18 +1033,16 @@ export default function OpenRoomDiscussionRoom({
                 clientMsgId,
             };
 
-            // ALWAYS include the selected channel ID when posting
-            if (selectedChannelId) {
-                payload.channelId = selectedChannelId;
-            } else if (channels.length > 0) {
-                // If no channel selected, use the first one
-                payload.channelId = channels[0].channelId;
-            } else {
-                // No channels available - can't post
-                onToast("No channels available. Please create a channel first.");
-                sendingRef.current = false;
-                setIsSending(false);
-                return;
+            // Include channel ID when posting
+            let postChannelId: string | undefined = undefined;
+            if (selectedChannelId && selectedChannelId !== "all") {
+                postChannelId = selectedChannelId;
+            } else if (displayChannels.length > 0) {
+                postChannelId = displayChannels[0].channelId;
+            }
+
+            if (postChannelId) {
+                payload.channelId = postChannelId;
             }
 
             const res = await axios.post(
@@ -992,14 +1051,28 @@ export default function OpenRoomDiscussionRoom({
                 { timeout: REQUEST_TIMEOUT_MS }
             );
             if (res.data?.success) {
-                const m = res.data.message;
-                // Only add to posts if it belongs to the current channel
-                if (m.channelId === selectedChannelId) {
+                const m = res.data.message || {
+                    msgId: clientMsgId,
+                    authorUid: currentUserId,
+                    authorUsername: userUsername,
+                    text: payload.text,
+                    channelId: postChannelId,
+                    createdAt: Date.now(),
+                    type: mode,
+                };
+
+                const belongsToView =
+                    !selectedChannelId ||
+                    selectedChannelId === "all" ||
+                    m.channelId === selectedChannelId ||
+                    (!m.channelId && (displayChannels[0]?.channelId === selectedChannelId || displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general"));
+
+                if (belongsToView) {
                     setPosts(p => [...p, {
-                        id: m.msgId,
+                        id: m.msgId || clientMsgId,
                         authorUid: m.authorUid,
                         authorEmail: m.authorEmail,
-                        fan: { username: displayUsername(m.authorUsername), authorUid: m.authorUid, badge: m.authorBadge, avatarUrl: m.authorAvatarUrl || m.avatarUrl || (m.authorUsername === userUsername ? userAvatarUrl : undefined) },
+                        fan: { username: displayUsername(m.authorUsername || userUsername), authorUid: m.authorUid, badge: m.authorBadge, avatarUrl: m.authorAvatarUrl || m.avatarUrl || (m.authorUsername === userUsername ? userAvatarUrl : undefined) },
                         text: m.text,
                         fireCount: m.fireCount ?? 0,
                         heartCount: m.heartCount ?? 0,
@@ -1027,7 +1100,7 @@ export default function OpenRoomDiscussionRoom({
                         quizParticipants: m.quizParticipants ?? 0,
                         memGifUrl: m.memGifUrl ?? null,
                         memTag: m.memTag ?? null,
-                        channelId: m.channelId || selectedChannelId,
+                        channelId: m.channelId || postChannelId,
                     }]);
                     setInput(""); setAttachedUrl(null); setAttachedType(null);
                     playSound("post");
@@ -1063,25 +1136,29 @@ export default function OpenRoomDiscussionRoom({
                 type: "post",
                 memTag,
             };
-            // ALWAYS include the selected channel ID
-            if (selectedChannelId) {
-                payload.channelId = selectedChannelId;
-            } else if (channels.length > 0) {
-                payload.channelId = channels[0].channelId;
-            } else {
-                onToast("No channels available. Please create a channel first.");
-                setPosts(p => p.filter(post => post.id !== tempId));
-                return;
+            let quickReactChannelId: string | undefined = undefined;
+            if (selectedChannelId && selectedChannelId !== "all") {
+                quickReactChannelId = selectedChannelId;
+            } else if (displayChannels.length > 0) {
+                quickReactChannelId = displayChannels[0].channelId;
+            }
+            if (quickReactChannelId) {
+                payload.channelId = quickReactChannelId;
             }
 
             const res = await axios.post(`/api/roar/rooms/${roomId}/messages`, payload, { timeout: REQUEST_TIMEOUT_MS });
             if (res.data?.success) {
                 const m = res.data.message;
-                // Only keep in posts if it belongs to current channel
-                if (m.channelId === selectedChannelId) {
+                const belongsToView =
+                    !selectedChannelId ||
+                    selectedChannelId === "all" ||
+                    m?.channelId === selectedChannelId ||
+                    (!m?.channelId && (displayChannels[0]?.channelId === selectedChannelId || displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general"));
+
+                if (belongsToView) {
                     setPosts(p => {
-                        if (p.some(post => post.id === m.msgId)) return p.filter(post => post.id !== tempId);
-                        return p.map(post => post.id === tempId ? { ...post, id: m.msgId, authorUid: m.authorUid, authorEmail: m.authorEmail, status: "sent", timeAgo: "now", createdAt: m.createdAt || Date.now(), memGifUrl: m.memGifUrl, channelId: m.channelId } : post);
+                        if (m?.msgId && p.some(post => post.id === m.msgId)) return p.filter(post => post.id !== tempId);
+                        return p.map(post => post.id === tempId ? { ...post, id: m?.msgId || tempId, authorUid: m?.authorUid, authorEmail: m?.authorEmail, status: "sent", timeAgo: "now", createdAt: m?.createdAt || Date.now(), memGifUrl: m?.memGifUrl, channelId: m?.channelId || quickReactChannelId } : post);
                     });
                     setNewlyPostedIds(prev => new Set([...prev, m.msgId]));
                     playSound("post");
@@ -1147,23 +1224,22 @@ export default function OpenRoomDiscussionRoom({
         nochance: "🙅", laugh: "😂", sad: "😢", thumb: "👍",
     };
 
-    const allVisiblePosts = React.useMemo(() => {
-        const seen = new Set<string>();
-        return [...morePosts, ...posts].filter(p => {
-            if (p.type === "predictions_live") return false;
-            if (seen.has(p.id)) return false;
-            seen.add(p.id);
-            return true;
-        });
-    }, [morePosts, posts]);
-
     // ── Filter posts by channel first, then by category ──
     const filteredPosts = React.useMemo(() => {
         let postsToFilter = allVisiblePosts;
 
         // Filter by selected channel
-        if (selectedChannelId) {
-            postsToFilter = postsToFilter.filter(p => p.channelId === selectedChannelId);
+        if (selectedChannelId && selectedChannelId !== "all") {
+            const isFirstOrGeneral =
+                displayChannels[0]?.channelId === selectedChannelId ||
+                displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general";
+
+            postsToFilter = postsToFilter.filter(p => {
+                if (p.channelId === selectedChannelId) return true;
+                // If a post has no channelId, display in default/general channel
+                if (isFirstOrGeneral && !p.channelId) return true;
+                return false;
+            });
         }
 
         // Then apply category filter
@@ -1175,7 +1251,7 @@ export default function OpenRoomDiscussionRoom({
             if (activeFilter === "post") return p.type === "post" || !p.type;
             return p.type === activeFilter;
         });
-    }, [allVisiblePosts, selectedChannelId, activeFilter]);
+    }, [allVisiblePosts, selectedChannelId, activeFilter, displayChannels]);
 
     const renderReactionPicker = (p: any) => {
         const lo = localReactions[p.id];
@@ -1218,18 +1294,22 @@ export default function OpenRoomDiscussionRoom({
     };
 
     // Get current channel name for display
-    const currentChannelName = channels.find(c => c.channelId === selectedChannelId)?.name || 'Unknown';
-
+    const currentChannelName = React.useMemo(() => {
+        if (selectedChannelId === "all" || !selectedChannelId) return "all";
+        const found = displayChannels.find(c => c.channelId === selectedChannelId);
+        return found?.name || "general";
+    }, [selectedChannelId, displayChannels]);
 
     // ── Derive sport from the selected channel (name or slug) ──
     const currentChannelSport = React.useMemo<"cricket" | "football" | null>(() => {
-        const ch = channels.find(c => c.channelId === selectedChannelId);
+        if (selectedChannelId === "all" || !selectedChannelId) return null;
+        const ch = displayChannels.find(c => c.channelId === selectedChannelId);
         if (!ch) return null;
         const key = `${ch.name} ${ch.slug}`.toLowerCase();
         if (key.includes("cricket")) return "cricket";
         if (key.includes("football") || key.includes("soccer")) return "football";
         return null;
-    }, [channels, selectedChannelId]);
+    }, [displayChannels, selectedChannelId]);
 
     // ── Quick-react options filtered to the active channel's sport ──
     const visibleQuickReactOpts = React.useMemo(() => {
@@ -1247,10 +1327,10 @@ export default function OpenRoomDiscussionRoom({
         if (uploading) {
             return "Uploading media...";
         }
-        if (selectedChannelId && currentChannelName !== 'Unknown') {
+        if (selectedChannelId && selectedChannelId !== "all") {
             return `Message to #${currentChannelName}...`;
         }
-        return "Type # to switch channel...";
+        return "Message to #all (type # to switch channel)...";
     };
 
     return (
@@ -1299,24 +1379,35 @@ export default function OpenRoomDiscussionRoom({
             </div>
 
             {/* ── CHANNELS SECTION ── */}
-            {!channelsLoading && channels.length > 0 && (
+            {(!channelsLoading || displayChannels.length > 0) && (
                 <div className="shrink-0 px-2 py-1 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)] overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                     <div className="flex items-center gap-1.5">
 
                         <img src="/images/categoryiconbg.png" alt="category-icon" className="w-4 h-4 object-cover" />
 
                         <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                            {channels.map((channel) => (
+                            {/* All Channels Button */}
+                            <button
+                                type="button"
+                                onClick={() => handleChannelSelect("all")}
+                                className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all duration-150 flex-shrink-0 ${selectedChannelId === "all" || !selectedChannelId
+                                    ? "bg-gradient-to-r from-[#e91e8c] to-[#ff6b35] text-white shadow-lg shadow-pink-500/20"
+                                    : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80 border border-white/5"
+                                    }`}
+                            >
+                                # all
+                            </button>
+
+                            {displayChannels.map((channel) => (
                                 <button
                                     key={channel.channelId}
                                     type="button"
                                     onClick={() => handleChannelSelect(channel.channelId)}
-                                    className={`flex items-center gap-1 px-2.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all duration-150 flex-shrink-0 ${selectedChannelId === channel.channelId
+                                    className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all duration-150 flex-shrink-0 ${selectedChannelId === channel.channelId
                                         ? "bg-gradient-to-r from-[#e91e8c] to-[#ff6b35] text-white shadow-lg shadow-pink-500/20"
                                         : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80 border border-white/5"
                                         }`}
                                 >
-                                    {/* <span className="text-[12px]">{channel.icon || "💬"}</span> */}
                                     # {channel.name}
                                 </button>
                             ))}
@@ -1325,7 +1416,7 @@ export default function OpenRoomDiscussionRoom({
                 </div>
             )}
 
-            {channelsLoading && (
+            {channelsLoading && displayChannels.length === 0 && (
                 <div className="shrink-0 px-2 py-1.5 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)]">
                     <div className="flex items-center gap-1.5">
                         <Hash size={12} className="text-white/20" />
@@ -1374,8 +1465,8 @@ export default function OpenRoomDiscussionRoom({
                     <div className="text-center text-[var(--text-muted)] py-6 text-xs">Loading messages...</div>
                 ) : filteredPosts.length === 0 ? (
                     <div className="text-center text-[var(--text-muted)] py-6 text-xs">
-                        {channels.length > 0 && selectedChannelId ? (
-                            <>No messages in <strong className="text-white">{currentChannelName}</strong> channel yet. Start the conversation!</>
+                        {displayChannels.length > 0 && selectedChannelId && selectedChannelId !== "all" ? (
+                            <>No messages in <strong className="text-white">#{currentChannelName}</strong> channel yet. Start the conversation!</>
                         ) : (
                             <>No messages yet. Start the conversation!</>
                         )}
@@ -1786,9 +1877,9 @@ export default function OpenRoomDiscussionRoom({
                                                     : "hover:bg-white/5"
                                                     }`}
                                             >
-                                                {/* <span className="text-[16px]">{channel.icon || "💬"}</span> */}
+                                                <span className="text-[14px]">{channel.icon || "💬"}</span>
                                                 <div className="flex flex-col">
-                                                    {/* <span className="text-sm font-semibold text-white">{channel.name}</span> */}
+                                                    <span className="text-xs font-semibold text-white">{channel.name}</span>
                                                     <span className="text-[10px] text-gray-400">#{channel.slug}</span>
                                                 </div>
                                                 {selectedChannelId === channel.channelId && (

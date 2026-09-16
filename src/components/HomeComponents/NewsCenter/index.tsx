@@ -644,6 +644,7 @@ const buildNewsShareText = (article: NewsArticle) => {
 export default function NewsCenter() {
   const { user, getUserName } = useAuth();
   const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [loading, setLoading] = useState(true);
   const [debugInfo, setDebugInfo] = useState<DebugInfo>({ status: 'loading' });
   const [sharedArticle, setSharedArticle] = useState<NewsArticle | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -880,6 +881,7 @@ export default function NewsCenter() {
             error: `cricket-articles returned HTTP ${cricketRes.status}`,
             newsStatusCode: cricketRes.status,
           });
+          setLoading(false);
           return;
         }
 
@@ -957,12 +959,14 @@ export default function NewsCenter() {
           cricketCount: transformedCricket.length,
           newsStatusCode: cricketRes.status,
         });
+        setLoading(false);
       } catch (error: any) {
         console.error('[NewsCenter] Error loading news', error);
         setDebugInfo({
           status: 'error',
           error: error?.message || String(error),
         });
+        setLoading(false);
       }
     };
 
@@ -1016,10 +1020,50 @@ export default function NewsCenter() {
     };
   }, []);
 
-  // While the first fetch is in flight, keep the space quiet rather than
-  // flashing an empty-state message.
-  if (articles.length === 0 && debugInfo.status === 'loading') {
-    return null;
+  if (loading) {
+    return (
+      <div className="w-full flex flex-col gap-4 py-4 rounded-xl">
+        <div className="flex justify-between items-center px-2">
+          <div className="flex items-center gap-2">
+            <h3 className="text-[17px] font-extrabold text-white">FlipLONG Articles</h3>
+          </div>
+          <div className="w-16 h-6 rounded-full bg-white/10 animate-pulse" />
+        </div>
+
+        <div className="relative group w-full bg-[#111111] p-3 sm:p-4 rounded-2xl border border-gray-800">
+          <div className="w-full flex flex-col justify-between border-l-2 border-orange-500/40 pl-3 sm:pl-4 py-1 sm:py-2">
+            <div>
+              <div className="flex justify-between items-start mb-2 sm:mb-3 gap-2">
+                <div className="flex items-start gap-2.5 sm:gap-3">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-white/[0.06] animate-pulse shrink-0" />
+                  <div className="w-14 h-5 rounded bg-orange-500/20 animate-pulse" />
+                </div>
+              </div>
+              <div className="space-y-2 mb-3 sm:mb-4">
+                <div className="h-3.5 w-4/5 rounded bg-white/10 animate-pulse" />
+                <div className="h-3 w-3/5 rounded bg-white/[0.06] animate-pulse" />
+              </div>
+            </div>
+
+            <div>
+              <div className="h-2.5 w-1/3 rounded bg-white/[0.06] animate-pulse mb-2 sm:mb-4" />
+              <div className="flex items-center justify-between border-t border-gray-800 pt-2 sm:pt-3">
+                <div className="flex gap-2.5 sm:gap-4">
+                  <div className="h-4 w-10 rounded bg-white/10 animate-pulse" />
+                  <div className="h-4 w-12 rounded bg-white/10 animate-pulse" />
+                </div>
+                <div className="h-4 w-16 rounded bg-pink-500/20 animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-center items-center gap-1.5 mt-2.5">
+            <div className="w-4 h-1.5 rounded-full bg-white/20 animate-pulse" />
+            <div className="w-1.5 h-1.5 rounded-full bg-white/10 animate-pulse" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // Once loading has settled (empty or error) and there's still nothing to
