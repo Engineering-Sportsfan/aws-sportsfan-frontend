@@ -343,7 +343,7 @@ function FlipLineSection({
           style={{ background: 'rgba(255,255,255,0.045)', border: '1px solid rgba(255,255,255,0.1)' }}
         >
           <span style={{ fontSize: 11.5, fontWeight: 800, color: 'rgba(255,255,255,0.55)' }}>
-            View Full FlipLine
+            View Full FlipLINE
           </span>
           <svg
             width="11"
@@ -491,7 +491,7 @@ export function FlipLineFullScreen({
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 18, fontWeight: 900, color: 'white', letterSpacing: -0.5 }}>
-              FlipLine
+              FlipLINE
             </span>
             <span
               style={{
@@ -1095,7 +1095,7 @@ export function FlipCardItem({
     }
   };
 
-  // ── 8. AI Ask Flip Handler ─────────────────────────────────────────────────
+  // ── 8. AI ASKFlip Handler ─────────────────────────────────────────────────
   const handleAskFlip = async () => {
     if (!question.trim() || loadingAi) return;
     setLoadingAi(true);
@@ -1112,7 +1112,7 @@ export function FlipCardItem({
       setAnswer(data.answer || 'No response received.');
       setQuestion('');
     } catch (e) {
-      console.error('Failed to ask Flip:', e);
+      console.error('Failed to ASKFlip:', e);
       setAnswer('Something went wrong — please try again.');
     } finally {
       setLoadingAi(false);
@@ -1659,8 +1659,9 @@ export function FlipCardItem({
                 boxShadow: isExpanded ? `0 0 10px ${themeColor}33` : 'none',
               }}
             >
-              <DolphinIcon />
-              <span>{isExpanded ? 'Flipped' : 'Ask Flip'}</span>
+              {/* <DolphinIcon /> */}
+              <img src="/images/dollyavatar.png" alt="dolphin" className="w-4 h-4" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+              <span>{isExpanded ? 'Flipped' : 'ASKFlip'}</span>
             </button>
           </div>
 
@@ -2106,7 +2107,7 @@ export function FlipCardItem({
                       🤖
                     </div>
                     <span className="text-[11px] font-black text-violet-300 uppercase tracking-widest">
-                      Ask Flip about this moment
+                      ASKFlip about this moment
                     </span>
                   </div>
 
@@ -2116,7 +2117,7 @@ export function FlipCardItem({
                       type="text"
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
-                      placeholder="Ask Flip anything about this moment..."
+                      placeholder="ASKFlip anything about this moment..."
                       className="flex-1 bg-white/[0.06] border border-white/[0.1] rounded-xl px-3 py-2 text-[12.5px] text-white placeholder:text-white/30 outline-none focus:border-violet-500 transition-colors"
                       onKeyDown={(e) => e.key === 'Enter' && handleAskFlip()}
                     />
@@ -2125,7 +2126,7 @@ export function FlipCardItem({
                       disabled={!question.trim() || loadingAi}
                       className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-[12px] px-4 py-2 rounded-xl transition-all cursor-pointer"
                     >
-                      {loadingAi ? 'Thinking...' : 'Ask Flip'}
+                      {loadingAi ? 'Thinking...' : 'ASKFlip'}
                     </button>
                   </div>
 
