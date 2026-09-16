@@ -725,6 +725,15 @@ function fmt(val: unknown, suffix = ""): string {
   return `${val}${suffix}`;
 }
 
+function getStatValueFontSize(val: string): string {
+  const len = (val || "").trim().length;
+  if (len <= 4) return "text-xl sm:text-2xl";
+  if (len <= 7) return "text-base sm:text-lg";
+  if (len <= 11) return "text-xs sm:text-sm";
+  if (len <= 18) return "text-[11px] sm:text-xs leading-tight";
+  return "text-[9.5px] sm:text-[10px] leading-snug";
+}
+
 /* ------------------ Schema Normalizer (Matches Both JSONs) ------------------ */
 
 function normalizeAnyAthlete(
@@ -841,32 +850,76 @@ function normalizeAnyAthlete(
   /* -------------------------------------------------------------
    * 2. MULTI-SPORT ATHLETE (e.g. Neeraj Chopra)
    * ------------------------------------------------------------- */
-  const eventName = record?.event || analytics?.sport || perf?.primaryEvent || "Athletics";
-  const roleName = perf?.category || record?.typeFull || "Throws";
+   /* -------------------------------------------------------------
+   * 2. MULTI-SPORT ATHLETE (e.g. Usain Bolt, Neeraj Chopra)
+   * ------------------------------------------------------------- */
+  const eventName = record?.event || analytics?.sport || perf?.primaryEvent || overview?.specialization || "Athletics";
+  const roleName = perf?.category || record?.typeFull || core?.role || overview?.specialization || "Athlete";
 
   const aStats = analytics?.stats || {};
-  const pb = analytics?.heroStat || aStats?.personalBest || perf?.stats?.personalBest || record?.result || "–";
-  const olympicGold = aStats?.olympicGold ?? (perf?.medalCabinet?.filter((m: any) => m.medal === "GOLD" && m.category?.includes("Olympic")).length || 0);
-  const totalGold = aStats?.totalGold ?? (perf?.medalCabinet?.filter((m: any) => m.medal === "GOLD").length || 0);
-  const totalSilver = aStats?.totalSilver ?? (perf?.medalCabinet?.filter((m: any) => m.medal === "SILVER").length || 0);
-  const totalMedals = (totalGold || 0) + (totalSilver || 0);
-  const worldRank = aStats?.worldRank || perf?.stats?.worldRank || "–";
-  const bestYear = aStats?.bestYear || record?.date?.split("-")[0] || "–";
-  const peakZone = analytics?.peakZoneLabel?.split("·")[0]?.trim() || record?.result || "–";
+  const rawStats = profile?.stats || {};
+  const overviewData = profile?.overview || {};
 
-  // Athlete Overall rating
-  let athleteOverall = 86;
-  if (olympicGold > 0 || String(worldRank) === "1") athleteOverall = 98;
-  else if (totalGold > 3 || (parseInt(worldRank, 10) <= 10 && parseInt(worldRank, 10) > 0)) athleteOverall = 94;
-  else if (totalMedals > 0) athleteOverall = 90;
+  // 1. Personal Best (e.g. 9.58s (100m))
+  const pb = analytics?.heroStat || aStats?.personalBest || rawStats?.personalBest || perf?.stats?.personalBest || record?.result || "World Class";
+
+  // 2. Olympic Gold
+  const olympicGoldRaw = aStats?.olympicGold ?? rawStats?.olympicGold ?? (perf?.medalCabinet?.filter((m: any) => m.medal === "GOLD" && m.category?.includes("Olympic")).length || 0);
+  const olympicGold = parseInt(String(olympicGoldRaw || 0), 10);
+
+  // 3. Total Medals (Must ALWAYS be >= Olympic Gold so you never get 0 when gold is 8)
+  let parsedTotalMedals = parseInt(String(aStats?.totalMedals ?? rawStats?.totalMedals ?? 0), 10);
+  const cabinetGold = perf?.medalCabinet?.filter((m: any) => m.medal === "GOLD").length || 0;
+  const cabinetSilver = perf?.medalCabinet?.filter((m: any) => m.medal === "SILVER").length || 0;
+  let totalMedals = Math.max(parsedTotalMedals, cabinetGold + cabinetSilver, olympicGold);
+
+  // If still 0, check bio for medal mentions (e.g. "22 world and olympic medals")
+  if (totalMedals === 0 && core?.bio) {
+    const medalMatch = core.bio.match(/(\d+)\s*(?:olympic|world|gold|total)?\s*medals/i);
+    if (medalMatch) totalMedals = parseInt(medalMatch[1], 10);
+  }
+
+  // 4. World Rank
+  let worldRank = aStats?.worldRank || rawStats?.worldRank || perf?.stats?.worldRank || "";
+  let cleanRank = "—";
+  if (worldRank && !String(worldRank).includes("–") && !String(worldRank).includes("—")) {
+    cleanRank = String(worldRank).startsWith("#") ? String(worldRank) : `#${String(worldRank).replace(/^#/, "")}`;
+  } else if (olympicGold > 0 || totalMedals > 0) {
+    cleanRank = "#1 (Peak)";
+  }
+
+  // 5. Best Year (Never show dash '—')
+  let bestYear = aStats?.bestYear || rawStats?.bestYear || record?.date?.split("-")[0] || null;
+  if (!bestYear || bestYear === "–" || bestYear === "-" || bestYear === "null") {
+    // Find peak year mentioned in PB, career highlights, or bio (e.g. 2008, 2009, 2012)
+    const contentToSearch = `${pb} ${overviewData.debut || ""} ${(profile?.highlights || []).join(" ")} ${core?.bio || ""}`;
+    const yearMatches = contentToSearch.match(/\b(19\d{2}|20\d{2})\b/g);
+    if (yearMatches && yearMatches.length > 0) {
+      bestYear = yearMatches[0];
+    } else {
+      bestYear = "Peak Era";
+    }
+  }
+
+  // 6. Specialty / Discipline (NEVER duplicate Personal Best)
+  let specialty = overviewData.specialization || record?.event || roleName || "Sprint";
+  if (String(specialty).toLowerCase().trim() === String(pb).toLowerCase().trim() || specialty.includes(":") || specialty.includes("s")) {
+    specialty = roleName !== "Throws" ? roleName : "Sprint";
+  }
+
+  // Overall Score Calculation (0-99)
+  let athleteOverall = 88;
+  if (olympicGold >= 4 || cleanRank.includes("1")) athleteOverall = 99;
+  else if (olympicGold > 0 || totalMedals >= 5) athleteOverall = 96;
+  else if (totalMedals > 0) athleteOverall = 92;
 
   const multiStats: StatItem[] = [
     { label: "Personal Best", value: fmt(pb), color: "text-amber-400" },
-    { label: "Olympic Gold", value: fmt(olympicGold), color: "text-yellow-400" },
-    { label: "World Rank", value: fmt(worldRank ? `#${worldRank}` : "—"), color: "text-emerald-400" },
-    { label: "Total Medals", value: fmt(totalMedals), color: "text-sky-400" },
+    { label: "Olympic Gold", value: olympicGold > 0 ? String(olympicGold) : "—", color: "text-yellow-400" },
+    { label: "World Rank", value: cleanRank, color: "text-emerald-400" },
+    { label: "Total Medals", value: totalMedals > 0 ? String(totalMedals) : "Elite", color: "text-sky-400" },
     { label: "Best Year", value: fmt(bestYear), color: "text-purple-400" },
-    { label: "Peak Range", value: fmt(peakZone), color: "text-rose-400" },
+    { label: "Specialty", value: fmt(specialty), color: "text-rose-400" },
   ];
 
   const multiHighlights: string[] = [];
@@ -967,18 +1020,39 @@ export default function BuildFlipPage() {
       /* -------------------------------------------------------------
        * STEP 2: NOT in database -> Generate via AI Pipeline (<30s)
        * ------------------------------------------------------------- */
-      const generateRes = await fetch("/api/player-profile/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: rawName, sport: sport.toLowerCase() }),
-      });
+      let genData: any = null;
+      let isOk = false;
 
-      const genData = await generateRes.json();
+      try {
+        const generateRes = await fetch("/api/player-profile/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: rawName, sport: sport.toLowerCase() }),
+        });
+        isOk = generateRes.ok;
+        const text = await generateRes.text();
+        try {
+          genData = text ? JSON.parse(text) : null;
+        } catch {
+          genData = null;
+        }
+      } catch (networkErr) {
+        console.error("[BuildFlip] Network error connecting to generate:", networkErr);
+        throw new Error("Unable to reach the generation service. Please check your connection and try again.");
+      }
 
-      if (!generateRes.ok || !genData.success) {
-        throw new Error(
-          genData.message || genData.reason || "Generation pipeline failed. Please check athlete name."
-        );
+      if (!isOk || !genData || !genData.success) {
+        const rawReason = String(genData?.message || genData?.reason || "").toLowerCase();
+        if (
+          rawReason.includes("not a real") ||
+          rawReason.includes("cannot confirm") ||
+          rawReason.includes("could not confirm") ||
+          rawReason.includes("not found") ||
+          rawReason.includes("rejected")
+        ) {
+          throw new Error("Athlete not found. Please verify the athlete's name or try a different player.");
+        }
+        throw new Error("Unable to generate athlete card right now. Please try again shortly.");
       }
 
       const generatedProfile = genData.profile || genData;
@@ -989,23 +1063,25 @@ export default function BuildFlipPage() {
       console.error("[BuildFlip] Generation error:", err);
       setCheckingDb(false);
 
-      const raw = err?.message || "";
-      let friendly = "Could not generate athlete card. Please check spelling or try again.";
+      const raw = String(err?.message || "").trim();
+      const lower = raw.toLowerCase();
 
-      // Never expose raw backend, GCP, Vertex AI, or JSON error dumps to end-users
+      let friendly = "Unable to generate athlete card right now. Please try again shortly.";
+
       if (
-        raw.includes("PERMISSION_DENIED") ||
-        raw.includes("403") ||
-        raw.includes("500") ||
-        raw.includes("googleapis") ||
-        raw.includes("aiplatform") ||
-        raw.includes("CONSUMER_INVALID") ||
-        raw.includes("placeholder") ||
-        raw.includes("{")
+        lower.includes("not found") ||
+        lower.includes("not a real") ||
+        lower.includes("cannot confirm") ||
+        lower.includes("could not confirm") ||
+        lower.includes("verify") ||
+        lower.includes("spelling")
       ) {
-        friendly = "AI athlete card generation is currently unavailable. Please try again shortly.";
-      } else if (raw.length > 0 && raw.length < 100 && !raw.includes("error")) {
-        friendly = raw;
+        friendly = "Athlete not found. Please check spelling or try another player.";
+      } else if (
+        lower.includes("connection") ||
+        lower.includes("reach")
+      ) {
+        friendly = "Connection issue. Please check your network and try again.";
       }
 
       setError(friendly);
@@ -1119,18 +1195,28 @@ export default function BuildFlipPage() {
             </div>
 
             {/* 6-Tile Stats Grid */}
-            <div className="grid grid-cols-3 mt-7 border-t border-l border-white/10">
-              {builtCard.stats.map((s) => (
-                <div
-                  key={s.label}
-                  className="text-center py-4 px-1.5 border-r border-b border-white/10"
-                >
-                  <div className={`text-xl font-extrabold ${s.color}`}>{s.value}</div>
-                  <div className="text-gray-400 text-[10px] mt-0.5 tracking-tight font-medium">
-                    {s.label}
+            <div className="grid grid-cols-3 mt-7 border-t border-l border-white/10 rounded-2xl overflow-hidden bg-white/[0.02]">
+              {builtCard.stats.map((s) => {
+                const valStr = String(s.value ?? "—").trim();
+                const fontSize = getStatValueFontSize(valStr);
+
+                return (
+                  <div
+                    key={s.label}
+                    className="flex flex-col justify-center items-center text-center px-1.5 py-3 min-h-[78px] sm:min-h-[84px] border-r border-b border-white/10 overflow-hidden"
+                  >
+                    <div
+                      className={`w-full font-extrabold tracking-tight break-words line-clamp-2 px-0.5 ${fontSize} ${s.color}`}
+                      title={valStr}
+                    >
+                      {valStr}
+                    </div>
+                    <div className="text-gray-400 text-[10px] sm:text-[10.5px] mt-1 tracking-tight font-medium truncate w-full px-0.5">
+                      {s.label}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Career Highlights */}
