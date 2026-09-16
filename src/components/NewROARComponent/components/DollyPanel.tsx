@@ -704,10 +704,10 @@ export default function DollyPanel({
                             />
                         </div>
                         <span
-                            className="text-[8px] font-extrabold tracking-[0.08em] text-blue-300 uppercase"
+                            className="text-[8px] font-extrabold tracking-[0.08em] text-blue-300"
                             style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
                         >
-                            Ask Flip
+                            ASKFlip
                         </span>
                     </motion.button>
                 )}
@@ -898,7 +898,7 @@ export default function DollyPanel({
 
                                         </div>
                                     </div>
-                                    <p className="text-[8px] text-gray-300 mb-2 ml-4">Ask Flip loves sports but isn't always right. Double-check important information.</p>
+                                    <p className="text-[8px] text-gray-300 mb-2 ml-4">ASKFlip loves sports but isn't always right. Double-check important information.</p>
                                 </>
                             ) : (
                                 /* ── History view ── */

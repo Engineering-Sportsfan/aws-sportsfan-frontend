@@ -507,7 +507,7 @@ function AllCricketArticlesContent() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black tracking-tight text-white">
-                  Cricket Articles
+                  FlipLONG Articles
                 </h1>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500/20 to-orange-500/20 text-rose-400 border border-rose-500/30">
                   {visibleArticles.length}
