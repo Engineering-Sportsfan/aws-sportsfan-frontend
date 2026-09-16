@@ -632,42 +632,44 @@ export function FlipLineFullScreen({
 
       {/* Scrollable timeline */}
       <div style={{ flex: 1, overflowY: 'auto', paddingTop: 0, paddingBottom: 32 }}>
-        <FlipTimeline
-          cards={displayCards}
-          askOpen={askOpen}
-          setAskOpen={setAskOpen}
-          onCardUpdate={onCardUpdate}
-        />
-        {/* Start-of-coverage marker */}
-        <div style={{ paddingLeft: 14, paddingTop: 8, display: 'flex', alignItems: 'center' }}>
-          <div
-            style={{
-              width: 44,
-              flexShrink: 0,
-              display: 'flex',
-              justifyContent: 'center',
-            }}
-          >
+        <div className="max-w-[680px] w-full mx-auto px-2 sm:px-4">
+          <FlipTimeline
+            cards={displayCards}
+            askOpen={askOpen}
+            setAskOpen={setAskOpen}
+            onCardUpdate={onCardUpdate}
+          />
+          {/* Start-of-coverage marker */}
+          <div style={{ paddingLeft: 14, paddingTop: 8, display: 'flex', alignItems: 'center' }}>
             <div
               style={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.12)',
-                border: '2px solid rgba(255,255,255,0.2)',
+                width: 44,
+                flexShrink: 0,
+                display: 'flex',
+                justifyContent: 'center',
               }}
-            />
+            >
+              <div
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.12)',
+                  border: '2px solid rgba(255,255,255,0.2)',
+                }}
+              />
+            </div>
+            <span
+              style={{
+                paddingLeft: 10,
+                fontSize: 10,
+                color: 'rgba(255,255,255,0.28)',
+                fontWeight: 700,
+              }}
+            >
+              Start of coverage · Day 1 · 10:30 AM
+            </span>
           </div>
-          <span
-            style={{
-              paddingLeft: 10,
-              fontSize: 10,
-              color: 'rgba(255,255,255,0.28)',
-              fontWeight: 700,
-            }}
-          >
-            Start of coverage · Day 1 · 10:30 AM
-          </span>
         </div>
       </div>
     </div>
@@ -1431,21 +1433,21 @@ export function FlipCardItem({
 
           {/* Inline Image or Video/Audio media */}
           {(card.image || card.videoUrl || card.mediaType === 'audio') && (
-            <div className="relative group rounded-xl overflow-hidden mt-1 max-h-[220px]">
+            <div className="relative group rounded-xl overflow-hidden mt-2 bg-[#050608] border border-white/10 flex items-center justify-center w-full max-h-[380px] sm:max-h-[420px]">
               {card.mediaType === 'video' && card.videoUrl ? (
-                <>
+                <div className="relative w-full aspect-video max-h-[380px] sm:max-h-[420px] bg-black flex items-center justify-center">
                   <video
                     src={card.videoUrl}
                     controls
                     preload="metadata"
-                    className="w-full max-h-[220px] object-cover"
+                    className="w-full h-full max-h-[380px] sm:max-h-[420px] object-contain mx-auto bg-black"
                   />
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setIsFullscreen(true);
                     }}
-                    className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/85 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100"
+                    className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/90 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100 shadow-lg"
                     title="View Fullscreen"
                   >
                     <svg
@@ -1464,7 +1466,7 @@ export function FlipCardItem({
                       <line x1="3" y1="21" x2="10" y2="14" />
                     </svg>
                   </button>
-                </>
+                </div>
               ) : card.mediaType === 'audio' && !card.image ? (
                 <div className="w-full h-[64px] bg-gradient-to-r from-purple-950/50 via-slate-900 to-purple-950/50 relative flex items-center px-4 border border-white/5 rounded-xl">
                   <div className="flex items-center gap-3 w-full">
@@ -1485,34 +1487,48 @@ export function FlipCardItem({
                   </div>
                 </div>
               ) : (
-                <>
+                <div
+                  className="relative w-full max-h-[380px] sm:max-h-[420px] flex items-center justify-center overflow-hidden cursor-pointer"
+                  onClick={() => setIsFullscreen(true)}
+                >
+                  {/* Ambient background blur (Facebook desktop style for letterboxed aspect ratios) */}
+                  {card.image && (
+                    <img
+                      src={typeof card.image === 'object' ? card.image.src : card.image}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-25 scale-125 pointer-events-none select-none"
+                    />
+                  )}
+
+                  {/* Sharp centered foreground image */}
                   {card.image && (
                     <img
                       src={typeof card.image === 'object' ? card.image.src : card.image}
                       alt="Moment media"
-                      className="w-full h-full object-cover max-h-[220px] cursor-zoom-in"
-                      onClick={() => setIsFullscreen(true)}
+                      className="relative z-10 w-auto max-w-full h-auto max-h-[380px] sm:max-h-[420px] object-contain mx-auto block cursor-zoom-in rounded-lg"
                     />
                   )}
 
+                  {/* Video Play Overlay */}
                   {card.mediaType === 'video' && (
                     <div
-                      onClick={() => setIsFullscreen(true)}
-                      className="absolute inset-0 bg-black/35 flex items-center justify-center cursor-pointer"
+                      className="absolute inset-0 z-20 bg-black/30 hover:bg-black/20 flex items-center justify-center cursor-pointer transition-colors"
                     >
-                      <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white transition-transform hover:scale-105">
-                        <Play size={18} fill="currentColor" className="ml-0.5" />
+                      <div className="w-12 h-12 rounded-full bg-black/60 hover:bg-black/75 backdrop-blur-md border border-white/30 flex items-center justify-center text-white transition-transform hover:scale-110 shadow-2xl">
+                        <Play size={20} fill="currentColor" className="ml-0.5" />
                       </div>
                     </div>
                   )}
 
+                  {/* Fullscreen Button */}
                   {(card.image || card.mediaType === 'video') && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setIsFullscreen(true);
                       }}
-                      className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/85 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100"
+                      className="absolute top-2.5 right-2.5 z-30 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/90 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100 shadow-lg"
                       title="View Fullscreen"
                     >
                       <svg
@@ -1532,7 +1548,7 @@ export function FlipCardItem({
                       </svg>
                     </button>
                   )}
-                </>
+                </div>
               )}
             </div>
           )}
@@ -2262,7 +2278,7 @@ export function FlipTimeline({
   });
 
   return (
-    <div className="flex flex-col w-full relative">
+    <div className="flex flex-col w-full max-w-[680px] mx-auto relative">
       {dateGroups.map((group) => (
         <div key={group.date} className="w-full flex flex-col sm:mb-4 md:mb-6">
           {/* Centered Date Header */}
