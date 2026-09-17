@@ -2658,6 +2658,7 @@ interface CombinedRecordingResult {
     displayStream: MediaStream;
     micStream: MediaStream | null;
     audioContext: AudioContext | null;
+    hasDisplayAudio: boolean;
 }
 
 function getSupportedRecordingMimeType(): string {
@@ -2677,11 +2678,33 @@ function getSupportedRecordingMimeType(): string {
 }
 
 async function createCombinedRecordingStream(): Promise<CombinedRecordingResult> {
-    // 1. Capture screen/window/tab display media
-    const displayStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true, // Captures tab or system audio if shared by user
-    });
+    // 1. Capture screen/window/tab display media with preferences for tab & system audio
+    let displayStream: MediaStream;
+    try {
+        displayStream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+            audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                suppressLocalAudioPlayback: false, // Ensures local tab audio doesn't get muted while recording
+            },
+            preferCurrentTab: true, // Chromium: auto-focus current tab
+            selfBrowserSurface: "include", // Chromium: allow current tab to be captured
+            systemAudio: "include", // Chromium: hint to include system audio
+            surfaceSwitching: "include",
+        } as any);
+    } catch (displayErr: any) {
+        // Fallback for browsers rejecting extended constraints
+        if (displayErr?.name === 'TypeError' || displayErr?.name === 'OverconstrainedError') {
+            displayStream = await navigator.mediaDevices.getDisplayMedia({
+                video: true,
+                audio: true,
+            });
+        } else {
+            throw displayErr;
+        }
+    }
 
     // 2. Capture microphone audio so the speaker's voice is included
     let micStream: MediaStream | null = null;
@@ -2700,10 +2723,11 @@ async function createCombinedRecordingStream(): Promise<CombinedRecordingResult>
 
     const displayAudioTracks = displayStream.getAudioTracks();
     const micAudioTracks = micStream ? micStream.getAudioTracks() : [];
+    const hasDisplayAudio = displayAudioTracks.length > 0;
     const finalAudioTracks: MediaStreamTrack[] = [];
     let audioContext: AudioContext | null = null;
 
-    // 3. Mix display audio and microphone audio using Web Audio API
+    // 3. Mix display audio (co-hosts, moderators, video sound) and microphone audio using Web Audio API
     const AudioContextClass = typeof window !== 'undefined'
         ? (window.AudioContext || (window as any).webkitAudioContext)
         : null;
@@ -2715,16 +2739,36 @@ async function createCombinedRecordingStream(): Promise<CombinedRecordingResult>
                 await audioContext.resume();
             }
             const destination = audioContext.createMediaStreamDestination();
+            const keepAliveSources: any[] = [];
 
+            // Mix display audio (contains co-host / moderator audio from Jitsi & match video)
             if (displayAudioTracks.length > 0) {
-                const displaySource = audioContext.createMediaStreamSource(new MediaStream([displayAudioTracks[0]]));
-                displaySource.connect(destination);
+                const displayAudioStream = new MediaStream(displayAudioTracks);
+                const displaySource = audioContext.createMediaStreamSource(displayAudioStream);
+                const displayGain = audioContext.createGain();
+                displayGain.gain.value = 1.0;
+                displaySource.connect(displayGain);
+                displayGain.connect(destination);
+
+                // Retain strong references to prevent V8 GC from severing audio
+                keepAliveSources.push(displaySource, displayGain, displayAudioStream);
             }
 
-            if (micAudioTracks.length > 0) {
-                const micSource = audioContext.createMediaStreamSource(new MediaStream([micAudioTracks[0]]));
-                micSource.connect(destination);
+            // Mix microphone audio (host's voice)
+            if (micAudioTracks.length > 0 && micStream) {
+                const micAudioStream = new MediaStream(micAudioTracks);
+                const micSource = audioContext.createMediaStreamSource(micAudioStream);
+                const micGain = audioContext.createGain();
+                micGain.gain.value = 1.0;
+                micSource.connect(micGain);
+                micGain.connect(destination);
+
+                // Retain strong references to prevent V8 GC
+                keepAliveSources.push(micSource, micGain, micAudioStream);
             }
+
+            // Store on audioContext so they survive GC cycles for the entire session
+            (audioContext as any)._keepAliveSources = keepAliveSources;
 
             const mixedTracks = destination.stream.getAudioTracks();
             if (mixedTracks.length > 0) {
@@ -2732,12 +2776,12 @@ async function createCombinedRecordingStream(): Promise<CombinedRecordingResult>
             }
         } catch (ctxErr) {
             console.warn("AudioContext mixing failed, falling back to direct tracks:", ctxErr);
-            if (micAudioTracks.length > 0) finalAudioTracks.push(micAudioTracks[0]);
-            else if (displayAudioTracks.length > 0) finalAudioTracks.push(displayAudioTracks[0]);
+            if (displayAudioTracks.length > 0) finalAudioTracks.push(displayAudioTracks[0]);
+            if (micAudioTracks.length > 0 && finalAudioTracks.length === 0) finalAudioTracks.push(micAudioTracks[0]);
         }
     } else {
-        if (micAudioTracks.length > 0) finalAudioTracks.push(micAudioTracks[0]);
-        else if (displayAudioTracks.length > 0) finalAudioTracks.push(displayAudioTracks[0]);
+        if (displayAudioTracks.length > 0) finalAudioTracks.push(displayAudioTracks[0]);
+        else if (micAudioTracks.length > 0) finalAudioTracks.push(micAudioTracks[0]);
     }
 
     const recordingStream = new MediaStream([
@@ -2750,6 +2794,7 @@ async function createCombinedRecordingStream(): Promise<CombinedRecordingResult>
         displayStream,
         micStream,
         audioContext,
+        hasDisplayAudio,
     };
 }
 
@@ -2768,8 +2813,20 @@ function cleanupRecordingResources(
     if (recordingStream) {
         recordingStream.getTracks().forEach(track => track.stop());
     }
-    if (audioContext && audioContext.state !== 'closed') {
-        audioContext.close().catch(() => { });
+    if (audioContext) {
+        if ((audioContext as any)._keepAliveSources) {
+            try {
+                (audioContext as any)._keepAliveSources.forEach((node: any) => {
+                    if (node && typeof node.disconnect === 'function') {
+                        node.disconnect();
+                    }
+                });
+            } catch (_) { }
+            (audioContext as any)._keepAliveSources = null;
+        }
+        if (audioContext.state !== 'closed') {
+            audioContext.close().catch(() => { });
+        }
     }
 }
 
@@ -2957,8 +3014,13 @@ function LiveCameraFeed({
                 recordingStream,
                 displayStream,
                 micStream,
-                audioContext
+                audioContext,
+                hasDisplayAudio,
             } = await createCombinedRecordingStream();
+
+            if (!hasDisplayAudio) {
+                alert("⚠️ Notice: 'Share tab audio' was NOT enabled in the screen share prompt.\n\nOnly your microphone will be recorded. Co-host/moderator speech and match audio will be missing.\n\nTip: When sharing, select 'Chrome Tab' -> This Tab and make sure 'Also share tab audio' is turned ON.");
+            }
 
             streamRef.current = displayStream;
             micStreamRef.current = micStream;
@@ -3180,7 +3242,7 @@ function LiveCameraFeed({
                                         iframe.style.width = '100%';
                                         iframe.style.height = '100%';
                                         iframe.style.border = 'none';
-                                        iframe.setAttribute('allow', 'camera; microphone; display-capture; autoplay; clipboard-write');
+                                        iframe.setAttribute('allow', 'camera; microphone; display-capture; autoplay; clipboard-write; speaker-selection; encrypted-media');
                                     }
                                 }}
                             />
@@ -5593,8 +5655,13 @@ export default function WatchRoom({ room, onBack }: Props) {
                 recordingStream,
                 displayStream,
                 micStream,
-                audioContext
+                audioContext,
+                hasDisplayAudio,
             } = await createCombinedRecordingStream();
+
+            if (!hasDisplayAudio) {
+                alert("⚠️ Notice: 'Share tab audio' was NOT enabled in the screen share prompt.\n\nOnly your microphone will be recorded. Co-host/moderator speech and match audio will be missing.\n\nTip: When sharing, select 'Chrome Tab' -> This Tab and make sure 'Also share tab audio' is turned ON.");
+            }
 
             recordingDisplayStreamRef.current = displayStream;
             recordingMicStreamRef.current = micStream;
