@@ -551,7 +551,8 @@ function ExpertCard({
     if (room.role && room.role.toLowerCase() !== "host" && room.role.toLowerCase() !== "co-host") {
         cleanHostName = room.role.replace(/^Hosted by\s+/i, "");
     } else if (room.hostUserId) {
-        const emailPrefix = room.hostUserId.split("@")[0];
+        const firstHost = room.hostUserId.split(",")[0].trim();
+        const emailPrefix = firstHost.split("@")[0];
         cleanHostName = emailPrefix
             .split(/[\._-]/)
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
