@@ -2970,7 +2970,7 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
-import { Share2, Download, MessageCircle, Zap, PenLine, ArrowRight, BarChart3, Activity, Home } from "lucide-react";
+import { Share2, Download, MessageCircle, Zap, PenLine, ArrowRight, BarChart3, Activity, Home, ChevronLeft } from "lucide-react";
 import type { Room } from "../types";
 import DiscussionRoom from "./DiscussionRoom";
 import OpenRoomDiscussionRoom from "./OpenRoomDiscussionRoom";
@@ -2979,7 +2979,8 @@ import { isMockRoomId, canViewMockRooms, listMockRoomsForDisplay } from "../mock
 import CreateRoomWizard from "./CreateRoomWizard";
 import { Plus } from "lucide-react";
 import MatchRoomRecap from "../components/MatchRoomRecap";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 
 const SPORT_GRADIENT: Record<string, string> = {
   cricket: "linear-gradient(135deg,#7c3aed,#4f46e5)",
@@ -3614,6 +3615,7 @@ export default function RoomsHome({
   const [recapRoom, setRecapRoom] = useState<Room | null>(null);
   const [recapData, setRecapData] = useState<any>(null);
   const [recapLoading, setRecapLoading] = useState(false);
+  const router = useRouter();
   const searchParams = useSearchParams();
   // Internal-only demo rooms (mockRoom/) — never hit the DB, gated by
   // currentUserId containing "sportsfan". Opened in a local full-screen
@@ -4147,30 +4149,43 @@ export default function RoomsHome({
       {/* ── Top Tabs: Roar Pulse | My Rooms ── */}
       <div
         style={{ flexShrink: 0, background: "var(--bg-primary, #0e0e14)" }}
-        className="flex items-center justify-between px-4 pt-1 border-b border-white/[0.06]"
+        className="flex items-center justify-between px-3 pt-1 border-b border-white/[0.06]"
       >
-        <button
-          type="button"
-          onClick={() => setActiveTab("pulse")}
-          className="relative flex items-center gap-1.5 pb-2.5 bg-transparent border-none cursor-pointer"
-        >
-          <Activity size={15} color={activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)"} />
-          <span
-            style={{
-              fontSize: 14, fontWeight: 800,
-              color: activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)",
-            }}
+        <div className="flex items-center gap-2.5">
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            type="button"
+            onClick={() => handleGoBack(router)}
+            aria-label="Go back"
+            data-nav="back"
+            className="w-7 h-7 mb-2 rounded-full bg-white/[0.08] hover:bg-white/[0.16] border border-white/15 flex items-center justify-center text-white/80 hover:text-white transition-colors duration-150 cursor-pointer flex-shrink-0"
           >
-            Roar Pulse
-          </span>
-          {activeTab === "pulse" && (
-            <motion.div
-              layoutId="rooms-home-tab-underline"
-              className="absolute -bottom-[1px] left-0 right-0 h-[2px] rounded-full"
-              style={{ background: "linear-gradient(90deg,#E91E8C,#FF6B35)" }}
-            />
-          )}
-        </button>
+            <ChevronLeft size={16} />
+          </motion.button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("pulse")}
+            className="relative flex items-center gap-1.5 pb-2.5 bg-transparent border-none cursor-pointer"
+          >
+            <Activity size={15} color={activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)"} />
+            <span
+              style={{
+                fontSize: 14, fontWeight: 800,
+                color: activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)",
+              }}
+            >
+              Roar Pulse
+            </span>
+            {activeTab === "pulse" && (
+              <motion.div
+                layoutId="rooms-home-tab-underline"
+                className="absolute -bottom-[1px] left-0 right-0 h-[2px] rounded-full"
+                style={{ background: "linear-gradient(90deg,#E91E8C,#FF6B35)" }}
+              />
+            )}
+          </button>
+        </div>
 
         <button
           type="button"

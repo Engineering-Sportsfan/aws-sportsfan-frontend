@@ -257,7 +257,7 @@ export default function PlaybookDrops() {
           data-nav="fliplong-view-all"
           data-section="playbook-drops"
           onClick={() => router.push("/MainModules/FlipLong")}
-          className="flex items-center gap-0.5 text-[12px] font-bold hover:cursor-pointer"
+          className="flex mr-12 items-center gap-0.5 text-[12px] font-bold hover:cursor-pointer"
           style={{ color: "#E91E8C" }}
         >
           <span>View All</span>

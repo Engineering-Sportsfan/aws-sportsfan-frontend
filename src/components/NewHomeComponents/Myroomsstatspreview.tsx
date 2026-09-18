@@ -508,7 +508,7 @@ export default function RoarRooms() {
           id="roar-rooms-view-all"
           data-nav="roar-rooms-view-all"
           data-section="roar-rooms"
-          className="flex items-center gap-0.5 text-[12px] font-bold"
+          className="flex mr-12 cursor-pointer items-center gap-0.5 text-[12px] font-bold"
           style={{ color: "#E91E8C" }}
           onClick={() => router.push("/MainModules/ROAR")}
         >
