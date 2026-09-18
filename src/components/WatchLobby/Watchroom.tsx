@@ -2554,7 +2554,6 @@
 
 
 
-
 // components/watch-along/WatchRoom.tsx
 "use client";
 import axios from "axios";
@@ -2848,6 +2847,10 @@ function LiveCameraFeed({
     onTelestratorClear,
     onTelestratorToggleActive,
     isSidebarCollapsed = false,
+    coHostUserId,
+    onRolePromoted,
+    roomId,
+    fetchRoomById,
 }: {
     hostName: string;
     roomName: string;
@@ -2865,6 +2868,10 @@ function LiveCameraFeed({
     onTelestratorClear?: () => void;
     onTelestratorToggleActive?: () => void;
     isSidebarCollapsed?: boolean;
+    coHostUserId?: string;
+    onRolePromoted?: (newRole: string) => void;
+    roomId?: string;
+    fetchRoomById?: (id: string) => Promise<void>;
 }) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const apiRef = useRef<any>(null);
@@ -2888,6 +2895,7 @@ function LiveCameraFeed({
     const combinedStreamRef = useRef<MediaStream | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const rolePollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const [hasLeftMeeting, setHasLeftMeeting] = useState(false);
 
@@ -2929,21 +2937,6 @@ function LiveCameraFeed({
             setHasLeftMeeting(true);
         });
 
-        // Listen for custom Jitsi endpoint text messages (used for real-time reactions)
-        api.addListener("endpointTextMessageReceived", (event: any) => {
-            try {
-                const text = event.eventData?.text || event.data?.text || event.text || (typeof event === 'string' ? event : null);
-                if (text && text.startsWith("REACTION:")) {
-                    const reaction = text.replace("REACTION:", "");
-                    if (onReactionReceived) {
-                        onReactionReceived(reaction);
-                    }
-                }
-            } catch (err) {
-                console.error("Error receiving endpoint text message:", err);
-            }
-        });
-
         // Setup real-time participant tracking
         const updateParticipants = () => {
             if (onParticipantsChange) {
@@ -2952,11 +2945,136 @@ function LiveCameraFeed({
             }
         };
 
-        api.addListener("participantJoined", updateParticipants);
+        // ── Auto-grant moderator rights to Co-Hosts when they join (from File 1) ──
+        api.addListener("participantJoined", (participant: any) => {
+            updateParticipants();
+
+            try {
+                const currentCoHosts = coHostUserId
+                    ? coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
+                    : [];
+                const pName = (participant.displayName || "").toLowerCase().trim();
+                const pEmail = (participant.email || "").toLowerCase().trim();
+                if (isModerator && currentCoHosts.some((id: string) => id && (pName.includes(id) || pEmail === id))) {
+                    api.executeCommand('grantModerator', participant.id);
+                    console.log(`[Jitsi] Auto-granted moderator to joining co-host: ${participant.displayName} (${participant.id})`);
+                }
+            } catch (modErr) {
+                console.warn('[Jitsi] Auto grantModerator error:', modErr);
+            }
+        });
+
         api.addListener("participantLeft", updateParticipants);
         api.addListener("displayNameChange", updateParticipants);
-        api.addListener("participantRoleChanged", updateParticipants);
         api.addListener("videoConferenceJoined", updateParticipants);
+
+        // ── Detect local user promotion to moderator (from File 1) ──
+        api.addListener("participantRoleChanged", (event: { id: string; role: string }) => {
+            updateParticipants();
+            console.log("[Jitsi] participantRoleChanged:", event);
+            if (event?.role === 'moderator') {
+                const myJitsiId = (api as any)?._myUserID;
+                console.log(`[Jitsi participantRoleChanged] Promoted id=${event.id}, myJitsiId=${myJitsiId}`);
+                if (event.id === 'local' || (myJitsiId && event.id === myJitsiId) || !event.id) {
+                    console.log("[Jitsi] Local participant promoted to moderator!");
+                    if (typeof window !== 'undefined') {
+                        sessionStorage.setItem("demo_user_role", "Co-Host");
+                    }
+                    if (onRolePromoted) {
+                        onRolePromoted('Co-Host');
+                    }
+                }
+            }
+        });
+
+        // ── Listen for custom Jitsi endpoint text messages (reactions + ROLE_UPDATE from File 1) ──
+        api.addListener("endpointTextMessageReceived", (event: any) => {
+            try {
+                let text = event?.eventData?.text || event?.data?.text || event?.text || event?.data || (typeof event === 'string' ? event : null);
+                if (typeof text === 'object') {
+                    try { text = JSON.stringify(text); } catch (_) { }
+                }
+                if (typeof text === 'string') {
+                    if (text.startsWith("REACTION:")) {
+                        const reaction = text.replace("REACTION:", "");
+                        if (onReactionReceived) {
+                            onReactionReceived(reaction);
+                        }
+                    } else if (text.includes("ROLE_UPDATE")) {
+                        let data: any = null;
+                        try {
+                            data = JSON.parse(text);
+                        } catch (_) {
+                            const jsonMatch = text.match(/\{.*ROLE_UPDATE.*\}/);
+                            if (jsonMatch) data = JSON.parse(jsonMatch[0]);
+                        }
+                        if (data && data.type === 'ROLE_UPDATE') {
+                            const myName = (userName || "").toLowerCase().trim();
+                            const targetName = (data.targetName || "").toLowerCase().trim();
+                            const myEmail = (userEmail || "").toLowerCase().trim();
+                            const targetEmail = (data.targetEmail || "").toLowerCase().trim();
+                            const myJitsiId = (api as any)?._myUserID;
+                            console.log(`[Jitsi ROLE_UPDATE] Target: id=${data.targetId}, name=${targetName}, email=${targetEmail} | Me: id=${myJitsiId}, name=${myName}, email=${myEmail}`);
+                            const isMatch = data.targetId === 'all' ||
+                                (data.targetId && myJitsiId && data.targetId === myJitsiId) ||
+                                (myName && targetName && (myName.includes(targetName) || targetName.includes(myName))) ||
+                                (myEmail && targetEmail && myEmail === targetEmail);
+                            if (isMatch) {
+                                console.log("[Jitsi] Received real-time ROLE_UPDATE:", data.newRole);
+                                const newR = data.newRole || 'Co-Host';
+                                if (typeof window !== 'undefined') {
+                                    sessionStorage.setItem("demo_user_role", newR);
+                                }
+                                if (onRolePromoted) {
+                                    onRolePromoted(newR);
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error("Error receiving endpoint text message:", err);
+            }
+        });
+
+        // ── Direct Query: Poll Jitsi Redux store for local moderator status (from File 1) ──
+        const checkJitsiModeratorStatus = async () => {
+            try {
+                if (!api) return;
+                const roomsData = await api.getRoomsInfo();
+                if (roomsData && roomsData.rooms) {
+                    const myJitsiId = (api as any)?._myUserID;
+                    const myNormalizedName = (userName || "").toLowerCase().trim();
+                    for (const r of roomsData.rooms) {
+                        if (r.participants && Array.isArray(r.participants)) {
+                            for (const p of r.participants) {
+                                const isMe = (p.id === 'local') ||
+                                    (myJitsiId && p.id === myJitsiId) ||
+                                    (p.displayName && myNormalizedName && p.displayName.toLowerCase().trim() === myNormalizedName) ||
+                                    (r.participants.length === 1);
+                                if (isMe && p.role === 'moderator') {
+                                    console.log("[Jitsi getRoomsInfo] Confirmed local user is MODERATOR:", p);
+                                    if (typeof window !== 'undefined') {
+                                        sessionStorage.setItem("demo_user_role", "Co-Host");
+                                    }
+                                    if (onRolePromoted) {
+                                        onRolePromoted('Co-Host');
+                                    }
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (queryErr) {
+                // Ignore transient errors before connection completes
+            }
+        };
+
+        api.addListener("videoConferenceJoined", checkJitsiModeratorStatus);
+        api.addListener("participantRoleChanged", checkJitsiModeratorStatus);
+        if (rolePollIntervalRef.current) clearInterval(rolePollIntervalRef.current);
+        rolePollIntervalRef.current = setInterval(checkJitsiModeratorStatus, 1500);
 
         // Run staggered initial syncs to ensure slower connecting participants resolve correctly
         setTimeout(updateParticipants, 1000);
@@ -3123,6 +3241,7 @@ function LiveCameraFeed({
         setIsMounted(true);
         return () => {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+            if (rolePollIntervalRef.current) clearInterval(rolePollIntervalRef.current);
         };
     }, []);
 
@@ -3476,7 +3595,10 @@ function TabContent({
     setComposeOpen,
     composeType,
     setComposeType,
-    handleComposePost
+    handleComposePost,
+    triggerMoment,
+    onUpdateRoomCoHosts,
+    onKickParticipantLocally,
 }: {
     activeTab: string;
     matchId: string | undefined;
@@ -3499,6 +3621,9 @@ function TabContent({
     composeType: string | null;
     setComposeType: (type: string | null) => void;
     handleComposePost: (payload: any) => Promise<void>;
+    triggerMoment?: (momentType: string, broadcast?: boolean) => void;
+    onUpdateRoomCoHosts?: (coHostString: string) => void;
+    onKickParticipantLocally?: (participantId: string, participantName: string) => void;
 }) {
     const { updateRoom, fetchRoomById } = useWatchAlong();
 
@@ -3720,121 +3845,207 @@ function TabContent({
                         </div>
 
                         {/* Real Jitsi Participants (in video call) — filtered, self excluded */}
-                        {realJitsiParticipants.map((p: any) => {
-                            const displayName = p.displayName || p.formattedDisplayName || 'Viewer';
-                            const initial = displayName.charAt(0).toUpperCase() || '?';
-                            const isHostUser = displayName.toLowerCase().includes('host') ||
-                                (room?.hostUserId && (
-                                    displayName.toLowerCase() === room.hostUserId.toLowerCase() ||
-                                    p.email?.toLowerCase() === room.hostUserId.toLowerCase()
-                                )) ||
-                                displayName.toLowerCase() === room?.name?.split(' ')[0]?.toLowerCase();
+                        {(() => {
+                            const hostsList = room?.hostUserId
+                                ? room.hostUserId.split(",").map((id: string) => id.trim().toLowerCase()).filter(Boolean)
+                                : [];
 
                             const coHostsList = room?.coHostUserId
-                                ? room.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
+                                ? room.coHostUserId.split(",").map((id: string) => id.trim().toLowerCase()).filter(Boolean)
                                 : [];
-                            const isCoHostUser = coHostsList.some(
-                                (id: string) =>
-                                    displayName.toLowerCase() === id ||
-                                    p.email?.toLowerCase() === id
-                            );
-                            const role = isHostUser ? 'Host' : (isCoHostUser ? 'Co-Host' : 'Viewer');
+
                             return (
-                                <div key={p.id || p.displayName || Math.random()} className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
-                                            {initial}
-                                        </div>
-                                        <div>
-                                            <p className="text-white text-sm font-bold">{displayName}</p>
-                                            <p className="text-xs text-blue-400 uppercase tracking-wide">{role}</p>
-                                        </div>
-                                    </div>
-                                    {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
-                                        <div className="flex gap-1.5">
-                                            {(userRole === 'Host' || userRole === 'Co-Host') && (
-                                                <button
-                                                    onClick={async () => {
-                                                        try {
-                                                            const fd = new FormData();
-                                                            const currentCoHosts = room.coHostUserId
-                                                                ? room.coHostUserId.split(",").map((id: string) => id.trim())
-                                                                : [];
-                                                            const userKey = (p.email && !p.email.toLowerCase().endsWith('@sportsfan360.com')) ? p.email : displayName;
+                                <>
+                                    {realJitsiParticipants.map((p: any) => {
+                                        const displayName = p.displayName || p.formattedDisplayName || 'Viewer';
+                                        const initial = displayName.charAt(0).toUpperCase() || '?';
+                                        const isHostUser = displayName.toLowerCase().includes('host') ||
+                                            hostsList.some((id: string) =>
+                                                displayName.toLowerCase() === id ||
+                                                p.email?.toLowerCase() === id
+                                            ) ||
+                                            displayName.toLowerCase() === room?.name?.split(' ')[0]?.toLowerCase();
 
-                                                            const isAlreadyCoHost = currentCoHosts.some(
-                                                                (id: string) => id.toLowerCase() === userKey.toLowerCase()
-                                                            );
+                                        const isCoHostUser = !isHostUser && coHostsList.some(
+                                            (id: string) =>
+                                                displayName.toLowerCase() === id ||
+                                                p.email?.toLowerCase() === id
+                                        );
 
-                                                            let newCoHosts: string[];
-                                                            if (isAlreadyCoHost) {
-                                                                newCoHosts = currentCoHosts.filter(
-                                                                    (id: string) => id.toLowerCase() !== userKey.toLowerCase()
-                                                                );
-                                                            } else {
-                                                                newCoHosts = [...currentCoHosts, userKey];
+                                        const role = isHostUser ? 'Host' : (isCoHostUser ? 'Co-Host' : 'Viewer');
+                                        const roleColor = role === 'Host' ? 'text-pink-400' : (role === 'Co-Host' ? 'text-yellow-400' : 'text-blue-400');
+                                        return (
+                                            <div key={p.id || p.displayName || Math.random()} className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center font-bold text-white text-xs">
+                                                        {initial}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-white text-sm font-bold">{displayName}</p>
+                                                        <p className={`text-xs ${roleColor} uppercase tracking-wide`}>{role}</p>
+                                                    </div>
+                                                </div>
+                                                {(userRole === 'Host' || userRole === 'admin' || userRole === 'super_admin' || userRole === 'Co-Host' || userRole === 'Moderator') && (
+                                                    <div className="flex gap-1.5">
+                                                        {!isHostUser && (userRole === 'Host' || userRole === 'admin' || userRole === 'super_admin') && (
+                                                            <button
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const fd = new FormData();
+                                                                        const currentCoHosts = room.coHostUserId
+                                                                            ? room.coHostUserId.split(",").map((id: string) => id.trim()).filter(Boolean)
+                                                                            : [];
+                                                                        const userKey = (p.email && !p.email.toLowerCase().endsWith('@sportsfan360.com')) ? p.email : displayName;
+
+                                                                        const isAlreadyCoHost = currentCoHosts.some(
+                                                                            (id: string) => id.toLowerCase() === userKey.toLowerCase()
+                                                                        );
+
+                                                                        let newCoHosts: string[];
+                                                                        if (isAlreadyCoHost) {
+                                                                            newCoHosts = currentCoHosts.filter(
+                                                                                (id: string) => id.toLowerCase() !== userKey.toLowerCase()
+                                                                            );
+                                                                        } else {
+                                                                            newCoHosts = [...currentCoHosts, userKey];
+                                                                        }
+
+                                                                        const targetValue = newCoHosts.join(",");
+                                                                        fd.set('coHostUserId', targetValue);
+
+                                                                        // ── IMMEDIATELY GRANT JITSI MODERATOR (from File 1) ──
+                                                                        if (jitsiApi && p.id) {
+                                                                            try {
+                                                                                if (!isAlreadyCoHost) {
+                                                                                    jitsiApi.executeCommand('grantModerator', p.id);
+                                                                                    console.log(`[Jitsi] Granted moderator role to ${displayName} (${p.id})`);
+                                                                                }
+                                                                                jitsiApi.executeCommand('sendEndpointTextMessage', '', JSON.stringify({
+                                                                                    type: 'ROLE_UPDATE',
+                                                                                    targetId: p.id,
+                                                                                    targetName: displayName,
+                                                                                    targetEmail: p.email || '',
+                                                                                    newRole: isAlreadyCoHost ? 'Viewer' : 'Co-Host'
+                                                                                }));
+                                                                                console.log(`[Jitsi] Broadcasted ROLE_UPDATE for ${displayName}`);
+                                                                            } catch (jErr) {
+                                                                                console.warn('[Jitsi] Role promotion command error:', jErr);
+                                                                            }
+                                                                        }
+
+                                                                        const res = await fetch(`/api/watch-along/${room.id}`, {
+                                                                            method: 'PUT',
+                                                                            body: fd
+                                                                        });
+                                                                        if (res.ok) {
+                                                                            // Update local state immediately
+                                                                            onUpdateRoomCoHosts?.(targetValue);
+                                                                            // Broadcast real-time event to all clients in the room
+                                                                            if (triggerMoment) {
+                                                                                triggerMoment(`COHOST_UPDATE:${targetValue}`, true);
+                                                                            }
+                                                                            if (room.id) await fetchRoomById(room.id);
+                                                                            alert(isAlreadyCoHost ? `${displayName} is no longer Co-Host!` : `${displayName} is now Co-Host!`);
+                                                                        }
+                                                                    } catch (err) { console.error('Toggle Co-Host failed:', err); }
+                                                                }}
+                                                                className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all flex items-center gap-1 ${isCoHostUser
+                                                                    ? 'bg-yellow-600 border-yellow-500 text-white'
+                                                                    : 'bg-[#222] hover:bg-yellow-600 border-[#444] text-white'
+                                                                    }`}
+                                                                title={isCoHostUser ? "Remove Co-Host" : "Make Co-Host"}
+                                                            >
+                                                                <Crown size={10} /> {isCoHostUser ? "Co-Host" : "Make Co-Host"}
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={async () => {
+                                                                const kickPayload = `${displayName}:::${p.email || ''}:::${p.id || ''}`;
+                                                                if (triggerMoment) {
+                                                                    triggerMoment(`KICK:${kickPayload}`, true);
+                                                                } else if (sendChatMessage && room?.liveMatchId) {
+                                                                    try {
+                                                                        await sendChatMessage(room.liveMatchId, "System", `[SYSTEM_REACTION]:KICK:${kickPayload}`, "text-red-500");
+                                                                    } catch (err) {
+                                                                        console.error('Broadcast kick failed:', err);
+                                                                    }
+                                                                }
+                                                                if (jitsiApi) {
+                                                                    try {
+                                                                        jitsiApi.executeCommand('kickParticipant', p.id);
+                                                                    } catch (err) {
+                                                                        console.error('Jitsi kick failed:', err);
+                                                                    }
+                                                                }
+                                                                onKickParticipantLocally?.(p.id, displayName);
+                                                            }}
+                                                            className="px-3 py-1 bg-[#222] hover:bg-red-600 text-white text-xs font-semibold rounded-full border border-[#444] transition-all"
+                                                        >
+                                                            Kick
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+
+                                    {/* Chat-derived participants (joined but not in Jitsi video) */}
+                                    {chatOnlyUsers.map((name: string) => {
+                                        const trimmedName = name.toLowerCase().trim();
+                                        const isChatHost =
+                                            trimmedName.includes('host') ||
+                                            hostsList.some((id: string) => trimmedName === id) ||
+                                            trimmedName === room?.name?.split(' ')[0]?.toLowerCase();
+
+                                        const isChatCoHost =
+                                            !isChatHost &&
+                                            coHostsList.some((id: string) => trimmedName === id);
+
+                                        const chatRole = isChatHost ? 'Host' : (isChatCoHost ? 'Co-Host' : 'Viewer');
+                                        const chatRoleColor =
+                                            chatRole === 'Host'
+                                                ? 'text-pink-400'
+                                                : chatRole === 'Co-Host'
+                                                    ? 'text-yellow-400'
+                                                    : 'text-blue-400';
+
+                                        return (
+                                            <div key={name} className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 bg-green-700 rounded-full flex items-center justify-center font-bold text-white text-xs">
+                                                        {name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-white text-sm font-bold">{name}</p>
+                                                        <p className={`text-xs ${chatRoleColor} uppercase tracking-wide`}>{chatRole}</p>
+                                                    </div>
+                                                </div>
+                                                {!isChatHost && (userRole === 'Host' || userRole === 'admin' || userRole === 'super_admin') && (
+                                                    <button
+                                                        onClick={async () => {
+                                                            const kickPayload = `${name}::::::`;
+                                                            if (triggerMoment) {
+                                                                triggerMoment(`KICK:${kickPayload}`, true);
+                                                            } else if (sendChatMessage && room?.liveMatchId) {
+                                                                try {
+                                                                    await sendChatMessage(room.liveMatchId, "System", `[SYSTEM_REACTION]:KICK:${kickPayload}`, "text-red-500");
+                                                                } catch (err) {
+                                                                    console.error('Broadcast kick failed:', err);
+                                                                }
                                                             }
-
-                                                            const targetValue = newCoHosts.join(",");
-                                                            fd.set('coHostUserId', targetValue);
-                                                            const res = await fetch(`/api/watch-along/${room.id}`, {
-                                                                method: 'PUT',
-                                                                body: fd
-                                                            });
-                                                            if (res.ok) {
-                                                                alert(isAlreadyCoHost ? `${displayName} is no longer Co-Host!` : `${displayName} is now Co-Host!`);
-                                                                if (room.id) await fetchRoomById(room.id);
-                                                            }
-                                                        } catch (err) { console.error('Toggle Co-Host failed:', err); }
-                                                    }}
-                                                    className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all flex items-center gap-1 ${isCoHostUser
-                                                        ? 'bg-yellow-600 border-yellow-500 text-white'
-                                                        : 'bg-[#222] hover:bg-yellow-600 border-[#444] text-white'
-                                                        }`}
-                                                    title={isCoHostUser ? "Remove Co-Host" : "Make Co-Host"}
-                                                >
-                                                    <Crown size={10} /> {isCoHostUser ? "Co-Host" : "Make Co-Host"}
-                                                </button>
-                                            )}
-                                            <button
-                                                onClick={async () => {
-                                                    if (jitsiApi) {
-                                                        try {
-                                                            jitsiApi.executeCommand('kickParticipant', p.id);
-                                                        } catch (err) {
-                                                            console.error('Jitsi kick failed:', err);
-                                                        }
-                                                    }
-                                                    if (sendChatMessage && room?.liveMatchId) {
-                                                        try {
-                                                            await sendChatMessage(room.liveMatchId, "System", `[SYSTEM_REACTION]:KICK:${displayName}`, "text-red-500");
-                                                        } catch (err) {
-                                                            console.error('Broadcast kick failed:', err);
-                                                        }
-                                                    }
-                                                }}
-                                                className="px-3 py-1 bg-[#222] hover:bg-red-600 text-white text-xs font-semibold rounded-full border border-[#444] transition-all"
-                                            >
-                                                Kick
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
+                                                            onKickParticipantLocally?.('', name);
+                                                        }}
+                                                        className="px-3 py-1 bg-[#222] hover:bg-red-600 text-white text-xs font-semibold rounded-full border border-[#444] transition-all"
+                                                    >
+                                                        Kick
+                                                    </button>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </>
                             );
-                        })}
-
-                        {/* Chat-derived participants (joined but not in Jitsi video) */}
-                        {chatOnlyUsers.map((name: string) => (
-                            <div key={name} className="flex items-center gap-3 bg-[#1a1a1a] p-3 rounded-xl border border-[#333]">
-                                <div className="w-8 h-8 bg-green-700 rounded-full flex items-center justify-center font-bold text-white text-xs">
-                                    {name.charAt(0).toUpperCase()}
-                                </div>
-                                <div>
-                                    <p className="text-white text-sm font-bold">{name}</p>
-                                    <p className="text-xs text-green-400 uppercase tracking-wide">Viewer</p>
-                                </div>
-                            </div>
-                        ))}
+                        })()}
 
                         {/* Empty state — only shown if truly alone */}
                         {realJitsiParticipants.length === 0 && chatOnlyUsers.length === 0 && (
@@ -4486,25 +4697,6 @@ function QuizLeaderboardDialog({
         setLoading(true);
         setError(null);
         try {
-            // const params = new URLSearchParams();
-            // if (activeQuizEngagementId) params.append("engagementId", activeQuizEngagementId);
-            // if (room?.liveMatchId) params.append("matchId", room.liveMatchId);
-            // if (room?.id) params.append("roomId", room.id);
-            // const qs = params.toString();
-            // const endpoint = `/api/engagements/quiz/leaderboard${qs ? `?${qs}` : ""}`;
-
-            // let res: any;
-            // try {
-            //     res = await axios.get(endpoint);
-            // } catch (firstErr: any) {
-            //     if (qs) {
-            //         res = await axios.get("/api/engagements/quiz/leaderboard");
-            //     } else {
-            //         throw firstErr;
-            //     }
-            // }
-
-
             const matchId = room?.liveMatchId;
             const roomId = room?.id;
 
@@ -5061,7 +5253,7 @@ function ExpertsDialog({ onClose }: { onClose: () => void }) {
     );
 }
 
-export default function WatchRoom({ room, onBack }: Props) {
+export default function WatchRoom({ room: initialRoom, onBack }: Props) {
     const { data: session, status } = useSession();
     const { user: authUser } = useAuth();
     const {
@@ -5081,9 +5273,26 @@ export default function WatchRoom({ room, onBack }: Props) {
         fetchQuizQuestions,
         sendChatMessage,
         fetchRoomById,
+        currentRoom,
         submitQuizAnswer,
         votePrediction
     } = useWatchAlong();
+
+    const [roomData, setRoomData] = useState<Room>(initialRoom);
+
+    useEffect(() => {
+        if (initialRoom) {
+            setRoomData(initialRoom);
+        }
+    }, [initialRoom]);
+
+    useEffect(() => {
+        if (currentRoom && currentRoom.id === roomData?.id) {
+            setRoomData(currentRoom);
+        }
+    }, [currentRoom, roomData?.id]);
+
+    const room = roomData;
     const [liveMatch, setLiveMatch] = useState<Match | null>(null);
     const [isLoadingMatch, setIsLoadingMatch] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
@@ -5492,8 +5701,25 @@ export default function WatchRoom({ room, onBack }: Props) {
     const [micOn, setMicOn] = useState(true);
     const [vidOn, setVidOn] = useState(true);
 
+    // Filter kicked participant locally so host immediately sees them removed
+    const handleKickParticipantLocally = useCallback((participantId: string, participantName: string) => {
+        if (participantId) {
+            setJitsiParticipants(prev => prev.filter((p: any) => p.id !== participantId && (p.displayName || p.formattedDisplayName) !== participantName));
+        }
+        setChats(prev => prev.filter((m: any) => (m.user || '').toLowerCase().trim() !== participantName.toLowerCase().trim()));
+    }, [setChats]);
 
-    // Custom recording state with mixed audio capture (Mic + System/Tab Audio)
+    // Check if current user was previously kicked from this room
+    useEffect(() => {
+        if (room?.id && typeof window !== 'undefined') {
+            if (sessionStorage.getItem(`kicked_${room.id}`) === "true") {
+                alert("You have been removed from this watchroom by the host and cannot re-enter.");
+                onBack();
+            }
+        }
+    }, [room?.id, onBack]);
+
+
     // Custom recording state with mixed audio capture (Mic + System/Tab Audio)
     // ---------------------------------------------------------------------------
     // 30-MINUTE AUTO-CHUNKING LOGIC:
@@ -6110,6 +6336,89 @@ export default function WatchRoom({ room, onBack }: Props) {
             }
         } else if (FLOAT_EMOJI_MAP[momentType]) {
             spawnFloatingEmoji(FLOAT_EMOJI_MAP[momentType]);
+        } else if (momentType.startsWith("COHOST_UPDATE:")) {
+            const newCoHostString = momentType.replace("COHOST_UPDATE:", "").trim();
+            console.log("[WatchRoom] Real-time COHOST_UPDATE received:", newCoHostString);
+
+            // 1. Immediately update local room data so UI and participant list re-render instantly
+            setRoomData(prev => ({
+                ...prev,
+                coHostUserId: newCoHostString
+            }));
+
+            // 2. Fetch fresh room from backend to ensure full DB sync
+            if (room?.id) {
+                fetchRoomById(room.id);
+            }
+
+            // 3. Recalculate role for current user
+            const myLowerName = (userName || "").toLowerCase().trim();
+            const myLowerEmail = (userEmail || authUser?.email || session?.user?.email || "").toLowerCase().trim();
+            const myLowerId = (authUser?.userId || (session?.user as any)?.userId || session?.user?.id || "").toLowerCase().trim();
+
+            const isAdmin = authUser?.role === 'admin' || authUser?.role === 'super_admin';
+            const hostsList = (room?.hostUserId || "")
+                .split(",")
+                .map((id: string) => id.trim().toLowerCase())
+                .filter(Boolean);
+            const isHost = isAdmin || hostsList.some(h => (myLowerId && myLowerId === h) || (myLowerName && myLowerName === h) || (myLowerEmail && myLowerEmail === h));
+
+            if (!isHost) {
+                const coHostsList = newCoHostString
+                    .split(",")
+                    .map((id: string) => id.trim().toLowerCase())
+                    .filter(Boolean);
+
+                const isCoHost = coHostsList.some(ch => (myLowerId && myLowerId === ch) || (myLowerName && myLowerName === ch) || (myLowerEmail && myLowerEmail === ch));
+
+                if (isCoHost && userRole !== 'Co-Host') {
+                    setUserRole('Co-Host');
+                    alert("You have been promoted to Co-Host by the host!");
+                } else if (!isCoHost && userRole === 'Co-Host') {
+                    setUserRole('Viewer');
+                    alert("Your Co-Host permissions have been removed.");
+                }
+            }
+        } else if (momentType.startsWith("KICK:")) {
+            const kickPayload = momentType.replace("KICK:", "").trim();
+            const parts = kickPayload.split(":::");
+            const targetName = (parts[0] || "").toLowerCase().trim();
+            const targetEmail = (parts[1] || "").toLowerCase().trim();
+            const targetId = (parts[2] || "").toLowerCase().trim();
+
+            const myLowerName = (userName || "").toLowerCase().trim();
+            const myLowerEmail = (userEmail || authUser?.email || session?.user?.email || "").toLowerCase().trim();
+            const myLowerId = (authUser?.userId || (session?.user as any)?.userId || session?.user?.id || "").toLowerCase().trim();
+
+            const isNameMatch = targetName && (
+                myLowerName === targetName ||
+                myLowerName.startsWith(targetName) ||
+                targetName.startsWith(myLowerName)
+            );
+            const isEmailMatch = targetEmail && myLowerEmail && (myLowerEmail === targetEmail);
+            const isIdMatch = targetId && (
+                (myLowerId && myLowerId === targetId) ||
+                (jitsiApiRef.current && typeof jitsiApiRef.current.myUserId === 'function' && jitsiApiRef.current.myUserId() === targetId)
+            );
+
+            if (isNameMatch || isEmailMatch || isIdMatch) {
+                console.warn("[WatchRoom] Current user was kicked by host!");
+                if (jitsiApiRef.current) {
+                    try {
+                        jitsiApiRef.current.executeCommand('hangup');
+                    } catch (e) {
+                        console.warn("Jitsi hangup failed on kick:", e);
+                    }
+                }
+                if (room?.id) {
+                    try {
+                        sessionStorage.setItem(`kicked_${room.id}`, "true");
+                    } catch (e) { }
+                }
+                alert("You have been removed from the watchroom by the host.");
+                onBack();
+                return;
+            }
         }
         if (broadcast) {
             // 1. Send via Jitsi WebRTC endpoint messages for participants who are fully connected
@@ -6483,34 +6792,11 @@ export default function WatchRoom({ room, onBack }: Props) {
             if (msg.text?.startsWith('[SYSTEM_REACTION]:') && !processedChatReactions.current.has(msg.id)) {
                 processedChatReactions.current.add(msg.id);
 
-                // Only process reactions that were sent AFTER the room was mounted
-                const msgTime = msg.createdAt
-                    ? (typeof msg.createdAt === 'number'
-                        ? msg.createdAt
-                        : (msg.createdAt.seconds
-                            ? msg.createdAt.seconds * 1000
-                            : new Date(msg.createdAt).getTime()))
-                    : Date.now();
-                if (msgTime < mountTime.current - 3000) {
-                    return;
-                }
-
                 const reactionType = msg.text.replace('[SYSTEM_REACTION]:', '');
-
-                if (reactionType.startsWith('KICK:')) {
-                    const kickedName = reactionType.replace('KICK:', '').trim().toLowerCase();
-                    const currentLowerName = userName?.trim().toLowerCase();
-                    if (currentLowerName && kickedName === currentLowerName) {
-                        alert("You have been removed from the watchroom by the host.");
-                        onBack();
-                    }
-                } else {
-                    // Play reaction animation locally without re-broadcasting
-                    triggerMoment(reactionType, false);
-                }
+                triggerMoment(reactionType, false);
             }
         });
-    }, [chats, userName, onBack]);
+    }, [chats]);
 
     // Request camera/mic permissions at the parent level on mount to ensure iOS Safari 
     // authorizes the domain before loading the Jitsi cross-origin iframe.
@@ -6537,12 +6823,6 @@ export default function WatchRoom({ room, onBack }: Props) {
         let resolvedUserId = "";
         let resolvedEmail = "";
 
-        // if (isUserLoggedIn && actualName) {
-        //     resolvedName = actualName;
-        //     resolvedUserId = authUser?.userId || (session?.user as { userId?: string })?.userId || session?.user?.id || "";
-        //     resolvedEmail = authUser?.email || session?.user?.email || "";
-        //     setUserName(actualName);
-        // } else {
         if (isUserLoggedIn && actualName) {
             resolvedName = actualName;
             resolvedUserId = authUser?.userId || (session?.user as { userId?: string })?.userId || session?.user?.id || "";
@@ -6564,29 +6844,42 @@ export default function WatchRoom({ room, onBack }: Props) {
         let isHost = false;
         let isCoHost = false;
 
-        const normalizedCoHostId = room.coHostUserId?.toLowerCase()?.trim() || "";
-        const normalizedHostId = room.hostUserId?.toLowerCase()?.trim() || "";
-
         const myName = resolvedName.toLowerCase().trim();
         const myUserId = resolvedUserId.toLowerCase().trim();
         const myEmail = resolvedEmail.toLowerCase().trim();
 
-        // 1. Host check
-        if (normalizedHostId) {
-            if (myUserId === normalizedHostId || myName === normalizedHostId || myEmail === normalizedHostId) {
-                isHost = true;
-            }
-        } else {
-            const matchName = room.name ? room.name.split(" ")[0].toLowerCase().trim() : "";
-            if (matchName && myName.includes(matchName)) {
-                isHost = true;
+        // 1. Admin check (admins always join as Host)
+        if (authUser?.role === 'admin' || authUser?.role === 'super_admin') {
+            isHost = true;
+        }
+
+        // 2. Host check (comma-separated support)
+        if (!isHost) {
+            const hostsList = (room?.hostUserId || "")
+                .split(",")
+                .map((id: string) => id.trim().toLowerCase())
+                .filter(Boolean);
+
+            if (hostsList.length > 0) {
+                if (hostsList.some((h: string) => (myUserId && myUserId === h) || (myName && myName === h) || (myEmail && myEmail === h))) {
+                    isHost = true;
+                }
+            } else {
+                const matchName = room?.name ? room.name.split(" ")[0].toLowerCase().trim() : "";
+                if (matchName && myName.includes(matchName)) {
+                    isHost = true;
+                }
             }
         }
 
-        // 2. Co-Host check
-        if (normalizedCoHostId) {
-            const coHostsList = normalizedCoHostId.split(",").map(item => item.trim());
-            if (coHostsList.includes(myUserId) || coHostsList.includes(myName) || coHostsList.includes(myEmail)) {
+        // 3. Co-Host check (comma-separated support)
+        if (!isHost) {
+            const coHostsList = (room?.coHostUserId || "")
+                .split(",")
+                .map((id: string) => id.trim().toLowerCase())
+                .filter(Boolean);
+
+            if (coHostsList.some((ch: string) => (myUserId && myUserId === ch) || (myName && myName === ch) || (myEmail && myEmail === ch))) {
                 isCoHost = true;
             }
         }
@@ -6605,7 +6898,7 @@ export default function WatchRoom({ room, onBack }: Props) {
         if (demoRoleOverride && !isCoHost) {
             setUserRole(demoRoleOverride);
         }
-    }, [status, session, authUser, room.id, room.hostUserId, room.coHostUserId, room.name]);
+    }, [status, session, authUser, room?.id, room?.hostUserId, room?.coHostUserId, room?.name]);
 
     // Automatically register viewer presence so all participants are recorded in DB
     useEffect(() => {
@@ -6670,31 +6963,12 @@ export default function WatchRoom({ room, onBack }: Props) {
     const totalQuizCount = quizQuestions?.length || 0;
 
     // Merge jitsi names + chat users to calculate total participant count dynamically
-    // const jitsiNames = new Set((jitsiParticipants || []).map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
-    // const chatUsersList = Array.from(
-    //     new Set(
-    //         (chats || [])
-    //             .filter((c) => c.user && c.user.trim() !== "")
-    //             .map((c) => c.user)
-    //     )
-    // ).filter((u) => u !== userName);
-    // const chatOnlyUsers = chatUsersList.filter(u => !jitsiNames.has(u.toLowerCase()));
-
-    // const currentUserInJitsi = userName ? jitsiNames.has(userName.toLowerCase()) : false;
-    // const dynamicParticipantsCount = (currentUserInJitsi ? 0 : 1) + (jitsiParticipants?.length || 0) + chatOnlyUsers.length;
     const normalizedSelfName = (userName || "").trim().toLowerCase();
     const realJitsiParticipantsTop = (jitsiParticipants || []).filter((p: any) => {
         const displayName = (p.displayName || p.formattedDisplayName || "").trim().toLowerCase();
         return displayName && displayName !== normalizedSelfName;
     });
     const jitsiNames = new Set(realJitsiParticipantsTop.map((p: any) => (p.displayName || p.formattedDisplayName || '').toLowerCase()));
-    // const chatUsersList = Array.from(
-    //     new Set(
-    //         (chats || [])
-    //             .filter((c) => c.user && c.user.trim() !== "")
-    //             .map((c) => c.user)
-    //     )
-    // ).filter((u) => u !== userName);
     const chatUsersList = Array.from(
         new Set(
             (chats || [])
@@ -6796,39 +7070,9 @@ export default function WatchRoom({ room, onBack }: Props) {
                     </button>
                 </Link>
                 <div className="flex flex-1 items-center gap-2 mx-4 min-w-0 justify-center">
-                    {/* {room.isLive && (
-                        <span className="bg-pink-600 text-white text-[11px] px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse inline-block" />
-                            LIVE
-                        </span>
-                    )} */}
                     <span className="text-[12px] font-bold whitespace-normal">{room.name || "Watch Room"}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* <button
-                        onClick={() => setIsSidebarCollapsed(prev => !prev)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 border text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 cursor-pointer ${
-                            isSidebarCollapsed
-                                ? "bg-pink-600/10 border-pink-500/30 text-pink-400 hover:bg-pink-600/20 shadow-[0_0_15px_rgba(236,72,153,0.15)]"
-                                : "bg-[#202023] border-white/10 text-gray-300 hover:text-white hover:bg-white/10"
-                        }`}
-                        title={isSidebarCollapsed ? "Expand Chat & Participants" : "Collapse Chat & Participants (More space for video & members)"}
-                    >
-                        {isSidebarCollapsed ? (
-                            <>
-                                <PanelRightOpen size={13} className="text-pink-400" />
-                                <span className="hidden sm:inline">Show Chat & Members</span>
-                                <span className="sm:hidden">Show Chat</span>
-                            </>
-                        ) : (
-                            <>
-                                <PanelRightClose size={13} className="text-gray-400" />
-                                <span className="hidden sm:inline">Hide Chat & Members</span>
-                                <span className="sm:hidden">Hide Chat</span>
-                            </>
-                        )}
-                    </button> */}
-
                     <button
                         onClick={() => setIsExpertsOpen(true)}
                         className="flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-600/15 border border-purple-500/30 hover:bg-purple-600/25 active:scale-95 text-purple-300 hover:text-purple-200 text-xs font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-sm"
@@ -6844,147 +7088,10 @@ export default function WatchRoom({ room, onBack }: Props) {
                         title="Copy Invite Link"
                     >
                         <Share2 size={13} className="animate-pulse" />
-                        {/* <span>Share</span> */}
                     </button>
                 </div>
 
             </div>
-
-            {/* ── Match Specific Live Ticker ── */}
-            {/* {room.name && (
-                <div className="w-full border-b border-[#222]">
-                    <LiveTicker roomNameFilter={room.name} matchIdFilter={room.liveMatchId} />
-                </div>
-            )} */}
-
-            {/* ── Score bar ── */}
-            {/* <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-2 border-b border-[#222]">
-                {isLoadingMatch ? (
-                    <>
-                        <span className="text-sm text-gray-400">Loading match...</span>
-                        <span className="text-[11px] text-gray-500">-</span>
-                        <span className="text-[11px] text-gray-500">-</span>
-                        <span className="text-sm text-gray-400">...</span>
-                    </>
-                ) : liveMatch ? (
-                    <>
-                        <span className="text-sm font-bold text-pink-500">
-                            {liveMatch.team1?.name || "TBD"}&nbsp;{liveMatch.team1?.score || "0/0"}
-                        </span>
-                        <span className="text-[11px] text-gray-500">
-                            {formatOvers(liveMatch.team1?.overs)}
-                        </span>
-                        <span className="text-[11px] text-gray-500">
-                            {formatOvers(liveMatch.team2?.overs)}
-                        </span>
-                        <span className="text-sm font-bold text-blue-500">
-                            {liveMatch.team2?.score || "0/0"}&nbsp;{liveMatch.team2?.name || "TBD"}
-                        </span>
-                    </>
-                ) : (
-                    <>
-                        <span className="text-sm font-bold text-pink-500">Waiting for match data...</span>
-                        <span className="text-[11px] text-gray-500">-</span>
-                        <span className="text-[11px] text-gray-500">-</span>
-                        <span className="text-sm font-bold text-blue-400">...</span>
-                    </>
-                )}
-            </div> */}
-
-            {/* ── Top Host CTA Panel ── */}
-            {/* {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
-                <div className="bg-[#0c0c0e] shrink-0 border-b border-[#222]">
-
-                     ── MOBILE: compact scrollable icon+label cards (like SS2) ── 
-                    <div className="lg:hidden px-2 py-1.5">
-                        <div className="flex items-center gap-1 text-[8px] font-extrabold text-gray-500 uppercase tracking-widest mb-1.5 px-0.5">
-                            <span>🛡️ Host Actions</span>
-                        </div>
-                        <div className="flex items-center gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
-                            <button onClick={() => setShowPredictionModal(true)} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
-                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-pink-400 flex items-center justify-center group-active:scale-90 transition-all">
-                                    <TrendingUp className="w-5 h-5" />
-                                </div>
-                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Prediction</span>
-                            </button>
-                            <button onClick={() => { setComposeType('debate'); setComposeOpen(true); }} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
-                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-red-400 flex items-center justify-center group-active:scale-90 transition-all">
-                                    <Flame className="w-5 h-5" />
-                                </div>
-                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Debate</span>
-                            </button>
-                            <button onClick={() => setShowPollModal(true)} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
-                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-blue-400 flex items-center justify-center group-active:scale-90 transition-all">
-                                    <BarChart3 className="w-5 h-5" />
-                                </div>
-                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Poll</span>
-                            </button>
-                            <button onClick={() => setShowQuizModal(true)} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
-                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-purple-400 flex items-center justify-center group-active:scale-90 transition-all">
-                                    <Brain className="w-5 h-5" />
-                                </div>
-                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Flash Quiz</span>
-                            </button>
-                            <button onClick={() => { setShowPredictTemplates(true); setShowDropsMenu(false); setShowInterviewMenu(false); }} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
-                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-orange-400 flex items-center justify-center group-active:scale-90 transition-all">
-                                    <span className="text-lg">🎯</span>
-                                </div>
-                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Templates</span>
-                            </button>
-                            <button onClick={handleEmojiStorm} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
-                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-yellow-400 flex items-center justify-center group-active:scale-90 transition-all">
-                                    <Zap className="w-5 h-5" />
-                                </div>
-                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Emoji Storm</span>
-                            </button>
-                            <button onClick={() => setShowPinModal(true)} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
-                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-red-400 flex items-center justify-center group-active:scale-90 transition-all">
-                                    <Pin className="w-5 h-5" />
-                                </div>
-                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">Pin Message</span>
-                            </button>
-                            <button onClick={handleShare} className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group">
-                                <div className="w-12 h-12 rounded-xl bg-[#1a1a22] border border-white/8 text-gray-400 flex items-center justify-center group-active:scale-90 transition-all">
-                                    <MoreHorizontal className="w-5 h-5" />
-                                </div>
-                                <span className="text-[9px] font-bold text-gray-400 group-active:text-white whitespace-nowrap">More</span>
-                            </button>
-                        </div>
-                    </div>
-
-                     ── DESKTOP: full-width horizontal strip (unchanged) ── 
-                    <div className="hidden lg:flex items-center justify-between w-full gap-2 px-3 py-1.5">
-                        <button onClick={() => setShowPredictionModal(true)} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-pink-600/10 border border-pink-500/20 text-pink-400 hover:bg-pink-600/20 hover:border-pink-500/40 active:scale-95 transition-all cursor-pointer group">
-                            <TrendingUp className="w-4 h-4 shrink-0" />
-                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Create Prediction</span>
-                        </button>
-                        <button onClick={() => setShowPollModal(true)} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-blue-600/10 border border-blue-500/20 text-blue-400 hover:bg-blue-600/20 hover:border-blue-500/40 active:scale-95 transition-all cursor-pointer group">
-                            <BarChart3 className="w-4 h-4 shrink-0" />
-                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Create Poll</span>
-                        </button>
-                        <button onClick={() => setShowQuizModal(true)} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-purple-600/10 border border-purple-500/20 text-purple-400 hover:bg-purple-600/20 hover:border-purple-500/40 active:scale-95 transition-all cursor-pointer group">
-                            <Brain className="w-4 h-4 shrink-0" />
-                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Flash Quiz</span>
-                        </button>
-                        <button onClick={() => { setShowPredictTemplates(true); setShowDropsMenu(false); setShowInterviewMenu(false); }} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-orange-600/10 border border-orange-500/20 text-orange-400 hover:bg-orange-600/20 hover:border-orange-500/40 active:scale-95 transition-all cursor-pointer group">
-                            <span className="text-[14px] leading-none">🎯</span>
-                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Predict Templates</span>
-                        </button>
-                        <button onClick={handleEmojiStorm} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-yellow-600/10 border border-yellow-500/20 text-yellow-400 hover:bg-yellow-600/20 hover:border-yellow-500/40 active:scale-95 transition-all cursor-pointer group">
-                            <Zap className="w-4 h-4 shrink-0" />
-                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Emoji Storm</span>
-                        </button>
-                        <button onClick={() => setShowPinModal(true)} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-red-600/10 border border-red-500/20 text-red-400 hover:bg-red-600/20 hover:border-red-500/40 active:scale-95 transition-all cursor-pointer group">
-                            <Pin className="w-4 h-4 shrink-0" />
-                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Pin Message</span>
-                        </button>
-                        <button onClick={handleShare} className="flex flex-1 items-center justify-center gap-2 px-2 py-2 rounded-xl bg-purple-600/10 border border-purple-500/20 text-purple-400 hover:bg-purple-600/20 hover:border-purple-500/40 active:scale-95 transition-all cursor-pointer group">
-                            <Share2 className="w-4 h-4 shrink-0" />
-                            <span className="text-[10px] font-black uppercase tracking-wide whitespace-nowrap">Share</span>
-                        </button>
-                    </div>
-                </div>
-            )} */}
 
             <div className="flex flex-col lg:flex-row flex-1 min-h-0">
 
@@ -7050,20 +7157,20 @@ export default function WatchRoom({ room, onBack }: Props) {
                         )}
 
                         {/* Team 1 label */}
-                        {liveMatch && (
+                        {/* {liveMatch && (
                             <div className="absolute left-4 top-1/2 -translate-y-1/2 bg-red-700 rounded-lg px-3 py-1.5 text-xs font-bold opacity-90 z-20">
                                 {liveMatch.team1?.name || "Team 1"}
                             </div>
-                        )}
+                        )} */}
 
                         {/* Team 2 label */}
-                        {liveMatch && (
+                        {/* {liveMatch && (
                             <div className="absolute right-4 top-1/2 -translate-y-1/2 z-20">
                                 <div className={`rounded-lg border-2 ${room.borderColor || "border-pink-500"} bg-[#111] px-2 py-1.5 flex items-center justify-center text-xs font-bold text-blue-400`}>
                                     {liveMatch.team2?.name?.slice(0, 3) || "Team 2"}
                                 </div>
                             </div>
-                        )}
+                        )} */}
 
 
                         {userName && (
@@ -7073,6 +7180,17 @@ export default function WatchRoom({ room, onBack }: Props) {
                                 userRole={userRole}
                                 userName={userName}
                                 userEmail={userEmail || authUser?.email || session?.user?.email || ""}
+                                coHostUserId={room?.coHostUserId}
+                                onRolePromoted={(newRole) => {
+                                    console.log("[WatchRoom] Dynamically updating userRole to:", newRole);
+                                    if (typeof window !== 'undefined') {
+                                        sessionStorage.setItem("demo_user_role", newRole);
+                                    }
+                                    setUserRole(newRole);
+                                    if (room?.id) {
+                                        fetchRoomById(room.id);
+                                    }
+                                }}
                                 activeInterview={activeInterview}
                                 telestratorActive={isTelestratorActive}
                                 telestratorStrokes={telestratorStrokes}
@@ -7112,10 +7230,10 @@ export default function WatchRoom({ room, onBack }: Props) {
                             />
                         )}
                         {/* SportsFan 360 Watermark — placed in the top-right corner of the video player for broadcast stream feel, preventing chat overlaps */}
-                        <div className="absolute top-4 right-4 z-[40] pointer-events-none select-none flex items-center gap-2 px-3 py-1.5 rounded-lg animate-fade-in" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}>
+                        {/* <div className="absolute top-4 right-4 z-[40] pointer-events-none select-none flex items-center gap-2 px-3 py-1.5 rounded-lg animate-fade-in" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}>
                             <div className="w-6 h-6 rounded-full bg-gradient-to-br from-pink-500 to-purple-600 flex items-center justify-center text-[8px] font-black text-white leading-none">SF</div>
                             <span className="text-white/80 text-xs font-bold tracking-wide" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>SportsFan 360</span>
-                        </div>
+                        </div> */}
                     </div>
 
                     {isSidebarCollapsed ? (
@@ -7139,7 +7257,6 @@ export default function WatchRoom({ room, onBack }: Props) {
                                             }`}
                                     >
                                         {micOn ? <Mic size={12} /> : <MicOff size={12} />}
-                                        {/* <span>{micOn ? "Mute" : "Unmute"}</span> */}
                                     </button>
 
                                     {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && (
@@ -7439,14 +7556,6 @@ export default function WatchRoom({ room, onBack }: Props) {
                     <div className="relative z-20 flex flex-col gap-1.5 px-2 sm:px-6 py-1.5 border-b border-[#222] lg:hidden">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1 flex-1">
-                                {/* <button
-                                    onClick={() => setIsExpertsOpen(true)}
-                                    className="flex-shrink-0 text-xs px-3 py-1 rounded-full font-bold transition-all bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/40 active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
-                                    title="View Expert Commentators"
-                                >
-                                    <span>🎙️</span>
-                                    <span>Experts</span>
-                                </button> */}
                                 {activeQuizQuestion && (
                                     <button
                                         onClick={() => openEngagement('quiz')}
@@ -7521,7 +7630,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                     </div>
                     {!isSidebarCollapsed && (
                         <div className="flex-1 flex flex-col min-h-[300px] lg:min-h-0 lg:hidden relative">
-                            <TabContent isMobile={true} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
+                            <TabContent isMobile={true} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} triggerMoment={triggerMoment} onUpdateRoomCoHosts={(newCoHosts) => setRoomData(prev => ({ ...prev, coHostUserId: newCoHosts }))} onKickParticipantLocally={handleKickParticipantLocally} />
                         </div>
                     )}
                 </div>
@@ -7612,7 +7721,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                             </div>
 
                             <div className="flex-1 flex flex-col min-h-0 relative">
-                                <TabContent isMobile={false} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} />
+                                <TabContent isMobile={false} activeTab={activeTab} matchId={room.liveMatchId} userName={userName} userRole={userRole} room={room} jitsiParticipants={jitsiParticipants} jitsiApi={jitsiApi} chats={chats} qnaList={qnaList} setQnaList={setQnaList} answeringQuestion={answeringQuestion} setAnsweringQuestion={setAnsweringQuestion} qnaInput={qnaInput} setQnaInput={setQnaInput} sendChatMessage={sendChatMessage} composeOpen={composeOpen} setComposeOpen={setComposeOpen} composeType={composeType} setComposeType={setComposeType} handleComposePost={handleComposePost} triggerMoment={triggerMoment} onUpdateRoomCoHosts={(newCoHosts) => setRoomData(prev => ({ ...prev, coHostUserId: newCoHosts }))} onKickParticipantLocally={handleKickParticipantLocally} />
                             </div>
                         </div>
                     </>

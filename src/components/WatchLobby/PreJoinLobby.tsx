@@ -29,6 +29,16 @@ export default function PreJoinLobby({ room, onJoin, onBack }: PreJoinLobbyProps
         }
     }, [authUser, session]);
 
+    // Check if user was previously kicked from this room
+    useEffect(() => {
+        if (room?.id && typeof window !== 'undefined') {
+            if (sessionStorage.getItem(`kicked_${room.id}`) === "true") {
+                alert("You have been removed from this watchroom by the host and cannot re-enter.");
+                onBack();
+            }
+        }
+    }, [room?.id, onBack]);
+
     useEffect(() => {
         if (!userName) return;
         let defaultRole: 'Host' | 'Viewer' = 'Viewer';
@@ -37,12 +47,24 @@ export default function PreJoinLobby({ room, onJoin, onBack }: PreJoinLobbyProps
         const currentEmail = (authUser?.email || session?.user?.email || "").toLowerCase().trim();
         const currentName = userName.toLowerCase().trim();
 
-        const hostId = (room?.hostUserId || "").toLowerCase().trim();
-        const coHostId = (room?.coHostUserId || "").toLowerCase().trim();
+        const hostsList = (room?.hostUserId || "")
+            .split(",")
+            .map((id: string) => id.trim().toLowerCase())
+            .filter(Boolean);
 
-        if (hostId && (currentUserId === hostId || currentEmail === hostId || currentName === hostId)) {
-            defaultRole = 'Host';
-        } else if (coHostId && (currentUserId === coHostId || currentEmail === coHostId || currentName === coHostId)) {
+        const coHostsList = (room?.coHostUserId || "")
+            .split(",")
+            .map((id: string) => id.trim().toLowerCase())
+            .filter(Boolean);
+
+        const isHostMatch = hostsList.some(
+            (h: string) => (currentUserId && currentUserId === h) || (currentEmail && currentEmail === h) || (currentName && currentName === h)
+        );
+        const isCoHostMatch = coHostsList.some(
+            (ch: string) => (currentUserId && currentUserId === ch) || (currentEmail && currentEmail === ch) || (currentName && currentName === ch)
+        );
+
+        if (isHostMatch || isCoHostMatch || authUser?.role === 'admin' || authUser?.role === 'super_admin') {
             defaultRole = 'Host';
         } else {
             const userFirst = userName.toLowerCase().split(" ")[0];
