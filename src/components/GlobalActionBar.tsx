@@ -34,16 +34,6 @@ export default function GlobalActionBar() {
 
   const { user } = useAuth();
 
-  const userEmail = (user?.email || (user as any)?.emailAddress || (user as any)?.username || "").trim().toLowerCase();
-  const normalizedAllowedEmails = CREATE_POST_ALLOWED_EMAILS.map((e) => e.trim().toLowerCase()).filter(Boolean);
-
-  const isAllowed =
-    !!user &&
-    (user.role === "FlipLineAdmin" ||
-      user.role === "Admin" ||
-      user.role === "SuperAdmin" ||
-      (!!userEmail && normalizedAllowedEmails.includes(userEmail)));
-
   const handleCreatePost = async (
     formData: FormData,
     userId: string,
@@ -76,8 +66,6 @@ export default function GlobalActionBar() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen]);
-
-  if (!isAllowed) return null;
 
   const handleFliplineClick = () => {
     setMenuOpen(false);

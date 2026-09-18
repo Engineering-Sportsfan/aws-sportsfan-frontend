@@ -331,9 +331,10 @@
 
 import { useState, useEffect } from "react";
 import { ArrowLeft, Headphones, Play, Clock, Mic } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import axios from "axios";
-import { useSearchParams } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 
 interface AudioDrop {
     title: string;
@@ -420,6 +421,7 @@ const generateAudioShortId = (playlistId: string, audioIndex: number): string =>
 };
 
 export default function FullPlaylistPage() {
+    const router = useRouter();
     const [request, setRequest] = useState("");
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
     const [loading, setLoading] = useState(true);
@@ -489,7 +491,7 @@ export default function FullPlaylistPage() {
                 <div className="text-center">
                     <p className="text-red-400 mb-4">{error}</p>
                     <button
-                        onClick={() => window.history.back()}
+                        onClick={() => handleGoBack(router)}
                         className="bg-pink-500 px-4 py-2 rounded text-white hover:bg-pink-600"
                     >
                         Go Back
@@ -505,7 +507,7 @@ export default function FullPlaylistPage() {
                 <div className="text-center">
                     <p className="text-gray-400 mb-4">No playlist available for this team</p>
                     <button
-                        onClick={() => window.history.back()}
+                        onClick={() => handleGoBack(router)}
                         className="bg-pink-500 px-4 py-2 rounded text-white hover:bg-pink-600"
                     >
                         Go Back
@@ -523,7 +525,7 @@ export default function FullPlaylistPage() {
             {/* Header */}
             <div className="flex items-center gap-3 px-4 md:px-8 lg:px-12 py-4 border-b border-gray-800">
                 <button className="text-white hover:text-pink-500 transition cursor-pointer"
-                    onClick={() => window.history.back()}>
+                    onClick={() => handleGoBack(router)}>
                     <ArrowLeft size={20} />
                 </button>
                 <div>

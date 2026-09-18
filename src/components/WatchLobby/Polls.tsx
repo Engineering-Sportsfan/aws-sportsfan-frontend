@@ -51,14 +51,7 @@ export default function Polls({ matchId }: { matchId: string }) {
         }
     }, [matchId, fetchPredictions]);
 
-    // Auto-refresh every 30 seconds (optimized from 10s)
-    useEffect(() => {
-        if (!matchId) return;
-        const interval = setInterval(() => {
-            fetchPredictions(matchId, true);
-        }, 30000);
-        return () => clearInterval(interval);
-    }, [matchId, fetchPredictions]);
+
 
     const handleSelect = async (predictionId: string, option: string) => {
         if (selected[predictionId]) return;

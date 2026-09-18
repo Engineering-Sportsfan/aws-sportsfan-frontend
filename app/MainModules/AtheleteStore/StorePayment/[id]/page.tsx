@@ -8,6 +8,7 @@ import { useIdempotencyKey } from '@/hooks/useIdempotencyKey';
 import { formatPrice } from '@/utils/formatters';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/services/api';
+import { handleGoBack } from '@/utils/backButton';
 
 function StorePaymentContent() {
   const router = useRouter();
@@ -165,8 +166,8 @@ function StorePaymentContent() {
         {/* Header */}
         <div className="sticky top-0 z-50 bg-[#0b0b0f] border-b border-[rgba(255,255,255,0.05)] h-[56px] flex items-center px-4 gap-3">
           <button
-            onClick={() => router.back()}
-            className="w-[36px] h-[36px] rounded-full bg-[rgba(255,255,255,0.06)] flex items-center justify-center"
+            onClick={() => handleGoBack(router)}
+            className="w-[36px] h-[36px] rounded-full bg-[rgba(255,255,255,0.06)] flex items-center justify-center cursor-pointer"
           >
             <ArrowLeft className="w-[18px] h-[18px] text-white" />
           </button>

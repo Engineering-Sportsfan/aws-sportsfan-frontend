@@ -233,7 +233,7 @@ export default function WatchAlongLobby({ onEnterRoom }: Props) {
                         </button>
                         <div>
                             <h3 style={{ color: "white", margin: 0, fontSize: 16, fontWeight: 700, letterSpacing: "0.01em", lineHeight: 1.2 }}>
-                                📺 Watch Along
+                                📺 FlipLIVE
                             </h3>
                             <p style={{ color: "rgba(255,255,255,0.4)", margin: 0, fontSize: 10.5 }}>Join live rooms with friends</p>
                         </div>
@@ -551,7 +551,8 @@ function ExpertCard({
     if (room.role && room.role.toLowerCase() !== "host" && room.role.toLowerCase() !== "co-host") {
         cleanHostName = room.role.replace(/^Hosted by\s+/i, "");
     } else if (room.hostUserId) {
-        const emailPrefix = room.hostUserId.split("@")[0];
+        const firstHost = room.hostUserId.split(",")[0].trim();
+        const emailPrefix = firstHost.split("@")[0];
         cleanHostName = emailPrefix
             .split(/[\._-]/)
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))

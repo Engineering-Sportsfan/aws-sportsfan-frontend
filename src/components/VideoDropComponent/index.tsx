@@ -1,14 +1,20 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
-//done
+import { Heart, Share2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { handleGoBack as goBackWithScroll } from "@/utils/backButton";
+
 type VideoDrop = {
+  id?: string;
   title: string;
   subtitle?: string;
   description: string;
   views: number;
   signals: number;
+  likes?: number;
+  likedBy?: string[];
   duration: string;
   durationSecs?: number;
   date?: string;
@@ -147,6 +153,7 @@ const findVideoDropByUrl = (playlists: Playlist[], url: string): { drop: VideoDr
 
 export default function VideoDropCard() {
   const router = useRouter();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const idParam = searchParams.get("id") || searchParams.get("cId");
   const cParam = searchParams.get("c"); // Cloudinary short path (e.g. q_auto/video.mp4 or public_id)
@@ -171,24 +178,128 @@ export default function VideoDropCard() {
   const [error, setError] = useState<string | null>(null);
   const [videoError, setVideoError] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isLiked, setIsLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Intelligent back navigation: goes back if there's internal history, otherwise falls back to Home
-  const handleGoBack = () => {
-    if (typeof window !== "undefined") {
-      const historyIdx = window.history.state?.idx;
-      const hasInternalReferrer =
-        document.referrer && document.referrer.startsWith(window.location.origin);
+  const getActorId = useCallback(() => {
+    if (user?.userId) return user.userId;
+    if (user?.email) return user.email;
+    return "guest";
+  }, [user]);
 
-      if ((typeof historyIdx === "number" && historyIdx > 0) || (hasInternalReferrer && window.history.length > 1)) {
-        router.back();
-      } else {
-        router.push("/MainModules/HomePage");
+  // Sync like state on video or ID change directly from backend data
+  useEffect(() => {
+    const videoKey = activeId || videoDrop?.id || idParam || urlParam || cParam;
+    if (!videoKey) return;
+
+    const actorId = getActorId();
+    const initialLikes = Number(videoDrop?.likes ?? videoDrop?.likeCount ?? 0);
+
+    setLikeCount(initialLikes);
+    if (videoDrop?.likedBy && Array.isArray(videoDrop.likedBy) && videoDrop.likedBy.includes(actorId)) {
+      setIsLiked(true);
+    } else {
+      setIsLiked(false);
+    }
+
+    // Live query like status from backend (DynamoDB/Firestore)
+    axios
+      .get(`/api/flipLong/like?id=${encodeURIComponent(videoKey)}&userId=${encodeURIComponent(actorId)}`)
+      .then((res) => {
+        if (res.data?.success) {
+          if (typeof res.data.likes === "number") {
+            setLikeCount(res.data.likes);
+          }
+          setIsLiked(Boolean(res.data.isLiked));
+        }
+      })
+      .catch(() => {});
+  }, [activeId, videoDrop?.id, videoDrop?.likes, videoDrop?.likedBy, idParam, urlParam, cParam, getActorId]);
+
+  // Listen for global like events from other pages / tabs
+  useEffect(() => {
+    const handleVideoLiked = (e: any) => {
+      const { id, likes, isLiked: nextIsLiked } = e.detail || {};
+      const videoKey = activeId || videoDrop?.id || idParam || urlParam || cParam;
+      if (id && videoKey && (id === videoKey || id.includes(videoKey) || videoKey.includes(id))) {
+        if (typeof likes === "number") setLikeCount(likes);
+        if (typeof nextIsLiked === "boolean") setIsLiked(nextIsLiked);
+      }
+    };
+    window.addEventListener("fliplong-video-liked", handleVideoLiked);
+    return () => {
+      window.removeEventListener("fliplong-video-liked", handleVideoLiked);
+    };
+  }, [activeId, videoDrop?.id, idParam, urlParam, cParam]);
+
+  const handleToggleLike = async () => {
+    const videoKey = activeId || videoDrop?.id || idParam || urlParam || cParam;
+    if (!videoKey) return;
+
+    const actorId = getActorId();
+
+    if (isLiked) {
+      // ─── UNLIKE ───
+      const nextCount = Math.max(0, likeCount - 1);
+      setIsLiked(false);
+      setLikeCount(nextCount);
+      setToastMessage("Unliked");
+      setTimeout(() => setToastMessage(null), 2000);
+
+      window.dispatchEvent(
+        new CustomEvent("fliplong-video-liked", {
+          detail: { id: videoKey, likes: nextCount, isLiked: false },
+        })
+      );
+
+      try {
+        const res = await axios.post("/api/flipLong/like", {
+          id: videoKey,
+          videoId: videoKey,
+          userId: actorId,
+          action: "unlike",
+        });
+        if (res.data?.success && typeof res.data.likes === "number") {
+          setLikeCount(res.data.likes);
+        }
+      } catch (err) {
+        console.warn("Backend unlike sync notice:", err);
       }
     } else {
-      router.push("/MainModules/HomePage");
+      // ─── LIKE ───
+      const nextCount = likeCount + 1;
+      setIsLiked(true);
+      setLikeCount(nextCount);
+      setToastMessage("Liked! ❤️");
+      setTimeout(() => setToastMessage(null), 2000);
+
+      window.dispatchEvent(
+        new CustomEvent("fliplong-video-liked", {
+          detail: { id: videoKey, likes: nextCount, isLiked: true },
+        })
+      );
+
+      try {
+        const res = await axios.post("/api/flipLong/like", {
+          id: videoKey,
+          videoId: videoKey,
+          userId: actorId,
+          action: "like",
+        });
+        if (res.data?.success && typeof res.data.likes === "number") {
+          setLikeCount(res.data.likes);
+        }
+      } catch (err) {
+        console.warn("Backend like sync notice:", err);
+      }
     }
+  };
+
+  // Intelligent back navigation with scroll position restoration
+  const handleGoBack = () => {
+    goBackWithScroll(router);
   };
 
   useEffect(() => {
@@ -200,13 +311,14 @@ export default function VideoDropCard() {
       setLoading(true);
       setError(null);
 
-      // Fetch playlists and cricket-media in parallel using axios
-      const [playlistRes, cricketRes] = await Promise.allSettled([
+      // Fetch playlists, cricket-media, and flipLong in parallel using axios
+      const [playlistRes, cricketRes, flipLongRes] = await Promise.allSettled([
         axios.get<ApiResponse>("/api/team360-playlist"),
         axios.get<{ success: boolean; mediaFiles: unknown[] }>("/api/cloudinary/cricket-media"),
+        axios.get<{ success: boolean; videos: unknown[] }>("/api/flipLong"),
       ]);
 
-      if (playlistRes.status === "rejected" && cricketRes.status === "rejected") {
+      if (playlistRes.status === "rejected" && cricketRes.status === "rejected" && flipLongRes.status === "rejected") {
         setError("Failed to load video");
         setLoading(false);
         return;
@@ -220,7 +332,11 @@ export default function VideoDropCard() {
         ? cricketRes.value.data.mediaFiles
         : [];
 
-      if (playlistRes.status === "fulfilled" && (!playlistRes.value.data?.success || playlistRes.value.data.playlists.length === 0) && cricketFiles.length === 0 && !idParam && !cParam && !vParam && !urlParam) {
+      const flipLongVideos = (flipLongRes.status === "fulfilled" && flipLongRes.value.data?.success && Array.isArray(flipLongRes.value.data.videos))
+        ? flipLongRes.value.data.videos
+        : [];
+
+      if (playlistRes.status === "fulfilled" && (!playlistRes.value.data?.success || playlistRes.value.data.playlists.length === 0) && cricketFiles.length === 0 && flipLongVideos.length === 0 && !idParam && !cParam && !vParam && !urlParam) {
         setError("No playlists available");
         setLoading(false);
         return;
@@ -228,7 +344,34 @@ export default function VideoDropCard() {
 
       // Case 1: ID parameter provided (?id=...)
       if (idParam) {
-        // 1a. Search in cricket media
+        // 1a. Search in FlipLong videos
+        const flipMatch = flipLongVideos.find(
+          (v: any) => v.id === idParam || v.videoId === idParam || v.id === decodeURIComponent(idParam)
+        );
+        if (flipMatch) {
+          setActiveId(flipMatch.id || flipMatch.videoId);
+          setVideoDrop({
+            id: flipMatch.id || flipMatch.videoId,
+            title: flipMatch.title || "Video Track",
+            description: flipMatch.description || "",
+            views: 0,
+            signals: 0,
+            likes: flipMatch.likes || flipMatch.likeCount || 0,
+            likedBy: flipMatch.likedBy || [],
+            duration: flipMatch.duration || "0:00",
+            durationSecs: flipMatch.durationSeconds || parseDurationToSeconds(flipMatch.duration || "0:00"),
+            engagement: 0,
+            mediaUrl: flipMatch.url || flipMatch.videoUrl || flipMatch.mediaUrl,
+            videoUrl: flipMatch.url || flipMatch.videoUrl || flipMatch.mediaUrl,
+            thumbnail: flipMatch.thumbnailUrl,
+            date: flipMatch.createdAt ? formatDate(new Date(flipMatch.createdAt).getTime()) : "Recent",
+            subtitle: "FlipLONG Drops"
+          });
+          setLoading(false);
+          return;
+        }
+
+        // 1b. Search in cricket media
         const match = cricketFiles.find(
           (m: { id?: string; fileName?: string; title?: string }) =>
             m.id === idParam || m.fileName === idParam || m.id === decodeURIComponent(idParam)
@@ -236,6 +379,7 @@ export default function VideoDropCard() {
         if (match) {
           setActiveId(match.id);
           setVideoDrop({
+            id: match.id,
             title: match.title || "Video Track",
             description: "",
             views: 0,
@@ -789,28 +933,49 @@ export default function VideoDropCard() {
         {/* Topbar - Responsive padding */}
         <div className="flex items-center justify-between px-4 sm:px-5 md:px-6 pt-4 pb-3 sm:pt-5 sm:pb-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <button onClick={handleGoBack} title="Go Back" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition">
+            <button
+              onClick={handleGoBack}
+              data-nav="back"
+              aria-label="Go Back"
+              title="Go Back"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition"
+            >
               <svg className="w-3 h-3 sm:w-[13px] sm:h-[13px]" viewBox="0 0 13 13" fill="none">
                 <path d="M8.5 2L4 6.5L8.5 11" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
             <div>
-              {/* <p className="text-white text-[14px] sm:text-[15px] md:text-[16px] font-medium leading-tight">{videoDrop.title.split(":")[0]}</p> */}
               <p className="text-[#777] text-[11px] sm:text-[12px] mt-0.5">{videoDrop.subtitle || "Video Drops"}</p>
             </div>
           </div>
-          <button
-            onClick={handleShare}
-            title="Share"
-            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition active:scale-95"
-          >
-            <svg className="w-[13px] h-[13px] sm:w-[15px] sm:h-[15px]" viewBox="0 0 15 15" fill="none">
-              <circle cx="11.5" cy="2.5" r="1.7" stroke="#aaa" strokeWidth="1.3" />
-              <circle cx="11.5" cy="12.5" r="1.7" stroke="#aaa" strokeWidth="1.3" />
-              <circle cx="3.5" cy="7.5" r="1.7" stroke="#aaa" strokeWidth="1.3" />
-              <path d="M9.9 3.3L5.1 6.7M9.9 11.7L5.1 8.3" stroke="#aaa" strokeWidth="1.3" strokeLinecap="round" />
-            </svg>
-          </button>
+
+          <div className="flex items-center gap-2">
+            {/* Like Button */}
+            <button
+              onClick={handleToggleLike}
+              title={isLiked ? "Liked" : "Like Video"}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all active:scale-95 cursor-pointer ${
+                isLiked
+                  ? "bg-rose-500/20 border-rose-500/40 text-rose-400"
+                  : "bg-[#1e1e24] border-white/10 text-white/70 hover:text-white hover:bg-[#2a2a30]"
+              }`}
+            >
+              <Heart
+                size={14}
+                className={isLiked ? "fill-current text-rose-500 scale-110" : ""}
+              />
+              <span className="text-xs font-bold">{likeCount}</span>
+            </button>
+
+            {/* Share Button */}
+            <button
+              onClick={handleShare}
+              title="Share"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border border-white/10 cursor-pointer hover:bg-[#2a2a30] transition active:scale-95"
+            >
+              <Share2 size={14} className="text-white/70 hover:text-white" />
+            </button>
+          </div>
         </div>
 
         {/* Video Player - Responsive margins */}
@@ -958,10 +1123,10 @@ export default function VideoDropCard() {
         {/* Body - Responsive padding and text sizes */}
         {/* <div className="px-4 sm:px-5 md:px-6 pt-3.5 sm:pt-4 md:pt-5 pb-4 sm:pb-5 md:pb-6"> */}
         <div className="px-4 sm:px-5 md:px-6 pt-3.5 sm:pt-4 md:pt-5 pb-6 sm:pb-7 md:pb-8">
-          <h1 className="text-white text-[18px] sm:text-[20px] md:text-[22px] lg:text-[24px] font-medium leading-snug mb-2 sm:mb-3">
+          <h1 className="text-white text-[12px] sm:text-[15px] md:text-[15px] lg:text-[15px] font-medium leading-snug mb-2 sm:mb-3">
             {videoDrop.title}
           </h1>
-          <p className="text-[#777] text-[12px] sm:text-[13px] md:text-[14px] leading-relaxed mb-4 sm:mb-5">
+          <p className="text-[#777] text-[8px] sm:text-[13px] md:text-[14px] leading-relaxed mb-4 sm:mb-5">
             {videoDrop.description}
           </p>
 

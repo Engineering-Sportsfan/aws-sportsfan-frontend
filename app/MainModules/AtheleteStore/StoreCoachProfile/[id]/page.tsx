@@ -7,6 +7,7 @@ import { CoachBadge } from '../../page';
 import { storeService } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
 import { useAuth } from '@/context/AuthContext';
+import { handleGoBack } from '@/utils/backButton';
 
 const defaultCoach = {
   id: 1, name: 'Anubhav Karmakar', role: 'Founder, Athloft Multisport', experience: '12 yrs',
@@ -241,8 +242,8 @@ function StoreCoachProfileContent() {
 
           <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-12">
             <button
-              onClick={() => router.back()}
-              className="w-[38px] h-[38px] rounded-full backdrop-blur-md flex items-center justify-center"
+              onClick={() => handleGoBack(router)}
+              className="w-[38px] h-[38px] rounded-full backdrop-blur-md flex items-center justify-center cursor-pointer"
               style={{ background: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.14)' }}
             >
               <ArrowLeft className="w-[18px] h-[18px] text-white" />

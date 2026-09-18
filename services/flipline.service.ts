@@ -312,4 +312,27 @@ export const fliplineService = {
     });
     return res.data;
   },
+
+  /** Submit a report for a card to /api/records */
+  submitReport: async (payload: {
+    cardId: string | number;
+    cardSk?: string;
+    cardContent?: string;
+    cardAuthor?: string;
+    cardAuthorId?: string;
+    cardSport?: string;
+    reason: string;
+    tag?: string;
+    reporterId?: string;
+    reporterName?: string;
+    reporterHandle?: string;
+    reporterEmail?: string;
+    reporterAvatar?: string;
+  }): Promise<{ success: boolean; data?: any; error?: string; message?: string }> => {
+    const res = await axios.post<{ success: boolean; data?: any; error?: string; message?: string }>("/api/records", {
+      ...payload,
+      recordType: "flipline_report",
+    });
+    return res.data;
+  },
 };

@@ -1,562 +1,27 @@
-// // src/app/MainModules/CricketArticles/page.tsx
-
-// "use client";
-
-// import React, { useEffect, useState } from "react";
-// import Link from "next/link";
-// import { Heart, Share2, ArrowRight, ArrowLeft } from "lucide-react";
-
-// type CricketApiArticle = {
-//   _id?: string | number;
-//   id?: string | number;
-//   title?: string;
-//   description?: string[] | string;
-//   summary?: string;
-//   badge?: string;
-//   image?: string;
-//   cdn_url?: string;
-//   author?: string;
-//   readTime?: string;
-//   createdAt?: number | string;
-//   updatedAt?: number | string;
-// };
-
-// type Article = {
-//   id: string;
-//   rank: number;
-//   title: string;
-//   summary: string;
-//   source: string;
-//   url: string;
-//   tag: string;
-//   cdn_url: string;
-//   author?: string;
-//   readTime?: string;
-//   createdAt: number;
-//   likes?: number;
-// };
-
-// const NEWS_LIKES_KEY = "sportsfan_news_likes";
-// const NEWS_USER_LIKES_KEY = "sportsfan_news_user_likes";
-// const CRICKET_USER_LIKES_KEY = "cricket_user_likes";
-
-// const stripHtmlTags = (html: string) => {
-//   if (!html) return "";
-//   return html.replace(/<[^>]*>/g, "").trim();
-// };
-
-// const formatDate = (timestamp?: number) => {
-//   if (!timestamp) return "May 11, 2026";
-//   const date = new Date(timestamp);
-//   const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
-//   return date.toLocaleDateString("en-US", options);
-// };
-
-// const copyToClipboard = async (text: string) => {
-//   try {
-//     await navigator.clipboard.writeText(text);
-//     return true;
-//   } catch {
-//     try {
-//       const input = document.createElement("textarea");
-//       input.value = text;
-//       input.style.position = "fixed";
-//       input.style.opacity = "0";
-//       document.body.appendChild(input);
-//       input.focus();
-//       input.select();
-//       const ok = document.execCommand("copy");
-//       document.body.removeChild(input);
-//       return ok;
-//     } catch {
-//       return false;
-//     }
-//   }
-// };
-
-// export default function AllCricketArticlesPage() {
-//   const [articles, setArticles] = useState<Article[]>([]);
-//   const [loading, setLoading] = useState(true);
-//   const [error, setError] = useState<string | null>(null);
-
-//   const [likeCounts, setLikeCounts] = useState<Record<number, number>>({});
-//   const [userLikes, setUserLikes] = useState<Set<number>>(new Set());
-
-//   const [sharedArticle, setSharedArticle] = useState<Article | null>(null);
-//   const [showShareDialog, setShowShareDialog] = useState(false);
-//   const [copied, setCopied] = useState(false);
-
-//   const [badgeFilter, setBadgeFilter] = useState<string>("ALL");
-
-//   useEffect(() => {
-//     const extractSummary = (art: CricketApiArticle): string => {
-//       if (Array.isArray(art.description) && art.description.length > 0) {
-//         return String(art.description[0]);
-//       }
-//       if (typeof art.description === "string" && art.description.trim()) {
-//         try {
-//           const parsed = JSON.parse(art.description);
-//           if (Array.isArray(parsed) && parsed.length > 0) return String(parsed[0]);
-//         } catch {}
-//         return art.description;
-//       }
-//       return art.summary || "";
-//     };
-
-//     const extractCreatedAt = (art: any): number => {
-//       // Direct number (DynamoDB unix ms timestamp or seconds)
-//       if (typeof art.createdAt === "number") {
-//         return art.createdAt < 10000000000 ? art.createdAt * 1000 : art.createdAt;
-//       }
-//       if (typeof art.timeMs === "number") return art.timeMs;
-//       if (typeof art.timestamp === "number") {
-//         return art.timestamp < 10000000000 ? art.timestamp * 1000 : art.timestamp;
-//       }
-
-//       // Firestore Timestamp objects (.toMillis(), .seconds, ._seconds)
-//       if (art.createdAt && typeof art.createdAt.toMillis === "function") {
-//         return art.createdAt.toMillis();
-//       }
-//       if (art.createdAt && typeof art.createdAt.seconds === "number") {
-//         return art.createdAt.seconds * 1000;
-//       }
-//       if (art.createdAt && typeof art.createdAt._seconds === "number") {
-//         return art.createdAt._seconds * 1000;
-//       }
-
-//       // ISO Strings / date strings (DynamoDB standard string format)
-//       if (typeof art.createdAt === "string" && art.createdAt.trim()) {
-//         const parsed = Date.parse(art.createdAt);
-//         if (!isNaN(parsed) && parsed > 0) return parsed;
-//       }
-
-//       // Fallbacks to updatedAt
-//       if (typeof art.updatedAt === "number") {
-//         return art.updatedAt < 10000000000 ? art.updatedAt * 1000 : art.updatedAt;
-//       }
-//       if (typeof art.updatedAt === "string" && art.updatedAt.trim()) {
-//         const parsed = Date.parse(art.updatedAt);
-//         if (!isNaN(parsed) && parsed > 0) return parsed;
-//       }
-
-//       return Date.now();
-//     };
-
-//     const fetchArticles = async () => {
-//       try {
-//         const res = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
-//           cache: "no-store",
-//           headers: { "Cache-Control": "no-cache" },
-//         });
-//         if (!res.ok) {
-//           setError(`Failed to load articles (HTTP ${res.status})`);
-//           setLoading(false);
-//           return;
-//         }
-//         const data = await res.json();
-//         const rawArticles: CricketApiArticle[] =
-//           data?.articles || data?.data || (Array.isArray(data) ? data : []);
-
-//         const transformed: Article[] = (Array.isArray(rawArticles) ? rawArticles : []).map(
-//           (article) => {
-//             const articleId = String(article._id || article.id || "");
-//             return {
-//               id: articleId,
-//               rank: 0,
-//               title: article.title || "",
-//               summary: extractSummary(article),
-//               source: "SportsFan360",
-//               url: `/MainModules/CricketArticles/${articleId}`,
-//               tag: article.badge || "Cricket",
-//               cdn_url: article.image || article.cdn_url || "",
-//               author: article.author,
-//               readTime: article.readTime,
-//               createdAt: extractCreatedAt(article),
-//             };
-//           }
-//         );
-
-//         transformed.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-//         const ranked = transformed.map((a, i) => ({ ...a, rank: i + 1 }));
-
-//         setArticles(ranked);
-//       } catch (err: any) {
-//         console.error("[AllCricketArticles] Error loading articles", err);
-//         setError(err?.message || "Something went wrong while loading articles");
-//       } finally {
-//         setLoading(false);
-//       }
-//     };
-
-//     fetchArticles();
-
-//     const handleArticleCreated = () => {
-//       fetchArticles();
-//     };
-//     window.addEventListener("cricket-article-created", handleArticleCreated);
-//     return () => {
-//       window.removeEventListener("cricket-article-created", handleArticleCreated);
-//     };
-//   }, []);
-
-//   useEffect(() => {
-//     if (typeof window === "undefined") return;
-//     const savedLikeCounts = window.localStorage.getItem(NEWS_LIKES_KEY);
-//     if (savedLikeCounts) setLikeCounts(JSON.parse(savedLikeCounts));
-//     const savedUserLikes = window.localStorage.getItem(NEWS_USER_LIKES_KEY);
-//     if (savedUserLikes) setUserLikes(new Set(JSON.parse(savedUserLikes)));
-//   }, []);
-
-//   const toggleLike = (article: Article, currentLikes: number = 0) => {
-//     const articleRank = article.rank;
-//     const newUserLikes = new Set(userLikes);
-//     let newCount = currentLikes;
-
-//     if (newUserLikes.has(articleRank)) {
-//       newUserLikes.delete(articleRank);
-//       newCount = Math.max(0, currentLikes - 1);
-//     } else {
-//       newUserLikes.add(articleRank);
-//       newCount = currentLikes + 1;
-//     }
-
-//     setUserLikes(newUserLikes);
-//     const newLikeCounts = { ...likeCounts, [articleRank]: newCount };
-//     setLikeCounts(newLikeCounts);
-
-//     if (typeof window !== "undefined") {
-//       window.localStorage.setItem(NEWS_USER_LIKES_KEY, JSON.stringify(Array.from(newUserLikes)));
-//       window.localStorage.setItem(NEWS_LIKES_KEY, JSON.stringify(newLikeCounts));
-
-//       const cricketLikeKey = `cricket_article_likes_${article.id}`;
-//       window.localStorage.setItem(cricketLikeKey, String(newCount));
-
-//       const cricketUserLikesData = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
-//       let cricketUserLikes: Record<string, boolean> = {};
-//       if (cricketUserLikesData) {
-//         try {
-//           cricketUserLikes = JSON.parse(cricketUserLikesData);
-//         } catch {
-//           cricketUserLikes = {};
-//         }
-//       }
-//       if (newUserLikes.has(articleRank)) {
-//         cricketUserLikes[article.id] = true;
-//       } else {
-//         delete cricketUserLikes[article.id];
-//       }
-//       window.localStorage.setItem(CRICKET_USER_LIKES_KEY, JSON.stringify(cricketUserLikes));
-//     }
-//   };
-
-//   const buildShareUrl = (article: Article) => {
-//     if (typeof window === "undefined") return "";
-//     return `${window.location.origin}${article.url}`;
-//   };
-
-//   const buildShareText = (article: Article) => {
-//     return [article.title, buildShareUrl(article)].filter(Boolean).join("\n");
-//   };
-
-//   const openShareDialog = (article: Article) => {
-//     setSharedArticle(article);
-//     setShowShareDialog(true);
-//   };
-//   const closeShareDialog = () => {
-//     setShowShareDialog(false);
-//     setSharedArticle(null);
-//   };
-//   const handleShareToWhatsApp = () => {
-//     if (!sharedArticle) return;
-//     window.open(`whatsapp://send?text=${encodeURIComponent(buildShareText(sharedArticle))}`, "_blank");
-//   };
-//   const handleShareToThreads = () => {
-//     if (!sharedArticle) return;
-//     window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(buildShareText(sharedArticle))}`, "_blank");
-//   };
-//   const handleShareToInstagram = async () => {
-//     if (!sharedArticle) return;
-//     await copyToClipboard(buildShareText(sharedArticle));
-//     setCopied(true);
-//     setTimeout(() => setCopied(false), 1600);
-//     window.open("https://www.instagram.com/", "_blank");
-//   };
-//   const handleShareToLinkedIn = () => {
-//     if (!sharedArticle) return;
-//     window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(buildShareUrl(sharedArticle))}`, "_blank");
-//   };
-//   const handleShareToX = () => {
-//     if (!sharedArticle) return;
-//     window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(buildShareText(sharedArticle))}`, "_blank");
-//   };
-//   const handleCopyLink = async () => {
-//     if (!sharedArticle) return;
-//     const ok = await copyToClipboard(buildShareText(sharedArticle));
-//     if (ok) {
-//       setCopied(true);
-//       setTimeout(() => setCopied(false), 1600);
-//     }
-//   };
-
-//   const badges = ["ALL", ...Array.from(new Set(articles.map((a) => a.tag.toUpperCase())))];
-//   const visibleArticles =
-//     badgeFilter === "ALL" ? articles : articles.filter((a) => a.tag.toUpperCase() === badgeFilter);
-
-//   return (
-//     <div className="min-h-screen bg-[#0a0a0a] text-white">
-//       <div className="max-w-[1200px] mx-auto px-4 py-6">
-//         {/* Header */}
-//         <div className="flex items-center gap-3 mb-2">
-//           <Link
-//             href="/MainModules/HomePage"
-//             className="flex items-center justify-center w-9 h-9 text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
-//             aria-label="Back"
-//           >
-//             <ArrowLeft size={16} />
-//           </Link>
-//           <div>
-//             <h1 className="text-[18px] font-bold">Articles</h1>
-//             {/* <p className="text-sm text-gray-400">
-//               All stories, match previews & records from around the cricket world.
-//             </p> */}
-//           </div>
-//         </div>
-
-//         {/* Badge filter */}
-//         {badges.length > 1 && (
-//           <div className="flex flex-wrap gap-2 mt-5 mb-6">
-//             {badges.map((b) => (
-//               <button
-//                 key={b}
-//                 onClick={() => setBadgeFilter(b)}
-//                 className={
-//                   badgeFilter === b
-//                     ? "px-4 py-1.5 rounded-full text-xs font-bold border border-orange-500 text-orange-500 bg-orange-500/10"
-//                     : "px-4 py-1.5 rounded-full text-xs font-medium border border-gray-700 text-gray-400 hover:border-gray-500"
-//                 }
-//               >
-//                 {b}
-//               </button>
-//             ))}
-//           </div>
-//         )}
-
-//         {/* Loading state */}
-//         {loading && (
-//           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-//             {Array.from({ length: 6 }).map((_, i) => (
-//               <div
-//                 key={i}
-//                 className="h-56 rounded-2xl border border-gray-800 bg-[#111111] animate-pulse"
-//               />
-//             ))}
-//           </div>
-//         )}
-
-//         {/* Error state */}
-//         {!loading && error && (
-//           <div className="p-4 rounded-xl border border-gray-800 bg-[#111111] text-sm text-red-400">
-//             {error}
-//           </div>
-//         )}
-
-//         {/* Empty state */}
-//         {!loading && !error && visibleArticles.length === 0 && (
-//           <div className="p-8 rounded-xl border border-gray-800 bg-[#111111] text-center text-gray-400 text-sm">
-//             No articles to show yet.
-//           </div>
-//         )}
-
-//         {/* Articles grid */}
-//         {!loading && !error && visibleArticles.length > 0 && (
-//           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 pb-10 gap-4">
-//             {visibleArticles.map((article) => (
-//               <div
-//                 key={article.id}
-//                 className="flex flex-col justify-between rounded-2xl border border-gray-800 bg-[#111111] p-4 hover:border-gray-700 transition-colors"
-//               >
-//                 <div>
-//                   <div className="flex items-start justify-between gap-2 mb-3">
-//                     <img
-//                       src={article.cdn_url || "/images/News_center_Default.png"}
-//                       alt={article.title}
-//                       className="w-16 h-16 object-cover rounded-lg"
-//                       onError={(e) => {
-//                         e.currentTarget.src = "/images/News_center_Default.png";
-//                       }}
-//                     />
-//                     <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider h-fit">
-//                       {article.tag}
-//                     </span>
-//                   </div>
-
-//                   <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2">
-//                     {article.title}
-//                   </h3>
-
-//                   <p className="text-sm text-gray-400 line-clamp-3 mb-4">
-//                     {stripHtmlTags(article.summary)}
-//                   </p>
-//                 </div>
-
-//                 <div>
-//                   <p className="text-xs text-gray-500 mb-4">
-//                     {article.author ? `${article.author} · ` : ""}
-//                     {formatDate(article.createdAt)}
-//                     {/* {article.readTime ? ` · ${article.readTime}` : ""} */}
-//                   </p>
-//                   <div className="flex items-center justify-between border-t border-gray-800 pt-3">
-//                     <div className="flex gap-4">
-//                       <button
-//                         onClick={() =>
-//                           toggleLike(article, likeCounts[article.rank] || article.likes || 0)
-//                         }
-//                         className={`flex items-center gap-1 text-sm transition-colors ${
-//                           userLikes.has(article.rank)
-//                             ? "text-pink-500"
-//                             : "text-gray-400 hover:text-pink-400"
-//                         }`}
-//                       >
-//                         <Heart
-//                           size={16}
-//                           fill={userLikes.has(article.rank) ? "currentColor" : "none"}
-//                         />{" "}
-//                         {(likeCounts[article.rank] ?? article.likes) || 0}
-//                       </button>
-//                       <button
-//                         onClick={() => openShareDialog(article)}
-//                         className="flex items-center gap-1 text-gray-400 hover:text-white text-sm"
-//                       >
-//                         <Share2 size={16} /> 
-//                       </button>
-//                     </div>
-//                     <Link
-//                       href={article.url}
-//                       className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold"
-//                     >
-//                       Read More <ArrowRight size={14} />
-//                     </Link>
-//                   </div>
-//                 </div>
-//               </div>
-//             ))}
-//           </div>
-//         )}
-//       </div>
-
-//       {/* Share Dialog */}
-//       {showShareDialog && sharedArticle && (
-//         <>
-//           <button
-//             type="button"
-//             className="fixed inset-0 z-40 bg-black/70 lg:hidden"
-//             onClick={closeShareDialog}
-//           />
-//           <div
-//             className="fixed bottom-16 inset-x-4 z-50 mx-auto w-full max-w-[280px] rounded-2xl border border-white/10 bg-[#1a1a1e] p-3 shadow-2xl lg:hidden"
-//             onClick={(e) => e.stopPropagation()}
-//           >
-//             <div className="flex items-center justify-between mb-2">
-//               <p className="text-white text-sm font-semibold">Share</p>
-//               <button onClick={closeShareDialog} className="text-gray-400 hover:text-white">
-//                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-//                   <path
-//                     d="M15 5L5 15M5 5L15 15"
-//                     stroke="currentColor"
-//                     strokeWidth="1.5"
-//                     strokeLinecap="round"
-//                   />
-//                 </svg>
-//               </button>
-//             </div>
-//             <div className="flex flex-row flex-nowrap items-center gap-1.5 mb-2 overflow-x-auto">
-//               {[
-//                 { handler: handleShareToWhatsApp, src: "/images/share_whatsapp.png", alt: "WhatsApp" },
-//                 { handler: handleShareToThreads, src: "/images/share_thread.png", alt: "Threads" },
-//                 { handler: handleShareToInstagram, src: "/images/share_insta.png", alt: "Instagram" },
-//                 { handler: handleShareToLinkedIn, src: "/images/Share_linkedin.png", alt: "LinkedIn" },
-//                 { handler: handleShareToX, src: "/images/Share_X.png", alt: "X" },
-//                 { handler: handleCopyLink, src: "/images/share_copy_link.png", alt: "Copy" },
-//               ].map(({ handler, src, alt }) => (
-//                 <button
-//                   key={alt}
-//                   onClick={handler}
-//                   className="w-8 h-8 shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center"
-//                 >
-//                   <img src={src} alt={alt} className="w-full h-full object-cover rounded-full" />
-//                 </button>
-//               ))}
-//             </div>
-//             {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
-//           </div>
-//           <div
-//             className="hidden lg:flex fixed inset-0 z-50 items-center justify-center bg-black/60"
-//             onClick={closeShareDialog}
-//           >
-//             <div
-//               className="bg-[#1a1a1e] rounded-2xl border border-white/10 p-4 w-[300px] shadow-2xl"
-//               onClick={(e) => e.stopPropagation()}
-//             >
-//               <div className="flex items-center justify-between mb-3">
-//                 <p className="text-white text-sm font-semibold">Share Article</p>
-//                 <button onClick={closeShareDialog} className="text-gray-400 hover:text-white">
-//                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-//                     <path
-//                       d="M15 5L5 15M5 5L15 15"
-//                       stroke="currentColor"
-//                       strokeWidth="1.5"
-//                       strokeLinecap="round"
-//                     />
-//                   </svg>
-//                 </button>
-//               </div>
-//               <div className="rounded-xl border border-white/10 bg-[#111114] p-3 mb-3">
-//                 <p className="text-white text-sm font-semibold line-clamp-2">
-//                   {sharedArticle.title}
-//                 </p>
-//                 <p className="text-white/45 text-[11px] mt-2 line-clamp-2 break-all">
-//                   {buildShareUrl(sharedArticle)}
-//                 </p>
-//               </div>
-//               <div className="flex flex-row flex-nowrap items-center gap-2 mb-2">
-//                 {[
-//                   { handler: handleShareToWhatsApp, src: "/images/share_whatsapp.png", alt: "WhatsApp" },
-//                   { handler: handleShareToThreads, src: "/images/share_thread.png", alt: "Threads" },
-//                   { handler: handleShareToInstagram, src: "/images/share_insta.png", alt: "Instagram" },
-//                   { handler: handleShareToLinkedIn, src: "/images/Share_linkedin.png", alt: "LinkedIn" },
-//                   { handler: handleShareToX, src: "/images/Share_X.png", alt: "X" },
-//                   { handler: handleCopyLink, src: "/images/share_copy_link.png", alt: "Copy" },
-//                 ].map(({ handler, src, alt }) => (
-//                   <button
-//                     key={alt}
-//                     onClick={handler}
-//                     className="w-9 h-9 shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center"
-//                   >
-//                     <img src={src} alt={alt} className="w-full h-full object-cover rounded-full" />
-//                   </button>
-//                 ))}
-//               </div>
-//               {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
-//             </div>
-//           </div>
-//         </>
-//       )}
-//     </div>
-//   );
-// }
-
-
-
-//MainModules/CricketArticles/page.tsx
-
-
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useState, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Heart, Share2, ArrowRight, ArrowLeft } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  Heart,
+  Share2,
+  ArrowRight,
+  ArrowLeft,
+  Search,
+  SlidersHorizontal,
+  LayoutGrid,
+  List,
+  Sparkles,
+  Clock,
+  User,
+  X,
+  Flame,
+  Check,
+} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { handleGoBack } from "@/utils/backButton";
 
 type CricketApiArticle = {
   _id?: string | number;
@@ -605,10 +70,18 @@ const stripHtmlTags = (html: string) => {
 };
 
 const formatDate = (timestamp?: number) => {
-  if (!timestamp) return "May 11, 2026";
+  if (!timestamp) return "Recent";
   const date = new Date(timestamp);
-  const options: Intl.DateTimeFormatOptions = { year: "numeric", month: "short", day: "numeric" };
-  return date.toLocaleDateString("en-US", options);
+  const diffMs = Date.now() - date.getTime();
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffHours < 1) return "Just now";
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
 const copyToClipboard = async (text: string) => {
@@ -643,6 +116,7 @@ function AllCricketArticlesContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [searchQuery, setSearchQuery] = useState("");
   const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
   const [userLikes, setUserLikes] = useState<Set<string>>(new Set());
 
@@ -652,6 +126,7 @@ function AllCricketArticlesContent() {
 
   const [badgeFilter, setBadgeFilter] = useState<string>("ALL");
   const [selectedAuthor, setSelectedAuthor] = useState<string>(authorQuery);
+  const [viewMode, setViewMode] = useState<"compact" | "grid">("compact");
 
   useEffect(() => {
     setSelectedAuthor(authorQuery);
@@ -668,7 +143,7 @@ function AllCricketArticlesContent() {
         try {
           const parsed = JSON.parse(art.description);
           if (Array.isArray(parsed) && parsed.length > 0) return String(parsed[0]);
-        } catch { }
+        } catch {}
         return art.description;
       }
       return art.summary || "";
@@ -684,7 +159,7 @@ function AllCricketArticlesContent() {
           if (Array.isArray(parsed)) {
             return parsed.map((t) => String(t).trim()).filter(Boolean);
           }
-        } catch { }
+        } catch {}
         return art.tags.split(",").map((t) => t.trim()).filter(Boolean);
       }
       return [];
@@ -725,14 +200,26 @@ function AllCricketArticlesContent() {
       try {
         const res = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
           cache: "no-store",
-          headers: { "Cache-Control": "no-cache" },
+          headers: { "Cache-Control": "no-cache", "Accept": "application/json" },
         });
-        if (!res.ok) {
+        let data: any = null;
+        try {
+          const text = await res.text();
+          if (text && text.trim().startsWith("{")) {
+            data = JSON.parse(text);
+          } else if (text && text.trim().startsWith("[")) {
+            data = JSON.parse(text);
+          }
+        } catch (parseErr) {
+          console.warn("[CricketArticles] Non-JSON response:", parseErr);
+        }
+
+        if (!res.ok && !data) {
           setError(`Failed to load articles (HTTP ${res.status})`);
           setLoading(false);
           return;
         }
-        const data = await res.json();
+
         const rawArticles: CricketApiArticle[] =
           data?.articles || data?.data || (Array.isArray(data) ? data : []);
 
@@ -745,7 +232,7 @@ function AllCricketArticlesContent() {
           try {
             const raw = window.localStorage.getItem(CRICKET_USER_LIKES_KEY);
             if (raw) localUserLikes = JSON.parse(raw);
-          } catch { }
+          } catch {}
         }
 
         const transformed: Article[] = (Array.isArray(rawArticles) ? rawArticles : []).map(
@@ -784,7 +271,7 @@ function AllCricketArticlesContent() {
               tag: article.badge || "Cricket",
               cdn_url: article.image || article.cdn_url || "",
               author: article.author || (article as any).authorName || (article as any).creatorName || (article as any).userName || "",
-              readTime: article.readTime,
+              readTime: article.readTime || "3 min",
               tags: extractTags(article),
               createdAt: extractCreatedAt(article),
               likes: resolvedCount,
@@ -858,7 +345,11 @@ function AllCricketArticlesContent() {
     };
   }, []);
 
-  const toggleLike = async (article: Article) => {
+  const toggleLike = async (article: Article, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     const articleId = article.id;
     const isCurrentlyLiked = userLikes.has(articleId);
     const currentCount = likeCounts[articleId] ?? article.likes ?? 0;
@@ -890,8 +381,8 @@ function AllCricketArticlesContent() {
         }
         window.localStorage.setItem(CRICKET_USER_LIKES_KEY, JSON.stringify(localUserLikes));
         window.localStorage.setItem(`cricket_article_likes_${articleId}`, String(newCount));
-      } catch (e) {
-        console.warn("LocalStorage like sync error:", e);
+      } catch (err) {
+        console.warn("LocalStorage like sync error:", err);
       }
 
       window.dispatchEvent(
@@ -912,7 +403,14 @@ function AllCricketArticlesContent() {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        let data: any = null;
+        try {
+          const text = await res.text();
+          if (text && (text.trim().startsWith("{") || text.trim().startsWith("["))) {
+            data = JSON.parse(text);
+          }
+        } catch {}
+
         const serverLikeCount =
           typeof data?.likeCount === "number"
             ? data.likeCount
@@ -944,14 +442,20 @@ function AllCricketArticlesContent() {
     return [article.title, buildShareUrl(article)].filter(Boolean).join("\n");
   };
 
-  const openShareDialog = (article: Article) => {
+  const openShareDialog = (article: Article, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setSharedArticle(article);
     setShowShareDialog(true);
   };
+
   const closeShareDialog = () => {
     setShowShareDialog(false);
     setSharedArticle(null);
   };
+
   const handleShareToWhatsApp = () => {
     if (!sharedArticle) return;
     window.open(`whatsapp://send?text=${encodeURIComponent(buildShareText(sharedArticle))}`, "_blank");
@@ -984,233 +488,316 @@ function AllCricketArticlesContent() {
     }
   };
 
-  const badges = ["ALL", ...Array.from(new Set(articles.map((a) => a.tag.toUpperCase())))];
-  const visibleArticles = articles.filter((a) => {
-    const matchesBadge = badgeFilter === "ALL" || a.tag.toUpperCase() === badgeFilter;
-    const matchesAuthor = !selectedAuthor || (a.author && a.author.toLowerCase().trim() === selectedAuthor.toLowerCase().trim());
-    return matchesBadge && matchesAuthor;
-  });
+  const badges = useMemo(() => {
+    return ["ALL", ...Array.from(new Set(articles.map((a) => (a.tag || "Cricket").toUpperCase())))];
+  }, [articles]);
+
+  const visibleArticles = useMemo(() => {
+    return articles.filter((a) => {
+      const matchesBadge = badgeFilter === "ALL" || (a.tag || "").toUpperCase() === badgeFilter;
+      const matchesAuthor =
+        !selectedAuthor ||
+        (a.author && a.author.toLowerCase().trim() === selectedAuthor.toLowerCase().trim());
+      if (!matchesBadge || !matchesAuthor) return false;
+
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      return (
+        a.title.toLowerCase().includes(q) ||
+        a.summary.toLowerCase().includes(q) ||
+        (a.author && a.author.toLowerCase().includes(q)) ||
+        (a.tags && a.tags.some((t) => t.toLowerCase().includes(q)))
+      );
+    });
+  }, [articles, badgeFilter, selectedAuthor, searchQuery]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <div className="max-w-[1200px] mx-auto px-4 py-6">
-        <div className="flex items-center gap-3 mb-2">
-          <Link
-            href="/MainModules/HomePage"
-            className="flex items-center justify-center w-9 h-9 text-gray-300 hover:text-white hover:border-gray-500 transition-colors"
-            aria-label="Back"
-          >
-            <ArrowLeft size={16} />
-          </Link>
-          <div>
-            <h1 className="text-[18px] font-bold">Articles</h1>
-          </div>
-        </div>
-
-        {selectedAuthor && (
-          <div className="flex items-center justify-between bg-[#151518] border border-pink-500/30 rounded-xl px-4 py-3 mt-4 mb-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs sm:text-sm text-gray-300">Showing articles by:</span>
-              <span className="text-xs sm:text-sm font-bold text-pink-400 underline underline-offset-4">
-                {selectedAuthor}
-              </span>
-              <span className="text-xs text-gray-400 bg-white/5 px-2 py-0.5 rounded-full">
-                {visibleArticles.length} {visibleArticles.length === 1 ? "article" : "articles"}
-              </span>
-            </div>
+    <div className="min-h-screen bg-[#07090E] text-white pb-20 selection:bg-rose-500/30">
+      {/* Top Header */}
+      <div className="sticky top-0 z-30 bg-[#07090E]/90 backdrop-blur-xl border-b border-white/[0.08] px-3 sm:px-6 py-2.5">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
+              onClick={() => handleGoBack(router)}
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/80 hover:text-white transition-all active:scale-95 cursor-pointer"
+              aria-label="Back"
+            >
+              <ArrowLeft size={15} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base sm:text-lg font-black tracking-tight text-white">
+                  FlipLONG Articles
+                </h1>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gradient-to-r from-rose-500/20 to-orange-500/20 text-rose-400 border border-rose-500/30">
+                  {visibleArticles.length}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* View switcher for tablet/desktop */}
+            <div className="hidden sm:flex items-center bg-white/[0.05] p-0.5 rounded-lg border border-white/10">
+              <button
+                onClick={() => setViewMode("compact")}
+                className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                  viewMode === "compact" ? "bg-white/15 text-white" : "text-white/40 hover:text-white"
+                }`}
+                title="Compact Feed"
+              >
+                <List size={14} />
+              </button>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`p-1.5 rounded-md transition-colors cursor-pointer ${
+                  viewMode === "grid" ? "bg-white/15 text-white" : "text-white/40 hover:text-white"
+                }`}
+                title="Grid View"
+              >
+                <LayoutGrid size={14} />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 space-y-3">
+        {/* Search & Filter Row */}
+        <div className="flex flex-col gap-2.5">
+          <div className="relative w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search cricket stories, authors, or tournaments..."
+              className="w-full pl-9 pr-8 py-1.5 bg-white/[0.04] hover:bg-white/[0.07] focus:bg-white/[0.07] border border-white/10 focus:border-rose-500/50 rounded-xl text-xs font-medium text-white placeholder-white/40 focus:outline-none transition-colors"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/40 hover:text-white cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* Badges Bar with Horizontal Scroll */}
+          {badges.length > 1 && (
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">
+              {badges.map((b) => {
+                const isActive = badgeFilter === b;
+                return (
+                  <button
+                    key={b}
+                    onClick={() => setBadgeFilter(b)}
+                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
+                      isActive
+                        ? "bg-gradient-to-r from-rose-500 to-orange-500 text-white shadow-md shadow-rose-500/20"
+                        : "bg-white/[0.05] text-white/60 hover:text-white hover:bg-white/[0.09] border border-white/[0.06]"
+                    }`}
+                  >
+                    {b}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Selected Author Notice */}
+        {selectedAuthor && (
+          <div className="flex items-center justify-between bg-rose-500/10 border border-rose-500/25 rounded-xl px-3 py-2 text-xs">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-white/60">By:</span>
+              <span className="font-bold text-rose-300 truncate">{selectedAuthor}</span>
+            </div>
+            <button
               onClick={() => {
                 setSelectedAuthor("");
                 router.replace("/MainModules/CricketArticles");
               }}
-              className="text-xs font-semibold text-gray-300 hover:text-white bg-white/10 hover:bg-white/15 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              className="text-[11px] font-semibold text-rose-300 hover:text-white bg-rose-500/20 hover:bg-rose-500/30 px-2 py-0.5 rounded-md transition-colors cursor-pointer shrink-0"
             >
-              Show all articles ✕
+              Clear ✕
             </button>
           </div>
         )}
 
-        {badges.length > 1 && (
-          <div className="flex flex-wrap gap-2 mt-5 mb-6">
-            {badges.map((b) => (
-              <button
-                key={b}
-                onClick={() => setBadgeFilter(b)}
-                className={
-                  badgeFilter === b
-                    ? "px-4 py-1.5 rounded-full text-xs font-bold border border-orange-500 text-orange-500 bg-orange-500/10"
-                    : "px-4 py-1.5 rounded-full text-xs font-medium border border-gray-700 text-gray-400 hover:border-gray-500"
-                }
-              >
-                {b}
-              </button>
-            ))}
-          </div>
-        )}
-
+        {/* Skeleton Loader */}
         {loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
+          <div className="space-y-2.5">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
-                className="h-56 rounded-2xl border border-gray-800 bg-[#111111] animate-pulse"
-              />
+                className="rounded-xl border border-white/[0.06] bg-[#111624] p-3 flex gap-3 animate-pulse"
+              >
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 bg-white/10 rounded w-1/4" />
+                  <div className="h-4 bg-white/10 rounded w-4/5" />
+                  <div className="h-3 bg-white/5 rounded w-1/2" />
+                </div>
+                <div className="w-20 h-20 rounded-lg bg-white/5 shrink-0" />
+              </div>
             ))}
           </div>
         )}
 
+        {/* Error State */}
         {!loading && error && (
-          <div className="p-4 rounded-xl border border-gray-800 bg-[#111111] text-sm text-red-400">
+          <div className="p-4 rounded-xl border border-red-500/20 bg-red-500/10 text-xs text-red-400">
             {error}
           </div>
         )}
 
+        {/* Empty State */}
         {!loading && !error && visibleArticles.length === 0 && (
-          <div className="p-8 rounded-xl border border-gray-800 bg-[#111111] text-center text-gray-400 text-sm">
-            No articles to show yet.
+          <div className="p-8 rounded-2xl border border-white/[0.06] bg-[#111624] text-center text-white/50 text-xs space-y-2">
+            <p className="font-bold text-white text-sm">No articles found</p>
+            <p>Try searching for a different keyword or resetting filters.</p>
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                setBadgeFilter("ALL");
+                setSelectedAuthor("");
+              }}
+              className="mt-2 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white text-xs font-semibold"
+            >
+              Reset Filters
+            </button>
           </div>
         )}
 
+        {/* Article Feed: Mobile-Optimized High Density Feed */}
         {!loading && !error && visibleArticles.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 pb-10 gap-4">
+          <div
+            className={
+              viewMode === "grid"
+                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5"
+                : "space-y-2.5 sm:grid sm:grid-cols-2 lg:grid-cols-3 sm:space-y-0 sm:gap-3.5"
+            }
+          >
             {visibleArticles.map((article) => {
               const isLiked = userLikes.has(article.id);
               const count = likeCounts[article.id] ?? article.likes ?? 0;
 
               return (
-                <div
+                <Link
                   key={article.id}
-                  className="flex flex-col justify-between rounded-2xl border border-gray-800 bg-[#111111] p-4 hover:border-gray-700 transition-colors"
+                  href={article.url}
+                  className="group block rounded-xl border border-white/[0.07] hover:border-white/20 bg-[#101422] hover:bg-[#13192c] p-2.5 sm:p-3 transition-all duration-200 shadow-sm hover:shadow-md"
                 >
-                  <div>
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <Link href={article.url} className="shrink-0 block group/img">
-                        <img
-                          src={article.cdn_url || "/images/News_center_Default.png"}
-                          alt={article.title}
-                          className="w-16 h-16 object-cover rounded-lg group-hover/img:opacity-85 transition-opacity cursor-pointer"
-                          onError={(e) => {
-                            e.currentTarget.src = "/images/News_center_Default.png";
-                          }}
-                        />
-                      </Link>
-                      <span className="px-2 py-1 text-[10px] font-bold text-orange-500 border border-orange-500 rounded uppercase tracking-wider h-fit">
-                        {article.tag}
-                      </span>
-                    </div>
-
-                    <Link href={article.url} className="block group/title">
-                      <h3 className="text-base font-bold text-white leading-snug mb-2 line-clamp-2 group-hover/title:text-pink-400 transition-colors cursor-pointer">
-                        {article.title}
-                      </h3>
-                    </Link>
-
-                    <p className="text-sm text-gray-400 line-clamp-3 mb-3">
-                      {stripHtmlTags(article.summary)}
-                    </p>
-
-                    {article.tags && article.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mb-3">
-                        {article.tags.slice(0, 4).map((tag, idx) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-300 hover:text-white transition-colors"
-                          >
-                            #{tag}
+                  <div className="flex gap-2.5 sm:gap-3 items-stretch">
+                    {/* Left: Content Block */}
+                    <div className="flex-1 flex flex-col justify-between min-w-0">
+                      <div>
+                        {/* Meta Category Tag & Date */}
+                        <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                          <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/25">
+                            {article.tag}
                           </span>
-                        ))}
-                        {article.tags.length > 4 && (
-                          <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-gray-400">
-                            +{article.tags.length - 4} more
+                          <span className="text-[10px] text-white/40">•</span>
+                          <span className="text-[10.5px] text-white/40 font-medium">
+                            {formatDate(article.createdAt)}
                           </span>
-                        )}
+                        </div>
+
+                        {/* Title: Clamped to 2 lines for uniform density */}
+                        <h2 className="text-xs sm:text-[13px] font-bold text-white leading-snug line-clamp-2 group-hover:text-rose-300 transition-colors">
+                          {article.title}
+                        </h2>
                       </div>
-                    )}
-                  </div>
 
-                  <div>
-                    <p className="text-xs text-gray-500 mb-4">
-                      {article.author ? (
-                        <>
+                      {/* Bottom Sub-info: Author & Action Buttons */}
+                      <div className="flex items-center justify-between pt-1.5 mt-1 border-t border-white/[0.04] text-[10.5px] text-white/45">
+                        <span className="truncate max-w-[110px] sm:max-w-[140px]">
+                          {article.author || "SportsFan"}
+                        </span>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          {/* Like Button */}
                           <button
                             type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedAuthor(article.author!);
-                              router.replace(`/MainModules/CricketArticles?author=${encodeURIComponent(article.author!)}`);
-                            }}
-                            className="text-gray-400 hover:text-pink-400 underline underline-offset-2 transition-colors cursor-pointer"
-                          >
-                            {article.author}
-                          </button>
-                          {" · "}
-                        </>
-                      ) : null}
-                      {formatDate(article.createdAt)}
-                    </p>
-                    <div className="flex items-center justify-between border-t border-gray-800 pt-3">
-                      <div className="flex gap-4">
-                        <button
-                          onClick={() => toggleLike(article)}
-                          className={`flex items-center gap-1.5 text-sm transition-colors ${isLiked
-                              ? "text-pink-500"
-                              : "text-gray-400 hover:text-pink-400"
+                            onClick={(e) => toggleLike(article, e)}
+                            className={`flex items-center gap-1 transition-colors cursor-pointer ${
+                              isLiked ? "text-rose-400 font-semibold" : "text-white/40 hover:text-rose-400"
                             }`}
-                        >
-                          <Heart
-                            size={16}
-                            fill={isLiked ? "currentColor" : "none"}
-                          />{" "}
-                          {count}
-                        </button>
-                        <button
-                          onClick={() => openShareDialog(article)}
-                          className="flex items-center gap-1 text-gray-400 hover:text-white text-sm"
-                        >
-                          <Share2 size={16} />
-                        </button>
+                            title="Like article"
+                          >
+                            <Heart
+                              size={12}
+                              className={isLiked ? "fill-current text-rose-500" : ""}
+                            />
+                            <span>{count > 0 ? count : ""}</span>
+                          </button>
+
+                          {/* Share Button */}
+                          <button
+                            type="button"
+                            onClick={(e) => openShareDialog(article, e)}
+                            className="text-white/40 hover:text-white transition-colors cursor-pointer"
+                            title="Share article"
+                          >
+                            <Share2 size={12} />
+                          </button>
+                        </div>
                       </div>
-                      <Link
-                        href={article.url}
-                        className="flex items-center gap-1 text-pink-500 hover:text-pink-400 text-sm font-semibold"
-                      >
-                        Read More <ArrowRight size={14} />
-                      </Link>
+                    </div>
+
+                    {/* Right: Compact Image Thumbnail */}
+                    <div className="w-[84px] h-[84px] sm:w-[92px] sm:h-[92px] rounded-lg overflow-hidden bg-white/5 border border-white/10 shrink-0 relative">
+                      <img
+                        src={article.cdn_url || "/images/News_center_Default.png"}
+                        alt={article.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        onError={(e) => {
+                          e.currentTarget.src = "/images/News_center_Default.png";
+                        }}
+                      />
+                      {article.readTime && (
+                        <span className="absolute bottom-1 right-1 text-[8.5px] font-bold px-1 py-0.5 rounded bg-black/75 text-white/80 leading-none">
+                          {article.readTime}
+                        </span>
+                      )}
                     </div>
                   </div>
-                </div>
+                </Link>
               );
             })}
           </div>
         )}
       </div>
 
+      {/* Share Dialog */}
       {showShareDialog && sharedArticle && (
         <>
           <button
             type="button"
-            className="fixed inset-0 z-40 bg-black/70 lg:hidden"
+            className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm"
             onClick={closeShareDialog}
           />
           <div
-            className="fixed bottom-16 inset-x-4 z-50 mx-auto w-full max-w-[280px] rounded-2xl border border-white/10 bg-[#1a1a1e] p-3 shadow-2xl lg:hidden"
+            className="fixed bottom-20 sm:bottom-auto sm:top-1/2 left-1/2 -translate-x-1/2 sm:-translate-y-1/2 z-50 w-[90%] max-w-[320px] rounded-2xl border border-white/15 bg-[#141926] p-4 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-white text-sm font-semibold">Share</p>
-              <button onClick={closeShareDialog} className="text-gray-400 hover:text-white">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-                  <path
-                    d="M15 5L5 15M5 5L15 15"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-white text-xs font-bold uppercase tracking-wider">Share Article</p>
+              <button onClick={closeShareDialog} className="text-white/40 hover:text-white cursor-pointer">
+                <X size={15} />
               </button>
             </div>
-            <div className="flex flex-row flex-nowrap items-center gap-1.5 mb-2 overflow-x-auto">
+
+            <div className="rounded-xl border border-white/10 bg-[#0c101a] p-2.5 mb-3">
+              <p className="text-white text-xs font-bold line-clamp-2">{sharedArticle.title}</p>
+              <p className="text-white/40 text-[10px] mt-1 line-clamp-1 break-all">
+                {buildShareUrl(sharedArticle)}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-1 mb-2">
               {[
                 { handler: handleShareToWhatsApp, src: "/images/share_whatsapp.png", alt: "WhatsApp" },
                 { handler: handleShareToThreads, src: "/images/share_thread.png", alt: "Threads" },
@@ -1222,63 +809,18 @@ function AllCricketArticlesContent() {
                 <button
                   key={alt}
                   onClick={handler}
-                  className="w-8 h-8 shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center"
+                  className="w-9 h-9 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center transition-transform hover:scale-105 cursor-pointer"
                 >
                   <img src={src} alt={alt} className="w-full h-full object-cover rounded-full" />
                 </button>
               ))}
             </div>
-            {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
-          </div>
-          <div
-            className="hidden lg:flex fixed inset-0 z-50 items-center justify-center bg-black/60"
-            onClick={closeShareDialog}
-          >
-            <div
-              className="bg-[#1a1a1e] rounded-2xl border border-white/10 p-4 w-[300px] shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-white text-sm font-semibold">Share Article</p>
-                <button onClick={closeShareDialog} className="text-gray-400 hover:text-white">
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-                    <path
-                      d="M15 5L5 15M5 5L15 15"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                </button>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-[#111114] p-3 mb-3">
-                <p className="text-white text-sm font-semibold line-clamp-2">
-                  {sharedArticle.title}
-                </p>
-                <p className="text-white/45 text-[11px] mt-2 line-clamp-2 break-all">
-                  {buildShareUrl(sharedArticle)}
-                </p>
-              </div>
-              <div className="flex flex-row flex-nowrap items-center gap-2 mb-2">
-                {[
-                  { handler: handleShareToWhatsApp, src: "/images/share_whatsapp.png", alt: "WhatsApp" },
-                  { handler: handleShareToThreads, src: "/images/share_thread.png", alt: "Threads" },
-                  { handler: handleShareToInstagram, src: "/images/share_insta.png", alt: "Instagram" },
-                  { handler: handleShareToLinkedIn, src: "/images/Share_linkedin.png", alt: "LinkedIn" },
-                  { handler: handleShareToX, src: "/images/Share_X.png", alt: "X" },
-                  { handler: handleCopyLink, src: "/images/share_copy_link.png", alt: "Copy" },
-                ].map(({ handler, src, alt }) => (
-                  <button
-                    key={alt}
-                    onClick={handler}
-                    className="w-9 h-9 shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center"
-                  >
-                    <img src={src} alt={alt} className="w-full h-full object-cover rounded-full" />
-                  </button>
-                ))}
-              </div>
-              {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
-            </div>
+
+            {copied && (
+              <p className="text-center text-[11px] text-emerald-400 font-semibold mt-2 flex items-center justify-center gap-1">
+                <Check size={12} /> Copied to clipboard!
+              </p>
+            )}
           </div>
         </>
       )}
@@ -1290,8 +832,8 @@ export default function AllCricketArticlesPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex justify-center items-center min-h-screen bg-[#0a0a0a]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500" />
+        <div className="flex justify-center items-center min-h-screen bg-[#07090E]">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-rose-500" />
         </div>
       }
     >

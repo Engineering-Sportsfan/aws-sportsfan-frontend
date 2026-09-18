@@ -988,7 +988,7 @@ const ChatButton = memo(function ChatButton({
   const capped = Math.min(unreadCount, 99);
   return (
     <Link href="/MainModules/Chat">
-      <div className="relative w-8 h-8 flex items-center justify-center bg-[#111] border border-white/10 rounded-full hover:bg-pink-500/10 transition-colors">
+      {/* <div className="relative w-8 h-8 flex items-center justify-center bg-[#111] border border-white/10 rounded-full hover:bg-pink-500/10 transition-colors">
         <MessageCircle size={14} className="text-pink-400" />
         {capped > 0 && (
           <span
@@ -1000,7 +1000,7 @@ const ChatButton = memo(function ChatButton({
             {capped}
           </span>
         )}
-      </div>
+      </div> */}
     </Link>
   );
 });
@@ -1075,7 +1075,7 @@ const AskAIButton = memo(function AskAIButton({
         className={`flex items-center bg-[#1a1a1a] border border-white/5 text-gray-600 font-medium rounded-full whitespace-nowrap cursor-not-allowed opacity-50 shrink-0 ${sizeClasses}`}
       >
         <Sparkles size={iconSize} />
-        Ask AI
+        ASKFlip
       </button>
     );
   }
@@ -1111,35 +1111,37 @@ const PointsPill = memo(function PointsPill({
 
   if (small) {
     return (
-      <button className="flex flex-col items-center group shrink-0">
-        <div className="w-8 h-8 flex flex-col items-center justify-center bg-[#111] border border-white/10 rounded-full group-hover:bg-white/5 transition-colors gap-0">
+      <Link href="/MainModules/GlobalLeaderboard" title="View Points & Leaderboard" className="flex flex-col items-center group shrink-0">
+        <div className="w-8 h-8 flex flex-col items-center justify-center bg-[#111] border border-white/10 rounded-full group-hover:bg-white/5 group-hover:border-pink-500/40 transition-colors gap-0">
           <Star size={9} className="text-pink-500 fill-pink-500" />
           {loading ? (
             <div className="w-3 h-1 bg-white/10 rounded-full animate-pulse" />
           ) : (
-            <span className="text-[8px] text-gray-400 font-medium leading-none">
+            <span className="text-[8px] text-gray-400 group-hover:text-pink-400 font-medium leading-none">
               {formatted}
             </span>
           )}
         </div>
-      </button>
+      </Link>
     );
   }
 
   return (
-    <div className="flex items-center gap-1.5 bg-[#111] border border-white/10 rounded-full px-2.5 py-1.5">
-      <Star
-        size={14}
-        className="text-pink-500 fill-pink-500 shrink-0"
-      />
-      {loading ? (
-        <div className="w-8 h-3 bg-white/10 rounded-full animate-pulse" />
-      ) : (
-        <span className="text-white font-semibold text-xs">
-          {formatted}
-        </span>
-      )}
-    </div>
+    <Link href="/MainModules/GlobalLeaderboard" title="View Points & Leaderboard">
+      <div className="flex items-center gap-1.5 bg-[#111] border border-white/10 hover:border-pink-500/40 rounded-full px-2.5 py-1.5 transition-colors cursor-pointer group">
+        <Star
+          size={14}
+          className="text-pink-500 fill-pink-500 shrink-0 group-hover:scale-110 transition-transform"
+        />
+        {loading ? (
+          <div className="w-8 h-3 bg-white/10 rounded-full animate-pulse" />
+        ) : (
+          <span className="text-white font-semibold text-xs group-hover:text-pink-400 transition-colors">
+            {formatted}
+          </span>
+        )}
+      </div>
+    </Link>
   );
 });
 
@@ -1162,6 +1164,18 @@ export default function Header() {
   // ── Combined loading state ─────────────────────────────────────────────────
   const isPointsReady = !pointsLoading && !authLoading;
   const isProfileReady = !profileLoading && !authLoading;
+
+  // ── Effective points with multi-tier resolution ───────────────────────────
+  const effectivePoints = useMemo(() => {
+    if (currentUserPoints != null && currentUserPoints > 0) return currentUserPoints;
+    if (userProfile?.totalPoints != null && userProfile.totalPoints > 0) return userProfile.totalPoints;
+    if (userProfile?.reputationScore != null && userProfile.reputationScore > 0) return userProfile.reputationScore;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("user_points") || localStorage.getItem("roar_user_points");
+      if (stored && !isNaN(Number(stored)) && Number(stored) > 0) return Number(stored);
+    }
+    return currentUserPoints ?? userProfile?.totalPoints ?? 0;
+  }, [currentUserPoints, userProfile?.totalPoints, userProfile?.reputationScore]);
 
   const [headerAvatar, setHeaderAvatar] = useState<string>("");
 
@@ -1581,7 +1595,7 @@ export default function Header() {
         <div className="flex items-center gap-2 ml-auto">
           <ChatButton unreadCount={totalUnreadChats} />
           <PointsPill
-            points={currentUserPoints}
+            points={effectivePoints}
             loading={!isPointsReady}
           />
           <BellButton unreadCount={totalUnreadNotifications} />
@@ -1625,17 +1639,17 @@ export default function Header() {
       {/* ── TABLET (768px – 1279px) ───────────────────────────────────────── */}
       <header
         id="global-header-tablet"
-        className="hidden md:flex xl:hidden w-full items-center gap-2 px-3 py-1.5 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100"
+        className="hidden md:flex  xl:hidden w-full items-center gap-2 px-3 py-1.5 bg-[#0a0a0a] border-b border-white/5 sticky top-0 z-100"
       >
-        {/* <Link href="/MainModules/HomePage" className="flex-shrink-0">
+        <Link href="/MainModules/HomePage" className="flex-shrink-0 lg:hidden">
           <Image
-            src="/images/Logo.png"
+            src="/images/sportsfan360logo.png"
             alt="SportsFan360 logo"
-            width={28}
-            height={32}
-            className="shrink-0"
+            width={64}
+            height={68}
+            className="shrink-0 lg:hidden"
           />
-        </Link> */}
+        </Link> 
 
         <div className="relative flex-1" ref={dropdownRef}>
           <div className="flex items-center bg-[#111] border border-white/10 rounded-full overflow-hidden pr-1">
@@ -1677,7 +1691,7 @@ export default function Header() {
 
         <ChatButton unreadCount={totalUnreadChats} />
         <PointsPill
-          points={currentUserPoints}
+          points={effectivePoints}
           loading={!isPointsReady}
           small
         />
@@ -1707,7 +1721,7 @@ export default function Header() {
       {/* ── MOBILE (< 768px) ──────────────────────────────────────────────── */}
       <header
         id="global-header-mobile"
-        className="flex md:hidden flex-col bg-[#0a0a0a] border-b border-white/5"
+        className="flex md:hidden lg:hidden xl:hidden flex-col bg-[#0a0a0a] border-b border-white/5"
         style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100 }}
       >
         {/* Row 1: Logo + text on the left, notifications + avatar on the right */}
@@ -1717,15 +1731,15 @@ export default function Header() {
             className="flex items-center gap-1.5 flex-shrink-0 min-w-0"
           >
             <Image
-              src="/images/Logo.png"
+              src="/images/sportsfan360logo.png"
               alt="SportsFan360 logo"
-              width={24}
-              height={28}
+              width={64}
+              height={68}
               className="shrink-0"
             />
-            <span className="text-white font-extrabold tracking-wide text-xs truncate">
+            {/* <span className="text-white font-extrabold tracking-wide text-xs truncate">
               SportsFan<span className="text-orange-500 mt-2">360</span>
-            </span>
+            </span> */}
           </Link>
 
           <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -1791,7 +1805,7 @@ export default function Header() {
 
           {/* Points icon */}
           <PointsPill
-            points={currentUserPoints}
+            points={effectivePoints}
             loading={!isPointsReady}
             small
           />

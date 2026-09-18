@@ -124,8 +124,8 @@ export default function FlipGuruPage() {
             <ArrowLeft size={18} />
           </button>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-black text-white tracking-wide uppercase">
-              FLIPGURU
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-wide">
+              FlipGURU
             </h1>
             <span className="text-sm">⚡</span>
           </div>

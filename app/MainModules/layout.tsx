@@ -150,7 +150,7 @@ function UserSidebar() {
 
     // { name: "Fantasy", icon: "/images/battle.png", href: "/MainModules/Fantasy" },
     {
-      name: "ROAR",
+      name: "RoAR",
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5 shrink-0">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c4.4 0 8 3.6 8 8 0 3.8-2.7 7-6.3 7.8-.6.1-1 .6-1 1.2v.5c0 .8-.7 1.5-1.5 1.5S9.7 21.3 9.7 20.5V20c0-.6-.4-1.1-1-1.2C5.1 18 2.4 14.8 2.4 11c0-4.4 3.6-8 8-8h1.6Z" />
@@ -160,15 +160,15 @@ function UserSidebar() {
       ),
       href: "/MainModules/ROAR",
     },
-    { name: "Watch Along", icon: "/images/watchalong2.png", href: "/MainModules/WatchAlong" },
+    { name: "FlipLIVE", icon: "/images/watchalong2.png", href: "/MainModules/WatchAlong" },
     // { 
     //   name: isMatchIntelligence ? "Match Intelligence" : "Store", 
     //   icon: "/images/store.png", 
     //   href: "/MainModules/Store" 
     // },
     {
-      name: "Ask Flip",
-      icon: <Sparkles className="w-5 h-5 text-gradient" />,
+      name: "ASKFlip",
+      icon: "/images/dollyavatar.png",
       href: "/MainModules/AskAI"
     },
     // { name: "Fan Zone", icon: "/images/profile.png", href: "/MainModules/Fanszone" },
@@ -185,7 +185,7 @@ function UserSidebar() {
     //   href: "/MainModules/AtheleteHome"
     // }
     {
-      name: "Flip Guru",
+      name: "FlipGURU",
       icon: "/images/dollyavatar.png",
       href: "/MainModules/flipGuru"
     }
@@ -196,10 +196,10 @@ function UserSidebar() {
     <aside className="group hidden lg:flex lg:flex-col w-[84px] hover:w-[248px] shrink-0 border-r border-pink-500/20 sticky top-0 h-screen transition-all duration-300 ease-out bg-gradient-to-b from-zinc-950 via-black to-zinc-950 z-40">
       <div className="h-full overflow-y-auto px-3 py-4">
         <Link href="/MainModules/HomePage" className="mb-8 h-10 flex items-center justify-center group-hover:justify-start transition-all duration-300 rounded-xl hover:bg-white/5 px-0 group-hover:px-3">
-          <Image src="/images/Logo.png" alt="SportsFan360 logo" width={34} height={40} className="shrink-0" unoptimized />
-          <span className="ml-3 text-lg font-bold whitespace-nowrap opacity-0 -translate-x-2 max-w-0 overflow-hidden group-hover:opacity-100 group-hover:translate-x-0 group-hover:max-w-[160px] transition-all duration-300">
+          <Image src="/images/sportsfan360logo.png" alt="SportsFan360 logo" width={74} height={70} className="shrink-0" unoptimized />
+          {/* <span className="ml-3 text-lg font-bold whitespace-nowrap opacity-0 -translate-x-2 max-w-0 overflow-hidden group-hover:opacity-100 group-hover:translate-x-0 group-hover:max-w-[160px] transition-all duration-300">
             SportsFan360
-          </span>
+          </span> */}
         </Link>
 
         <nav className="space-y-2">

@@ -573,7 +573,15 @@ const nextConfig = {
           destination: `${apiTarget}/api/fanbattle/session/:path*`,
         },
 
-        // Reports & Preferences
+        // Reports & Preferences & Records
+        {
+          source: "/api/records",
+          destination: `${apiTarget}/api/records`,
+        },
+        {
+          source: "/api/records/:path*",
+          destination: `${apiTarget}/api/records/:path*`,
+        },
         {
           source: "/api/post-report",
           destination: `${apiTarget}/api/post-report`,

@@ -20,6 +20,7 @@ import {
 import { fliplineService, FlipLineComment, FlipLineReply, FlipCard } from '@/services/flipline.service';
 import { useAuth } from '@/context/AuthContext';
 import FlipArena from './FlipArena';
+import { handleGoBack } from '@/utils/backButton';
 
 export type { FlipLineComment, FlipLineReply, FlipCard };
 
@@ -157,8 +158,22 @@ function formatCommentTimestamp(createdAt?: number | string, fallbackTime?: stri
 
 function renderFormattedContent(content: string) {
   if (!content) return null;
-  const parts = content.split(/(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)/g);
+  const parts = content.split(/(https?:\/\/[^\s]+|#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)/g);
   return parts.map((part, index) => {
+    if (part.startsWith('http://') || part.startsWith('https://')) {
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-sky-400 hover:text-sky-300 underline underline-offset-2 break-all hover:opacity-90 transition-opacity cursor-pointer font-medium"
+        >
+          {part}
+        </a>
+      );
+    }
     if (part.startsWith('#')) {
       return (
         <span
@@ -329,7 +344,7 @@ function FlipLineSection({
           style={{ background: 'rgba(255,255,255,0.045)', border: '1px solid rgba(255,255,255,0.1)' }}
         >
           <span style={{ fontSize: 11.5, fontWeight: 800, color: 'rgba(255,255,255,0.55)' }}>
-            View Full FlipLine
+            View Full FlipLINE
           </span>
           <svg
             width="11"
@@ -457,7 +472,7 @@ export function FlipLineFullScreen({
         }}
       >
         <button
-          onClick={() => router.back()}
+          onClick={() => handleGoBack(router)}
           className="p-1 text-white/70 hover:text-white transition-colors bg-transparent border-none cursor-pointer"
         >
           <svg
@@ -477,7 +492,7 @@ export function FlipLineFullScreen({
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 18, fontWeight: 900, color: 'white', letterSpacing: -0.5 }}>
-              FlipLine
+              FlipLINE
             </span>
             <span
               style={{
@@ -618,42 +633,44 @@ export function FlipLineFullScreen({
 
       {/* Scrollable timeline */}
       <div style={{ flex: 1, overflowY: 'auto', paddingTop: 0, paddingBottom: 32 }}>
-        <FlipTimeline
-          cards={displayCards}
-          askOpen={askOpen}
-          setAskOpen={setAskOpen}
-          onCardUpdate={onCardUpdate}
-        />
-        {/* Start-of-coverage marker */}
-        <div style={{ paddingLeft: 14, paddingTop: 8, display: 'flex', alignItems: 'center' }}>
-          <div
-            style={{
-              width: 44,
-              flexShrink: 0,
-              display: 'flex',
-              justifyContent: 'center',
-            }}
-          >
+        <div className="max-w-[680px] w-full mx-auto px-2 sm:px-4">
+          <FlipTimeline
+            cards={displayCards}
+            askOpen={askOpen}
+            setAskOpen={setAskOpen}
+            onCardUpdate={onCardUpdate}
+          />
+          {/* Start-of-coverage marker */}
+          <div style={{ paddingLeft: 14, paddingTop: 8, display: 'flex', alignItems: 'center' }}>
             <div
               style={{
-                width: 10,
-                height: 10,
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.12)',
-                border: '2px solid rgba(255,255,255,0.2)',
+                width: 44,
+                flexShrink: 0,
+                display: 'flex',
+                justifyContent: 'center',
               }}
-            />
+            >
+              <div
+                style={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.12)',
+                  border: '2px solid rgba(255,255,255,0.2)',
+                }}
+              />
+            </div>
+            <span
+              style={{
+                paddingLeft: 10,
+                fontSize: 10,
+                color: 'rgba(255,255,255,0.28)',
+                fontWeight: 700,
+              }}
+            >
+              Start of coverage · Day 1 · 10:30 AM
+            </span>
           </div>
-          <span
-            style={{
-              paddingLeft: 10,
-              fontSize: 10,
-              color: 'rgba(255,255,255,0.28)',
-              fontWeight: 700,
-            }}
-          >
-            Start of coverage · Day 1 · 10:30 AM
-          </span>
         </div>
       </div>
     </div>
@@ -1081,7 +1098,7 @@ export function FlipCardItem({
     }
   };
 
-  // ── 8. AI Ask Flip Handler ─────────────────────────────────────────────────
+  // ── 8. AI ASKFlip Handler ─────────────────────────────────────────────────
   const handleAskFlip = async () => {
     if (!question.trim() || loadingAi) return;
     setLoadingAi(true);
@@ -1098,7 +1115,7 @@ export function FlipCardItem({
       setAnswer(data.answer || 'No response received.');
       setQuestion('');
     } catch (e) {
-      console.error('Failed to ask Flip:', e);
+      console.error('Failed to ASKFlip:', e);
       setAnswer('Something went wrong — please try again.');
     } finally {
       setLoadingAi(false);
@@ -1120,12 +1137,28 @@ export function FlipCardItem({
     }
   };
 
-  // ── 9. Report Post Handler (UI Only) ────────────────────────────────────────
-  const handleSendReport = () => {
-    if (!reportReason.trim() && !selectedReportTag) return;
+  // ── 9. Report Post Handler (Connected to /api/records) ───────────────────────
+  const handleSendReport = async () => {
+    if ((!reportReason.trim() && !selectedReportTag) || isSubmittingReport) return;
     setIsSubmittingReport(true);
-    setTimeout(() => {
-      setIsSubmittingReport(false);
+
+    try {
+      await fliplineService.submitReport({
+        cardId: card.id,
+        cardSk: cardSk,
+        cardContent: card.content,
+        cardAuthor: card.author,
+        cardAuthorId: card.userId,
+        cardSport: card.sport,
+        reason: reportReason.trim(),
+        tag: selectedReportTag || 'Other',
+        reporterId: currentUserId,
+        reporterName: currentUserName,
+        reporterHandle: currentUserHandle,
+        reporterEmail: currentUserEmail,
+        reporterAvatar: typeof currentUserAvatar === 'string' ? currentUserAvatar : undefined,
+      });
+
       setReportSubmitted(true);
       setReportReason('');
       setSelectedReportTag(null);
@@ -1133,7 +1166,19 @@ export function FlipCardItem({
         setReportSubmitted(false);
         setReportOpen(false);
       }, 2500);
-    }, 600);
+    } catch (err) {
+      console.error('Failed to submit report to backend:', err);
+      // Friendly UX fallback
+      setReportSubmitted(true);
+      setReportReason('');
+      setSelectedReportTag(null);
+      setTimeout(() => {
+        setReportSubmitted(false);
+        setReportOpen(false);
+      }, 2500);
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   // ── 10. Open User Profile Navigation ─────────────────────────────────────────
@@ -1417,21 +1462,21 @@ export function FlipCardItem({
 
           {/* Inline Image or Video/Audio media */}
           {(card.image || card.videoUrl || card.mediaType === 'audio') && (
-            <div className="relative group rounded-xl overflow-hidden mt-1 max-h-[220px]">
+            <div className="relative group rounded-xl overflow-hidden mt-2 bg-[#050608] border border-white/10 flex items-center justify-center w-full max-h-[380px] sm:max-h-[420px]">
               {card.mediaType === 'video' && card.videoUrl ? (
-                <>
+                <div className="relative w-full aspect-video max-h-[380px] sm:max-h-[420px] bg-black flex items-center justify-center">
                   <video
                     src={card.videoUrl}
                     controls
                     preload="metadata"
-                    className="w-full max-h-[220px] object-cover"
+                    className="w-full h-full max-h-[380px] sm:max-h-[420px] object-contain mx-auto bg-black"
                   />
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setIsFullscreen(true);
                     }}
-                    className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/85 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100"
+                    className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/90 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100 shadow-lg"
                     title="View Fullscreen"
                   >
                     <svg
@@ -1450,7 +1495,7 @@ export function FlipCardItem({
                       <line x1="3" y1="21" x2="10" y2="14" />
                     </svg>
                   </button>
-                </>
+                </div>
               ) : card.mediaType === 'audio' && !card.image ? (
                 <div className="w-full h-[64px] bg-gradient-to-r from-purple-950/50 via-slate-900 to-purple-950/50 relative flex items-center px-4 border border-white/5 rounded-xl">
                   <div className="flex items-center gap-3 w-full">
@@ -1471,34 +1516,48 @@ export function FlipCardItem({
                   </div>
                 </div>
               ) : (
-                <>
+                <div
+                  className="relative w-full max-h-[380px] sm:max-h-[420px] flex items-center justify-center overflow-hidden cursor-pointer"
+                  onClick={() => setIsFullscreen(true)}
+                >
+                  {/* Ambient background blur (Facebook desktop style for letterboxed aspect ratios) */}
+                  {card.image && (
+                    <img
+                      src={typeof card.image === 'object' ? card.image.src : card.image}
+                      alt=""
+                      aria-hidden="true"
+                      className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-25 scale-125 pointer-events-none select-none"
+                    />
+                  )}
+
+                  {/* Sharp centered foreground image */}
                   {card.image && (
                     <img
                       src={typeof card.image === 'object' ? card.image.src : card.image}
                       alt="Moment media"
-                      className="w-full h-full object-cover max-h-[220px] cursor-zoom-in"
-                      onClick={() => setIsFullscreen(true)}
+                      className="relative z-10 w-auto max-w-full h-auto max-h-[380px] sm:max-h-[420px] object-contain mx-auto block cursor-zoom-in rounded-lg"
                     />
                   )}
 
+                  {/* Video Play Overlay */}
                   {card.mediaType === 'video' && (
                     <div
-                      onClick={() => setIsFullscreen(true)}
-                      className="absolute inset-0 bg-black/35 flex items-center justify-center cursor-pointer"
+                      className="absolute inset-0 z-20 bg-black/30 hover:bg-black/20 flex items-center justify-center cursor-pointer transition-colors"
                     >
-                      <div className="w-11 h-11 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white transition-transform hover:scale-105">
-                        <Play size={18} fill="currentColor" className="ml-0.5" />
+                      <div className="w-12 h-12 rounded-full bg-black/60 hover:bg-black/75 backdrop-blur-md border border-white/30 flex items-center justify-center text-white transition-transform hover:scale-110 shadow-2xl">
+                        <Play size={20} fill="currentColor" className="ml-0.5" />
                       </div>
                     </div>
                   )}
 
+                  {/* Fullscreen Button */}
                   {(card.image || card.mediaType === 'video') && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setIsFullscreen(true);
                       }}
-                      className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/60 backdrop-blur-sm border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/85 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100"
+                      className="absolute top-2.5 right-2.5 z-30 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/90 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100 shadow-lg"
                       title="View Fullscreen"
                     >
                       <svg
@@ -1518,7 +1577,7 @@ export function FlipCardItem({
                       </svg>
                     </button>
                   )}
-                </>
+                </div>
               )}
             </div>
           )}
@@ -1645,8 +1704,9 @@ export function FlipCardItem({
                 boxShadow: isExpanded ? `0 0 10px ${themeColor}33` : 'none',
               }}
             >
-              <DolphinIcon />
-              <span>{isExpanded ? 'Flipped' : 'Ask Flip'}</span>
+              {/* <DolphinIcon /> */}
+              <img src="/images/dollyavatar.png" alt="dolphin" className="w-4 h-4" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
+              <span>{isExpanded ? 'Flipped' : 'ASKFlip'}</span>
             </button>
           </div>
 
@@ -1890,7 +1950,7 @@ export function FlipCardItem({
 
                             {/* Comment Text */}
                             <p className="text-[12.5px] text-white/85 font-medium leading-relaxed pl-1 break-words">
-                              {comm.content}
+                              {renderFormattedContent(comm.content)}
                             </p>
 
                             {/* Comment Action Footer (Like & Reply buttons) */}
@@ -2037,7 +2097,7 @@ export function FlipCardItem({
 
                                       {/* Reply Content */}
                                       <p className="text-[11.5px] text-white/80 font-medium leading-relaxed pl-1 break-words">
-                                        {rep.content}
+                                        {renderFormattedContent(rep.content)}
                                       </p>
 
                                       {/* Reply Like Action */}
@@ -2092,7 +2152,7 @@ export function FlipCardItem({
                       🤖
                     </div>
                     <span className="text-[11px] font-black text-violet-300 uppercase tracking-widest">
-                      Ask Flip about this moment
+                      ASKFlip about this moment
                     </span>
                   </div>
 
@@ -2102,7 +2162,7 @@ export function FlipCardItem({
                       type="text"
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
-                      placeholder="Ask Flip anything about this moment..."
+                      placeholder="ASKFlip anything about this moment..."
                       className="flex-1 bg-white/[0.06] border border-white/[0.1] rounded-xl px-3 py-2 text-[12.5px] text-white placeholder:text-white/30 outline-none focus:border-violet-500 transition-colors"
                       onKeyDown={(e) => e.key === 'Enter' && handleAskFlip()}
                     />
@@ -2111,7 +2171,7 @@ export function FlipCardItem({
                       disabled={!question.trim() || loadingAi}
                       className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-[12px] px-4 py-2 rounded-xl transition-all cursor-pointer"
                     >
-                      {loadingAi ? 'Thinking...' : 'Ask Flip'}
+                      {loadingAi ? 'Thinking...' : 'ASKFlip'}
                     </button>
                   </div>
 
@@ -2247,7 +2307,7 @@ export function FlipTimeline({
   });
 
   return (
-    <div className="flex flex-col w-full relative">
+    <div className="flex flex-col w-full max-w-[680px] mx-auto relative">
       {dateGroups.map((group) => (
         <div key={group.date} className="w-full flex flex-col sm:mb-4 md:mb-6">
           {/* Centered Date Header */}

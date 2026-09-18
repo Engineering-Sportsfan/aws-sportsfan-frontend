@@ -298,10 +298,16 @@ export default function DetailedNewsCenter() {
         try {
           const cricketRes = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
             cache: 'no-store',
-            headers: { 'Cache-Control': 'no-cache' },
+            headers: { 'Cache-Control': 'no-cache', 'Accept': 'application/json' },
           });
           if (cricketRes.ok) {
-            const cricketData = await cricketRes.json();
+            let cricketData: any = null;
+            try {
+              const text = await cricketRes.text();
+              if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
+                cricketData = JSON.parse(text);
+              }
+            } catch {}
             cricketArticles = cricketData?.articles || cricketData?.data || (Array.isArray(cricketData) ? cricketData : []);
           }
         } catch (error) {

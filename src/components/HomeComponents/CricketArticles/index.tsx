@@ -428,6 +428,7 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { handleGoBack } from "@/utils/backButton";
 
 type BadgeType = "FEATURE" | "ANALYSIS" | "OPINION" | "NEWS";
 
@@ -586,40 +587,60 @@ export default function CricketArticles() {
         }, 0);
     };
 
-    useEffect(() => {    const fetchArticles = async () => {
-     try {
-         const res = await axios.get<ApiResponse>(`/api/cricket-articles?t=${Date.now()}`);
-         const articlesData = res.data.articles || [];
-         const flaggedMap: Record<string, CommentItem> = {};
-         const articlesWithComments = await Promise.all(
-             articlesData.map(async (rawArticle) => {
-                 const articleId = String(rawArticle.id || (rawArticle as any)._id || "");
-                 const article = {
-                     ...rawArticle,
-                     id: articleId,
-                     image: rawArticle.image || (rawArticle as any).cdn_url || "",
-                 };
-                 try {
-                     const commentsRes = await axios.get(
-                         `/api/comments?contentId=${articleId}`
-                     );
-                     const count = commentsRes.data.comments?.length ?? 0;
+    useEffect(() => {
+        const fetchArticles = async () => {
+            try {
+                let articlesData: any[] = [];
+                try {
+                    const res = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
+                        cache: "no-store",
+                        headers: { "Cache-Control": "no-cache", "Accept": "application/json" }
+                    });
+                    const text = await res.text();
+                    if (text && (text.trim().startsWith("{") || text.trim().startsWith("["))) {
+                        const parsed = JSON.parse(text);
+                        articlesData = parsed?.articles || parsed?.data || (Array.isArray(parsed) ? parsed : []);
+                    }
+                } catch (fetchErr) {
+                    console.warn("[CricketArticles] Failed to fetch articles safely:", fetchErr);
+                }
 
-                     const commentsList: CommentItem[] = commentsRes.data.comments || [];
-                     const flaggedForUser = user?.userId
-                         ? commentsList.find((c) => (c.userId === user.userId) && (c.isFlagged || c.flaggedByAdmin)) || null
-                         : null;
-                     if (flaggedForUser) {
-                         flaggedMap[articleId] = flaggedForUser;
-                     }
+                const flaggedMap: Record<string, CommentItem> = {};
+                const articlesWithComments = await Promise.all(
+                    articlesData.map(async (rawArticle) => {
+                        const articleId = String(rawArticle.id || (rawArticle as any)._id || "");
+                        const article = {
+                            ...rawArticle,
+                            id: articleId,
+                            image: rawArticle.image || (rawArticle as any).cdn_url || "",
+                        };
+                        try {
+                            let count = 0;
+                            let commentsList: CommentItem[] = [];
+                            try {
+                                const commentsRes = await fetch(`/api/comments?contentId=${articleId}`);
+                                const cText = await commentsRes.text();
+                                if (cText && (cText.trim().startsWith("{") || cText.trim().startsWith("["))) {
+                                    const cParsed = JSON.parse(cText);
+                                    commentsList = cParsed.comments || [];
+                                    count = commentsList.length;
+                                }
+                            } catch {}
 
-                     return normalizeArticle({ ...article, commentCount: count });
-                 } catch (err) {
-                     console.error(`Error fetching comment count for article ${articleId}:`, err);
-                     return normalizeArticle({ ...article, commentCount: 0 });
-                 }
-             })
-         );
+                            const flaggedForUser = user?.userId
+                                ? commentsList.find((c) => (c.userId === user.userId) && (c.isFlagged || c.flaggedByAdmin)) || null
+                                : null;
+                            if (flaggedForUser) {
+                                flaggedMap[articleId] = flaggedForUser;
+                            }
+
+                            return normalizeArticle({ ...article, commentCount: count });
+                        } catch (err) {
+                            console.error(`Error fetching comment count for article ${articleId}:`, err);
+                            return normalizeArticle({ ...article, commentCount: 0 });
+                        }
+                    })
+                );
 
          const getCreatedTs = (art: any): number => {
              // Direct number (DynamoDB unix ms timestamp or seconds)
@@ -804,7 +825,7 @@ export default function CricketArticles() {
                 <div className="text-center">
                     <p className="text-red-400 mb-4">{error || "Articles not found"}</p>
                     <button
-                        onClick={() => window.history.back()}
+                        onClick={() => handleGoBack(router)}
                         className="bg-pink-500 px-4 py-2 rounded text-white hover:bg-pink-600"
                     >
                         Go Back

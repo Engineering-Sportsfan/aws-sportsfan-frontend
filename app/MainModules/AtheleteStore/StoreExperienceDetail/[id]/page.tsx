@@ -9,6 +9,7 @@ import {
 import { useState, useEffect } from 'react';
 import { storeService } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
+import { handleGoBack } from '@/utils/backButton';
 
 type ExperienceType = 'online' | 'offline';
 type ExperienceStatus = 'upcoming' | 'today' | 'live' | 'completed';
@@ -178,8 +179,8 @@ export default function StoreExperienceDetail() {
           <img src={exp.image} alt={exp.title} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black/90" />
           <button
-            onClick={() => router.back()}
-            className="absolute top-4 left-4 w-[36px] h-[36px] rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center font-bold z-10"
+            onClick={() => handleGoBack(router)}
+            className="absolute top-4 left-4 w-[36px] h-[36px] rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center font-bold z-10 cursor-pointer"
           >
             <ArrowLeft className="w-[18px] h-[18px] text-white" />
           </button>

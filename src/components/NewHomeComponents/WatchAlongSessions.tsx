@@ -197,12 +197,15 @@ export default function WatchAlongSessions() {
   }
 
   return (
-    <div className="w-full mt-5">
+    <div id="watch-along-section" data-section="watch-along" className="w-full mt-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[17px] font-extrabold text-white">Watch Along Sessions</h3>
+        <h3 className="text-[17px] font-extrabold text-white">FlipLIVE Sessions</h3>
         <Link href="/MainModules/WatchAlong">
           <button
             type="button"
+            id="watch-along-view-all"
+            data-nav="watch-along-view-all"
+            data-section="watch-along"
             className="flex items-center gap-0.5 text-[12px] font-bold"
             style={{ color: "#E91E8C" }}
           >
