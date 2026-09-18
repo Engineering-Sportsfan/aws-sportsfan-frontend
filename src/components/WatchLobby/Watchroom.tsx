@@ -4037,11 +4037,15 @@ function WatchRoomEngagementDialog({
                 const targetEngagementId = question.engagementId || question.id;
                 const res: any = await engagementService.voteEngagement(targetEngagementId, optId, userId || userName || undefined, question.id);
                 const isRight = res?.isCorrect !== undefined ? Boolean(res.isCorrect) : isRightImmediate;
+                const earned = isRight ? (res?.pointsAwarded || pointsReward) : 0;
                 setQuizResult({
                     isCorrect: isRight,
-                    pointsEarned: res?.pointsAwarded || pointsReward,
+                    pointsEarned: earned,
                     correctAnswer: res?.correctOptionId || correctOptionId || optId,
                 });
+                if (isRight && earned > 0 && typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("roar-points-updated", { detail: { points: earned } }));
+                }
                 if (res?.correctOptionId) setCorrectOptionId(res.correctOptionId);
                 if (res?.explanation) setExplanation(res.explanation);
                 if (res?.pointsAwarded) setPointsReward(res.pointsAwarded);
@@ -4051,9 +4055,13 @@ function WatchRoomEngagementDialog({
                     option: optValue,
                     userId: userId || userName || 'anon',
                     displayName: userName || 'Fan',
+                    roomId: room?.id,
                 });
                 if (res) {
                     setQuizResult(res);
+                    if (res.isCorrect && res.pointsEarned > 0 && typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("roar-points-updated", { detail: { points: res.pointsEarned } }));
+                    }
                 }
             }
         } catch (err: any) {
@@ -4478,23 +4486,33 @@ function QuizLeaderboardDialog({
         setLoading(true);
         setError(null);
         try {
-            const params = new URLSearchParams();
-            if (activeQuizEngagementId) params.append("engagementId", activeQuizEngagementId);
-            if (room?.liveMatchId) params.append("matchId", room.liveMatchId);
-            if (room?.id) params.append("roomId", room.id);
-            const qs = params.toString();
-            const endpoint = `/api/engagements/quiz/leaderboard${qs ? `?${qs}` : ""}`;
+            // const params = new URLSearchParams();
+            // if (activeQuizEngagementId) params.append("engagementId", activeQuizEngagementId);
+            // if (room?.liveMatchId) params.append("matchId", room.liveMatchId);
+            // if (room?.id) params.append("roomId", room.id);
+            // const qs = params.toString();
+            // const endpoint = `/api/engagements/quiz/leaderboard${qs ? `?${qs}` : ""}`;
 
-            let res: any;
-            try {
-                res = await axios.get(endpoint);
-            } catch (firstErr: any) {
-                if (qs) {
-                    res = await axios.get("/api/engagements/quiz/leaderboard");
-                } else {
-                    throw firstErr;
-                }
-            }
+            // let res: any;
+            // try {
+            //     res = await axios.get(endpoint);
+            // } catch (firstErr: any) {
+            //     if (qs) {
+            //         res = await axios.get("/api/engagements/quiz/leaderboard");
+            //     } else {
+            //         throw firstErr;
+            //     }
+            // }
+
+
+            const matchId = room?.liveMatchId;
+            const roomId = room?.id;
+
+            const endpoint = matchId
+                ? `/api/watch-along/matches/${matchId}/quiz?leaderboard=true${roomId ? `&roomId=${encodeURIComponent(roomId)}` : ""}`
+                : `/api/engagements/quiz/leaderboard`;
+
+            const res = await axios.get(endpoint);
 
             const resData = res?.data;
             let rawList: any[] = [];
@@ -5054,6 +5072,10 @@ export default function WatchRoom({ room, onBack }: Props) {
         predictions,
         quizQuestions,
         chats,
+        setChats,
+        setPredictions,
+        setQuizQuestions,
+        setActiveQuizQuestion,
         fetchChats,
         fetchPredictions,
         fetchQuizQuestions,
@@ -6241,26 +6263,203 @@ export default function WatchRoom({ room, onBack }: Props) {
         window.scrollTo(0, 0);
     }, []);
 
-    // Parent-level polling for chats, predictions, and quiz questions to sync spectator tabs in real-time
+    // ── Load Initial State Once on Mount ──
     useEffect(() => {
-        if (!room?.liveMatchId) return;
+        const matchId = room?.liveMatchId;
+        if (!matchId) return;
 
-        // Fetch immediately on mount
-        fetchChats(room.liveMatchId, 100);
-        fetchPredictions(room.liveMatchId, false);
-        fetchQuizQuestions(room.liveMatchId, false);
-        if (room.id) fetchRoomById(room.id);
+        // Fetch initial state once on mount
+        fetchChats(matchId, 50);
+        fetchQuizQuestions(matchId, true);
+        fetchPredictions(matchId, true);
+        if (room?.id) fetchRoomById(room.id);
+    }, [room?.liveMatchId, room?.id, fetchChats, fetchQuizQuestions, fetchPredictions, fetchRoomById]);
 
-        // Parent-level sync every 2 seconds for flawless, real-time spectator synchronization
-        const interval = setInterval(() => {
-            fetchChats(room.liveMatchId, 100);
-            fetchPredictions(room.liveMatchId, false);
-            fetchQuizQuestions(room.liveMatchId, false);
-            if (room.id) fetchRoomById(room.id);
-        }, 2000);
+    // ── Server-Sent Events (SSE) Real-Time Push Stream ──
+    useEffect(() => {
+        const matchId = room?.liveMatchId;
+        if (!matchId) return;
 
-        return () => clearInterval(interval);
-    }, [room?.liveMatchId, room?.id, fetchChats, fetchPredictions, fetchQuizQuestions, fetchRoomById]);
+        const API_BASE_URL = (process.env.NEXT_PUBLIC_BACKEND_URL || '').replace(/\/$/, '');
+        const sseUrl = `${API_BASE_URL}/api/watch-along/matches/${matchId}/events`;
+        console.log("[WatchRoom SSE] Connecting to:", sseUrl);
+
+        let eventSource: EventSource | null = null;
+        try {
+            eventSource = new EventSource(sseUrl);
+        } catch (err) {
+            console.error("[WatchRoom SSE] Failed to initialize EventSource:", err);
+            return;
+        }
+
+        const handlePayload = (payload: any) => {
+            if (!payload || !payload.type) return;
+            console.log("[WatchRoom SSE] Event received:", payload.type, payload);
+
+            switch (payload.type) {
+                case "NEW_QUIZ":
+                    if (payload.quiz) {
+                        const timerSec = payload.quiz.timerSeconds || 30;
+                        setQuestionExpiryTimestamps((prev) => ({
+                            ...prev,
+                            [payload.quiz.id]: Date.now() + timerSec * 1000,
+                        }));
+                        setActiveQuizQuestion(payload.quiz);
+                        setQuizQuestions((prev: any[]) => [payload.quiz, ...prev.filter((q: any) => q.id !== payload.quiz.id)]);
+                        setActiveModalQuestion({
+                            id: payload.quiz.id,
+                            key: payload.quiz.id,
+                            source: "watchalong",
+                            question: payload.quiz.question,
+                            options: payload.quiz.options,
+                            correctOptionId: payload.quiz.correctAnswer,
+                            pointsReward: payload.quiz.points || 50,
+                            raw: payload.quiz,
+                        });
+                        setEngagementModalType('quiz');
+                    }
+                    break;
+
+                case "QUIZ_LEADERBOARD_UPDATE":
+                    // If a participant in this room scored points, refresh the leaderboard if dialog is open
+                    if (payload.roomId === room?.id) {
+                        console.log(`[SSE] ${payload.displayName} earned ${payload.pointsEarned} pts in room!`);
+                        // If the leaderboard dialog is open, trigger fetchLeaderboard()
+                    }
+                    break;
+
+                case "QUIZ_LEADERBOARD_RESET":
+                    // Admin zeroed out the room leaderboard
+                    if (payload.roomId === room?.id) {
+                        console.log("[SSE] Room leaderboard was reset to 0 by admin");
+                    }
+                    break;
+
+                case "QUIZ_ACTIVATED":
+                case "QUIZ_DEACTIVATED":
+                    const isActive = payload.type === "QUIZ_ACTIVATED" ? Boolean(payload.isActive !== false) : false;
+                    if (isActive) {
+                        const quizUrl = `${API_BASE_URL}/api/watch-along/matches/${matchId}/quiz?active=true`;
+                        fetch(quizUrl)
+                            .then((r) => r.json())
+                            .then((res) => {
+                                if (res?.questions?.[0]) {
+                                    const activeQ = res.questions[0];
+                                    const timerSec = activeQ.timerSeconds || 30;
+                                    setQuestionExpiryTimestamps((prev) => ({
+                                        ...prev,
+                                        [activeQ.id]: Date.now() + timerSec * 1000,
+                                    }));
+                                    setActiveQuizQuestion(activeQ);
+                                    setQuizQuestions((prev: any[]) => [activeQ, ...prev.filter((q: any) => q.id !== activeQ.id)]);
+                                    setActiveModalQuestion({
+                                        id: activeQ.id,
+                                        key: activeQ.id,
+                                        source: "watchalong",
+                                        question: activeQ.question,
+                                        options: activeQ.options,
+                                        correctOptionId: activeQ.correctAnswer,
+                                        pointsReward: activeQ.points || 50,
+                                        raw: activeQ,
+                                    });
+                                    setEngagementModalType('quiz');
+                                }
+                            })
+                            .catch((err) => console.warn("[WatchRoom SSE] Failed to fetch active quiz:", err));
+                    } else {
+                        setActiveQuizQuestion(null);
+                        setQuizQuestions((prev: any[]) => prev.map((q: any) => q.id === payload.questionId ? { ...q, isActive: false } : q));
+                        setEngagementModalType((curr) => (curr === 'quiz' ? null : curr));
+                        setActiveModalQuestion((curr: any) => (curr?.id === payload.questionId ? null : curr));
+                    }
+                    break;
+
+                case "NEW_PREDICTION":
+                    if (payload.prediction) {
+                        setPredictions((prev: any[]) => [payload.prediction, ...prev.filter((p: any) => p.id !== payload.prediction.id)]);
+                    }
+                    break;
+
+                case "PREDICTION_VOTE":
+                    setPredictions((prev: any[]) =>
+                        prev.map((p: any) =>
+                            p.id === payload.predictionId
+                                ? {
+                                    ...p,
+                                    votes: payload.votes ?? (p.votes ? { ...p.votes, [payload.option]: (p.votes[payload.option] || 0) + 1 } : { [payload.option]: 1 }),
+                                    totalVotes: payload.totalVotes ?? ((p.totalVotes || 0) + 1)
+                                }
+                                : p
+                        )
+                    );
+                    break;
+
+                case "PREDICTION_STATUS_CHANGED":
+                    setPredictions((prev: any[]) =>
+                        prev.map((p: any) =>
+                            p.id === payload.predictionId
+                                ? { ...p, isOpen: payload.isOpen }
+                                : p
+                        )
+                    );
+                    break;
+
+                case "NEW_CHAT":
+                    if (payload.chat) {
+                        setChats((prev: any[]) => {
+                            if (prev.some((m: any) => m.id === payload.chat.id)) return prev;
+                            return [...prev, payload.chat];
+                        });
+                    }
+                    break;
+
+                case "DELETE_CHAT":
+                    if (payload.chatId) {
+                        setChats((prev: any[]) => prev.filter((m: any) => m.id !== payload.chatId));
+                    }
+                    break;
+            }
+        };
+
+        eventSource.onmessage = (event) => {
+            try {
+                const payload = JSON.parse(event.data);
+                handlePayload(payload);
+            } catch (err) {
+                console.error("[WatchRoom SSE] Parse error:", err);
+            }
+        };
+
+        const eventTypes = [
+            "NEW_QUIZ",
+            "QUIZ_ACTIVATED",
+            "QUIZ_DEACTIVATED",
+            "NEW_PREDICTION",
+            "PREDICTION_VOTE",
+            "PREDICTION_STATUS_CHANGED",
+            "NEW_CHAT",
+            "DELETE_CHAT"
+        ];
+        eventTypes.forEach(type => {
+            eventSource?.addEventListener(type, (event: MessageEvent) => {
+                try {
+                    const payload = JSON.parse(event.data);
+                    handlePayload({ type, ...payload });
+                } catch (err) {
+                    console.error(`[WatchRoom SSE ${type}] Parse error:`, err);
+                }
+            });
+        });
+
+        eventSource.onerror = (err) => {
+            console.warn("[WatchRoom SSE] Connection notice / reconnecting:", err);
+        };
+
+        return () => {
+            console.log("[WatchRoom SSE] Closing EventSource for match:", matchId);
+            eventSource?.close();
+        };
+    }, [room?.liveMatchId, setChats, setPredictions, setQuizQuestions, setActiveQuizQuestion, setQuestionExpiryTimestamps]);
 
     // System-wide reactions sync via hidden chat events
     const processedChatReactions = useRef<Set<string>>(new Set());
@@ -7981,7 +8180,7 @@ export default function WatchRoom({ room, onBack }: Props) {
                     currentUserId={authUser?.userId || (session?.user as any)?.userId || (authUser as any)?.id}
                     currentUserName={userName || (authUser as any)?.name || (session?.user as any)?.name || undefined}
                     currentUserEmail={(authUser as any)?.email || (session?.user as any)?.email || undefined}
-                    activeQuizEngagementId={activeQuizQuestion?.engagementId}
+                    activeQuizEngagementId={(activeQuizQuestion as any)?.engagementId}
                 />
             )}
 
