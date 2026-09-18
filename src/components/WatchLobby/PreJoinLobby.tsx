@@ -29,12 +29,26 @@ export default function PreJoinLobby({ room, onJoin, onBack }: PreJoinLobbyProps
         }
     }, [authUser, session]);
 
-    // Check if user was previously kicked from this room
+    // Check if user was previously kicked from this room (5-minute cooldown)
     useEffect(() => {
         if (room?.id && typeof window !== 'undefined') {
-            if (sessionStorage.getItem(`kicked_${room.id}`) === "true") {
-                alert("You have been removed from this watchroom by the host and cannot re-enter.");
-                onBack();
+            const kickedVal = sessionStorage.getItem(`kicked_${room.id}`);
+            if (kickedVal) {
+                const expiry = Number(kickedVal);
+                if (!isNaN(expiry)) {
+                    if (Date.now() < expiry) {
+                        const mins = Math.ceil((expiry - Date.now()) / 60000);
+                        alert(`You have been temporarily removed from this watchroom by the host. Please wait ${mins} minute(s) before re-entering.`);
+                        onBack();
+                        return;
+                    } else {
+                        sessionStorage.removeItem(`kicked_${room.id}`);
+                    }
+                } else if (kickedVal === "true") {
+                    alert("You have been removed from this watchroom by the host and cannot re-enter.");
+                    onBack();
+                    return;
+                }
             }
         }
     }, [room?.id, onBack]);

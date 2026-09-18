@@ -2896,7 +2896,7 @@ function LiveCameraFeed({
     const audioContextRef = useRef<AudioContext | null>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const rolePollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
+    const grantedModSetRef = useRef<Set<string>>(new Set());
     const [hasLeftMeeting, setHasLeftMeeting] = useState(false);
 
     const isModerator = userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator';
@@ -2946,18 +2946,23 @@ function LiveCameraFeed({
         };
 
         // ── Auto-grant moderator rights to Co-Hosts when they join (from File 1) ──
+        // ── Auto-grant moderator rights to Co-Hosts when they join (guarded against duplicate ghost loops) ──
         api.addListener("participantJoined", (participant: any) => {
             updateParticipants();
 
             try {
+                const targetId = participant.participantId || participant.id;
+                if (!targetId || grantedModSetRef.current.has(targetId)) return;
+
                 const currentCoHosts = coHostUserId
                     ? coHostUserId.split(",").map((id: string) => id.trim().toLowerCase())
                     : [];
                 const pName = (participant.displayName || "").toLowerCase().trim();
                 const pEmail = (participant.email || "").toLowerCase().trim();
                 if (isModerator && currentCoHosts.some((id: string) => id && (pName.includes(id) || pEmail === id))) {
-                    api.executeCommand('grantModerator', participant.id);
-                    console.log(`[Jitsi] Auto-granted moderator to joining co-host: ${participant.displayName} (${participant.id})`);
+                    grantedModSetRef.current.add(targetId);
+                    api.executeCommand('grantModerator', targetId);
+                    console.log(`[Jitsi] Auto-granted moderator to joining co-host: ${participant.displayName} (${targetId})`);
                 }
             } catch (modErr) {
                 console.warn('[Jitsi] Auto grantModerator error:', modErr);
@@ -2995,6 +3000,51 @@ function LiveCameraFeed({
                     try { text = JSON.stringify(text); } catch (_) { }
                 }
                 if (typeof text === 'string') {
+                    // Handle direct kick from host via Jitsi data channel (5-minute application kick)
+                    if (text.includes("KICK_USER") || text.startsWith("REACTION:KICK")) {
+                        let targetId = "";
+                        let targetName = "";
+                        try {
+                            const parsed = JSON.parse(text);
+                            targetId = parsed.targetId || "";
+                            targetName = (parsed.targetName || "").toLowerCase().trim();
+                        } catch (_) {
+                            if (text.includes(":::")) {
+                                const parts = text.replace("REACTION:KICK:", "").split(":::");
+                                targetName = (parts[0] || "").toLowerCase().trim();
+                                targetId = (parts[2] || "").toLowerCase().trim();
+                            }
+                        }
+
+                        const myJitsiId = (api as any)?._myUserID;
+                        const myName = (userName || "").toLowerCase().trim();
+
+                        // Never kick the host
+                        const isHostOrAdmin = userRole === 'Host' || userRole === 'admin' || userRole === 'super_admin';
+
+                        // Check if target is this participant
+                        const isTarget = Boolean(
+                            (targetId && myJitsiId && targetId === myJitsiId) ||
+                            (targetName && myName && (myName === targetName || myName.includes(targetName) || targetName.includes(myName)))
+                        );
+
+                        if (!isHostOrAdmin && isTarget) {
+                            console.warn("[Jitsi] You have been kicked by the host!");
+                            try {
+                                api.executeCommand('hangup');
+                            } catch (_) { }
+                            if (roomId && typeof window !== 'undefined') {
+                                try {
+                                    const kickExpiry = Date.now() + 5 * 60 * 1000;
+                                    sessionStorage.setItem(`kicked_${roomId}`, kickExpiry.toString());
+                                } catch (_) { }
+                            }
+                            alert("You have been removed from this watchroom by the host. (Cooldown: 5 minutes)");
+                            window.location.reload();
+                            return;
+                        }
+                    }
+
                     if (text.startsWith("REACTION:")) {
                         const reaction = text.replace("REACTION:", "");
                         if (onReactionReceived) {
@@ -3242,6 +3292,7 @@ function LiveCameraFeed({
         return () => {
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
             if (rolePollIntervalRef.current) clearInterval(rolePollIntervalRef.current);
+            grantedModSetRef.current.clear();
         };
     }, []);
 
@@ -3626,6 +3677,7 @@ function TabContent({
     onKickParticipantLocally?: (participantId: string, participantName: string) => void;
 }) {
     const { updateRoom, fetchRoomById } = useWatchAlong();
+    const coHostToggleInFlightRef = useRef<Set<string>>(new Set());
 
     // Don't render if matchId is not available
     if (!matchId && activeTab !== 'participants' && activeTab !== 'qna') {
@@ -3890,6 +3942,11 @@ function TabContent({
                                                         {!isHostUser && (userRole === 'Host' || userRole === 'admin' || userRole === 'super_admin') && (
                                                             <button
                                                                 onClick={async () => {
+                                                                    const lockKey = p.id || p.email || displayName;
+                                                                    // Guard against rapid double-click firing this twice for the same participant
+                                                                    if (coHostToggleInFlightRef.current.has(lockKey)) return;
+                                                                    coHostToggleInFlightRef.current.add(lockKey);
+
                                                                     try {
                                                                         const fd = new FormData();
                                                                         const currentCoHosts = room.coHostUserId
@@ -3947,7 +4004,11 @@ function TabContent({
                                                                             if (room.id) await fetchRoomById(room.id);
                                                                             alert(isAlreadyCoHost ? `${displayName} is no longer Co-Host!` : `${displayName} is now Co-Host!`);
                                                                         }
-                                                                    } catch (err) { console.error('Toggle Co-Host failed:', err); }
+                                                                    } catch (err) {
+                                                                        console.error('Toggle Co-Host failed:', err);
+                                                                    } finally {
+                                                                        coHostToggleInFlightRef.current.delete(lockKey);
+                                                                    }
                                                                 }}
                                                                 className={`px-3 py-1 text-xs font-semibold rounded-full border transition-all flex items-center gap-1 ${isCoHostUser
                                                                     ? 'bg-yellow-600 border-yellow-500 text-white'
@@ -3972,6 +4033,20 @@ function TabContent({
                                                                 }
                                                                 if (jitsiApi) {
                                                                     try {
+                                                                        jitsiApi.executeCommand('sendEndpointTextMessage', '', JSON.stringify({
+                                                                            type: 'KICK_USER',
+                                                                            targetId: p.id,
+                                                                            targetName: displayName,
+                                                                            targetEmail: p.email || ''
+                                                                        }));
+                                                                        if (p.id) {
+                                                                            jitsiApi.executeCommand('sendEndpointTextMessage', p.id, JSON.stringify({
+                                                                                type: 'KICK_USER',
+                                                                                targetId: p.id,
+                                                                                targetName: displayName,
+                                                                                targetEmail: p.email || ''
+                                                                            }));
+                                                                        }
                                                                         jitsiApi.executeCommand('kickParticipant', p.id);
                                                                     } catch (err) {
                                                                         console.error('Jitsi kick failed:', err);
@@ -4032,6 +4107,16 @@ function TabContent({
                                                                 } catch (err) {
                                                                     console.error('Broadcast kick failed:', err);
                                                                 }
+                                                            }
+                                                            if (jitsiApi) {
+                                                                try {
+                                                                    jitsiApi.executeCommand('sendEndpointTextMessage', '', JSON.stringify({
+                                                                        type: 'KICK_USER',
+                                                                        targetId: '',
+                                                                        targetName: name,
+                                                                        targetEmail: ''
+                                                                    }));
+                                                                } catch (_) { }
                                                             }
                                                             onKickParticipantLocally?.('', name);
                                                         }}
@@ -5709,12 +5794,26 @@ export default function WatchRoom({ room: initialRoom, onBack }: Props) {
         setChats(prev => prev.filter((m: any) => (m.user || '').toLowerCase().trim() !== participantName.toLowerCase().trim()));
     }, [setChats]);
 
-    // Check if current user was previously kicked from this room
+    // Check if current user was previously kicked from this room (5-minute cooldown)
     useEffect(() => {
         if (room?.id && typeof window !== 'undefined') {
-            if (sessionStorage.getItem(`kicked_${room.id}`) === "true") {
-                alert("You have been removed from this watchroom by the host and cannot re-enter.");
-                onBack();
+            const kickedVal = sessionStorage.getItem(`kicked_${room.id}`);
+            if (kickedVal) {
+                const expiry = Number(kickedVal);
+                if (!isNaN(expiry)) {
+                    if (Date.now() < expiry) {
+                        const mins = Math.ceil((expiry - Date.now()) / 60000);
+                        alert(`You have been temporarily removed from this watchroom by the host. Please wait ${mins} minute(s) before re-entering.`);
+                        onBack();
+                        return;
+                    } else {
+                        sessionStorage.removeItem(`kicked_${room.id}`);
+                    }
+                } else if (kickedVal === "true") {
+                    alert("You have been removed from this watchroom by the host and cannot re-enter.");
+                    onBack();
+                    return;
+                }
             }
         }
     }, [room?.id, onBack]);
@@ -6401,7 +6500,9 @@ export default function WatchRoom({ room: initialRoom, onBack }: Props) {
                 (jitsiApiRef.current && typeof jitsiApiRef.current.myUserId === 'function' && jitsiApiRef.current.myUserId() === targetId)
             );
 
-            if (isNameMatch || isEmailMatch || isIdMatch) {
+            const isHostOrAdmin = userRole === 'Host' || userRole === 'admin' || userRole === 'super_admin';
+
+            if (!isHostOrAdmin && (isNameMatch || isEmailMatch || isIdMatch)) {
                 console.warn("[WatchRoom] Current user was kicked by host!");
                 if (jitsiApiRef.current) {
                     try {
@@ -6412,10 +6513,11 @@ export default function WatchRoom({ room: initialRoom, onBack }: Props) {
                 }
                 if (room?.id) {
                     try {
-                        sessionStorage.setItem(`kicked_${room.id}`, "true");
+                        const kickExpiry = Date.now() + 5 * 60 * 1000;
+                        sessionStorage.setItem(`kicked_${room.id}`, kickExpiry.toString());
                     } catch (e) { }
                 }
-                alert("You have been removed from the watchroom by the host.");
+                alert("You have been removed from this watchroom by the host. (Cooldown: 5 minutes)");
                 onBack();
                 return;
             }
@@ -7181,6 +7283,8 @@ export default function WatchRoom({ room: initialRoom, onBack }: Props) {
                                 userName={userName}
                                 userEmail={userEmail || authUser?.email || session?.user?.email || ""}
                                 coHostUserId={room?.coHostUserId}
+                                roomId={room?.id}
+                                fetchRoomById={fetchRoomById}
                                 onRolePromoted={(newRole) => {
                                     console.log("[WatchRoom] Dynamically updating userRole to:", newRole);
                                     if (typeof window !== 'undefined') {
