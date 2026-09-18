@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ChevronLeft, Flame, Trophy, Clock, Zap, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { handleGoBack } from '@/utils/backButton';
 
 // ─── Data ──────────────────────────────────────────────────────────────────
 
@@ -102,7 +103,7 @@ export default function AsianGamePage() {
       <div className="sticky top-0 z-30 bg-[#0e0e16]/95 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-3 px-4 py-3">
           <button
-            onClick={() => router.back()}
+            onClick={() => handleGoBack(router)}
             className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center shrink-0"
           >
             <ChevronLeft className="w-4 h-4 text-white" />

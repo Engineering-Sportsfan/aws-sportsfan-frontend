@@ -816,15 +816,29 @@ export default function NewsFeedWidget() {
         const baseUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
         const ARCHIVE_DATES = ["2026-05-21", "2026-05-20", "2026-05-19"];
         const dateQuery = ARCHIVE_DATES.join(",");
-        const res = await fetch(`${baseUrl}/api/news-center?date=${dateQuery}`);
-        const data = await res.json();
+        let data: any = {};
+        try {
+          const res = await fetch(`${baseUrl}/api/news-center?date=${dateQuery}`);
+          if (res.ok) {
+            const text = await res.text();
+            if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
+              data = JSON.parse(text);
+            }
+          }
+        } catch (e) {
+          console.warn('News center fetch failed', e);
+        }
 
         // Fetch cricket articles
         let cricketArticles: CricketArticle[] = [];
         try {
           const cricketRes = await fetch('/api/cricket-articles');
           if (cricketRes.ok) {
-            const cricketData = await cricketRes.json();
+            const text = await cricketRes.text();
+            let cricketData: any = {};
+            if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
+              cricketData = JSON.parse(text);
+            }
             cricketArticles = (cricketData?.articles || cricketData?.data || []) as CricketArticle[];
           }
         } catch (error) {

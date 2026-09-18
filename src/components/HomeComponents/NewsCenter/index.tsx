@@ -871,11 +871,20 @@ export default function NewsCenter() {
       try {
         const cricketRes = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
           cache: 'no-store',
-          headers: { 'Cache-Control': 'no-cache' },
+          headers: { 'Cache-Control': 'no-cache', 'Accept': 'application/json' },
         });
-        console.log('[NewsCenter] cricket-articles status:', cricketRes.status, cricketRes.ok);
 
-        if (!cricketRes.ok) {
+        let cricketData: any = null;
+        try {
+          const text = await cricketRes.text();
+          if (text && (text.trim().startsWith('{') || text.trim().startsWith('['))) {
+            cricketData = JSON.parse(text);
+          }
+        } catch (parseErr) {
+          console.warn('[NewsCenter] cricket-articles non-JSON response:', parseErr);
+        }
+
+        if (!cricketRes.ok && !cricketData) {
           setDebugInfo({
             status: 'error',
             error: `cricket-articles returned HTTP ${cricketRes.status}`,
@@ -885,7 +894,6 @@ export default function NewsCenter() {
           return;
         }
 
-        const cricketData = await cricketRes.json();
         const cricketArticles: CricketApiArticle[] =
           cricketData?.articles || cricketData?.data || (Array.isArray(cricketData) ? cricketData : []);
         console.log('[NewsCenter] cricket articles fetched:', cricketArticles.length);

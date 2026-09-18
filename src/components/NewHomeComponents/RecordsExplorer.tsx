@@ -5,6 +5,7 @@ import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 import { RECORDS_DATA, type TeamId, type CategoryId, type RecordRow } from "../../../lib/recordsData";
+import { handleGoBack } from "@/utils/backButton";
 
 interface TeamOption {
     id: TeamId;
@@ -102,8 +103,7 @@ export default function TeamRecords() {
     const columns = COLUMNS_BY_CATEGORY[selectedCategory];
 
     const handleBack = () => {
-        // router.push("/MainModules/HomePage");
-          router.back();
+        handleGoBack(router);
     };
 
     return (
@@ -203,6 +203,7 @@ export default function TeamRecords() {
 
                 {/* ── Data table ── */}
                 <div
+                    className="pb-16"
                     style={{
                         border: "1px solid rgba(255,255,255,0.1)",
                         borderRadius: 12,

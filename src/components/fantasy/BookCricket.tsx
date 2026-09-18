@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 type Phase = "cover" | "opening" | "idle" | "flipping" | "zooming" | "over";
@@ -214,6 +216,7 @@ function initState(): GameState {
 
 // ── Main Component ────────────────────────────────────────────────────────
 export default function BookCricket() {
+  const router = useRouter();
   const [gs, setGs] = useState<GameState>(initState);
   const gsRef = useRef<GameState>(gs);
   gsRef.current = gs;
@@ -691,7 +694,7 @@ export default function BookCricket() {
       <div style={{ width: "100%", maxWidth: 500, padding: "8px 14px 4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
-            onClick={() => window.history.back()}
+            onClick={() => handleGoBack(router)}
             style={{ background: "none", border: "1px solid #3d2c1e", color: "#c4956a", fontFamily: "'Rajdhani',sans-serif", fontSize: 12, fontWeight: 700, letterSpacing: 1, padding: "5px 12px", borderRadius: 7, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, transition: "border-color .15s, color .15s" }}
           >
             ← BACK

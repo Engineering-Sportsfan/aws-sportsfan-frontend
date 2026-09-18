@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Zap } from "lucide-react";
+import { handleGoBack } from "@/utils/backButton";
 
 type Stat = { label: string; value: string; color: string };
 
@@ -239,7 +240,7 @@ function StatCard({ player, onBack }: { player: Player; onBack: () => void }) {
           </div>
         </div>
         <button
-          onClick={() => router.back()}
+          onClick={() => handleGoBack(router)}
           className="w-8 h-8 rounded-full flex items-center justify-center text-white shrink-0"
           style={{ background: "rgba(255,255,255,0.08)" }}
         >

@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useChats, useMessages, useCreateChat, timeAgo } from "../../../hooks/useChat";
 import { useAuth } from "@/context/AuthContext";
+import { handleGoBack } from "@/utils/backButton";
 import { ChatAPI, resolveChatName, type Chat, type Message } from "../../../lib/chatApi";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1434,8 +1435,8 @@ export default function ChatComponent() {
       <div className="px-4 pt-4 pb-0 sticky top-0 z-20" style={{ background: "#0a0c10" }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <button onClick={() => router.back()}
-              className="w-9 h-9 rounded-full flex items-center justify-center transition"
+            <button onClick={() => handleGoBack(router)}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition cursor-pointer"
               onMouseEnter={e => (e.currentTarget.style.background = "rgba(200,112,90,0.08)")}
               onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
             >

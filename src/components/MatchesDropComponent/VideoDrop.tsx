@@ -803,6 +803,7 @@ import CommentsSection from "@/src/components/CommentsSection";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import PlaylistDialog from "../playlistdialog-component/playlistdialog";
+import { handleGoBack } from "@/utils/backButton";
 
 interface VideoFile {
     id: string;
@@ -926,7 +927,7 @@ export default function VideoDropCard() {
             router.push(`/MainModules/Playlists?playlistId=${encodeURIComponent(playlistId)}`);
             return;
         }
-        router.back();
+        handleGoBack(router);
     };
 
     const saveProgressToApi = async (elapsedSecs: number, vid: VideoFile) => {

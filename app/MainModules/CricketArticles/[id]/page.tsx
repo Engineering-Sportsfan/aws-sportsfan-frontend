@@ -1391,6 +1391,7 @@ import axios from "axios";
 import { ArrowLeft, Heart, Reply, Trash2, ChevronDown, ChevronUp, Send, Loader2, Smile } from "lucide-react";
 import PlaylistDialog from "@/src/components/playlistdialog-component/playlistdialog";
 import { useAuth } from "@/context/AuthContext";
+import { handleGoBack } from "@/utils/backButton";
 
 type BadgeType = "FEATURE" | "ANALYSIS" | "OPINION" | "NEWS";
 
@@ -1922,11 +1923,23 @@ export default function CricketArticleDetail() {
     if (!articleId) return;
     const fetchArticle = async () => {
       try {
-        const res = await axios.get(`/api/cricket-articles/${articleId}`);
-        const rawArticle =
-          res.data?.article ??
-          (Array.isArray(res.data?.articles) ? res.data.articles[0] : null) ??
-          (res.data?.id || res.data?._id ? res.data : null);
+        let rawArticle: any = null;
+        try {
+          const res = await fetch(`/api/cricket-articles/${articleId}?t=${Date.now()}`, {
+            cache: "no-store",
+            headers: { "Cache-Control": "no-cache", "Accept": "application/json" },
+          });
+          const text = await res.text();
+          if (text && (text.trim().startsWith("{") || text.trim().startsWith("["))) {
+            const parsed = JSON.parse(text);
+            rawArticle =
+              parsed?.article ??
+              (Array.isArray(parsed?.articles) ? parsed.articles[0] : null) ??
+              (parsed?.id || parsed?._id ? parsed : null);
+          }
+        } catch (fetchErr) {
+          console.warn("[ArticleDetail] fetch warning:", fetchErr);
+        }
 
         const normalized = normalizeArticleStats(rawArticle);
         if (!normalized) {
@@ -2249,7 +2262,7 @@ export default function CricketArticleDetail() {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-[#0d0d10] gap-4 p-6 text-center">
         <p className="text-red-400">{error || "Article not found"}</p>
-        <button onClick={() => router.back()} className="bg-pink-500 px-4 py-2 rounded text-white hover:bg-pink-600 transition">
+        <button onClick={() => handleGoBack(router)} className="bg-pink-500 px-4 py-2 rounded text-white hover:bg-pink-600 transition cursor-pointer">
           Go Back
         </button>
       </div>
@@ -2267,7 +2280,7 @@ export default function CricketArticleDetail() {
 
   return (
     <div className="min-h-screen text-white px-4 py-6 max-w-6xl mx-auto pb-20">
-      <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-400 hover:text-white mb-5 transition cursor-pointer">
+      <button onClick={() => handleGoBack(router)} className="flex items-center gap-2 text-gray-400 hover:text-white mb-5 transition cursor-pointer">
         <ArrowLeft size={16} />
       </button>
 
