@@ -1,10 +1,11 @@
 // MainModules/FlipCards/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Zap, ArrowLeft } from "lucide-react";
+import { Zap, ArrowLeft, Share2, Check } from "lucide-react";
+import { handleGoBack } from "@/utils/backButton";
 
 type Stat = { label: string; value: string; color: string };
 
@@ -202,6 +203,49 @@ function MiniCard({ p, onClick }: { p: Player; onClick: () => void }) {
 
 function StatCard({ player, onBack }: { player: Player; onBack: () => void }) {
   const router = useRouter();
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    const shareUrl = typeof window !== "undefined"
+      ? `${window.location.origin}/MainModules/FlipCards?player=${player.id}`
+      : "";
+
+    const shareData = {
+      title: `${player.name} - FlipFlex Card`,
+      text: `Check out ${player.name}'s FlipFlex athlete card (Overall: ${player.overall}) on SportsFan360!`,
+      url: shareUrl,
+    };
+
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err: any) {
+        if (err?.name === "AbortError") return;
+        console.warn("navigator.share failed, falling back to clipboard:", err);
+      }
+    }
+
+    if (typeof window !== "undefined") {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(shareUrl);
+        } else {
+          const textArea = document.createElement("textarea");
+          textArea.value = shareUrl;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand("copy");
+          document.body.removeChild(textArea);
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      } catch (clipErr) {
+        console.error("Failed to copy to clipboard:", clipErr);
+      }
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -318,25 +362,48 @@ function StatCard({ player, onBack }: { player: Player; onBack: () => void }) {
       <div className="flex gap-3 px-4 pb-10">
         <button
           onClick={onBack}
-          className="flex-1 py-3 rounded-xl font-semibold text-sm text-white"
+          className="flex-1 py-3 rounded-xl font-semibold text-sm text-white hover:bg-white/10 transition-colors active:scale-[0.98] cursor-pointer"
           style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
         >
           Back
         </button>
-        <button className="flex-1 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold text-sm">
-          Share Card ↗
+        <button
+          onClick={handleShare}
+          className={`flex-1 py-3 px-4 rounded-xl font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 cursor-pointer shadow-lg active:scale-[0.98] ${
+            copied
+              ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30"
+              : "bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white shadow-blue-600/25"
+          }`}
+        >
+          {copied ? (
+            <>
+              <Check size={16} className="text-white" />
+              <span>Link Copied!</span>
+            </>
+          ) : (
+            <>
+              <Share2 size={16} className="text-white" />
+              <span>Share Card</span>
+            </>
+          )}
         </button>
       </div>
     </motion.div>
   );
 }
 
-export default function FlipCardsPage() {
+function FlipCardsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const playerFromQuery = searchParams.get("player");
   const [selectedId, setSelectedId] = useState<string | null>(playerFromQuery);
   const selected = PLAYERS.find((p) => p.id === selectedId) ?? null;
+
+  useEffect(() => {
+    if (playerFromQuery) {
+      setSelectedId(playerFromQuery);
+    }
+  }, [playerFromQuery]);
 
   return (
     <div className="min-h-screen px-4 py-8" style={{ background: "linear-gradient(135deg,#0a1128 0%,#0f1a2e 100%)" }}>
@@ -354,8 +421,7 @@ export default function FlipCardsPage() {
             {/* Header with Back Button */}
             <div className="flex items-center gap-3 mb-5">
               <button
-                // onClick={() => router.push("/MainModules/HomePage")}
-                 onClick={() => router.back()}
+                onClick={() => handleGoBack(router)}
                 className="w-9 h-9 rounded-full flex items-center justify-center text-white/80 hover:text-white bg-white/10 hover:bg-white/15 transition-all cursor-pointer border border-white/10 shrink-0 active:scale-95"
                 aria-label="Back to HomePage"
               >
@@ -390,5 +456,13 @@ export default function FlipCardsPage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function FlipCardsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" style={{ background: "linear-gradient(135deg,#0a1128 0%,#0f1a2e 100%)" }} />}>
+      <FlipCardsContent />
+    </Suspense>
   );
 }

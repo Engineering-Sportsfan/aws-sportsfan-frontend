@@ -920,6 +920,7 @@ import CommentsSection from "@/src/components/CommentsSection";
 import PlaylistDialog from "../playlistdialog-component/playlistdialog";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { handleGoBack } from "@/utils/backButton";
 
 
 interface MatchInfo {
@@ -1299,7 +1300,7 @@ export default function AudioDropCard() {
             router.push(`/MainModules/Playlists?playlistId=${encodeURIComponent(playlistId)}`);
             return;
         }
-        router.back();
+        handleGoBack(router);
     };
 
     // ── Save progress + trigger points award at 90% ───────────────────────────

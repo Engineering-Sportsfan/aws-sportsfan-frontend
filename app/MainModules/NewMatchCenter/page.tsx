@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 
 // ── SVG Inline Flags ────────────────────────────────────────────────────────
 const IndiaFlag = ({ className = "w-6 h-6" }: { className?: string }) => (
@@ -306,8 +307,8 @@ export default function NewMatchCenterPage() {
           <div className="flex items-start gap-3 sm:gap-4 w-full">
             {/* Back Button */}
             <button
-              onClick={() => router.back()}
-              className="w-9 h-9 shrink-0 rounded-xl bg-white/5 border border-white/8 flex items-center justify-center text-gray-300 hover:bg-white/10 transition-colors active:scale-95 mt-0.5"
+              onClick={() => handleGoBack(router)}
+              className="w-9 h-9 shrink-0 rounded-xl bg-white/5 border border-white/8 flex items-center justify-center text-gray-300 hover:bg-white/10 transition-colors active:scale-95 mt-0.5 cursor-pointer"
               aria-label="Go back"
             >
               <ChevronLeft className="w-5 h-5" />

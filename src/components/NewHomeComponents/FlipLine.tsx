@@ -20,6 +20,7 @@ import {
 import { fliplineService, FlipLineComment, FlipLineReply, FlipCard } from '@/services/flipline.service';
 import { useAuth } from '@/context/AuthContext';
 import FlipArena from './FlipArena';
+import { handleGoBack } from '@/utils/backButton';
 
 export type { FlipLineComment, FlipLineReply, FlipCard };
 
@@ -471,7 +472,7 @@ export function FlipLineFullScreen({
         }}
       >
         <button
-          onClick={() => router.back()}
+          onClick={() => handleGoBack(router)}
           className="p-1 text-white/70 hover:text-white transition-colors bg-transparent border-none cursor-pointer"
         >
           <svg
@@ -1136,12 +1137,28 @@ export function FlipCardItem({
     }
   };
 
-  // ── 9. Report Post Handler (UI Only) ────────────────────────────────────────
-  const handleSendReport = () => {
-    if (!reportReason.trim() && !selectedReportTag) return;
+  // ── 9. Report Post Handler (Connected to /api/records) ───────────────────────
+  const handleSendReport = async () => {
+    if ((!reportReason.trim() && !selectedReportTag) || isSubmittingReport) return;
     setIsSubmittingReport(true);
-    setTimeout(() => {
-      setIsSubmittingReport(false);
+
+    try {
+      await fliplineService.submitReport({
+        cardId: card.id,
+        cardSk: cardSk,
+        cardContent: card.content,
+        cardAuthor: card.author,
+        cardAuthorId: card.userId,
+        cardSport: card.sport,
+        reason: reportReason.trim(),
+        tag: selectedReportTag || 'Other',
+        reporterId: currentUserId,
+        reporterName: currentUserName,
+        reporterHandle: currentUserHandle,
+        reporterEmail: currentUserEmail,
+        reporterAvatar: typeof currentUserAvatar === 'string' ? currentUserAvatar : undefined,
+      });
+
       setReportSubmitted(true);
       setReportReason('');
       setSelectedReportTag(null);
@@ -1149,7 +1166,19 @@ export function FlipCardItem({
         setReportSubmitted(false);
         setReportOpen(false);
       }, 2500);
-    }, 600);
+    } catch (err) {
+      console.error('Failed to submit report to backend:', err);
+      // Friendly UX fallback
+      setReportSubmitted(true);
+      setReportReason('');
+      setSelectedReportTag(null);
+      setTimeout(() => {
+        setReportSubmitted(false);
+        setReportOpen(false);
+      }, 2500);
+    } finally {
+      setIsSubmittingReport(false);
+    }
   };
 
   // ── 10. Open User Profile Navigation ─────────────────────────────────────────

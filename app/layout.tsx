@@ -22,6 +22,7 @@ import { RoarRoomProvider } from "@/context/RoarRoomContext";
 import { RoarProfileProvider } from "@/context/RoarProfileContext";
 import { Suspense } from "react";
 import { UserProfileProvider } from "@/context/UserProfileContext";
+import { ScrollRestorationWatcher } from "@/utils/backButton";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -90,7 +91,8 @@ export default function RootLayout({
                                         >
                                           <RoarProfileProvider>
                                             <UserProfileProvider>
-                                            <main className="h-full flex flex-col">{children}</main>
+                                              <ScrollRestorationWatcher />
+                                              <main className="h-full flex flex-col">{children}</main>
                                             </UserProfileProvider>
                                           </RoarProfileProvider>
                                         </Suspense>

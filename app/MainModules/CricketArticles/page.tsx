@@ -21,6 +21,7 @@ import {
   Check,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { handleGoBack } from "@/utils/backButton";
 
 type CricketApiArticle = {
   _id?: string | number;
@@ -199,14 +200,26 @@ function AllCricketArticlesContent() {
       try {
         const res = await fetch(`/api/cricket-articles?t=${Date.now()}`, {
           cache: "no-store",
-          headers: { "Cache-Control": "no-cache" },
+          headers: { "Cache-Control": "no-cache", "Accept": "application/json" },
         });
-        if (!res.ok) {
+        let data: any = null;
+        try {
+          const text = await res.text();
+          if (text && text.trim().startsWith("{")) {
+            data = JSON.parse(text);
+          } else if (text && text.trim().startsWith("[")) {
+            data = JSON.parse(text);
+          }
+        } catch (parseErr) {
+          console.warn("[CricketArticles] Non-JSON response:", parseErr);
+        }
+
+        if (!res.ok && !data) {
           setError(`Failed to load articles (HTTP ${res.status})`);
           setLoading(false);
           return;
         }
-        const data = await res.json();
+
         const rawArticles: CricketApiArticle[] =
           data?.articles || data?.data || (Array.isArray(data) ? data : []);
 
@@ -390,7 +403,14 @@ function AllCricketArticlesContent() {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        let data: any = null;
+        try {
+          const text = await res.text();
+          if (text && (text.trim().startsWith("{") || text.trim().startsWith("["))) {
+            data = JSON.parse(text);
+          }
+        } catch {}
+
         const serverLikeCount =
           typeof data?.likeCount === "number"
             ? data.likeCount
@@ -497,13 +517,14 @@ function AllCricketArticlesContent() {
       <div className="sticky top-0 z-30 bg-[#07090E]/90 backdrop-blur-xl border-b border-white/[0.08] px-3 sm:px-6 py-2.5">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <Link
-              href="/MainModules/HomePage"
+            <button
+              type="button"
+              onClick={() => handleGoBack(router)}
               className="flex items-center justify-center w-8 h-8 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 text-white/80 hover:text-white transition-all active:scale-95 cursor-pointer"
               aria-label="Back"
             >
               <ArrowLeft size={15} />
-            </Link>
+            </button>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base sm:text-lg font-black tracking-tight text-white">

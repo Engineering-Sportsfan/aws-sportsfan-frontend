@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 import {
   ChevronLeft,
   ChevronDown,
@@ -441,8 +442,8 @@ export default function MatchCenter() {
         {/* ── HEADER ───────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between gap-2 mb-5">
           <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-sm font-bold tracking-widest text-gray-300 hover:text-white transition-colors flex-shrink-0"
+            onClick={() => handleGoBack(router)}
+            className="flex items-center gap-2 text-sm font-bold tracking-widest text-gray-300 hover:text-white transition-colors flex-shrink-0 cursor-pointer"
           >
             <ChevronLeft size={20} />
             <span className="hidden sm:inline">MATCH CENTER</span>

@@ -565,6 +565,7 @@ import axios from "axios";
 import { useAuth } from "@/context/AuthContext";
 import { ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 
 interface QuestionOption {
     id: string;
@@ -850,8 +851,8 @@ export default function FeedbackForm() {
         <div className="min-h-screen bg-[#0d0d10] text-white pb-16">
             <div className="max-w-2xl mx-auto px-4 py-8">
                 <button
-                    onClick={() => router.back()}
-                    className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition group"
+                    onClick={() => handleGoBack(router)}
+                    className="flex items-center gap-2 text-gray-400 hover:text-white mb-6 transition group cursor-pointer"
                 >
                     <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
                     <span className="text-sm">Back</span>

@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AudioDrop, { audioDropsData } from '@/src/components/CommonComponent/AudioDrop/AudioDrop';
 import { ThumbsUp, ThumbsDown, MessageCircle, MoreVertical, Flag, Share2, Link2, EyeOff, X } from 'lucide-react';
+import { handleGoBack } from '@/utils/backButton';
 
 function formatTime(secs: number) {
   if (!isFinite(secs) || isNaN(secs)) return '0:00';
@@ -150,8 +151,8 @@ export default function AudioPlayerScreen() {
 
             {/* Back button */}
             <button
-              onClick={() => router.back()}
-              className="absolute z-20 flex items-center justify-center rounded-full"
+              onClick={() => handleGoBack(router)}
+              className="absolute z-20 flex items-center justify-center rounded-full cursor-pointer"
               style={{ left: 20, top: 24, width: 44, height: 44, background: 'transparent' }}
               aria-label="Go back"
             />

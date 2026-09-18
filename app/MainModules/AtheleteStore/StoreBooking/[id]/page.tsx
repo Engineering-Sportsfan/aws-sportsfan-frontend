@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, Suspense } from 'react';
 import { storeService, Slot } from '@/services/store.service';
 import { formatPrice } from '@/utils/formatters';
 import { useAuth } from '@/context/AuthContext';
+import { handleGoBack } from '@/utils/backButton';
 
 const services = [
   { id: 1, title: 'Technique Analysis', duration: '60 min', pricePaise: 180000, desc: 'Video-based biomechanical breakdown with actionable fixes.' },
@@ -200,8 +201,8 @@ function StoreBookingContent() {
         <div className="sticky top-0 z-50 bg-[#0b0b0f] border-b border-[rgba(255,255,255,0.05)]">
           <div className="h-[56px] flex items-center px-4 gap-3">
             <button
-              onClick={() => (step > 0 ? setStep((s) => s - 1) : router.back())}
-              className="w-[36px] h-[36px] rounded-full bg-[rgba(255,255,255,0.06)] flex items-center justify-center"
+              onClick={() => (step > 0 ? setStep((s) => s - 1) : handleGoBack(router))}
+              className="w-[36px] h-[36px] rounded-full bg-[rgba(255,255,255,0.06)] flex items-center justify-center cursor-pointer"
             >
               <ArrowLeft className="w-[18px] h-[18px] text-white" />
             </button>
