@@ -1103,7 +1103,7 @@ export default function NewsCenter() {
         <button
           type="button"
           onClick={() => router.push("/MainModules/CricketArticles")}
-          className="flex items-center gap-0.5 text-[12px] font-bold cursor-pointer hover:opacity-80 transition-opacity"
+          className="flex mr-12 items-center gap-0.5 text-[12px] font-bold cursor-pointer hover:opacity-80 transition-opacity"
           style={{ color: "#E91E8C" }}
         >
           View all
