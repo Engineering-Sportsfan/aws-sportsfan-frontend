@@ -58,14 +58,7 @@ export default function EmojiStorm({ matchId }: EmojiStormProps) {
     }
   }, [matchId, fetchEmojiReactions]);
 
-  // Poll for new reactions every 15 seconds (optimized from 3s)
-  useEffect(() => {
-    if (!matchId) return;
-    const interval = setInterval(() => {
-      fetchEmojiReactions(matchId);
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [matchId, fetchEmojiReactions]);
+  // Initial fetch on mount / matchId change only (polling removed in favor of real-time push)
 
   // Toast auto-dismiss
   useEffect(() => {

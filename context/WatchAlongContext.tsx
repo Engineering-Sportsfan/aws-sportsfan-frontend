@@ -149,17 +149,19 @@ interface WatchAlongContextType {
     matches: Match[];
     currentMatch: Match | null;
     chats: ChatMessage[];
+    setChats: React.Dispatch<React.SetStateAction<ChatMessage[]>>;
     predictions: Prediction[];
+    setPredictions: React.Dispatch<React.SetStateAction<Prediction[]>>;
     quizQuestions: QuizQuestion[];
+    setQuizQuestions: React.Dispatch<React.SetStateAction<QuizQuestion[]>>;
     activeQuizQuestion: QuizQuestion | null;
+    setActiveQuizQuestion: React.Dispatch<React.SetStateAction<QuizQuestion | null>>;
     leaderboard: LeaderboardEntry[];
     emojiReactions: EmojiReactions;
     rooms: Room[];
     currentRoom: Room | null;
     loading: boolean;
     error: string | null;
-
-
 
     // Match methods
     fetchMatches: () => Promise<void>;
@@ -410,7 +412,7 @@ export const WatchAlongProvider = ({ children }: { children: ReactNode }) => {
             return;
         }
         try {
-            const url = `/api/watch-along/matches/${matchId}/predictions`;
+            const url = `/api/watch-along/matches/${matchId}/predictions${openOnly ? '?open=true' : ''}`;
             const res = await axios.get(url);
             if (res.data.success) {
                 setPredictions(res.data.predictions);
@@ -800,6 +802,12 @@ export const WatchAlongProvider = ({ children }: { children: ReactNode }) => {
                 currentRoom,
                 loading,
                 error,
+
+                // Setters for SSE and live events
+                setChats,
+                setPredictions,
+                setQuizQuestions,
+                setActiveQuizQuestion,
 
                 // Match methods
                 fetchMatches,

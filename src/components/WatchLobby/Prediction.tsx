@@ -485,14 +485,7 @@ export default function Prediction({ matchId }: { matchId: string }) {
         }
     }, [matchId, fetchPredictions]);
 
-    // Auto-refresh predictions every 30 seconds (optimized from 10s)
-    useEffect(() => {
-        if (!matchId) return;
-        const interval = setInterval(() => {
-            fetchPredictions(matchId, true);
-        }, 30000);
-        return () => clearInterval(interval);
-    }, [matchId, fetchPredictions]);
+
 
 
     
