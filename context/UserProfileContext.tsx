@@ -83,6 +83,8 @@ interface UserProfile {
   name?: string;
   badge?: string;
   email?: string;
+  totalPoints?: number;
+  reputationScore?: number;
 }
 
 interface UserProfileContextType {
@@ -123,6 +125,12 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
       if (data?.user) {
         const localCachedAvatar = typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null;
         const rawAv = data.user.avatarUrl || localCachedAvatar || "";
+        const userPts = Number(data.user.totalPoints ?? data.user.points ?? data.user.reputationScore ?? 0);
+        if (userPts > 0 && typeof window !== "undefined") {
+          try {
+            localStorage.setItem("user_points", String(userPts));
+          } catch {}
+        }
         setUserProfile({
           actualUserId: data.user.actualUserId,
           username: data.user.username,
@@ -130,6 +138,9 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
           avatar: data.user.avatar,          // Google CDN URL (fallback)
           name: data.user.name,
           badge: data.user.badge,
+          email: data.user.email,
+          totalPoints: userPts,
+          reputationScore: Number(data.user.reputationScore ?? userPts),
         });
       }
     } catch (err) {

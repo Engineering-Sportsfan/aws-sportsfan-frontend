@@ -58,7 +58,79 @@ const normalizeLeaderboard = (rows: LeaderboardUser[]): LeaderboardUser[] =>
     }));
 
 const sameUserId = (a: string | number | undefined, b: string | number | undefined) =>
-  a !== undefined && b !== undefined && String(a) === String(b);
+  a !== undefined && b !== undefined && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+
+const isLeaderboardMatch = (entry: any, u: any, uid: string) => {
+  if (!entry) return false;
+  const entryId = String(entry.userId || entry.actualUserId || entry.id || "").trim().toLowerCase();
+  const entryEmail = String(entry.userEmail || entry.email || "").trim().toLowerCase();
+  const entryName = String(entry.userName || entry.name || "").trim().toLowerCase();
+
+  const targetId = String(uid || "").trim().toLowerCase();
+  const targetActual = String(u?.actualUserId || "").trim().toLowerCase();
+  const targetEmail = String(u?.email || "").trim().toLowerCase();
+  const targetSanitizedEmail = targetEmail.replace(/[@.]/g, "_");
+  const targetName = String(u?.name || "").trim().toLowerCase();
+
+  if (targetId && (entryId === targetId || entryId === targetId.replace(/[@.]/g, "_"))) return true;
+  if (targetActual && (entryId === targetActual || String(entry.actualUserId || "").trim().toLowerCase() === targetActual)) return true;
+  if (targetEmail && (entryEmail === targetEmail || entryId === targetEmail || entryId === targetSanitizedEmail)) return true;
+  if (targetName && entryName === targetName && entryName.length > 2) return true;
+  return false;
+};
+
+const extractPoints = (data: any): number | null => {
+  if (!data) return null;
+  const val =
+    data?.user?.totalPoints ??
+    data?.user?.points ??
+    data?.user?.score ??
+    data?.user?.reputationScore ??
+    data?.data?.totalPoints ??
+    data?.data?.points ??
+    data?.data?.score ??
+    data?.totalPoints ??
+    data?.points ??
+    data?.score ??
+    null;
+  if (val != null && !isNaN(Number(val))) {
+    return Number(val);
+  }
+  return null;
+};
+
+const extractRank = (data: any): number | null => {
+  if (!data) return null;
+  const val =
+    data?.user?.rank ??
+    data?.data?.rank ??
+    data?.rank ??
+    null;
+  if (val != null && !isNaN(Number(val))) {
+    return Number(val);
+  }
+  return null;
+};
+
+const resolveUserId = (u: any): string | null => {
+  if (!u) {
+    if (typeof window !== "undefined") {
+      return (
+        localStorage.getItem("watchalong_user_id") ||
+        localStorage.getItem("roar_username") ||
+        null
+      );
+    }
+    return null;
+  }
+  return (
+    u.actualUserId ||
+    u.userId ||
+    (u.email ? u.email.replace(/[@.]/g, "_") : null) ||
+    u.email ||
+    null
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -72,9 +144,13 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
   const { user, authReady } = useAuth();
   const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
   const [currentUserRank, setCurrentUserRank] = useState<number | null>(null);
-  const [currentUserPoints, setCurrentUserPoints] = useState<number | null>(
-    null
-  );
+  const [currentUserPoints, setCurrentUserPoints] = useState<number | null>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("user_points") || localStorage.getItem("roar_user_points");
+      if (stored && !isNaN(Number(stored)) && Number(stored) > 0) return Number(stored);
+    }
+    return null;
+  });
   // loading = true only while the fast-path (user points) is in flight
   const [loading, setLoading] = useState(false);
 
@@ -98,19 +174,63 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
       userFetchInProgress.current = true;
 
       try {
-        const res = await axios.get(
-          `/api/user-points?userId=${encodeURIComponent(userId)}`
-        );
-        if (res.data.success && res.data.user) {
+        const params: Record<string, string> = { userId };
+        if (user?.actualUserId && user.actualUserId !== userId) {
+          params.actualUserId = user.actualUserId;
+        }
+        if (user?.email) {
+          params.email = user.email;
+        }
+
+        const res = await axios.get("/api/user-points", { params });
+        const pts = extractPoints(res.data);
+        const rk = extractRank(res.data);
+
+        if (pts !== null) {
           const entry: CacheEntry = {
             ts: Date.now(),
-            points: res.data.user.totalPoints,
-            rank: res.data.user.rank,
+            points: pts,
+            rank: rk ?? 0,
           };
           USER_CACHE.set(userId, entry);
-          setCurrentUserPoints(entry.points);
-          setCurrentUserRank(entry.rank);
+          setCurrentUserPoints(pts);
+          if (rk !== null) setCurrentUserRank(rk);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("user_points", String(pts));
+            } catch {}
+          }
           return entry;
+        }
+
+        // Fallback: check /api/roar/profile if user-points didn't return points
+        try {
+          const profileQuery = userId ? `?userId=${encodeURIComponent(userId)}` : "";
+          const profileRes = await axios.get(`/api/roar/profile${profileQuery}`);
+          if (profileRes.data?.success && profileRes.data?.user) {
+            const profilePts =
+              profileRes.data.user.totalPoints ??
+              profileRes.data.user.points ??
+              profileRes.data.user.reputationScore;
+            if (profilePts != null && !isNaN(Number(profilePts))) {
+              const numPts = Number(profilePts);
+              const entry: CacheEntry = {
+                ts: Date.now(),
+                points: numPts,
+                rank: 0,
+              };
+              USER_CACHE.set(userId, entry);
+              setCurrentUserPoints(numPts);
+              if (typeof window !== "undefined") {
+                try {
+                  localStorage.setItem("user_points", String(numPts));
+                } catch {}
+              }
+              return entry;
+            }
+          }
+        } catch {
+          // ignore profile fallback error
         }
       } catch (error) {
         console.error("Error fetching current user points:", error);
@@ -119,7 +239,7 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       return null;
     },
-    [] // stable — no external deps
+    [user?.actualUserId, user?.email]
   );
 
   // ── Fetch full leaderboard (heavier, runs in background) ───────────────────
@@ -131,15 +251,22 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
         Date.now() - leaderboardCache.ts < LEADERBOARD_CACHE_TTL
       ) {
         setLeaderboard(leaderboardCache.data);
-        const found = leaderboardCache.data.find((u) => sameUserId(u.userId, userId));
+        const found = leaderboardCache.data.find((u) => isLeaderboardMatch(u, user, userId));
         if (found) {
+          const pts = Number(found.totalPoints) || 0;
+          const rk = Number(found.rank) || 0;
           USER_CACHE.set(userId, {
             ts: Date.now(),
-            points: found.totalPoints,
-            rank: found.rank,
+            points: pts,
+            rank: rk,
           });
-          setCurrentUserPoints(found.totalPoints);
-          setCurrentUserRank(found.rank);
+          setCurrentUserPoints(pts);
+          setCurrentUserRank(rk);
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("user_points", String(pts));
+            } catch {}
+          }
         }
         return leaderboardCache.data;
       }
@@ -154,15 +281,22 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
           leaderboardCache = { ts: Date.now(), data };
           setLeaderboard(data);
 
-          const found = data.find((u) => sameUserId(u.userId, userId));
+          const found = data.find((u) => isLeaderboardMatch(u, user, userId));
           if (found) {
+            const pts = Number(found.totalPoints) || 0;
+            const rk = Number(found.rank) || 0;
             USER_CACHE.set(userId, {
               ts: Date.now(),
-              points: found.totalPoints,
-              rank: found.rank,
+              points: pts,
+              rank: rk,
             });
-            setCurrentUserPoints(found.totalPoints);
-            setCurrentUserRank(found.rank);
+            setCurrentUserPoints(pts);
+            setCurrentUserRank(rk);
+            if (typeof window !== "undefined") {
+              try {
+                localStorage.setItem("user_points", String(pts));
+              } catch {}
+            }
           }
 
           return data;
@@ -174,18 +308,21 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
       }
       return [];
     },
-    [] // stable
+    [user]
   );
 
   
   // ── Main orchestrator ───────────────────────────────────────────────────────
   const fetchGlobalLeaderboard = useCallback(async () => {
-    const userId = user?.userId;
+    const userId = resolveUserId(user);
 
     if (!userId) {
-      setLeaderboard([]);
-      setCurrentUserRank(null);
-      setCurrentUserPoints(null);
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("user_points") || localStorage.getItem("roar_user_points");
+        if (stored && !isNaN(Number(stored)) && Number(stored) > 0) {
+          setCurrentUserPoints(Number(stored));
+        }
+      }
       return;
     }
 
@@ -201,52 +338,85 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
     // ── Step 2: Lazy — load full leaderboard in the background ───────────────
     // Not awaited intentionally; doesn't block the header.
     fetchFullLeaderboard(userId);
-  }, [user?.userId, fetchCurrentUser, fetchFullLeaderboard]);
+  }, [user, fetchCurrentUser, fetchFullLeaderboard]);
 
   
 const refreshLeaderboard = useCallback(async () => {
   // Clear both caches so the next fetch always hits the network
   leaderboardCache = null;
-  if (user?.userId) USER_CACHE.delete(user.userId);
+  const userId = resolveUserId(user);
+  if (userId) USER_CACHE.delete(userId);
   
   await fetchGlobalLeaderboard();
-}, [user?.userId, fetchGlobalLeaderboard]);
+}, [user, fetchGlobalLeaderboard]);
 
 const addLocalPoints = useCallback((points: number) => {
-  const userId = user?.userId;
-  if (!userId || !points) return;
+  const userId = resolveUserId(user);
+  if (!points) return;
   const delta = Number(points) || 0;
 
   setCurrentUserPoints((prev) => {
     const next = (Number(prev) || 0) + delta;
-    const cached = USER_CACHE.get(userId);
-    USER_CACHE.set(userId, {
-      ts: Date.now(),
-      points: next,
-      rank: cached?.rank ?? currentUserRank ?? 0,
-    });
+    if (userId) {
+      const cached = USER_CACHE.get(userId);
+      USER_CACHE.set(userId, {
+        ts: Date.now(),
+        points: next,
+        rank: cached?.rank ?? currentUserRank ?? 0,
+      });
+    }
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("user_points", String(next));
+      } catch {}
+    }
     return next;
   });
 
-  setLeaderboard((prev) =>
-    prev.map((entry) =>
-      sameUserId(entry.userId, userId)
-        ? { ...entry, totalPoints: (Number(entry.totalPoints) || 0) + delta }
-        : entry
-    )
-  );
-
-  if (leaderboardCache) {
-    leaderboardCache = {
-      ts: Date.now(),
-      data: leaderboardCache.data.map((entry) =>
-        sameUserId(entry.userId, userId)
+  if (userId) {
+    setLeaderboard((prev) =>
+      prev.map((entry) =>
+        isLeaderboardMatch(entry, user, userId)
           ? { ...entry, totalPoints: (Number(entry.totalPoints) || 0) + delta }
           : entry
-      ),
-    };
+      )
+    );
+
+    if (leaderboardCache) {
+      leaderboardCache = {
+        ts: Date.now(),
+        data: leaderboardCache.data.map((entry) =>
+          isLeaderboardMatch(entry, user, userId)
+            ? { ...entry, totalPoints: (Number(entry.totalPoints) || 0) + delta }
+            : entry
+        ),
+      };
+    }
   }
-}, [currentUserRank, user?.userId]);
+}, [currentUserRank, user]);
+
+  // Listen for external points updates (e.g. from quizzes, predictions, or posts)
+  useEffect(() => {
+    const handlePointsUpdate = (e: any) => {
+      const delta = Number(e?.detail?.points || e?.detail?.delta || 0);
+      if (delta > 0) {
+        addLocalPoints(delta);
+      } else if (e?.detail?.totalPoints != null) {
+        const total = Number(e.detail.totalPoints);
+        setCurrentUserPoints(total);
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("user_points", String(total));
+          } catch {}
+        }
+      }
+    };
+
+    window.addEventListener("roar-points-updated", handlePointsUpdate);
+    return () => {
+      window.removeEventListener("roar-points-updated", handlePointsUpdate);
+    };
+  }, [addLocalPoints]);
 
   // Only fires when auth is confirmed ready — avoids spurious calls with
   // undefined userId during the initial auth hydration.

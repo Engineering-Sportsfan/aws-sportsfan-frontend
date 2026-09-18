@@ -1111,35 +1111,37 @@ const PointsPill = memo(function PointsPill({
 
   if (small) {
     return (
-      <button className="flex flex-col items-center group shrink-0">
-        <div className="w-8 h-8 flex flex-col items-center justify-center bg-[#111] border border-white/10 rounded-full group-hover:bg-white/5 transition-colors gap-0">
+      <Link href="/MainModules/GlobalLeaderboard" title="View Points & Leaderboard" className="flex flex-col items-center group shrink-0">
+        <div className="w-8 h-8 flex flex-col items-center justify-center bg-[#111] border border-white/10 rounded-full group-hover:bg-white/5 group-hover:border-pink-500/40 transition-colors gap-0">
           <Star size={9} className="text-pink-500 fill-pink-500" />
           {loading ? (
             <div className="w-3 h-1 bg-white/10 rounded-full animate-pulse" />
           ) : (
-            <span className="text-[8px] text-gray-400 font-medium leading-none">
+            <span className="text-[8px] text-gray-400 group-hover:text-pink-400 font-medium leading-none">
               {formatted}
             </span>
           )}
         </div>
-      </button>
+      </Link>
     );
   }
 
   return (
-    <div className="flex items-center gap-1.5 bg-[#111] border border-white/10 rounded-full px-2.5 py-1.5">
-      <Star
-        size={14}
-        className="text-pink-500 fill-pink-500 shrink-0"
-      />
-      {loading ? (
-        <div className="w-8 h-3 bg-white/10 rounded-full animate-pulse" />
-      ) : (
-        <span className="text-white font-semibold text-xs">
-          {formatted}
-        </span>
-      )}
-    </div>
+    <Link href="/MainModules/GlobalLeaderboard" title="View Points & Leaderboard">
+      <div className="flex items-center gap-1.5 bg-[#111] border border-white/10 hover:border-pink-500/40 rounded-full px-2.5 py-1.5 transition-colors cursor-pointer group">
+        <Star
+          size={14}
+          className="text-pink-500 fill-pink-500 shrink-0 group-hover:scale-110 transition-transform"
+        />
+        {loading ? (
+          <div className="w-8 h-3 bg-white/10 rounded-full animate-pulse" />
+        ) : (
+          <span className="text-white font-semibold text-xs group-hover:text-pink-400 transition-colors">
+            {formatted}
+          </span>
+        )}
+      </div>
+    </Link>
   );
 });
 
@@ -1162,6 +1164,18 @@ export default function Header() {
   // ── Combined loading state ─────────────────────────────────────────────────
   const isPointsReady = !pointsLoading && !authLoading;
   const isProfileReady = !profileLoading && !authLoading;
+
+  // ── Effective points with multi-tier resolution ───────────────────────────
+  const effectivePoints = useMemo(() => {
+    if (currentUserPoints != null && currentUserPoints > 0) return currentUserPoints;
+    if (userProfile?.totalPoints != null && userProfile.totalPoints > 0) return userProfile.totalPoints;
+    if (userProfile?.reputationScore != null && userProfile.reputationScore > 0) return userProfile.reputationScore;
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("user_points") || localStorage.getItem("roar_user_points");
+      if (stored && !isNaN(Number(stored)) && Number(stored) > 0) return Number(stored);
+    }
+    return currentUserPoints ?? userProfile?.totalPoints ?? 0;
+  }, [currentUserPoints, userProfile?.totalPoints, userProfile?.reputationScore]);
 
   const [headerAvatar, setHeaderAvatar] = useState<string>("");
 
@@ -1581,7 +1595,7 @@ export default function Header() {
         <div className="flex items-center gap-2 ml-auto">
           <ChatButton unreadCount={totalUnreadChats} />
           <PointsPill
-            points={currentUserPoints}
+            points={effectivePoints}
             loading={!isPointsReady}
           />
           <BellButton unreadCount={totalUnreadNotifications} />
@@ -1677,7 +1691,7 @@ export default function Header() {
 
         <ChatButton unreadCount={totalUnreadChats} />
         <PointsPill
-          points={currentUserPoints}
+          points={effectivePoints}
           loading={!isPointsReady}
           small
         />
@@ -1791,7 +1805,7 @@ export default function Header() {
 
           {/* Points icon */}
           <PointsPill
-            points={currentUserPoints}
+            points={effectivePoints}
             loading={!isPointsReady}
             small
           />
