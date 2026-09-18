@@ -7,6 +7,7 @@ import {
   type AthleteListItem,
 } from "@/services/newAthlete.service";
 import { useRouter } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 
 // ── Gradient palette for athlete cards (cycles through) ──────────────────────
 const CARD_GRADIENTS = [
@@ -425,7 +426,7 @@ export default function AthleteHomePage() {
         <div className="flex items-center justify-between px-4 py-1 max-w-2xl mx-auto">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => router.back()}
+              onClick={() => handleGoBack(router)}
               className="w-9 h-9 rounded-xl bg-white/5 border border-white/8 flex items-center justify-center text-gray-300 hover:bg-white/10 transition-colors active:scale-95"
               aria-label="Go back"
             >

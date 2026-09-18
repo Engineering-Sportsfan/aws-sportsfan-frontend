@@ -23,6 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { handleGoBack } from "@/utils/backButton";
 
 interface FlipLongVideoItem {
   id: string;
@@ -458,16 +459,7 @@ export default function FlipLongPage() {
   };
 
   const handleBack = () => {
-    if (typeof window !== "undefined") {
-      const historyIdx = window.history.state?.idx;
-      if (typeof historyIdx === "number" && historyIdx > 0) {
-        router.back();
-      } else {
-        router.push("/MainModules/HomePage");
-      }
-    } else {
-      router.push("/MainModules/HomePage");
-    }
+    handleGoBack(router);
   };
 
   // Filter & Sort drops
@@ -530,6 +522,8 @@ export default function FlipLongPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={handleBack}
+              data-nav="back"
+              aria-label="Back"
               className="flex items-center justify-center w-9 h-9 rounded-full bg-white/[0.06] hover:bg-white/[0.12] border border-white/10 hover:border-white/25 text-white/80 hover:text-white transition-all active:scale-95 cursor-pointer"
               title="Back"
             >

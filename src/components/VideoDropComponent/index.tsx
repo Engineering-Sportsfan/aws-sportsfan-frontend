@@ -4,6 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import axios from "axios";
 import { Heart, Share2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { handleGoBack as goBackWithScroll } from "@/utils/backButton";
 
 type VideoDrop = {
   id?: string;
@@ -296,19 +297,9 @@ export default function VideoDropCard() {
     }
   };
 
-  // Intelligent back navigation: goes back if there's internal history, otherwise falls back to Home
+  // Intelligent back navigation with scroll position restoration
   const handleGoBack = () => {
-    if (typeof window !== "undefined") {
-      const historyIdx = window.history.state?.idx;
-      const hasInternalReferrer =
-        document.referrer && document.referrer.startsWith(window.location.origin);
-
-      if ((typeof historyIdx === "number" && historyIdx > 0) || window.history.length > 1 || hasInternalReferrer) {
-        router.back();
-        return;
-      }
-    }
-    router.push("/MainModules/HomePage");
+    goBackWithScroll(router);
   };
 
   useEffect(() => {
@@ -942,7 +933,13 @@ export default function VideoDropCard() {
         {/* Topbar - Responsive padding */}
         <div className="flex items-center justify-between px-4 sm:px-5 md:px-6 pt-4 pb-3 sm:pt-5 sm:pb-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <button onClick={handleGoBack} title="Go Back" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition">
+            <button
+              onClick={handleGoBack}
+              data-nav="back"
+              aria-label="Go Back"
+              title="Go Back"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-[#1e1e24] flex items-center justify-center border-none cursor-pointer hover:bg-[#2a2a30] transition"
+            >
               <svg className="w-3 h-3 sm:w-[13px] sm:h-[13px]" viewBox="0 0 13 13" fill="none">
                 <path d="M8.5 2L4 6.5L8.5 11" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>

@@ -7,6 +7,7 @@ import {
   SkipBack, SkipForward, Share2, BookmarkPlus, ThumbsUp,
   ThumbsDown, MessageCircle, MoreVertical, Flag, Link2, EyeOff, X, Clock,
 } from 'lucide-react';
+import { handleGoBack } from '@/utils/backButton';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -287,8 +288,8 @@ export default function VideoScreen() {
           <p className="text-white font-semibold text-lg">Video Not Found</p>
           <p className="text-gray-400 text-sm mt-1">The video you're looking for doesn't exist</p>
           <button
-            onClick={() => router.back()}
-            className="mt-4 px-6 py-2.5 rounded-full text-sm font-semibold text-white"
+            onClick={() => handleGoBack(router)}
+            className="mt-4 px-6 py-2.5 rounded-full text-sm font-semibold text-white cursor-pointer"
             style={{ background: 'linear-gradient(102deg, #ff1379 0%, #ff6a3d 100%)' }}
           >
             Go Back
@@ -454,8 +455,8 @@ export default function VideoScreen() {
           >
             {/* Back button */}
             <button
-              onClick={e => { e.stopPropagation(); router.back(); }}
-              className="absolute top-3 left-3 w-[32px] h-[32px] rounded-full bg-[rgba(0,0,0,0.4)] flex items-center justify-center"
+              onClick={e => { e.stopPropagation(); handleGoBack(router); }}
+              className="absolute top-3 left-3 w-[32px] h-[32px] rounded-full bg-[rgba(0,0,0,0.4)] flex items-center justify-center cursor-pointer"
             >
               <ChevronLeft size={18} color="white" />
             </button>

@@ -6,6 +6,7 @@ import {
   ArrowLeft, Download, Share2, Award, Coins, Star, Gift,
   ShoppingBag, CheckCircle2, ChevronRight, Camera, Play,
 } from 'lucide-react';
+import { handleGoBack } from '@/utils/backButton';
 import { useState } from 'react';
 
 type Tab = 'memories' | 'rewards' | 'mementos';
@@ -110,8 +111,8 @@ export default function StoreExperienceMemories() {
         <div className="sticky top-0 z-50 bg-[#0b0b0f] border-b border-[rgba(255,255,255,0.05)]">
           <div className="h-[56px] flex items-center px-4 gap-3">
             <button
-              onClick={() => router.back()}
-              className="w-[36px] h-[36px] rounded-full bg-[rgba(255,255,255,0.06)] flex items-center justify-center"
+              onClick={() => handleGoBack(router)}
+              className="w-[36px] h-[36px] rounded-full bg-[rgba(255,255,255,0.06)] flex items-center justify-center cursor-pointer"
             >
               <ArrowLeft className="w-[18px] h-[18px] text-white" />
             </button>

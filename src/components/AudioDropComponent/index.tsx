@@ -204,7 +204,8 @@
 // components/AudioDropCard.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 import axios from "axios";
 
 type AudioDrop = {
@@ -276,6 +277,7 @@ const findAudioDropByUrl = (playlists: Playlist[], url: string): { drop: AudioDr
 };
 
 export default function AudioDropCard() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const urlParam = searchParams.get("url");
   const playlistId = searchParams.get("playlistId");
@@ -434,7 +436,7 @@ export default function AudioDropCard() {
         <div className="text-center">
           <p className="text-red-400 mb-4">{error || "Audio not found"}</p>
           <button 
-            onClick={() => window.history.back()}
+            onClick={() => handleGoBack(router)}
             className="bg-pink-500 px-4 py-2 rounded text-white hover:bg-pink-600"
           >
             Go Back
@@ -458,7 +460,7 @@ export default function AudioDropCard() {
         {/* Topbar */}
         <div className="flex items-center justify-between px-4 pt-5 pb-3 bg-[#111114]">
           <div className="flex items-center gap-3">
-            <button onClick={() => window.history.back()}>
+            <button onClick={() => handleGoBack(router)}>
               <div className="w-8 h-8 rounded-full bg-[#1e1e22] flex items-center justify-center cursor-pointer">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <path d="M9 2L4 7L9 12" stroke="#fff" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>

@@ -2,7 +2,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 
 import PlayerGamePlan from "@/src/components/PlayerProfile-Component/PlayerGamePlan/index";
 import PlayerProfileActions from "@/src/components/PlayerProfile-Component/PlayerProfileActions/index";
@@ -13,6 +14,7 @@ import { Player } from "@/types/player";
 import { usePlayerProfile360 } from "@/context/PlayerProfile360Context";
 
 export default function PlayerProfileContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const playerId = searchParams.get("id");
   const tab = searchParams.get("tab");
@@ -117,7 +119,7 @@ export default function PlayerProfileContent() {
       <div className="sticky top-0 z-50 flex items-center px-4 md:px-8 lg:px-12 py-3.5 bg-[#111111]/90 backdrop-blur-md border-b border-[#1f1f1f]">
         <button
           className="bg-transparent border-0 p-0 cursor-pointer text-[#e0e0e0] flex items-center hover:text-white transition-colors"
-          onClick={() => window.history.back()}
+          onClick={() => handleGoBack(router)}
         >
           <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
             <path d="M19 12H5" />

@@ -243,7 +243,7 @@ export default function PlaybookDrops() {
   if (drops.length === 0) return null;
 
   return (
-    <div className="w-full mt-5">
+    <div id="playbook-drops" data-section="playbook-drops" data-section-name="FlipLONG Drops" className="w-full mt-5">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <h3 className="text-[17px] font-extrabold text-white">FlipLONG Drops</h3>
@@ -253,10 +253,12 @@ export default function PlaybookDrops() {
         </div>
 
         <button
+          id="playbook-drops-view-all"
+          data-nav="fliplong-view-all"
+          data-section="playbook-drops"
           onClick={() => router.push("/MainModules/FlipLong")}
           className="flex items-center gap-0.5 text-[12px] font-bold hover:cursor-pointer"
           style={{ color: "#E91E8C" }}
-
         >
           <span>View All</span>
           <ChevronRight size={14} />
@@ -267,6 +269,10 @@ export default function PlaybookDrops() {
         {drops.map((drop) => (
           <motion.div
             key={drop.id}
+            id={`playbook-drop-${drop.id}`}
+            data-drop-id={drop.id}
+            data-nav="playbook-drop-card"
+            data-section="playbook-drops"
             onClick={() => handleCardClick(drop)}
             whileHover={{ scale: 1.03, y: -4 }}
             whileTap={{ scale: 0.98 }}

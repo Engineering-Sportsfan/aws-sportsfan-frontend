@@ -340,6 +340,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Settings2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { handleGoBack } from "@/utils/backButton";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -738,8 +739,8 @@ export default function PreferencesOnboarding() {
       {initState === "returning" && step <= 3 && (
         <div className="flex items-center gap-3 px-4 pt-6 pb-2">
           <button
-            onClick={() => router.back()}
-            className="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10"
+            onClick={() => handleGoBack(router)}
+            className="w-9 h-9 rounded-full flex items-center justify-center bg-white/5 border border-white/10 cursor-pointer"
           >
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>

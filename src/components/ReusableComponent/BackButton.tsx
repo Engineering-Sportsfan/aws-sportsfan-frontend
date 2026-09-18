@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 
 export default function BackButton() {
     const router = useRouter();
@@ -9,18 +10,9 @@ export default function BackButton() {
     return (
         <motion.button
             whileTap={{ scale: 0.88 }}
-            onClick={() => {
-                if (
-                    typeof window !== "undefined" &&
-                    window.history.length > 1
-                ) {
-                    // window.history.back();
-                    router.push("/MainModules/ROAR")
-                } else {
-                    router.push("/");
-                }
-            }}
+            onClick={() => handleGoBack(router, "/MainModules/ROAR")}
             aria-label="Go back"
+            data-nav="back"
             style={{
                 position: "fixed",
                 marginTop: 5,
