@@ -3091,6 +3091,13 @@ function LiveCameraFeed({
         const checkJitsiModeratorStatus = async () => {
             try {
                 if (!api) return;
+                if (userRole === 'Host' || userRole === 'Co-Host') {
+                    if (rolePollIntervalRef.current) {
+                        clearInterval(rolePollIntervalRef.current);
+                        rolePollIntervalRef.current = null;
+                    }
+                    return;
+                }
                 const roomsData = await api.getRoomsInfo();
                 if (roomsData && roomsData.rooms) {
                     const myJitsiId = (api as any)?._myUserID;
@@ -3100,10 +3107,14 @@ function LiveCameraFeed({
                             for (const p of r.participants) {
                                 const isMe = (p.id === 'local') ||
                                     (myJitsiId && p.id === myJitsiId) ||
-                                    (p.displayName && myNormalizedName && p.displayName.toLowerCase().trim() === myNormalizedName) ||
-                                    (r.participants.length === 1);
+                                    (p.displayName && myNormalizedName && p.displayName.toLowerCase().trim() === myNormalizedName);
+
                                 if (isMe && p.role === 'moderator') {
                                     console.log("[Jitsi getRoomsInfo] Confirmed local user is MODERATOR:", p);
+                                    if (rolePollIntervalRef.current) {
+                                        clearInterval(rolePollIntervalRef.current);
+                                        rolePollIntervalRef.current = null;
+                                    }
                                     if (typeof window !== 'undefined') {
                                         sessionStorage.setItem("demo_user_role", "Co-Host");
                                     }
@@ -3878,10 +3889,24 @@ function TabContent({
 
             return (
                 <div className="w-full h-full flex flex-col p-4 overflow-y-auto">
-                    <h2 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
-                        <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                        Live Participants ({totalCount})
-                    </h2>
+                                        <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-white font-bold text-lg flex items-center gap-2">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            Live Participants ({totalCount})
+                        </h2>
+                        {(userRole === 'Host' || userRole === 'Co-Host' || userRole === 'Moderator') && realJitsiParticipants.length > 0 && (
+                            <button
+                                onClick={() => {
+                                    try { jitsiApi?.executeCommand('muteEveryone'); }
+                                    catch (err) { console.error('Mute everyone failed:', err); }
+                                }}
+                                className="text-[10px] font-bold px-2.5 py-1 bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white rounded-lg border border-red-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                                title="Mute all other participants"
+                            >
+                                <MicOff size={11} /> Mute All
+                            </button>
+                        )}
+                    </div>
                     <div className="flex flex-col gap-3">
                         {/* Current User (You) */}
                         <div className="flex items-center justify-between bg-[#1a1a1a] p-3 rounded-xl border border-pink-500/30">
@@ -4019,6 +4044,21 @@ function TabContent({
                                                                 <Crown size={10} /> {isCoHostUser ? "Co-Host" : "Make Co-Host"}
                                                             </button>
                                                         )}
+                                                        {/* <button
+                                                            onClick={async () => {
+                                                                const kickPayload = `${displayName}:::${p.email || ''}:::${p.id || ''}`; */}
+                                                        <button
+                                                            onClick={() => {
+                                                                if (jitsiApi && p.id) {
+                                                                    try { jitsiApi.executeCommand('toggleParticipantMute', p.id); }
+                                                                    catch (err) { console.error('toggleParticipantMute failed:', err); }
+                                                                }
+                                                            }}
+                                                            className="px-2.5 py-1 bg-[#222] hover:bg-orange-600 text-white text-xs font-semibold rounded-full border border-[#444] transition-all"
+                                                            title={`Mute / Unmute ${displayName}`}
+                                                        >
+                                                            Mute
+                                                        </button>
                                                         <button
                                                             onClick={async () => {
                                                                 const kickPayload = `${displayName}:::${p.email || ''}:::${p.id || ''}`;
@@ -6893,6 +6933,15 @@ export default function WatchRoom({ room: initialRoom, onBack }: Props) {
         chats.forEach((msg: any) => {
             if (msg.text?.startsWith('[SYSTEM_REACTION]:') && !processedChatReactions.current.has(msg.id)) {
                 processedChatReactions.current.add(msg.id);
+                 const msgTime = msg.createdAt
+                    ? (typeof msg.createdAt === 'number'
+                        ? msg.createdAt
+                        : (msg.createdAt.seconds
+                            ? msg.createdAt.seconds * 1000
+                            : new Date(msg.createdAt).getTime()))
+                    : Date.now();
+                if (msgTime < mountTime.current - 3000) return;
+
 
                 const reactionType = msg.text.replace('[SYSTEM_REACTION]:', '');
                 triggerMoment(reactionType, false);
