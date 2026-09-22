@@ -14,6 +14,7 @@ type VideoDrop = {
   views: number;
   signals: number;
   likes?: number;
+  likeCount?: number;
   likedBy?: string[];
   duration: string;
   durationSecs?: number;
@@ -183,6 +184,16 @@ export default function VideoDropCard() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // YouTube-style hover & scrub preview states
+  const [isHoveringSeek, setIsHoveringSeek] = useState(false);
+  const [isDraggingSeek, setIsDraggingSeek] = useState(false);
+  const [hoverPct, setHoverPct] = useState(0);
+  const [hoverTime, setHoverTime] = useState(0);
+  const [previewLeftPx, setPreviewLeftPx] = useState(0);
+  const [bufferedPct, setBufferedPct] = useState(0);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+  const previewVideoRef = useRef<HTMLVideoElement>(null);
+
   const getActorId = useCallback(() => {
     if (user?.userId) return user.userId;
     if (user?.email) return user.email;
@@ -328,11 +339,11 @@ export default function VideoDropCard() {
         ? playlistRes.value.data.playlists
         : [];
 
-      const cricketFiles = (cricketRes.status === "fulfilled" && cricketRes.value.data?.success && Array.isArray(cricketRes.value.data.mediaFiles))
+      const cricketFiles: any[] = (cricketRes.status === "fulfilled" && cricketRes.value.data?.success && Array.isArray(cricketRes.value.data.mediaFiles))
         ? cricketRes.value.data.mediaFiles
         : [];
 
-      const flipLongVideos = (flipLongRes.status === "fulfilled" && flipLongRes.value.data?.success && Array.isArray(flipLongRes.value.data.videos))
+      const flipLongVideos: any[] = (flipLongRes.status === "fulfilled" && flipLongRes.value.data?.success && Array.isArray(flipLongRes.value.data.videos))
         ? flipLongRes.value.data.videos
         : [];
 
@@ -373,7 +384,7 @@ export default function VideoDropCard() {
 
         // 1b. Search in cricket media
         const match = cricketFiles.find(
-          (m: { id?: string; fileName?: string; title?: string }) =>
+          (m: any) =>
             m.id === idParam || m.fileName === idParam || m.id === decodeURIComponent(idParam)
         );
         if (match) {
@@ -708,7 +719,117 @@ export default function VideoDropCard() {
   const handleTimeUpdate = () => {
     if (videoRef.current) {
       setElapsed(videoRef.current.currentTime);
+      handleProgressUpdate();
     }
+  };
+
+  // Track video buffer progress
+  const handleProgressUpdate = () => {
+    if (videoRef.current && videoRef.current.buffered.length > 0) {
+      const duration = videoRef.current.duration || totalSecs;
+      if (duration > 0) {
+        try {
+          const bufferedEnd = videoRef.current.buffered.end(videoRef.current.buffered.length - 1);
+          setBufferedPct(Math.min(100, Math.round((bufferedEnd / duration) * 100)));
+        } catch {}
+      }
+    }
+  };
+
+  // Helper to format seconds to mm:ss or hh:mm:ss
+  const formatTimeSeconds = (sec: number): string => {
+    if (isNaN(sec) || sec < 0) return "0:00";
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = Math.floor(sec % 60);
+    if (h > 0) {
+      return `${h}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    }
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
+
+  // Update seek & preview position from mouse / touch clientX
+  const updateSeekFromEvent = (clientX: number) => {
+    if (!progressBarRef.current) return null;
+    const rect = progressBarRef.current.getBoundingClientRect();
+    const rawX = clientX - rect.left;
+    const clampedX = Math.max(0, Math.min(rawX, rect.width));
+    const newPct = rect.width > 0 ? clampedX / rect.width : 0;
+    const duration = videoRef.current?.duration || totalSecs;
+    const targetTime = newPct * duration;
+
+    setHoverPct(newPct);
+    setHoverTime(targetTime);
+    setPreviewLeftPx(clampedX);
+
+    if (previewVideoRef.current && isFinite(targetTime) && targetTime >= 0) {
+      try {
+        previewVideoRef.current.currentTime = targetTime;
+      } catch {}
+    }
+
+    return { targetTime, newPct, clampedX };
+  };
+
+  // Handle pointer down (Click or Drag start)
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setIsDraggingSeek(true);
+    setIsHoveringSeek(true);
+    const res = updateSeekFromEvent(e.clientX);
+    if (res && videoRef.current && isFinite(res.targetTime)) {
+      videoRef.current.currentTime = res.targetTime;
+      setElapsed(res.targetTime);
+    }
+  };
+
+  // Handle pointer move (Hover or Scrubbing)
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const res = updateSeekFromEvent(e.clientX);
+    if (isDraggingSeek && res && videoRef.current && isFinite(res.targetTime)) {
+      videoRef.current.currentTime = res.targetTime;
+      setElapsed(res.targetTime);
+    }
+  };
+
+  // Handle pointer release
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+    setIsDraggingSeek(false);
+  };
+
+  // Handle pointer leave
+  const handlePointerLeave = () => {
+    if (!isDraggingSeek) {
+      setIsHoveringSeek(false);
+    }
+  };
+
+  // Compute clamped preview position to stay within player boundaries
+  const getClampedPreviewStyle = () => {
+    if (!progressBarRef.current) {
+      return { left: `${hoverPct * 100}%`, transform: "translateX(-50%)" };
+    }
+    const width = progressBarRef.current.clientWidth;
+    const halfPreview = 90; // Approx half width of 180px preview card
+    const currentPx = hoverPct * width;
+    const clampedPx = Math.max(halfPreview + 6, Math.min(width - halfPreview - 6, currentPx));
+    return {
+      left: `${clampedPx}px`,
+      transform: "translateX(-50%)",
+    };
+  };
+
+  // Compute arrow offset to align precisely with cursor position
+  const getArrowOffsetPx = () => {
+    if (!progressBarRef.current) return 0;
+    const width = progressBarRef.current.clientWidth;
+    const halfPreview = 90;
+    const currentPx = hoverPct * width;
+    const clampedPx = Math.max(halfPreview + 6, Math.min(width - halfPreview - 6, currentPx));
+    return Math.max(-halfPreview + 14, Math.min(halfPreview - 14, currentPx - clampedPx));
   };
 
   // Handle video end
@@ -1004,9 +1125,13 @@ export default function VideoDropCard() {
                 ref={videoRef}
                 src={videoDrop.videoUrl}
                 className="absolute inset-0 w-full h-full object-fill"
-                onLoadedMetadata={handleLoadedMetadata}
+                onLoadedMetadata={() => {
+                  handleLoadedMetadata();
+                  handleProgressUpdate();
+                }}
                 onDurationChange={handleLoadedMetadata}
                 onTimeUpdate={handleTimeUpdate}
+                onProgress={handleProgressUpdate}
                 onPlay={handlePlayEvent}
                 onPause={handlePauseEvent}
                 onEnded={handleVideoEnd}
@@ -1052,15 +1177,104 @@ export default function VideoDropCard() {
             </button>
           </div>
 
-          {/* Progress Bar with Seek capability */}
+          {/* YouTube-Style Interactive Progress Bar with Live Video Hover/Scrub Frame Preview */}
           <div
-            className="h-[5px] bg-[#2a2a2e] cursor-pointer relative group flex items-center"
-            onClick={handleSeek}
+            ref={progressBarRef}
+            className="relative w-full py-2.5 px-0 cursor-pointer select-none group touch-none z-30"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
+            onPointerLeave={handlePointerLeave}
+            onMouseEnter={() => setIsHoveringSeek(true)}
           >
-            <div
-              className="h-full bg-gradient-to-r from-pink-500 to-orange-500 transition-all duration-100"
-              style={{ width: `${pct}%` }}
-            />
+            {/* Floating YouTube-Style Video Preview Window */}
+            {(isHoveringSeek || isDraggingSeek) && totalSecs > 0 && (
+              <div
+                className="absolute bottom-full mb-3 z-50 pointer-events-none flex flex-col items-center transition-all duration-75"
+                style={getClampedPreviewStyle()}
+              >
+                {/* Preview Frame Box */}
+                <div className="w-[148px] sm:w-[175px] md:w-[195px] aspect-video bg-black rounded-xl overflow-hidden border-2 border-white/30 shadow-[0_12px_36px_rgba(0,0,0,0.95)] relative flex items-center justify-center">
+                  {videoDrop.videoUrl ? (
+                    <video
+                      ref={previewVideoRef}
+                      src={videoDrop.videoUrl}
+                      className="w-full h-full object-cover"
+                      muted
+                      playsInline
+                      preload="auto"
+                    />
+                  ) : videoDrop.thumbnail ? (
+                    <img
+                      src={videoDrop.thumbnail}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-[#111] flex items-center justify-center text-[10px] text-white/50">
+                      Preview
+                    </div>
+                  )}
+
+                  {/* Gradient vignette inside frame */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
+
+                  {/* Live badge */}
+                  <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/75 backdrop-blur-sm text-[8px] font-black uppercase tracking-wider text-pink-400 border border-white/10">
+                    Preview
+                  </div>
+                </div>
+
+                {/* Timestamp Badge */}
+                <div className="mt-1.5 px-2.5 py-0.5 rounded-full bg-[#16161e]/95 backdrop-blur-md border border-white/20 text-white font-mono font-black text-[11px] sm:text-[12px] shadow-lg flex items-center gap-1 tracking-tight">
+                  <span className="text-pink-400 font-bold">{formatTimeSeconds(hoverTime)}</span>
+                  <span className="text-white/30">/</span>
+                  <span className="text-white/60">{videoDrop.duration || formatTimeSeconds(totalSecs)}</span>
+                </div>
+
+                {/* Pointing triangle aligned to cursor */}
+                <div
+                  className="w-0 h-0 border-x-[6px] border-x-transparent border-t-[6px] border-t-white/30 mt-0.5 transition-transform duration-75"
+                  style={{
+                    transform: `translateX(${getArrowOffsetPx()}px)`,
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Slider Track Layers */}
+            <div className="relative h-1.5 group-hover:h-2.5 rounded-full bg-[#2a2a32] overflow-visible transition-all duration-150">
+              {/* Buffered Track (like YouTube) */}
+              <div
+                className="absolute left-0 top-0 bottom-0 bg-white/25 rounded-full transition-all duration-300"
+                style={{ width: `${bufferedPct}%` }}
+              />
+
+              {/* Hover Ghost Track */}
+              {isHoveringSeek && (
+                <div
+                  className="absolute left-0 top-0 bottom-0 bg-white/20 rounded-full pointer-events-none"
+                  style={{ width: `${hoverPct * 100}%` }}
+                />
+              )}
+
+              {/* Active Played Track */}
+              <div
+                className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 rounded-full transition-all duration-75"
+                style={{ width: `${(isDraggingSeek ? hoverPct : (pct / 100)) * 100}%` }}
+              />
+
+              {/* Scrub Handle / Thumb Dot */}
+              <div
+                className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-pink-500 border-2 border-white shadow-[0_0_12px_rgba(255,45,120,0.9)] pointer-events-none transition-transform duration-150 ${
+                  isHoveringSeek || isDraggingSeek
+                    ? "scale-100 opacity-100"
+                    : "scale-0 opacity-0 group-hover:scale-100 group-hover:opacity-100"
+                }`}
+                style={{ left: `${(isDraggingSeek ? hoverPct : (pct / 100)) * 100}%` }}
+              />
+            </div>
           </div>
 
           {/* Timestamps & Playback Speed Controls Bar */}

@@ -2,10 +2,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileText, Newspaper } from "lucide-react";
+import { FileText, Newspaper, Trophy } from "lucide-react";
 import type { CreatePostPayload } from "@/types/PostPolls";
 import CreatePostDialog from "./CreatePost-Component/CreatePostDialog";
 import CreateArticles from "./CreatePost-Component/CreateArticles";
+import ArenaEngagementModal from "./NewHomeComponents/ArenaEngagementModal";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
 
@@ -29,6 +30,7 @@ const CREATE_POST_ALLOWED_EMAILS: string[] = [
 export default function GlobalActionBar() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [articleDialogOpen, setArticleDialogOpen] = useState(false);
+  const [arenaModalOpen, setArenaModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +79,11 @@ export default function GlobalActionBar() {
     setArticleDialogOpen(true);
   };
 
+  const handleFlipArenaClick = () => {
+    setMenuOpen(false);
+    setArenaModalOpen(true);
+  };
+
   return (
     <>
       <div
@@ -87,8 +94,18 @@ export default function GlobalActionBar() {
         {menuOpen && (
           <div className="flex flex-col gap-2 mb-1 animate-in fade-in slide-in-from-bottom-2 duration-150">
             <button
+              onClick={handleFlipArenaClick}
+              className="flex items-center gap-2 pl-4 pr-5 py-1 rounded-full bg-[#161b22] border border-white/15 shadow-lg text-white text-sm font-medium hover:border-[#C9115F]/60 hover:bg-[#C9115F]/10 transition-all cursor-pointer"
+            >
+              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#FF3D57] via-[#FF7B02] to-[#8957e5]">
+                <Trophy size={16} className="text-white" />
+              </span>
+              FlipArena
+            </button>
+
+            <button
               onClick={handleFliplineClick}
-              className="flex items-center gap-2 pl-4 pr-5 py-1 rounded-full bg-[#161b22] border border-white/15 shadow-lg text-white text-sm font-medium hover:border-[#C9115F]/60 hover:bg-[#C9115F]/10 transition-all"
+              className="flex items-center gap-2 pl-4 pr-5 py-1 rounded-full bg-[#161b22] border border-white/15 shadow-lg text-white text-sm font-medium hover:border-[#C9115F]/60 hover:bg-[#C9115F]/10 transition-all cursor-pointer"
             >
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04]">
                 <Newspaper size={16} className="text-white" />
@@ -98,7 +115,7 @@ export default function GlobalActionBar() {
 
             <button
               onClick={handleArticlesClick}
-              className="flex items-center gap-2 pl-4 pr-5 py-1 rounded-full bg-[#161b22] border border-white/15 shadow-lg text-white text-sm font-medium hover:border-[#C9115F]/60 hover:bg-[#C9115F]/10 transition-all"
+              className="flex items-center gap-2 pl-4 pr-5 py-1 rounded-full bg-[#161b22] border border-white/15 shadow-lg text-white text-sm font-medium hover:border-[#C9115F]/60 hover:bg-[#C9115F]/10 transition-all cursor-pointer"
             >
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04]">
                 <FileText size={16} className="text-white" />
@@ -111,7 +128,7 @@ export default function GlobalActionBar() {
         {/* Main FAB */}
         <button
           onClick={() => setMenuOpen((prev) => !prev)}
-          className="group relative flex items-center justify-center w-12 h-12 md:w-14 md:h-14 lg:w-14 lg:h-14 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04] border border-white/15 shadow-lg hover:shadow-xl hover:border-[#C9115F]/60 hover:bg-[#C9115F]/10 transition-all duration-300 hover:scale-110 active:scale-95"
+          className="group relative flex items-center justify-center w-12 h-12 md:w-14 md:h-14 lg:w-14 lg:h-14 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04] border border-white/15 shadow-lg hover:shadow-xl hover:border-[#C9115F]/60 hover:bg-[#C9115F]/10 transition-all duration-300 hover:scale-110 active:scale-95 cursor-pointer"
           aria-label="Create"
           title="Create"
         >
@@ -136,6 +153,12 @@ export default function GlobalActionBar() {
       <CreateArticles
         isOpen={articleDialogOpen}
         onClose={() => setArticleDialogOpen(false)}
+      />
+
+      <ArenaEngagementModal
+        isOpen={arenaModalOpen}
+        onClose={() => setArenaModalOpen(false)}
+        initialType="quiz"
       />
     </>
   );
