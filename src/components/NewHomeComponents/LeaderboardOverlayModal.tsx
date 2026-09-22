@@ -41,11 +41,11 @@ export const TABS: {
   activeBg: string;
   dotColor: string;
 }[] = [
-  { id: "global", label: "Global", icon: Sparkles, color: "text-rose-400", activeBg: "bg-rose-500", dotColor: "bg-rose-500" },
-  { id: "quiz", label: "Quiz Leaderboard", icon: Brain, color: "text-amber-400", activeBg: "bg-amber-500", dotColor: "bg-amber-500" },
-  { id: "roar", label: "ROAR", icon: Flame, color: "text-orange-400", activeBg: "bg-orange-500", dotColor: "bg-orange-500" },
-  { id: "campus", label: "Campus", icon: GraduationCap, color: "text-emerald-400", activeBg: "bg-emerald-500", dotColor: "bg-emerald-500" },
-];
+    { id: "global", label: "Global", icon: Sparkles, color: "text-rose-400", activeBg: "bg-rose-500", dotColor: "bg-rose-500" },
+    { id: "quiz", label: "Quiz", icon: Brain, color: "text-amber-400", activeBg: "bg-amber-500", dotColor: "bg-amber-500" },
+    { id: "roar", label: "ROAR", icon: Flame, color: "text-orange-400", activeBg: "bg-orange-500", dotColor: "bg-orange-500" },
+    { id: "campus", label: "Campus", icon: GraduationCap, color: "text-emerald-400", activeBg: "bg-emerald-500", dotColor: "bg-emerald-500" },
+  ];
 
 // ─── Level Calculation ─────────────────────────────────────────────────────
 function calculateLevelData(totalXp: number) {
@@ -167,7 +167,7 @@ export default function LeaderboardOverlayModal({
             const list = j?.users || j?.data?.users || j?.data || (Array.isArray(j) ? j : []);
             addUsers(list);
           }
-        } catch {}
+        } catch { }
       }
 
       // 2. Fetch from /api/user-points?limit=1000
@@ -188,7 +188,7 @@ export default function LeaderboardOverlayModal({
             const pList = j?.leaderboard || j?.data?.leaderboard || j?.data || (Array.isArray(j) ? j : []);
             addUsers(pList);
           }
-        } catch {}
+        } catch { }
       }
 
       // 3. Include auth user from localStorage if available
@@ -198,7 +198,7 @@ export default function LeaderboardOverlayModal({
           const parsed = JSON.parse(rawAuth);
           if (parsed) addUsers([parsed]);
         }
-      } catch {}
+      } catch { }
 
       setAllUsersList(combinedUsers);
       setUsersLoading(false);
@@ -714,11 +714,10 @@ export default function LeaderboardOverlayModal({
                     setActiveTab(tab.id);
                     setSearchQuery("");
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 h-9 ${
-                    isActive
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap shrink-0 h-9 ${isActive
                       ? "bg-white/[0.08] text-white shadow-sm border border-white/15"
                       : "text-white/45 hover:text-white/80 hover:bg-white/[0.03] border border-transparent"
-                  }`}
+                    }`}
                 >
                   <Icon size={14} className={isActive ? tab.color : "text-white/40"} />
                   <span>{tab.label}</span>
@@ -741,11 +740,10 @@ export default function LeaderboardOverlayModal({
                       setActiveTab(tab.id);
                       setSearchQuery("");
                     }}
-                    className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                      isActive
+                    className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${isActive
                         ? `w-7 ${tab.dotColor} shadow-[0_0_10px_currentColor]`
                         : "w-2 bg-white/20 hover:bg-white/40"
-                    }`}
+                      }`}
                     title={`Switch to ${tab.label}`}
                     aria-label={`Tab ${idx + 1}: ${tab.label}`}
                   />
@@ -766,10 +764,10 @@ export default function LeaderboardOverlayModal({
                   activeTab === "global"
                     ? "Search fans across global ranks..."
                     : activeTab === "quiz"
-                    ? "Search quiz champions..."
-                    : activeTab === "roar"
-                    ? "Search ROAR predictors..."
-                    : "Search colleges & universities..."
+                      ? "Search quiz champions..."
+                      : activeTab === "roar"
+                        ? "Search ROAR predictors..."
+                        : "Search colleges & universities..."
                 }
                 className="w-full bg-white/[0.04] border border-white/[0.07] rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-white/20 transition-all"
               />
@@ -790,9 +788,8 @@ export default function LeaderboardOverlayModal({
                   <button
                     key={p}
                     onClick={() => setRoarPeriod(p)}
-                    className={`px-2 py-1 rounded-md text-[10px] font-black uppercase transition-all cursor-pointer ${
-                      roarPeriod === p ? "bg-amber-500/20 text-amber-400" : "text-white/40 hover:text-white/70"
-                    }`}
+                    className={`px-2 py-1 rounded-md text-[10px] font-black uppercase transition-all cursor-pointer ${roarPeriod === p ? "bg-amber-500/20 text-amber-400" : "text-white/40 hover:text-white/70"
+                      }`}
                   >
                     {p === "all_time" ? "All" : p}
                   </button>
@@ -816,676 +813,664 @@ export default function LeaderboardOverlayModal({
                 transition={{ duration: 0.16, ease: "easeOut" }}
                 className="space-y-4"
               >
-            {/* ══════════════════ TAB 1: GLOBAL LEADERBOARD ══════════════════ */}
-            {activeTab === "global" && (
-              <div className="space-y-4">
-                {/* User Current Standing Card */}
-                <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/40 via-[#141824] to-purple-950/40 border border-rose-500/25 flex flex-col gap-2.5 shadow-lg">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-600 to-orange-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20 shrink-0">
-                        <Trophy size={18} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs sm:text-sm font-black text-white whitespace-normal max-w-[140px] xs:max-w-[190px] sm:max-w-none">
-                            {currentUserName || "Your Profile"}
-                          </span>
-                          <span className="text-[9px] font-black text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 shrink-0 whitespace-nowrap">
-                            LVL {levelInfo.level}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-white/40 mt-0.5 whitespace-nowrap">Global Fan Standing</p>
-                      </div>
-                    </div>
-
-                    <div className="text-right shrink-0 bg-white/[0.03] px-2.5 py-1.5 rounded-xl border border-white/[0.05]">
-                      <span className="text-[9px] font-bold text-white/40 block leading-none">Next Level in</span>
-                      <span className="text-xs font-black text-amber-400 whitespace-nowrap leading-tight mt-0.5 block">
-                        +{levelInfo.xpRemaining.toLocaleString()} SXP
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.06]">
-                    <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-                      <span className="text-[10px] font-bold text-white/40 uppercase">Rank</span>
-                      <span className="text-xs font-black text-white whitespace-nowrap">
-                        #{currentRank > 0 ? currentRank : "—"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
-                      <span className="text-[10px] font-bold text-rose-300/70 uppercase">Total SXP</span>
-                      <span className="text-xs font-black text-rose-400 whitespace-nowrap">
-                        {currentPoints.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Top 3 Podium (Global) */}
-                {!searchQuery && filteredGlobal.length >= 3 && (
-                  <div className="grid grid-cols-3 gap-2 pt-1">
-                    <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-slate-400/10 via-slate-500/5 to-transparent border border-slate-300/20 text-center relative min-w-0">
-                      <span className="text-base sm:text-lg mb-0.5 sm:mb-1">🥈</span>
-                      <span className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight">
-                        {filteredGlobal[1]?.userName}
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 mt-1 shrink-0 whitespace-nowrap">
-                        {filteredGlobal[1]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-500/20 via-yellow-500/10 to-transparent border border-amber-500/40 text-center relative -mt-2 shadow-[0_0_20px_rgba(245,158,11,0.15)] min-w-0">
-                      <div className="flex items-center gap-1 text-lg sm:text-xl mb-0.5 sm:mb-1">
-                        <Crown size={15} className="text-amber-400" />
-                        <span>🥇</span>
-                      </div>
-                      <span className="text-[11px] sm:text-xs font-black text-amber-300 break-words line-clamp-1 text-center w-full leading-tight">
-                        {filteredGlobal[0]?.userName}
-                      </span>
-                      <span className="text-[11px] sm:text-xs font-black text-amber-400 mt-1 shrink-0 whitespace-nowrap">
-                        {filteredGlobal[0]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-amber-500">SXP</span>
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-700/10 via-amber-800/5 to-transparent border border-amber-700/30 text-center relative min-w-0">
-                      <span className="text-base sm:text-lg mb-0.5 sm:mb-1">🥉</span>
-                      <span className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight">
-                        {filteredGlobal[2]?.userName}
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-amber-300/80 mt-1 shrink-0 whitespace-nowrap">
-                        {filteredGlobal[2]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Ranked List */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
-                    <span>Rank & Fan</span>
-                    <span>Total SXP</span>
-                  </div>
-
-                  {globalLoading && filteredGlobal.length === 0 ? (
-                    <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
-                      <RotateCw size={18} className="animate-spin text-rose-500" />
-                      <span>Loading Global Rankings...</span>
-                    </div>
-                  ) : filteredGlobal.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
-                      No fans matched your search query.
-                    </div>
-                  ) : (
-                    filteredGlobal.map((fan, idx) => {
-                      const rank = fan.rank || idx + 1;
-                      const isMe =
-                        (activeUserId && (fan.userId === activeUserId || fan.userEmail === activeUserId)) ||
-                        (fan.userName && currentUserName && fan.userName.toLowerCase() === currentUserName.toLowerCase());
-
-                      return (
-                        <div
-                          key={fan.userId || idx}
-                          className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${
-                            isMe
-                              ? "bg-rose-500/10 border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.2)]"
-                              : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <span
-                              className={`text-xs font-black w-6 text-center shrink-0 ${
-                                rank === 1
-                                  ? "text-amber-400"
-                                  : rank === 2
-                                  ? "text-slate-300"
-                                  : rank === 3
-                                  ? "text-amber-600"
-                                  : "text-white/40"
-                              }`}
-                            >
-                              #{rank}
-                            </span>
-                            <div className="min-w-0 flex-1 pr-2">
-                              <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
-                                <span className="break-words">{fan.userName || "Fan"}</span>
-                                {isMe && (
-                                  <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
-                                    YOU
-                                  </span>
-                                )}
-                              </p>
-                              <p className="text-[10px] text-white/40 mt-0.5">Rank #{rank}</p>
+                {/* ══════════════════ TAB 1: GLOBAL LEADERBOARD ══════════════════ */}
+                {activeTab === "global" && (
+                  <div className="space-y-4">
+                    {/* User Current Standing Card */}
+                    <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/40 via-[#141824] to-purple-950/40 border border-rose-500/25 flex flex-col gap-2.5 shadow-lg">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-600 to-orange-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20 shrink-0">
+                            <Trophy size={18} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs sm:text-sm font-black text-white whitespace-normal max-w-[140px] xs:max-w-[190px] sm:max-w-none">
+                                {currentUserName || "Your Profile"}
+                              </span>
+                              <span className="text-[9px] font-black text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 shrink-0 whitespace-nowrap">
+                                LVL {levelInfo.level}
+                              </span>
                             </div>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <span className="text-xs font-black text-rose-400">
-                              {fan.totalPoints?.toLocaleString()}
-                            </span>
-                            <span className="text-[10px] font-bold text-white/40 ml-1">SXP</span>
+                            <p className="text-[10px] text-white/40 mt-0.5 whitespace-nowrap">Global Fan Standing</p>
                           </div>
                         </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
 
-            {/* ══════════════════ TAB 2: QUIZ LEADERBOARD ══════════════════ */}
-            {activeTab === "quiz" && (
-              <div className="space-y-4">
-                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#161a29] to-yellow-500/10 border border-amber-500/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
-                      <Brain size={20} />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">Quiz Masters Ranking</h4>
-                      <p className="text-[10px] text-white/50">Combined stats from Watchalong rooms & Flip Arena</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={fetchQuizLeaderboard}
-                    disabled={quizLoading}
-                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-amber-400 border border-white/10 transition-colors cursor-pointer"
-                    title="Refresh Quiz Rankings"
-                  >
-                    <RotateCw size={14} className={quizLoading ? "animate-spin" : ""} />
-                  </button>
-                </div>
-
-                {/* Top 3 Podium (Quiz) */}
-                {!searchQuery && filteredQuiz.length >= 3 && (
-                  <div className="grid grid-cols-3 gap-2 pt-1">
-                    <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-slate-400/10 via-slate-500/5 to-transparent border border-slate-300/20 text-center relative min-w-0">
-                      <span className="text-lg mb-1">🥈</span>
-                      <span className="text-[11px] font-black text-white break-words text-center w-full leading-tight">
-                        {filteredQuiz[1]?.username}
-                      </span>
-                      <span className="text-[10px] font-bold text-amber-400/90 mt-1 shrink-0">
-                        {filteredQuiz[1]?.accuracy}% acc
-                      </span>
-                      <span className="text-xs font-black text-slate-200 mt-0.5 shrink-0">
-                        {filteredQuiz[1]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">PTS</span>
-                      </span>
-                    </div>
-
-                    <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-amber-500/20 via-yellow-500/10 to-transparent border border-amber-500/40 text-center relative -mt-2 shadow-[0_0_20px_rgba(245,158,11,0.15)] min-w-0">
-                      <div className="flex items-center gap-1 text-xl mb-1">
-                        <Crown size={16} className="text-amber-400" />
-                        <span>🥇</span>
+                        <div className="text-right shrink-0 bg-white/[0.03] px-2.5 py-1.5 rounded-xl border border-white/[0.05]">
+                          <span className="text-[9px] font-bold text-white/40 block leading-none">Next Level in</span>
+                          <span className="text-xs font-black text-amber-400 whitespace-nowrap leading-tight mt-0.5 block">
+                            +{levelInfo.xpRemaining.toLocaleString()} SXP
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-xs font-black text-amber-300 break-words text-center w-full leading-tight">
-                        {filteredQuiz[0]?.username}
-                      </span>
-                      <span className="text-[10px] font-black text-emerald-400 mt-1 shrink-0">
-                        {filteredQuiz[0]?.accuracy}% acc
-                      </span>
-                      <span className="text-xs font-black text-amber-400 mt-0.5 shrink-0">
-                        {filteredQuiz[0]?.points?.toLocaleString()} <span className="text-[9px] text-amber-500">PTS</span>
-                      </span>
+
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.06]">
+                        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                          <span className="text-[10px] font-bold text-white/40 uppercase">Rank</span>
+                          <span className="text-xs font-black text-white whitespace-nowrap">
+                            #{currentRank > 0 ? currentRank : "—"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
+                          <span className="text-[10px] font-bold text-rose-300/70 uppercase">Total SXP</span>
+                          <span className="text-xs font-black text-rose-400 whitespace-nowrap">
+                            {currentPoints.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-amber-700/10 via-amber-800/5 to-transparent border border-amber-700/30 text-center relative min-w-0">
-                      <span className="text-lg mb-1">🥉</span>
-                      <span className="text-[11px] font-black text-white break-words text-center w-full leading-tight">
-                        {filteredQuiz[2]?.username}
-                      </span>
-                      <span className="text-[10px] font-bold text-amber-400/90 mt-1 shrink-0">
-                        {filteredQuiz[2]?.accuracy}% acc
-                      </span>
-                      <span className="text-xs font-black text-amber-300/80 mt-0.5 shrink-0">
-                        {filteredQuiz[2]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">PTS</span>
-                      </span>
+                    {/* Top 3 Podium (Global) */}
+                    {!searchQuery && filteredGlobal.length >= 3 && (
+                      <div className="grid grid-cols-3 gap-2 pt-1">
+                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-slate-400/10 via-slate-500/5 to-transparent border border-slate-300/20 text-center relative min-w-0">
+                          <span className="text-base sm:text-lg mb-0.5 sm:mb-1">🥈</span>
+                          <span className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight">
+                            {filteredGlobal[1]?.userName}
+                          </span>
+                          <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 mt-1 shrink-0 whitespace-nowrap">
+                            {filteredGlobal[1]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-500/20 via-yellow-500/10 to-transparent border border-amber-500/40 text-center relative -mt-2 shadow-[0_0_20px_rgba(245,158,11,0.15)] min-w-0">
+                          <div className="flex items-center gap-1 text-lg sm:text-xl mb-0.5 sm:mb-1">
+                            <Crown size={15} className="text-amber-400" />
+                            <span>🥇</span>
+                          </div>
+                          <span className="text-[11px] sm:text-xs font-black text-amber-300 break-words line-clamp-1 text-center w-full leading-tight">
+                            {filteredGlobal[0]?.userName}
+                          </span>
+                          <span className="text-[11px] sm:text-xs font-black text-amber-400 mt-1 shrink-0 whitespace-nowrap">
+                            {filteredGlobal[0]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-amber-500">SXP</span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-700/10 via-amber-800/5 to-transparent border border-amber-700/30 text-center relative min-w-0">
+                          <span className="text-base sm:text-lg mb-0.5 sm:mb-1">🥉</span>
+                          <span className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight">
+                            {filteredGlobal[2]?.userName}
+                          </span>
+                          <span className="text-[10px] sm:text-[11px] font-bold text-amber-300/80 mt-1 shrink-0 whitespace-nowrap">
+                            {filteredGlobal[2]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ranked List */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
+                        <span>Rank & Fan</span>
+                        <span>Total SXP</span>
+                      </div>
+
+                      {globalLoading && filteredGlobal.length === 0 ? (
+                        <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
+                          <RotateCw size={18} className="animate-spin text-rose-500" />
+                          <span>Loading Global Rankings...</span>
+                        </div>
+                      ) : filteredGlobal.length === 0 ? (
+                        <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
+                          No fans matched your search query.
+                        </div>
+                      ) : (
+                        filteredGlobal.map((fan, idx) => {
+                          const rank = fan.rank || idx + 1;
+                          const isMe =
+                            (activeUserId && (fan.userId === activeUserId || fan.userEmail === activeUserId)) ||
+                            (fan.userName && currentUserName && fan.userName.toLowerCase() === currentUserName.toLowerCase());
+
+                          return (
+                            <div
+                              key={fan.userId || idx}
+                              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${isMe
+                                  ? "bg-rose-500/10 border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.2)]"
+                                  : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
+                                }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <span
+                                  className={`text-xs font-black w-6 text-center shrink-0 ${rank === 1
+                                      ? "text-amber-400"
+                                      : rank === 2
+                                        ? "text-slate-300"
+                                        : rank === 3
+                                          ? "text-amber-600"
+                                          : "text-white/40"
+                                    }`}
+                                >
+                                  #{rank}
+                                </span>
+                                <div className="min-w-0 flex-1 pr-2">
+                                  <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
+                                    <span className="break-words">{fan.userName || "Fan"}</span>
+                                    {isMe && (
+                                      <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
+                                        YOU
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className="text-[10px] text-white/40 mt-0.5">Rank #{rank}</p>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="text-xs font-black text-rose-400">
+                                  {fan.totalPoints?.toLocaleString()}
+                                </span>
+                                <span className="text-[10px] font-bold text-white/40 ml-1">SXP</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
                     </div>
                   </div>
                 )}
 
-                {/* Quiz Ranked List */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
-                    <span>Rank & Quizzer</span>
-                    <span>Accuracy & Score</span>
-                  </div>
-
-                  {quizLoading && filteredQuiz.length === 0 ? (
-                    <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
-                      <RotateCw size={18} className="animate-spin text-amber-500" />
-                      <span>Loading Quiz Rankings...</span>
-                    </div>
-                  ) : filteredQuiz.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
-                      {searchQuery
-                        ? `No quizzers matched "${searchQuery}".`
-                        : "No quiz participants recorded yet. Play Watchalong or FlipArena quizzes to rank up!"}
-                    </div>
-                  ) : (
-                    filteredQuiz.map((quizzer, idx) => {
-                    const isMe =
-                      (activeUserId && quizzer.userId === activeUserId) ||
-                      (quizzer.username && currentUserName && quizzer.username.toLowerCase() === currentUserName.toLowerCase());
-
-                    return (
-                      <div
-                        key={quizzer.userId || idx}
-                        className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${
-                          isMe
-                            ? "bg-amber-500/10 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
-                            : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
-                        }`}
+                {/* ══════════════════ TAB 2: QUIZ LEADERBOARD ══════════════════ */}
+                {activeTab === "quiz" && (
+                  <div className="space-y-4">
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#161a29] to-yellow-500/10 border border-amber-500/30 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                          <Brain size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-white">Quiz Masters Ranking</h4>
+                          <p className="text-[10px] text-white/50">Combined stats from Watchalong rooms & Flip Arena</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={fetchQuizLeaderboard}
+                        disabled={quizLoading}
+                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-amber-400 border border-white/10 transition-colors cursor-pointer"
+                        title="Refresh Quiz Rankings"
                       >
-                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <span
-                            className={`text-xs font-black w-6 text-center shrink-0 ${
-                              quizzer.rank === 1
+                        <RotateCw size={14} className={quizLoading ? "animate-spin" : ""} />
+                      </button>
+                    </div>
+
+                    {/* Top 3 Podium (Quiz) */}
+                    {!searchQuery && filteredQuiz.length >= 3 && (
+                      <div className="grid grid-cols-3 gap-2 pt-1">
+                        <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-slate-400/10 via-slate-500/5 to-transparent border border-slate-300/20 text-center relative min-w-0">
+                          <span className="text-lg mb-1">🥈</span>
+                          <span className="text-[11px] font-black text-white break-words text-center w-full leading-tight">
+                            {filteredQuiz[1]?.username}
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-400/90 mt-1 shrink-0">
+                            {filteredQuiz[1]?.accuracy} acc
+                          </span>
+                          <span className="text-xs font-black text-slate-200 mt-0.5 shrink-0">
+                            {filteredQuiz[1]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">PTS</span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-amber-500/20 via-yellow-500/10 to-transparent border border-amber-500/40 text-center relative -mt-2 shadow-[0_0_20px_rgba(245,158,11,0.15)] min-w-0">
+                          <div className="flex items-center gap-1 text-xl mb-1">
+                            <Crown size={16} className="text-amber-400" />
+                            <span>🥇</span>
+                          </div>
+                          <span className="text-xs font-black text-amber-300 break-words text-center w-full leading-tight">
+                            {filteredQuiz[0]?.username}
+                          </span>
+                          <span className="text-[10px] font-black text-emerald-400 mt-1 shrink-0">
+                            {filteredQuiz[0]?.accuracy}% acc
+                          </span>
+                          <span className="text-xs font-black text-amber-400 mt-0.5 shrink-0">
+                            {filteredQuiz[0]?.points?.toLocaleString()} <span className="text-[9px] text-amber-500">PTS</span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center p-3 rounded-2xl bg-gradient-to-b from-amber-700/10 via-amber-800/5 to-transparent border border-amber-700/30 text-center relative min-w-0">
+                          <span className="text-lg mb-1">🥉</span>
+                          <span className="text-[11px] font-black text-white break-words text-center w-full leading-tight">
+                            {filteredQuiz[2]?.username}
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-400/90 mt-1 shrink-0">
+                            {filteredQuiz[2]?.accuracy}% acc
+                          </span>
+                          <span className="text-xs font-black text-amber-300/80 mt-0.5 shrink-0">
+                            {filteredQuiz[2]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">PTS</span>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quiz Ranked List */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
+                        <span>Rank & Quizzer</span>
+                        <span>Accuracy & Score</span>
+                      </div>
+
+                      {quizLoading && filteredQuiz.length === 0 ? (
+                        <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
+                          <RotateCw size={18} className="animate-spin text-amber-500" />
+                          <span>Loading Quiz Rankings...</span>
+                        </div>
+                      ) : filteredQuiz.length === 0 ? (
+                        <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
+                          {searchQuery
+                            ? `No quizzers matched "${searchQuery}".`
+                            : "No quiz participants recorded yet. Play Watchalong or FlipArena quizzes to rank up!"}
+                        </div>
+                      ) : (
+                        filteredQuiz.map((quizzer, idx) => {
+                          const isMe =
+                            (activeUserId && quizzer.userId === activeUserId) ||
+                            (quizzer.username && currentUserName && quizzer.username.toLowerCase() === currentUserName.toLowerCase());
+
+                          return (
+                            <div
+                              key={quizzer.userId || idx}
+                              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${isMe
+                                  ? "bg-amber-500/10 border-amber-500/50 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                                  : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
+                                }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <span
+                                  className={`text-xs font-black w-6 text-center shrink-0 ${quizzer.rank === 1
+                                      ? "text-amber-400"
+                                      : quizzer.rank === 2
+                                        ? "text-slate-300"
+                                        : quizzer.rank === 3
+                                          ? "text-amber-600"
+                                          : "text-white/40"
+                                    }`}
+                                >
+                                  #{quizzer.rank}
+                                </span>
+                                <div className="min-w-0 flex-1 pr-2">
+                                  <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
+                                    <span className="break-words">{quizzer.username}</span>
+                                    {isMe && (
+                                      <span className="text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase shrink-0">
+                                        YOU
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className="text-[10px] text-white/40 mt-0.5">
+                                    {quizzer.correctCount}/{quizzer.totalCount} correct
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="text-xs font-black text-amber-400">
+                                  {quizzer.points?.toLocaleString()} PTS
+                                </span>
+                                <div className="text-[10px] font-bold text-emerald-400">{quizzer.accuracy}% acc</div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ══════════════════ TAB 3: ROAR LEADERBOARD (100% REAL DATA) ══════════════════ */}
+                {activeTab === "roar" && (
+                  <div className="space-y-4">
+                    {/* ROAR Prediction Banner */}
+                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-orange-500/10 via-[#161a29] to-red-500/10 border border-orange-500/30 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400">
+                          <Flame size={20} />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black text-white">ROAR Prediction Ranks</h4>
+                          <p className="text-[10px] text-white/50">Top call accuracy & community reputation</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={fetchRoarLeaderboard}
+                        disabled={roarLoading}
+                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-orange-400 border border-white/10 transition-colors cursor-pointer"
+                        title="Refresh ROAR Rankings"
+                      >
+                        <RotateCw size={14} className={roarLoading ? "animate-spin" : ""} />
+                      </button>
+                    </div>
+
+                    {/* ROAR Ranked List */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
+                        <span>Rank & Predictor</span>
+                        <span>Accuracy & Rep</span>
+                      </div>
+
+                      {roarLoading && filteredRoar.length === 0 ? (
+                        <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
+                          <RotateCw size={18} className="animate-spin text-orange-500" />
+                          <span>Loading ROAR Rankings...</span>
+                        </div>
+                      ) : filteredRoar.length === 0 ? (
+                        <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
+                          {searchQuery
+                            ? `No fans matched "${searchQuery}".`
+                            : "No ROAR rankings found for this timeframe. Create posts & earn upvotes to appear here!"}
+                        </div>
+                      ) : (
+                        filteredRoar.map((fan, idx) => {
+                          const isYou =
+                            (activeUserId && (fan.userId === activeUserId || fan.userEmail === activeUserId)) ||
+                            (fan.username && currentUserName && fan.username.toLowerCase() === currentUserName.toLowerCase()) ||
+                            (fan.username === ROAR_CURRENT_USER.username);
+                          const badgeLabel = BADGE_LABELS[fan.badge] || fan.badge || "Fan";
+                          const accColor =
+                            fan.accuracy >= 75
+                              ? "text-emerald-400"
+                              : fan.accuracy >= 65
                                 ? "text-amber-400"
-                                : quizzer.rank === 2
-                                ? "text-slate-300"
-                                : quizzer.rank === 3
-                                ? "text-amber-600"
-                                : "text-white/40"
-                            }`}
-                          >
-                            #{quizzer.rank}
-                          </span>
-                          <div className="min-w-0 flex-1 pr-2">
-                            <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
-                              <span className="break-words">{quizzer.username}</span>
-                              {isMe && (
-                                <span className="text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase shrink-0">
-                                  YOU
-                                </span>
-                              )}
-                            </p>
-                            <p className="text-[10px] text-white/40 mt-0.5">
-                              {quizzer.correctCount}/{quizzer.totalCount} correct
-                            </p>
-                          </div>
-                        </div>
+                                : "text-white/60";
 
-                        <div className="text-right shrink-0">
-                          <span className="text-xs font-black text-amber-400">
-                            {quizzer.points?.toLocaleString()} PTS
-                          </span>
-                          <div className="text-[10px] font-bold text-emerald-400">{quizzer.accuracy}% acc</div>
-                        </div>
-                      </div>
-                    );
-                  })
+                          return (
+                            <div
+                              key={fan.userId || fan.username || idx}
+                              className={`flex items-center justify-between px-3.5 py-3 rounded-2xl border transition-all ${isYou
+                                  ? "bg-gradient-to-r from-orange-500/15 to-pink-500/15 border-orange-500/60 shadow-[0_0_15px_rgba(249,115,22,0.2)]"
+                                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
+                                }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <span
+                                  className={`text-sm font-black w-6 text-center shrink-0 ${fan.rank === 1
+                                      ? "text-amber-400"
+                                      : fan.rank === 2
+                                        ? "text-slate-300"
+                                        : fan.rank === 3
+                                          ? "text-amber-600"
+                                          : "text-white/40"
+                                    }`}
+                                >
+                                  #{fan.rank}
+                                </span>
+                                <div className="min-w-0 flex-1 pr-2">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs font-black text-white break-words">{fan.username}</span>
+                                    {isYou && (
+                                      <span className="text-[8px] font-black bg-orange-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
+                                        YOU
+                                      </span>
+                                    )}
+                                    <span className="text-[9px] font-black text-orange-400/90 bg-orange-400/10 px-1.5 py-0.5 rounded-full border border-orange-400/20 shrink-0">
+                                      {badgeLabel}
+                                    </span>
+                                  </div>
+                                  <p className="text-[10px] text-white/40 mt-0.5">
+                                    {fan.team} • {fan.predictions} calls
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className={`text-sm font-black ${accColor}`}>{fan.accuracy}%</span>
+                                <p className="text-[10px] font-bold text-white/40 mt-0.5">
+                                  {fan.reputationScore?.toLocaleString()} Rep
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 )}
-                </div>
-              </div>
-            )}
 
-            {/* ══════════════════ TAB 3: ROAR LEADERBOARD (100% REAL DATA) ══════════════════ */}
-            {activeTab === "roar" && (
-              <div className="space-y-4">
-                {/* ROAR Prediction Banner */}
-                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-orange-500/10 via-[#161a29] to-red-500/10 border border-orange-500/30 flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400">
-                      <Flame size={20} />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black text-white">ROAR Prediction Ranks</h4>
-                      <p className="text-[10px] text-white/50">Top call accuracy & community reputation</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={fetchRoarLeaderboard}
-                    disabled={roarLoading}
-                    className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-orange-400 border border-white/10 transition-colors cursor-pointer"
-                    title="Refresh ROAR Rankings"
-                  >
-                    <RotateCw size={14} className={roarLoading ? "animate-spin" : ""} />
-                  </button>
-                </div>
-
-                {/* ROAR Ranked List */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
-                    <span>Rank & Predictor</span>
-                    <span>Accuracy & Rep</span>
-                  </div>
-
-                  {roarLoading && filteredRoar.length === 0 ? (
-                    <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
-                      <RotateCw size={18} className="animate-spin text-orange-500" />
-                      <span>Loading ROAR Rankings...</span>
-                    </div>
-                  ) : filteredRoar.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
-                      {searchQuery
-                        ? `No fans matched "${searchQuery}".`
-                        : "No ROAR rankings found for this timeframe. Create posts & earn upvotes to appear here!"}
-                    </div>
-                  ) : (
-                    filteredRoar.map((fan, idx) => {
-                      const isYou =
-                        (activeUserId && (fan.userId === activeUserId || fan.userEmail === activeUserId)) ||
-                        (fan.username && currentUserName && fan.username.toLowerCase() === currentUserName.toLowerCase()) ||
-                        (fan.username === ROAR_CURRENT_USER.username);
-                      const badgeLabel = BADGE_LABELS[fan.badge] || fan.badge || "Fan";
-                      const accColor =
-                        fan.accuracy >= 75
-                          ? "text-emerald-400"
-                          : fan.accuracy >= 65
-                          ? "text-amber-400"
-                          : "text-white/60";
-
-                      return (
-                        <div
-                          key={fan.userId || fan.username || idx}
-                          className={`flex items-center justify-between px-3.5 py-3 rounded-2xl border transition-all ${
-                            isYou
-                              ? "bg-gradient-to-r from-orange-500/15 to-pink-500/15 border-orange-500/60 shadow-[0_0_15px_rgba(249,115,22,0.2)]"
-                              : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <span
-                              className={`text-sm font-black w-6 text-center shrink-0 ${
-                                fan.rank === 1
-                                  ? "text-amber-400"
-                                  : fan.rank === 2
-                                  ? "text-slate-300"
-                                  : fan.rank === 3
-                                  ? "text-amber-600"
-                                  : "text-white/40"
-                              }`}
-                            >
-                              #{fan.rank}
-                            </span>
-                            <div className="min-w-0 flex-1 pr-2">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs font-black text-white break-words">{fan.username}</span>
-                                {isYou && (
-                                  <span className="text-[8px] font-black bg-orange-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
-                                    YOU
-                                  </span>
-                                )}
-                                <span className="text-[9px] font-black text-orange-400/90 bg-orange-400/10 px-1.5 py-0.5 rounded-full border border-orange-400/20 shrink-0">
-                                  {badgeLabel}
-                                </span>
-                              </div>
-                              <p className="text-[10px] text-white/40 mt-0.5">
-                                {fan.team} • {fan.predictions} calls
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <span className={`text-sm font-black ${accColor}`}>{fan.accuracy}%</span>
-                            <p className="text-[10px] font-bold text-white/40 mt-0.5">
-                              {fan.reputationScore?.toLocaleString()} Rep
-                            </p>
-                          </div>
+                {/* ══════════════════ TAB 4: CAMPUS CLASH ══════════════════ */}
+                {activeTab === "campus" && (
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-[#111624] to-blue-950/30 border border-emerald-500/30 relative overflow-hidden">
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-[9px] font-black bg-emerald-500 text-black px-2 py-0.5 rounded-full tracking-wider uppercase">
+                            SEASON 1 BETA
+                          </span>
+                          <span className="text-xs font-bold text-white/60">Inter-College Fandom League</span>
                         </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════ TAB 4: CAMPUS CLASH ══════════════════ */}
-            {activeTab === "campus" && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-[#111624] to-blue-950/30 border border-emerald-500/30 relative overflow-hidden">
-                  <div className="relative z-10">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <span className="text-[9px] font-black bg-emerald-500 text-black px-2 py-0.5 rounded-full tracking-wider uppercase">
-                        SEASON 1 BETA
-                      </span>
-                      <span className="text-xs font-bold text-white/60">Inter-College Fandom League</span>
+                        <h3 className="text-base font-black text-white">Campus Clash 🎓</h3>
+                        <p className="text-xs text-white/60 mt-1 leading-relaxed">
+                          Represent your university, score points for your campus in Arena & Watchalong, and claim the #1 collegiate trophy!
+                        </p>
+                      </div>
                     </div>
-                    <h3 className="text-base font-black text-white">Campus Clash 🎓</h3>
-                    <p className="text-xs text-white/60 mt-1 leading-relaxed">
-                      Represent your university, score points for your campus in Arena & Watchalong, and claim the #1 collegiate trophy!
-                    </p>
-                  </div>
-                </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
-                    <span>Rank & University</span>
-                    <span>Fans & Score</span>
-                  </div>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
+                        <span>Rank & University</span>
+                        <span>Fans & Score</span>
+                      </div>
 
-                  {filteredCampus.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
-                      {searchQuery
-                        ? `No campuses or participants matched "${searchQuery}".`
-                        : "No campus entries found."}
-                    </div>
-                  ) : (
-                    filteredCampus.map((campus) => {
-                    const isRepresented = representedCampus === campus.campusName;
-                    const isSymbiosis = !!campus.isSymbiosis;
-                    const isExpanded = expandedCampus === campus.campusName;
-
-                    return (
-                      <div
-                        key={campus.campusName}
-                        onClick={() => {
-                          if (isSymbiosis) {
-                            setExpandedCampus(isExpanded ? null : campus.campusName);
-                          }
-                        }}
-                        className={`p-3 sm:p-3.5 rounded-2xl border transition-all flex flex-col gap-2 group ${
-                          isSymbiosis
-                            ? isExpanded
-                              ? "bg-gradient-to-br from-amber-950/20 via-[#0e1322] to-emerald-950/20 border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.12)] cursor-pointer"
-                              : "bg-gradient-to-br from-amber-950/10 via-[#0b0f1a] to-emerald-950/10 border-amber-500/25 hover:border-amber-500/40 cursor-pointer"
-                            : isRepresented
-                            ? "bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-                            : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <span
-                              className={`text-xs sm:text-sm font-black w-6 text-center shrink-0 ${
-                                campus.rank === 1
-                                  ? "text-amber-400"
-                                  : campus.rank === 2
-                                  ? "text-slate-300"
-                                  : campus.rank === 3
-                                  ? "text-amber-600"
-                                  : "text-white/40"
-                              }`}
-                            >
-                              #{campus.rank}
-                            </span>
-
-                            <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-base shrink-0 group-hover:scale-105 transition-transform ${
-                              isSymbiosis
-                                ? "bg-amber-500/15 border border-amber-500/30 text-amber-300"
-                                : "bg-white/[0.04] border border-white/10"
-                            }`}>
-                              {campus.logoIcon}
-                            </div>
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <h4 className="text-xs sm:text-sm font-black text-white break-words">
-                                  {campus.campusName}
-                                </h4>
-                                <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 shrink-0">
-                                  {campus.shortName}
-                                </span>
-                                {isSymbiosis && (
-                                  <span className="text-[8px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono shrink-0">
-                                    @ssss.edu.in
-                                  </span>
-                                )}
-                                {isRepresented && (
-                                  <span className="text-[8px] font-black bg-emerald-500 text-black px-1.5 py-0.5 rounded uppercase shrink-0 font-mono">
-                                    YOUR CAMPUS
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="text-right shrink-0 pl-2">
-                            <span className="text-xs sm:text-sm font-black text-emerald-400">
-                              {campus.points.toLocaleString()}
-                            </span>
-                            <span className="text-[9px] font-bold text-white/40 ml-1">PTS</span>
-                          </div>
+                      {filteredCampus.length === 0 ? (
+                        <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
+                          {searchQuery
+                            ? `No campuses or participants matched "${searchQuery}".`
+                            : "No campus entries found."}
                         </div>
+                      ) : (
+                        filteredCampus.map((campus) => {
+                          const isRepresented = representedCampus === campus.campusName;
+                          const isSymbiosis = !!campus.isSymbiosis;
+                          const isExpanded = expandedCampus === campus.campusName;
 
-                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.04] text-[10px] text-white/50">
-                          <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-                            <span className="text-white/20">•</span>
-                            <span className="text-emerald-400 font-bold">{campus.fansCount} Participants</span>
-                            <span className="text-white/20 hidden xs:inline">•</span>
-                            <span className="truncate text-white/40">
-                              Top: <strong className="text-white/70">@{campus.topFan}</strong>
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {isSymbiosis && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                          return (
+                            <div
+                              key={campus.campusName}
+                              onClick={() => {
+                                if (isSymbiosis) {
                                   setExpandedCampus(isExpanded ? null : campus.campusName);
-                                }}
-                                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer active:scale-95"
-                                title={isExpanded ? "Hide Symbiosis participants" : "View Symbiosis participants"}
-                              >
-                                <Users size={11} className="text-amber-400" />
-                                <span className="hidden xs:inline">{isExpanded ? "Hide Roster" : `Roster (${symbiosisTotalParticipants})`}</span>
-                                {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                              </button>
-                            )}
-
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleJoinCampus(campus.campusName);
+                                }
                               }}
-                              className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer active:scale-95 shrink-0 ${
-                                isRepresented
-                                  ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20"
-                                  : "bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400"
-                              }`}
-                              title="Represent this campus"
+                              className={`p-3 sm:p-3.5 rounded-2xl border transition-all flex flex-col gap-2 group ${isSymbiosis
+                                  ? isExpanded
+                                    ? "bg-gradient-to-br from-amber-950/20 via-[#0e1322] to-emerald-950/20 border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.12)] cursor-pointer"
+                                    : "bg-gradient-to-br from-amber-950/10 via-[#0b0f1a] to-emerald-950/10 border-amber-500/25 hover:border-amber-500/40 cursor-pointer"
+                                  : isRepresented
+                                    ? "bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+                                    : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
+                                }`}
                             >
-                              {isRepresented ? "✓ Representing" : "Represent"}
-                            </button>
-                          </div>
-                        </div>
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <span
+                                    className={`text-xs sm:text-sm font-black w-6 text-center shrink-0 ${campus.rank === 1
+                                        ? "text-amber-400"
+                                        : campus.rank === 2
+                                          ? "text-slate-300"
+                                          : campus.rank === 3
+                                            ? "text-amber-600"
+                                            : "text-white/40"
+                                      }`}
+                                  >
+                                    #{campus.rank}
+                                  </span>
 
-                        {/* Accordion Content */}
-                        <AnimatePresence>
-                          {isSymbiosis && isExpanded && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              transition={{ duration: 0.22, ease: "easeOut" }}
-                              className="overflow-hidden pt-2.5 mt-1 border-t border-white/[0.08]"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="bg-[#080d1a] p-3 rounded-xl border border-amber-500/25 space-y-2.5 shadow-inner">
-                                <div className="flex items-center justify-between text-[11px] pb-2 border-b border-white/[0.06]">
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                                    <span className="font-black text-amber-300">@ssss.edu.in</span>
-                                    <span className="text-white/40">Verified Participants ({symbiosisTotalParticipants})</span>
+                                  <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-base shrink-0 group-hover:scale-105 transition-transform ${isSymbiosis
+                                      ? "bg-amber-500/15 border border-amber-500/30 text-amber-300"
+                                      : "bg-white/[0.04] border border-white/10"
+                                    }`}>
+                                    {campus.logoIcon}
                                   </div>
-                                  <div className="text-[10px] font-bold text-emerald-400">
-                                    {symbiosisTotalPoints.toLocaleString()} Total Symbiosis PTS
+
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <h4 className="text-xs sm:text-sm font-black text-white break-words">
+                                        {campus.campusName}
+                                      </h4>
+                                      <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 shrink-0">
+                                        {campus.shortName}
+                                      </span>
+                                      {isSymbiosis && (
+                                        <span className="text-[8px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono shrink-0">
+                                          @ssss.edu.in
+                                        </span>
+                                      )}
+                                      {isRepresented && (
+                                        <span className="text-[8px] font-black bg-emerald-500 text-black px-1.5 py-0.5 rounded uppercase shrink-0 font-mono">
+                                          YOUR CAMPUS
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
 
-                                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
-                                  {usersLoading && symbiosisParticipants.length === 0 ? (
-                                    <div className="py-6 text-center text-xs text-white/40 flex items-center justify-center gap-2">
-                                      <RotateCw size={14} className="animate-spin text-amber-400" />
-                                      <span>Loading @ssss.edu.in participants...</span>
-                                    </div>
-                                  ) : symbiosisParticipants.length === 0 ? (
-                                    <div className="py-5 text-center text-xs text-white/40">
-                                      No registered participants with @ssss.edu.in found in system yet.
-                                    </div>
-                                  ) : (
-                                    symbiosisParticipants.map((p) => {
-                                      const isCurrentUser =
-                                        (activeUserId && p.userId === activeUserId) ||
-                                        (user?.email && p.userEmail.toLowerCase() === user.email.toLowerCase());
-
-                                      return (
-                                        <div
-                                          key={p.userId}
-                                          className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border transition-all ${
-                                            isCurrentUser
-                                              ? "bg-amber-500/15 border-amber-500/50 shadow-sm"
-                                              : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
-                                          }`}
-                                        >
-                                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                            <span
-                                              className={`text-[11px] font-black w-5 text-center shrink-0 ${
-                                                p.rank === 1
-                                                  ? "text-amber-400"
-                                                  : p.rank === 2
-                                                  ? "text-slate-300"
-                                                  : p.rank === 3
-                                                  ? "text-amber-600"
-                                                  : "text-white/40"
-                                              }`}
-                                            >
-                                              #{p.rank}
-                                            </span>
-
-                                            <div className="min-w-0 flex-1">
-                                              <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="text-xs font-black text-white break-words">{p.userName}</span>
-                                                {isCurrentUser && (
-                                                  <span className="text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase font-mono">
-                                                    YOU
-                                                  </span>
-                                                )}
-                                              </div>
-                                              <p className="text-[9px] text-white/40 font-mono break-all">{p.userEmail}</p>
-                                            </div>
-                                          </div>
-
-                                          <div className="text-right shrink-0 pl-2">
-                                            <span className="text-xs font-black text-emerald-400 whitespace-nowrap">
-                                              {p.points.toLocaleString()}
-                                            </span>
-                                            <span className="text-[9px] font-bold text-white/40 ml-1">PTS</span>
-                                          </div>
-                                        </div>
-                                      );
-                                    })
-                                  )}
-                                </div>
-
-                                <div className="flex items-center justify-between pt-1 text-[9px] text-white/40">
-                                  <span>Domain filter: Verified students with email ending in @ssss.edu.in</span>
-                                  <span className="text-amber-400/80 font-bold">Symbiosis SSSS</span>
+                                <div className="text-right shrink-0 pl-2">
+                                  <span className="text-xs sm:text-sm font-black text-emerald-400">
+                                    {campus.points.toLocaleString()}
+                                  </span>
+                                  <span className="text-[9px] font-bold text-white/40 ml-1">PTS</span>
                                 </div>
                               </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    );
-                  })
+
+                              <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.04] text-[10px] text-white/50">
+                                <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+                                  <span className="text-white/20">•</span>
+                                  <span className="text-emerald-400 font-bold">{campus.fansCount} Participants</span>
+                                  <span className="text-white/20 hidden xs:inline">•</span>
+                                  <span className="truncate text-white/40">
+                                    Top: <strong className="text-white/70">@{campus.topFan}</strong>
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0">
+                                  {isSymbiosis && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedCampus(isExpanded ? null : campus.campusName);
+                                      }}
+                                      className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer active:scale-95"
+                                      title={isExpanded ? "Hide Symbiosis participants" : "View Symbiosis participants"}
+                                    >
+                                      <Users size={11} className="text-amber-400" />
+                                      <span className="hidden xs:inline">{isExpanded ? "Hide Roster" : `Roster (${symbiosisTotalParticipants})`}</span>
+                                      {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                    </button>
+                                  )}
+
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleJoinCampus(campus.campusName);
+                                    }}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer active:scale-95 shrink-0 ${isRepresented
+                                        ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20"
+                                        : "bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400"
+                                      }`}
+                                    title="Represent this campus"
+                                  >
+                                    {isRepresented ? "✓ Representing" : "Represent"}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Accordion Content */}
+                              <AnimatePresence>
+                                {isSymbiosis && isExpanded && (
+                                  <motion.div
+                                    initial={{ opacity: 0, height: 0 }}
+                                    animate={{ opacity: 1, height: "auto" }}
+                                    exit={{ opacity: 0, height: 0 }}
+                                    transition={{ duration: 0.22, ease: "easeOut" }}
+                                    className="overflow-hidden pt-2.5 mt-1 border-t border-white/[0.08]"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <div className="bg-[#080d1a] p-3 rounded-xl border border-amber-500/25 space-y-2.5 shadow-inner">
+                                      <div className="flex items-center justify-between text-[11px] pb-2 border-b border-white/[0.06]">
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                          <span className="font-black text-amber-300">@ssss.edu.in</span>
+                                          <span className="text-white/40">Verified Participants ({symbiosisTotalParticipants})</span>
+                                        </div>
+                                        <div className="text-[10px] font-bold text-emerald-400">
+                                          {symbiosisTotalPoints.toLocaleString()} Total Symbiosis PTS
+                                        </div>
+                                      </div>
+
+                                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
+                                        {usersLoading && symbiosisParticipants.length === 0 ? (
+                                          <div className="py-6 text-center text-xs text-white/40 flex items-center justify-center gap-2">
+                                            <RotateCw size={14} className="animate-spin text-amber-400" />
+                                            <span>Loading @ssss.edu.in participants...</span>
+                                          </div>
+                                        ) : symbiosisParticipants.length === 0 ? (
+                                          <div className="py-5 text-center text-xs text-white/40">
+                                            No registered participants with @ssss.edu.in found in system yet.
+                                          </div>
+                                        ) : (
+                                          symbiosisParticipants.map((p) => {
+                                            const isCurrentUser =
+                                              (activeUserId && p.userId === activeUserId) ||
+                                              (user?.email && p.userEmail.toLowerCase() === user.email.toLowerCase());
+
+                                            return (
+                                              <div
+                                                key={p.userId}
+                                                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border transition-all ${isCurrentUser
+                                                    ? "bg-amber-500/15 border-amber-500/50 shadow-sm"
+                                                    : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
+                                                  }`}
+                                              >
+                                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                                  <span
+                                                    className={`text-[11px] font-black w-5 text-center shrink-0 ${p.rank === 1
+                                                        ? "text-amber-400"
+                                                        : p.rank === 2
+                                                          ? "text-slate-300"
+                                                          : p.rank === 3
+                                                            ? "text-amber-600"
+                                                            : "text-white/40"
+                                                      }`}
+                                                  >
+                                                    #{p.rank}
+                                                  </span>
+
+                                                  <div className="min-w-0 flex-1">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                      <span className="text-xs font-black text-white break-words">{p.userName}</span>
+                                                      {isCurrentUser && (
+                                                        <span className="text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase font-mono">
+                                                          YOU
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                    <p className="text-[9px] text-white/40 font-mono break-all">{p.userEmail}</p>
+                                                  </div>
+                                                </div>
+
+                                                <div className="text-right shrink-0 pl-2">
+                                                  <span className="text-xs font-black text-emerald-400 whitespace-nowrap">
+                                                    {p.points.toLocaleString()}
+                                                  </span>
+                                                  <span className="text-[9px] font-bold text-white/40 ml-1">PTS</span>
+                                                </div>
+                                              </div>
+                                            );
+                                          })
+                                        )}
+                                      </div>
+
+                                      <div className="flex items-center justify-between pt-1 text-[9px] text-white/40">
+                                        <span>Domain filter: Verified students with email ending in @ssss.edu.in</span>
+                                        <span className="text-amber-400/80 font-bold">Symbiosis SSSS</span>
+                                      </div>
+                                    </div>
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
                 )}
-                </div>
-              </div>
-            )}
               </motion.div>
             </AnimatePresence>
           </div>

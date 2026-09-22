@@ -182,11 +182,14 @@
 
 // MainModules\RoarPreference\page.tsx
 
+
+// MainModules/RoarPreference/page.tsx
+
 'use client';
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 
 type ConfigItem = {
@@ -255,6 +258,44 @@ export default function RoarPreferencesPage() {
   const [followOptions, setFollowOptions] = useState<ConfigItem[]>([]);
   const [engagementOptions, setEngagementOptions] = useState<ConfigItem[]>([]);
 
+  // "Don't see your favorite sports?" Dropdown config & user selection
+  const [requestedSportsOptions, setRequestedSportsOptions] = useState<ConfigItem[]>([]);
+  const [requestedSportsMeta, setRequestedSportsMeta] = useState({
+    heading: "Don't see your favorite sports?",
+    subheading: "Please select and we will work hard to get it to you soonest",
+  });
+  const [requestedSport, setRequestedSport] = useState<string>("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(true);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isDropdownOpen]);
+
+  const toggleDropdown = () => {
+    if (!isDropdownOpen && dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      // If less than 240px below the element, open upward so it stays within the visible card/page
+      setOpenUpward(spaceBelow < 240);
+    }
+    setIsDropdownOpen((prev) => !prev);
+  };
+
   const [sports, setSports] = useState<string[]>([]);
   const [followEntities, setFollowEntities] = useState<string[]>([]);
   const [engagementPrefs, setEngagementPrefs] = useState<string[]>([]);
@@ -263,15 +304,17 @@ export default function RoarPreferencesPage() {
     sports: string[];
     followEntities: string[];
     engagementPrefs: string[];
-  }>({ sports: [], followEntities: [], engagementPrefs: [] });
+    requestedSport: string;
+  }>({ sports: [], followEntities: [], engagementPrefs: [], requestedSport: "" });
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [configS, configF, configE, user] = await Promise.all([
+        const [configS, configF, configE, configReq, user] = await Promise.all([
           axios.get(`${CONFIG_API}?type=sports`),
           axios.get(`${CONFIG_API}?type=followEntities`),
           axios.get(`${CONFIG_API}?type=engagement`),
+          axios.get(`${CONFIG_API}?type=requestedSports`),
           axios.get("/api/roar/onboarding"),
         ]);
 
@@ -279,6 +322,7 @@ export default function RoarPreferencesPage() {
         setSportsOptions(configS.data?.items ?? []);
         setFollowOptions(configF.data?.items ?? []);
         setEngagementOptions(configE.data?.items ?? []);
+        setRequestedSportsOptions(configReq.data?.items ?? []);
 
         // Load dynamic questions and subheadings from backend config
         setTabHeadings({
@@ -296,17 +340,27 @@ export default function RoarPreferencesPage() {
           },
         });
 
+        if (configReq.data?.question) {
+          setRequestedSportsMeta({
+            heading: configReq.data.question,
+            subheading: configReq.data.subtitle ?? "Please select and we will work hard to get it to you soonest",
+          });
+        }
+
         const currentSports: string[] = user.data?.sports ?? [];
         const currentFollow: string[] = user.data?.followEntities ?? [];
         const currentEngagement: string[] = user.data?.engagementPrefs ?? [];
+        const currentRequestedSport: string = user.data?.requestedSport || "";
 
         setSports(currentSports);
         setFollowEntities(currentFollow);
         setEngagementPrefs(currentEngagement);
+        setRequestedSport(currentRequestedSport);
         setInitial({
           sports: currentSports,
           followEntities: currentFollow,
           engagementPrefs: currentEngagement,
+          requestedSport: currentRequestedSport,
         });
         setLoadState("ready");
       } catch (err) {
@@ -332,7 +386,8 @@ export default function RoarPreferencesPage() {
   const hasChanges =
     !sameSet(sports, initial.sports) ||
     !sameSet(followEntities, initial.followEntities) ||
-    !sameSet(engagementPrefs, initial.engagementPrefs);
+    !sameSet(engagementPrefs, initial.engagementPrefs) ||
+    requestedSport !== initial.requestedSport;
 
   // Group follow entities by category or title
   const groupedFollow = useMemo(() => {
@@ -356,14 +411,14 @@ export default function RoarPreferencesPage() {
     }
     if (tab === "followEntities") {
       const hasAvailableOptions = Object.keys(groupedFollow).length > 0;
-      return hasAvailableOptions ? followEntities.length > 0 : true;
+      return hasAvailableOptions ? (followEntities.length > 0 || !!requestedSport) : true;
     }
     if (tab === "engagement") {
       const hasAvailableOptions = engagementOptions.length > 0;
       return hasAvailableOptions ? engagementPrefs.length > 0 : true;
     }
     return false;
-  }, [tab, sports, followEntities, engagementPrefs, groupedFollow, engagementOptions]);
+  }, [tab, sports, followEntities, engagementPrefs, groupedFollow, engagementOptions, requestedSport]);
 
   const canContinue = isCurrentStepValid;
   const canSave = sports.length > 0 && isCurrentStepValid;
@@ -393,9 +448,10 @@ export default function RoarPreferencesPage() {
         sports,
         followEntities,
         engagementPrefs,
+        requestedSport,
       });
       if (res.data?.success) {
-        setInitial({ sports, followEntities, engagementPrefs });
+        setInitial({ sports, followEntities, engagementPrefs, requestedSport });
         setSaveState("saved");
         setTimeout(() => router.push("/MainModules/HomePage"), 600);
       } else {
@@ -429,7 +485,7 @@ export default function RoarPreferencesPage() {
   const currentSubheading = tabHeadings[tab]?.subheading || DEFAULT_TABS[activeIndex].subheading;
 
   return (
-    <div className="px-6 pt-8 pb-28 max-w-[480px] mx-auto bg-black min-h-screen">
+    <div className="px-6 pt-8 pb-36 max-w-[480px] mx-auto bg-black min-h-screen">
       {/* Step progress bar */}
       <div className="flex gap-2">
         {DEFAULT_TABS.map((t, i) => (
@@ -576,6 +632,103 @@ export default function RoarPreferencesPage() {
               </p>
             </div>
           )}
+
+          {/* SPREADSHEET DROPDOWN: "Don't see your favorite sports?" */}
+          <div className="mt-8 p-4 rounded-2xl bg-gray-900/60 border-2 border-gray-800 space-y-2 relative">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">🎯</span>
+              <h3 className="font-bold text-[13px] text-white">
+                {requestedSportsMeta.heading}
+              </h3>
+            </div>
+            <p className="text-[11px] text-gray-400">
+              {requestedSportsMeta.subheading}
+            </p>
+            <div className="relative pt-1" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={toggleDropdown}
+                className={`w-full h-11 px-3.5 flex items-center justify-between rounded-xl bg-gray-950 border text-left text-[13px] cursor-pointer transition-colors ${
+                  isDropdownOpen
+                    ? "border-orange-400 text-white"
+                    : "border-gray-700 text-gray-200 hover:border-gray-600"
+                }`}
+              >
+                <span className={requestedSport ? "text-white font-medium truncate pr-2" : "text-gray-400 truncate pr-2"}>
+                  {requestedSport || "Select a sport to request…"}
+                </span>
+                <span className={`text-[10px] text-gray-400 shrink-0 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}>
+                  ▼
+                </span>
+              </button>
+
+              <AnimatePresence>
+                {isDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: openUpward ? 6 : -6, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: openUpward ? 6 : -6, scale: 0.98 }}
+                    transition={{ duration: 0.15 }}
+                    className={`absolute left-0 right-0 max-h-52 overflow-y-auto rounded-xl bg-gray-950 border border-gray-700 shadow-2xl z-50 py-1 divide-y divide-gray-800/60 ${
+                      openUpward ? "bottom-full mb-2" : "top-full mt-2"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRequestedSport("");
+                        setIsDropdownOpen(false);
+                      }}
+                      className="w-full px-3.5 py-2.5 text-left text-[12px] text-gray-400 hover:text-white hover:bg-gray-900 transition-colors flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="italic">Select a sport to request… (Clear)</span>
+                      {!requestedSport && <span className="text-orange-400 font-bold text-xs">✓</span>}
+                    </button>
+                    {requestedSportsOptions.map((opt) => {
+                      const isSelected = requestedSport === opt.label;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => {
+                            setRequestedSport(opt.label);
+                            setIsDropdownOpen(false);
+                          }}
+                          className={`w-full px-3.5 py-2.5 text-left text-[13px] transition-colors flex items-center justify-between cursor-pointer ${
+                            isSelected
+                              ? "bg-orange-500/15 text-orange-400 font-semibold"
+                              : "text-gray-200 hover:bg-gray-900 hover:text-white"
+                          }`}
+                        >
+                          <span>{opt.label}</span>
+                          {isSelected && <span className="text-orange-400 font-bold text-xs">✓</span>}
+                        </button>
+                      );
+                    })}
+                    {requestedSportsOptions.length === 0 && (
+                      <div className="px-3.5 py-3 text-center text-xs text-gray-500">
+                        No sports available to request.
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+            {requestedSport && (
+              <div className="flex items-center justify-between pt-0.5 text-[11px] text-orange-400">
+                <span className="flex items-center gap-1 truncate pr-2">
+                  <span>✓</span> Selected to request: <span className="font-bold">{requestedSport}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setRequestedSport("")}
+                  className="text-gray-400 hover:text-red-400 text-[10px] underline cursor-pointer bg-transparent border-none p-0 shrink-0"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
