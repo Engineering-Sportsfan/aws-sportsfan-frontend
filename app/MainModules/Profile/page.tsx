@@ -7,7 +7,6 @@ import { GLOBAL_CSS } from "../../../src/components/NewROARComponent/constants/s
 import { useAuth } from "@/context/AuthContext";
 import { getBotCanonicalName, BOT_AVATARS, BOT_BIOS } from "@/src/constants/bots";
 import { getExpertCanonicalName, EXPERT_AVATARS, EXPERT_BIOS, EXPERT_ROLES } from "@/src/constants/experts";
-import { getBotCanonicalName, BOT_AVATARS, BOT_BIOS } from "@/src/constants/bots";
 import { handleGoBack } from "@/utils/backButton";
 
 function ProfileContent() {
