@@ -11,6 +11,7 @@ import ChallengesSection from "@/src/components/FanBattle-Component/Challengesse
 import FanBattleCard from "@/src/components/FanBattle-Component/Fanbattlearena";
 import { ArrowLeft, Heart, Share2, Sparkles, Trophy, Check, Zap, CheckCircle2, XCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import LeaderboardOverlayModal from "@/src/components/NewHomeComponents/LeaderboardOverlayModal";
 
 interface FlipArenaProps {
   selectedSport: string;
@@ -916,6 +917,7 @@ export default function FlipArena({
   const [loadingEngagements, setLoadingEngagements] = useState(true);
   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle">("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
 
   // Polls & Predictions for bottom active sections
   const [polls, setPolls] = useState<Poll[]>([]);
@@ -972,7 +974,7 @@ export default function FlipArena({
         setLoadingPolls(false);
       })
       .catch((err) => {
-        console.error("Failed to fetch polls in FlipArena:", err);
+        console.error("Failed to fetch polls in FlipARENA:", err);
         setPolls([]);
         setLoadingPolls(false);
       });
@@ -1042,7 +1044,7 @@ export default function FlipArena({
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base font-black tracking-tight">Flip Arena 🏟️</h1>
+                <h1 className="text-base font-black tracking-tight">FlipARENA 🏟️</h1>
                 <span className="text-[9px] font-black bg-gradient-to-r from-pink-500 to-orange-500 text-white px-2 py-0.5 rounded-full tracking-wider animate-pulse">
                   LIVE
                 </span>
@@ -1069,7 +1071,7 @@ export default function FlipArena({
                 color: "rgba(255,255,255,0.4)",
               }}
             >
-              <span className="text-sm">⚡</span> FlipLine
+              <span className="text-sm">⚡</span> FlipLINE
             </button>
             <button
               className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer border-none"
@@ -1079,32 +1081,44 @@ export default function FlipArena({
                 boxShadow: "0 4px 15px rgba(255, 61, 87, 0.25)",
               }}
             >
-              <span className="text-sm">🏟️</span> Flip Arena
+              <span className="text-sm">🏟️</span> FlipARENA
             </button>
           </div>
         </div>
       )}
 
       {/* 3. Filter section "Today's Arena" */}
-      <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2">
+      <div className="px-4 py-3 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 border-t border-white/[0.05] mt-2">
         <div>
           <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
           <p className="text-[10px] text-white/35 mt-0.5">Official SF360 events · Earn FlipCoins</p>
         </div>
-        <div className="flex gap-1.5 bg-white/[0.03] p-1 rounded-xl border border-white/[0.05]">
-          {(["all", "quiz", "poll", "battle"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setFilter(tab)}
-              className="px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer"
-              style={{
-                backgroundColor: filter === tab ? "rgba(255,255,255,0.08)" : "transparent",
-                color: filter === tab ? "#fff" : "rgba(255,255,255,0.45)",
-              }}
-            >
-              {tab === "all" ? "All" : tab}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Leaderboard Button */}
+          <button
+            onClick={() => setShowLeaderboardModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
+            title="Open Leaderboards"
+          >
+            <Trophy size={13} className="text-amber-400" />
+            <span>Leaderboard</span>
+          </button>
+
+          <div className="flex gap-1.5 bg-white/[0.03] p-1 rounded-xl border border-white/[0.05]">
+            {(["all", "quiz", "poll", "battle"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setFilter(tab)}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer"
+                style={{
+                  backgroundColor: filter === tab ? "rgba(255,255,255,0.08)" : "transparent",
+                  color: filter === tab ? "#fff" : "rgba(255,255,255,0.45)",
+                }}
+              >
+                {tab === "all" ? "All" : tab}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -1204,6 +1218,12 @@ export default function FlipArena({
           </div>
         )}
       </div>
+
+      {/* Leaderboard Overlay Modal */}
+      <LeaderboardOverlayModal
+        isOpen={showLeaderboardModal}
+        onClose={() => setShowLeaderboardModal(false)}
+      />
     </div>
   );
 }

@@ -184,7 +184,7 @@
 
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import axios from "axios";
@@ -195,10 +195,13 @@ type ConfigItem = {
   order: number;
   active: boolean;
   tagline?: string;
+  tag?: string;
   image?: string;
   subtitle?: string;
+  description?: string;
   icon?: string;
   category?: string;
+  title?: string;
   sportId?: string;
 };
 
@@ -208,7 +211,7 @@ type LoadState = "loading" | "ready" | "error";
 type SaveState = "idle" | "saving" | "saved" | "error";
 type Tab = "sports" | "followEntities" | "engagement";
 
-const TABS: { key: Tab; heading: string; subheading: string }[] = [
+const DEFAULT_TABS: { key: Tab; heading: string; subheading: string }[] = [
   {
     key: "sports",
     heading: "Which sports do you follow?",
@@ -231,6 +234,22 @@ export default function RoarPreferencesPage() {
   const [loadState, setLoadState] = useState<LoadState>("loading");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [tab, setTab] = useState<Tab>("sports");
+
+  // Dynamic question & subtitle metadata loaded from admin config
+  const [tabHeadings, setTabHeadings] = useState<Record<Tab, { heading: string; subheading: string }>>({
+    sports: {
+      heading: DEFAULT_TABS[0].heading,
+      subheading: DEFAULT_TABS[0].subheading,
+    },
+    followEntities: {
+      heading: DEFAULT_TABS[1].heading,
+      subheading: DEFAULT_TABS[1].subheading,
+    },
+    engagement: {
+      heading: DEFAULT_TABS[2].heading,
+      subheading: DEFAULT_TABS[2].subheading,
+    },
+  });
 
   const [sportsOptions, setSportsOptions] = useState<ConfigItem[]>([]);
   const [followOptions, setFollowOptions] = useState<ConfigItem[]>([]);
@@ -255,9 +274,27 @@ export default function RoarPreferencesPage() {
           axios.get(`${CONFIG_API}?type=engagement`),
           axios.get("/api/roar/onboarding"),
         ]);
-        setSportsOptions(configS.data.items ?? []);
-        setFollowOptions(configF.data.items ?? []);
-        setEngagementOptions(configE.data.items ?? []);
+
+        // Load items
+        setSportsOptions(configS.data?.items ?? []);
+        setFollowOptions(configF.data?.items ?? []);
+        setEngagementOptions(configE.data?.items ?? []);
+
+        // Load dynamic questions and subheadings from backend config
+        setTabHeadings({
+          sports: {
+            heading: configS.data?.question || DEFAULT_TABS[0].heading,
+            subheading: configS.data?.subtitle ?? DEFAULT_TABS[0].subheading,
+          },
+          followEntities: {
+            heading: configF.data?.question || DEFAULT_TABS[1].heading,
+            subheading: configF.data?.subtitle ?? DEFAULT_TABS[1].subheading,
+          },
+          engagement: {
+            heading: configE.data?.question || DEFAULT_TABS[2].heading,
+            subheading: configE.data?.subtitle ?? DEFAULT_TABS[2].subheading,
+          },
+        });
 
         const currentSports: string[] = user.data?.sports ?? [];
         const currentFollow: string[] = user.data?.followEntities ?? [];
@@ -297,19 +334,59 @@ export default function RoarPreferencesPage() {
     !sameSet(followEntities, initial.followEntities) ||
     !sameSet(engagementPrefs, initial.engagementPrefs);
 
-  const canSave = sports.length > 0 && hasChanges;
+  // Group follow entities by category or title
+  const groupedFollow = useMemo(() => {
+    return followOptions
+      .filter((f) => !f.sportId || sports.includes(f.sportId))
+      .reduce((acc: Record<string, ConfigItem[]>, item) => {
+        const key = item.category || item.title || "Other";
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+      }, {});
+  }, [followOptions, sports]);
 
-  const groupedFollow = followOptions
-    .filter((f) => !f.sportId || sports.includes(f.sportId))
-    .reduce((acc: Record<string, ConfigItem[]>, item) => {
-      const key = item.category || "Other";
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(item);
-      return acc;
-    }, {});
+  const activeIndex = DEFAULT_TABS.findIndex((t) => t.key === tab);
+  const isLastStep = activeIndex === DEFAULT_TABS.length - 1;
+
+  // Validation: Continue button is active ONLY when an option is selected for the current step
+  const isCurrentStepValid = useMemo(() => {
+    if (tab === "sports") {
+      return sports.length > 0;
+    }
+    if (tab === "followEntities") {
+      const hasAvailableOptions = Object.keys(groupedFollow).length > 0;
+      return hasAvailableOptions ? followEntities.length > 0 : true;
+    }
+    if (tab === "engagement") {
+      const hasAvailableOptions = engagementOptions.length > 0;
+      return hasAvailableOptions ? engagementPrefs.length > 0 : true;
+    }
+    return false;
+  }, [tab, sports, followEntities, engagementPrefs, groupedFollow, engagementOptions]);
+
+  const canContinue = isCurrentStepValid;
+  const canSave = sports.length > 0 && isCurrentStepValid;
+
+  const handleContinue = () => {
+    if (!canContinue || isLastStep) return;
+    setTab(DEFAULT_TABS[activeIndex + 1].key);
+  };
+
+  const handleBack = () => {
+    if (activeIndex === 0) return;
+    setTab(DEFAULT_TABS[activeIndex - 1].key);
+  };
 
   const handleSave = async () => {
-    if (!canSave) return;
+    if (!canSave || saveState === "saving") return;
+
+    // If no changes were made, immediately redirect
+    if (!hasChanges) {
+      router.push("/MainModules/HomePage");
+      return;
+    }
+
     setSaveState("saving");
     try {
       const res = await axios.patch("/api/roar/onboarding", {
@@ -320,7 +397,7 @@ export default function RoarPreferencesPage() {
       if (res.data?.success) {
         setInitial({ sports, followEntities, engagementPrefs });
         setSaveState("saved");
-        setTimeout(() => router.push("/MainModules/ROAR"), 600);
+        setTimeout(() => router.push("/MainModules/HomePage"), 600);
       } else {
         setSaveState("error");
       }
@@ -348,81 +425,84 @@ export default function RoarPreferencesPage() {
     );
   }
 
-  const activeIndex = TABS.findIndex((t) => t.key === tab);
-  const active = TABS[activeIndex];
-  const isLastStep = activeIndex === TABS.length - 1;
-  const canContinue = tab !== "sports" || sports.length > 0;
-
-  const handleContinue = () => {
-    if (!canContinue || isLastStep) return;
-    setTab(TABS[activeIndex + 1].key);
-  };
-
-  const handleBack = () => {
-    if (activeIndex === 0) return;
-    setTab(TABS[activeIndex - 1].key);
-  };
+  const currentHeading = tabHeadings[tab]?.heading || DEFAULT_TABS[activeIndex].heading;
+  const currentSubheading = tabHeadings[tab]?.subheading || DEFAULT_TABS[activeIndex].subheading;
 
   return (
     <div className="px-6 pt-8 pb-28 max-w-[480px] mx-auto bg-black min-h-screen">
-      {/* Step progress bar — same visual language as Onboarding.tsx */}
+      {/* Step progress bar */}
       <div className="flex gap-2">
-        {TABS.map((t, i) => (
+        {DEFAULT_TABS.map((t, i) => (
           <button
             key={t.key}
             type="button"
-            onClick={() => setTab(t.key)}
-            aria-label={`Go to ${t.heading}`}
-            className={`h-1.5 flex-1 rounded-full overflow-hidden bg-gray-800 cursor-pointer border-none p-0 ${i <= activeIndex ? "bg-gradient-to-r from-pink-600 to-orange-500" : "bg-gray-800"
-              }`}
+            onClick={() => {
+              // Allow jumping to completed/earlier steps or next step if current step is valid
+              if (i <= activeIndex || (i === activeIndex + 1 && isCurrentStepValid)) {
+                setTab(t.key);
+              }
+            }}
+            aria-label={`Go to ${tabHeadings[t.key]?.heading || t.heading}`}
+            className={`h-1.5 flex-1 rounded-full overflow-hidden transition-all duration-300 border-none p-0 ${
+              i <= activeIndex
+                ? "bg-gradient-to-r from-pink-600 to-orange-500 cursor-pointer"
+                : "bg-gray-800 cursor-default"
+            }`}
           />
         ))}
       </div>
+
       <p className="text-[11px] tracking-[0.1em] uppercase text-gray-500 font-semibold mt-3">
-        Step {activeIndex + 1} of {TABS.length}
+        Step {activeIndex + 1} of {DEFAULT_TABS.length}
       </p>
 
       {activeIndex > 0 && (
         <button
           type="button"
           onClick={handleBack}
-          className="flex items-center gap-1.5 mt-3 text-[13px] font-semibold text-gray-400 bg-transparent border-none cursor-pointer p-0"
+          className="flex items-center gap-1.5 mt-3 text-[13px] font-semibold text-gray-400 hover:text-white bg-transparent border-none cursor-pointer p-0 transition-colors"
         >
           <span aria-hidden="true">←</span> Back
         </button>
       )}
 
-      <h1 className="font-black text-[15px] leading-[1.05] uppercase text-white mt-2">
-        {active.heading}
+      {/* Dynamic Header & Subheader from Admin Config */}
+      <h1 className="font-black text-[15px] leading-[1.1] uppercase text-white mt-2">
+        {currentHeading}
       </h1>
-      <p className="text-[13px] text-gray-400 mt-2">{active.subheading}</p>
+      <p className="text-[13px] text-gray-400 mt-2">{currentSubheading}</p>
 
-      {/* Sports tab */}
+      {/* Sports Tab */}
       {tab === "sports" && (
         <div className="grid grid-cols-2 gap-2 mt-6">
           {sportsOptions.map((sp) => {
             const sel = sports.includes(sp.id);
+            const tagText = sp.tagline || sp.tag || sp.subtitle;
+
             return (
               <motion.button
                 key={sp.id}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => toggleSport(sp.id)}
-                className={`flex gap-2 items-center px-3 py-2.5 rounded-2xl bg-gray-900/60 cursor-pointer text-left border-2 relative ${sel ? "border-orange-400" : "border-gray-800"
-                  }`}
+                className={`flex gap-2.5 items-center px-3 py-2.5 rounded-2xl bg-gray-900/60 cursor-pointer text-left border-2 relative transition-all ${
+                  sel ? "border-orange-400 shadow-sm shadow-orange-500/20" : "border-gray-800 hover:border-gray-700"
+                }`}
               >
-                <span className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-base shrink-0">
-                  {sp.image ? (
-                    <img src={sp.image} alt={sp.label} className="w-5 h-5 object-contain" />
-                  ) : (
-                    "🏆"
-                  )}
-                </span>
+                {(sp.image || sp.icon) && (
+                  <span className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center shrink-0 overflow-hidden">
+                    {sp.image ? (
+                      <img src={sp.image} alt={sp.label} className="w-5 h-5 object-contain" />
+                    ) : (
+                      <span className="text-sm">{sp.icon}</span>
+                    )}
+                  </span>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-[13px] leading-tight text-white">
                     {sp.label}
                   </p>
-                  {sp.tagline && (
-                    <p className="text-[10px] text-gray-400 mt-0.5">{sp.tagline}</p>
+                  {tagText && (
+                    <p className="text-[10px] text-gray-400 mt-0.5 truncate">{tagText}</p>
                   )}
                 </div>
                 {sel && (
@@ -434,9 +514,9 @@ export default function RoarPreferencesPage() {
         </div>
       )}
 
-      {/* Follow entities tab */}
+      {/* Follow Entities Tab */}
       {tab === "followEntities" && (
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-5">
           {Object.entries(groupedFollow).map(([category, entities]) => (
             <div key={category}>
               <p className="text-[10px] tracking-[0.1em] uppercase text-gray-500 font-semibold mb-2">
@@ -450,18 +530,33 @@ export default function RoarPreferencesPage() {
                       key={ent.id}
                       type="button"
                       onClick={() => toggleFollow(ent.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 bg-gray-900/60 transition-colors ${sel ? "border-orange-400" : "border-gray-800"
-                        }`}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 bg-gray-900/60 transition-all cursor-pointer ${
+                        sel
+                          ? "border-orange-400 shadow-sm shadow-orange-500/20"
+                          : "border-gray-800 hover:border-gray-700"
+                      }`}
                     >
-                      {ent.icon && (
+                      {ent.image ? (
+                        <img
+                          src={ent.image}
+                          alt={ent.label}
+                          className="w-4 h-4 rounded-full object-cover shrink-0"
+                        />
+                      ) : ent.icon ? (
                         <span
-                          className={`text-[10px] font-bold ${sel ? "text-orange-400" : "text-gray-500"
-                            }`}
+                          className={`text-[10px] font-bold ${
+                            sel ? "text-orange-400" : "text-gray-400"
+                          }`}
                         >
                           {ent.icon}
                         </span>
-                      )}
+                      ) : null}
                       <span className="text-[12px] font-semibold text-white">{ent.label}</span>
+                      {ent.tag && (
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-medium">
+                          {ent.tag}
+                        </span>
+                      )}
                       {sel && <span className="text-orange-400 font-bold text-[11px]">✓</span>}
                     </button>
                   );
@@ -469,64 +564,89 @@ export default function RoarPreferencesPage() {
               </div>
             </div>
           ))}
+
           {Object.keys(groupedFollow).length === 0 && (
-            <p className="text-gray-500 text-sm">
-              {followOptions.length === 0
-                ? "No follow options are configured yet — add some in the admin panel."
-                : sports.length === 0
-                  ? "Pick a sport first to see who you can follow."
-                  : `No follow options match the sports you picked (${followOptions.length} total configured, ${followOptions.filter((f) => f.sportId).length} tagged with a sportId). Check that each entity's sportId matches one of your selected sport IDs: ${sports.join(", ")}.`}
-            </p>
+            <div className="py-6 text-center">
+              <p className="text-gray-400 text-sm">
+                {followOptions.length === 0
+                  ? "No follow options configured yet."
+                  : sports.length === 0
+                  ? "Pick a sport first to see teams and athletes to follow."
+                  : "No specific teams or athletes found for your selected sports. You can continue to the next step."}
+              </p>
+            </div>
           )}
         </div>
       )}
 
-      {/* Engagement tab */}
+      {/* Engagement Tab */}
       {tab === "engagement" && (
         <div className="flex flex-col gap-2 mt-6">
           {engagementOptions.map((opt) => {
             const sel = engagementPrefs.includes(opt.id);
+            const sub = opt.subtitle || opt.description;
+
             return (
               <button
                 key={opt.id}
                 type="button"
                 onClick={() => toggleEngagement(opt.id)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl border-2 text-left bg-gray-900/60 transition-colors ${sel ? "border-orange-400" : "border-gray-800"
-                  }`}
+                className={`flex items-center gap-3 px-3.5 py-3 rounded-2xl border-2 text-left bg-gray-900/60 transition-all cursor-pointer ${
+                  sel
+                    ? "border-orange-400 shadow-sm shadow-orange-500/20"
+                    : "border-gray-800 hover:border-gray-700"
+                }`}
               >
-                <span className="w-9 h-9 rounded-xl bg-gray-800 flex items-center justify-center text-base shrink-0">
-                  {opt.icon || "⭐"}
+                <span className="w-9 h-9 rounded-xl bg-gray-800 flex items-center justify-center text-base shrink-0 overflow-hidden">
+                  {opt.image ? (
+                    <img src={opt.image} alt={opt.label} className="w-5 h-5 object-contain" />
+                  ) : (
+                    opt.icon || "⭐"
+                  )}
                 </span>
-                <span className="flex-1">
+                <span className="flex-1 min-w-0">
                   <p className="font-bold text-white text-[13px] leading-tight">{opt.label}</p>
-                  {opt.subtitle && (
-                    <p className="text-[11px] text-gray-400 mt-0.5">{opt.subtitle}</p>
+                  {sub && (
+                    <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">{sub}</p>
                   )}
                 </span>
                 {sel && <span className="text-orange-400 font-bold text-[13px] shrink-0">✓</span>}
               </button>
             );
           })}
+
+          {engagementOptions.length === 0 && (
+            <div className="py-6 text-center">
+              <p className="text-gray-400 text-sm">No engagement options configured yet.</p>
+            </div>
+          )}
         </div>
       )}
 
+      {/* Continue or Save changes button */}
       {isLastStep ? (
         <motion.button
-          whileTap={{ scale: 0.97 }}
+          whileTap={{ scale: canSave ? 0.97 : 1 }}
           onClick={handleSave}
           disabled={!canSave || saveState === "saving" || saveState === "saved"}
-          className={`w-full mt-8 h-[52px] rounded-full text-base font-bold text-white border-none cursor-pointer bg-gradient-to-r from-pink-600 to-orange-500 transition-opacity ${canSave && saveState !== "saving" ? "opacity-100" : "opacity-40"
-            }`}
+          className={`w-full mt-8 h-[52px] rounded-full text-base font-bold text-white border-none transition-all duration-200 ${
+            canSave && saveState !== "saving"
+              ? "opacity-100 bg-gradient-to-r from-pink-600 to-orange-500 cursor-pointer shadow-lg shadow-orange-500/20"
+              : "opacity-40 bg-gradient-to-r from-pink-600 to-orange-500 cursor-not-allowed"
+          }`}
         >
           {saveState === "saving" ? "Saving..." : saveState === "saved" ? "✓ Saved" : "Save changes"}
         </motion.button>
       ) : (
         <motion.button
-          whileTap={{ scale: 0.97 }}
+          whileTap={{ scale: canContinue ? 0.97 : 1 }}
           onClick={handleContinue}
           disabled={!canContinue}
-          className={`w-full mt-8 h-[52px] rounded-full text-base font-bold text-white border-none cursor-pointer bg-gradient-to-r from-pink-600 to-orange-500 transition-opacity ${canContinue ? "opacity-100" : "opacity-40"
-            }`}
+          className={`w-full mt-8 h-[52px] rounded-full text-base font-bold text-white border-none transition-all duration-200 ${
+            canContinue
+              ? "opacity-100 bg-gradient-to-r from-pink-600 to-orange-500 cursor-pointer shadow-lg shadow-orange-500/20"
+              : "opacity-40 bg-gradient-to-r from-pink-600 to-orange-500 cursor-not-allowed"
+          }`}
         >
           Continue
         </motion.button>

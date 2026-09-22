@@ -1033,7 +1033,7 @@ export default function NewsCenter() {
       <div className="w-full flex flex-col gap-4 py-4 rounded-xl">
         <div className="flex justify-between items-center px-2">
           <div className="flex items-center gap-2">
-            <h3 className="text-[17px] font-extrabold text-white">FlipLONG Articles</h3>
+            <h3 className="text-[17px] font-extrabold flex text-white whitespace-nowrap">FlipLONG Articles</h3>
           </div>
           <div className="w-16 h-6 rounded-full bg-white/10 animate-pulse" />
         </div>
