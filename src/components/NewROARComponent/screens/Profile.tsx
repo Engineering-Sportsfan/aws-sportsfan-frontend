@@ -1322,9 +1322,17 @@ import { useActivity } from "@/context/ActivityContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BOT_TAGS } from "@/src/constants/bots";
-import { EXPERT_TAGS } from "@/src/constants/experts";
-import { getExpertCanonicalName, EXPERT_BIOS, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
+import {
+  BOT_TAGS,
+  BOT_USERNAMES,
+  BOT_BIOS,
+  BOT_AVATARS,
+  BOT_ROLES,
+  BOT_SAMPLE_POSTS,
+  getBotCanonicalName,
+  isBotName,
+} from "@/src/constants/bots";
+import { EXPERT_TAGS, getExpertCanonicalName, EXPERT_BIOS, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 import { RoarJourneySection } from "../components/RoarJourneySection";
 
 const EXPERT_STYLE_PRESETS = [
@@ -1364,15 +1372,6 @@ function formatVideoTimestamp(isoDate?: string | number): string {
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
-import {
-  BOT_USERNAMES,
-  BOT_BIOS,
-  BOT_AVATARS,
-  BOT_ROLES,
-  BOT_SAMPLE_POSTS,
-  getBotCanonicalName,
-  isBotName,
-} from "@/src/constants/bots";
 
 const FIRST_ROAR_BADGE_SRC = "/images/badges/postl1.png";
 const toBadgeImageSrc = (imageUrl: string) => {
@@ -1825,6 +1824,7 @@ export default function Profile({
   const [fanMatchOpen, setFanMatchOpen] = useState(false);
 
   const [editName, setEditName] = useState("");
+  const [editUniversity, setEditUniversity] = useState("");
   const [editFavPlayer, setEditFavPlayer] = useState("");
   const [editAbout, setEditAbout] = useState("");
   const [editShowPredHistory, setEditShowPredHistory] = useState(true);
@@ -1880,6 +1880,7 @@ export default function Profile({
                   ...apiUser,
                   avatarUrl: backendAvatar || apiUser.avatarUrl || prev?.user?.avatarUrl,
                   username: resolved || apiUser.username,
+                  university: apiUser.university || apiUser.institution || prev?.user?.university || prev?.user?.institution || "",
                 },
                 predictions: res.data.predictions ?? apiUser.predictions ?? prev?.predictions ?? [],
                 hotTakes: res.data.hotTakes ?? apiUser.hotTakes ?? prev?.hotTakes ?? [],
@@ -1887,6 +1888,9 @@ export default function Profile({
                 posts: res.data.posts ?? apiUser.posts ?? prev?.posts ?? [],
               };
             });
+            if (apiUser.university || apiUser.institution) {
+              setEditUniversity(apiUser.university || apiUser.institution);
+            }
             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
             if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
@@ -2246,6 +2250,7 @@ export default function Profile({
             });
             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
             if (initialName) setEditName(initialName);
+            setEditUniversity(res.data.user?.university ?? res.data.user?.institution ?? "");
             setEditFavPlayer(res.data.user?.favPlayer ?? "");
             setEditAbout(res.data.user?.about ?? "");
             setEditShowPredHistory(res.data.user?.showPredHistory !== false);
@@ -2296,6 +2301,7 @@ export default function Profile({
           if (fanData.badge) setUserBadge(fanData.badge);
           if (backendAvatar) setSelectedAvatar(backendAvatar);
           if (fanData.coverPhotoUrl) setCoverPhoto(fanData.coverPhotoUrl);
+          setEditUniversity(fanData.university ?? fanData.institution ?? "");
 
           const uid = fanData.actualUserId || fanData.userId;
           if (uid) await fetchActivities(uid);
@@ -2334,6 +2340,7 @@ export default function Profile({
             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
             if (backendAvatar) setSelectedAvatar(backendAvatar);
             if (res.data.user?.coverPhotoUrl) setCoverPhoto(res.data.user.coverPhotoUrl);
+            setEditUniversity(res.data.user?.university ?? res.data.user?.institution ?? "");
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
@@ -2886,6 +2893,11 @@ export default function Profile({
                 : (globalTier?.label || BADGE_LABELS[userBadge] || "Chant I")}
             </p>
 
+            {(user.university || user.institution || editUniversity) && (
+              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
+                University / Institution: <strong style={{ color: "#fff" }}>{user.university || user.institution || editUniversity}</strong>
+              </p>
+            )}
             {(user.favPlayer || editFavPlayer) && (
               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
                 Favourite player: <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
@@ -4005,6 +4017,8 @@ export default function Profile({
               </div>
               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Display name</label>
               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} />
+              <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>University / Institution</label>
+              <input type="text" value={editUniversity} onChange={(e) => setEditUniversity(e.target.value)} placeholder="e.g. Oxford University / MIT" style={inputStyle} />
               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Favourite player</label>
               <input type="text" value={editFavPlayer} onChange={(e) => setEditFavPlayer(e.target.value)} placeholder="e.g. Rohit Sharma" style={inputStyle} />
               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>About me (140 chars)</label>
@@ -4041,13 +4055,15 @@ export default function Profile({
               ))}
               <motion.button whileTap={{ scale: 0.97 }} className="btn-gradient"
                 onClick={async () => {
-                  setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
+                  setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, university: editUniversity, institution: editUniversity, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
                   setEditOpen(false);
                   onToast("Profile updated successfully");
                   try { localStorage.setItem("roar_username", editName); } catch { }
                   try {
                     await axios.patch("/api/roar/profile", {
                       username: editName,
+                      university: editUniversity,
+                      institution: editUniversity,
                       favPlayer: editFavPlayer,
                       about: editAbout,
                       showPredHistory: editShowPredHistory,

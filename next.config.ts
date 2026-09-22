@@ -205,6 +205,13 @@ const nextConfig = {
           destination: `${apiTarget}/api/profile/:path*`,
         },
 
+        // Engagements (Fan Battle, Quiz, Polls, Predictions)
+        { source: "/api/engagements", destination: `${apiTarget}/api/engagements` },
+        {
+          source: "/api/engagements/:path*",
+          destination: `${apiTarget}/api/engagements/:path*`,
+        },
+
         //Notifications
         {
           source: "/api/notifications",
