@@ -31,6 +31,29 @@ function PostHogPageView() {
       posthog.capture('$pageview', {
         $current_url: url,
       });
+
+      // L1 KPI: Routing - Track Reaching Recommended Features
+      const recommendedFeatures: Record<string, string> = {
+        '/MainModules/ROAR': 'ROAR',
+        '/MainModules/WatchAlong': 'WatchAlong',
+        '/MainModules/AtheletePlaybook': 'Playbook',
+        '/MainModules/Store': 'Store',
+        '/MainModules/Matchcenter': 'Matchcenter',
+        '/MainModules/FanBattle': 'FanBattle',
+        '/MainModules/FlipLine': 'FlipLine',
+        '/MainModules/FlipArena': 'FlipArena',
+      };
+
+      for (const [route, featName] of Object.entries(recommendedFeatures)) {
+        if (pathname.startsWith(route)) {
+          posthog.capture('recommended_feature_visited', {
+            feature_name: featName,
+            route: pathname,
+            $current_url: url,
+          });
+          break;
+        }
+      }
     }
   }, [pathname, searchParams, posthog]);
 
