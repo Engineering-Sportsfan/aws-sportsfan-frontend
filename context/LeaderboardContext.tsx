@@ -17,6 +17,7 @@ export interface LeaderboardUser {
   userEmail: string;
   totalPoints: number;
   rank: number;
+  userHandle: string;
 }
 
 interface LeaderboardContextType {
@@ -198,7 +199,7 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
           if (typeof window !== "undefined") {
             try {
               localStorage.setItem("user_points", String(pts));
-            } catch {}
+            } catch { }
           }
           return entry;
         }
@@ -224,7 +225,7 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
               if (typeof window !== "undefined") {
                 try {
                   localStorage.setItem("user_points", String(numPts));
-                } catch {}
+                } catch { }
               }
               return entry;
             }
@@ -265,7 +266,7 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
           if (typeof window !== "undefined") {
             try {
               localStorage.setItem("user_points", String(pts));
-            } catch {}
+            } catch { }
           }
         }
         return leaderboardCache.data;
@@ -295,7 +296,7 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
             if (typeof window !== "undefined") {
               try {
                 localStorage.setItem("user_points", String(pts));
-              } catch {}
+              } catch { }
             }
           }
 
@@ -311,7 +312,7 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
     [user]
   );
 
-  
+
   // ── Main orchestrator ───────────────────────────────────────────────────────
   const fetchGlobalLeaderboard = useCallback(async () => {
     const userId = resolveUserId(user);
@@ -340,60 +341,60 @@ export const LeaderboardProvider: React.FC<{ children: React.ReactNode }> = ({
     fetchFullLeaderboard(userId);
   }, [user, fetchCurrentUser, fetchFullLeaderboard]);
 
-  
-const refreshLeaderboard = useCallback(async () => {
-  // Clear both caches so the next fetch always hits the network
-  leaderboardCache = null;
-  const userId = resolveUserId(user);
-  if (userId) USER_CACHE.delete(userId);
-  
-  await fetchGlobalLeaderboard();
-}, [user, fetchGlobalLeaderboard]);
 
-const addLocalPoints = useCallback((points: number) => {
-  const userId = resolveUserId(user);
-  if (!points) return;
-  const delta = Number(points) || 0;
+  const refreshLeaderboard = useCallback(async () => {
+    // Clear both caches so the next fetch always hits the network
+    leaderboardCache = null;
+    const userId = resolveUserId(user);
+    if (userId) USER_CACHE.delete(userId);
 
-  setCurrentUserPoints((prev) => {
-    const next = (Number(prev) || 0) + delta;
+    await fetchGlobalLeaderboard();
+  }, [user, fetchGlobalLeaderboard]);
+
+  const addLocalPoints = useCallback((points: number) => {
+    const userId = resolveUserId(user);
+    if (!points) return;
+    const delta = Number(points) || 0;
+
+    setCurrentUserPoints((prev) => {
+      const next = (Number(prev) || 0) + delta;
+      if (userId) {
+        const cached = USER_CACHE.get(userId);
+        USER_CACHE.set(userId, {
+          ts: Date.now(),
+          points: next,
+          rank: cached?.rank ?? currentUserRank ?? 0,
+        });
+      }
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("user_points", String(next));
+        } catch { }
+      }
+      return next;
+    });
+
     if (userId) {
-      const cached = USER_CACHE.get(userId);
-      USER_CACHE.set(userId, {
-        ts: Date.now(),
-        points: next,
-        rank: cached?.rank ?? currentUserRank ?? 0,
-      });
-    }
-    if (typeof window !== "undefined") {
-      try {
-        localStorage.setItem("user_points", String(next));
-      } catch {}
-    }
-    return next;
-  });
-
-  if (userId) {
-    setLeaderboard((prev) =>
-      prev.map((entry) =>
-        isLeaderboardMatch(entry, user, userId)
-          ? { ...entry, totalPoints: (Number(entry.totalPoints) || 0) + delta }
-          : entry
-      )
-    );
-
-    if (leaderboardCache) {
-      leaderboardCache = {
-        ts: Date.now(),
-        data: leaderboardCache.data.map((entry) =>
+      setLeaderboard((prev) =>
+        prev.map((entry) =>
           isLeaderboardMatch(entry, user, userId)
             ? { ...entry, totalPoints: (Number(entry.totalPoints) || 0) + delta }
             : entry
-        ),
-      };
+        )
+      );
+
+      if (leaderboardCache) {
+        leaderboardCache = {
+          ts: Date.now(),
+          data: leaderboardCache.data.map((entry) =>
+            isLeaderboardMatch(entry, user, userId)
+              ? { ...entry, totalPoints: (Number(entry.totalPoints) || 0) + delta }
+              : entry
+          ),
+        };
+      }
     }
-  }
-}, [currentUserRank, user]);
+  }, [currentUserRank, user]);
 
   // Listen for external points updates (e.g. from quizzes, predictions, or posts)
   useEffect(() => {
@@ -407,7 +408,7 @@ const addLocalPoints = useCallback((points: number) => {
         if (typeof window !== "undefined") {
           try {
             localStorage.setItem("user_points", String(total));
-          } catch {}
+          } catch { }
         }
       }
     };
