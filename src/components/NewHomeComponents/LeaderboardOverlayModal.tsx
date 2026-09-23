@@ -25,7 +25,7 @@
 // } from "@/src/components/NewROARComponent/constants";
 // import axios from "axios";
 
-// export type LeaderboardTab = "global" | "fliparena" | "roar" | "campus";
+// export type LeaderboardTab = "fliparena" | "global" | "roar" | "campus";
 
 // interface LeaderboardOverlayModalProps {
 //   isOpen: boolean;
@@ -41,8 +41,8 @@
 //   activeBg: string;
 //   dotColor: string;
 // }[] = [
-//     { id: "global", label: "Global", icon: Sparkles, color: "text-rose-400", activeBg: "bg-rose-500", dotColor: "bg-rose-500" },
 //     { id: "fliparena", label: "FlipARENA", icon: Brain, color: "text-amber-400", activeBg: "bg-amber-500", dotColor: "bg-amber-500" },
+//     { id: "global", label: "Global", icon: Sparkles, color: "text-rose-400", activeBg: "bg-rose-500", dotColor: "bg-rose-500" },
 //     { id: "roar", label: "RoAR", icon: Flame, color: "text-orange-400", activeBg: "bg-orange-500", dotColor: "bg-orange-500" },
 //     { id: "campus", label: "Campus", icon: GraduationCap, color: "text-emerald-400", activeBg: "bg-emerald-500", dotColor: "bg-emerald-500" },
 //   ];
@@ -1519,7 +1519,7 @@ import {
 } from "@/src/components/NewROARComponent/constants";
 import axios from "axios";
 
-export type LeaderboardTab = "global" | "fliparena" | "roar" | "campus";
+export type LeaderboardTab = "fliparena" | "global" | "roar" | "campus";
 
 interface LeaderboardOverlayModalProps {
   isOpen: boolean;
@@ -1535,8 +1535,8 @@ export const TABS: {
   activeBg: string;
   dotColor: string;
 }[] = [
-    { id: "global", label: "Global", icon: Sparkles, color: "text-rose-400", activeBg: "bg-rose-500", dotColor: "bg-rose-500" },
     { id: "fliparena", label: "FlipARENA", icon: Brain, color: "text-amber-400", activeBg: "bg-amber-500", dotColor: "bg-amber-500" },
+    { id: "global", label: "Global", icon: Sparkles, color: "text-rose-400", activeBg: "bg-rose-500", dotColor: "bg-rose-500" },
     { id: "roar", label: "RoAR", icon: Flame, color: "text-orange-400", activeBg: "bg-orange-500", dotColor: "bg-orange-500" },
     { id: "campus", label: "Campus", icon: GraduationCap, color: "text-emerald-400", activeBg: "bg-emerald-500", dotColor: "bg-emerald-500" },
   ];
@@ -1604,7 +1604,7 @@ export interface CampusEntry {
 export default function LeaderboardOverlayModal({
   isOpen,
   onClose,
-  initialTab = "global",
+  initialTab = "fliparena",
 }: LeaderboardOverlayModalProps) {
   const { user } = useAuth();
   const router = useRouter();
@@ -1619,7 +1619,7 @@ export default function LeaderboardOverlayModal({
     if (targetUser) {
       router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
     } else {
-      router.push("/MainModules/ROAR");
+      router.push("/MainModules/HomePage");
     }
   };
   const { leaderboard: globalLeaderboard, currentUserRank, currentUserPoints, loading: globalLoading, refreshLeaderboard } = useLeaderboard();
@@ -2212,7 +2212,7 @@ export default function LeaderboardOverlayModal({
                 <div className="flex items-center gap-2">
                   <h2 className="text-base font-black tracking-tight text-white">Leaderboards</h2>
                 </div>
-                <p className="text-[11px] text-white/40 font-medium">Rankings across Global, FlipARENA, RoAR & Campus</p>
+                <p className="text-[11px] text-white/40 font-medium">Rankings across FlipARENA, Global, RoAR & Campus</p>
               </div>
             </div>
 
@@ -2292,10 +2292,10 @@ export default function LeaderboardOverlayModal({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={
-                  activeTab === "global"
-                    ? "Search fans across global ranks..."
-                    : activeTab === "fliparena"
-                      ? "Search FlipARENA champions..."
+                  activeTab === "fliparena"
+                    ? "Search FlipARENA champions..."
+                    : activeTab === "global"
+                      ? "Search fans across global ranks..."
                       : activeTab === "roar"
                         ? "Search RoAR predictors..."
                         : "Search colleges & universities..."
@@ -2344,171 +2344,7 @@ export default function LeaderboardOverlayModal({
                 transition={{ duration: 0.16, ease: "easeOut" }}
                 className="space-y-4"
               >
-                {/* ══════════════════ TAB 1: GLOBAL LEADERBOARD ══════════════════ */}
-                {activeTab === "global" && (
-                  <div className="space-y-4">
-                    {/* User Current Standing Card */}
-                    <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/40 via-[#141824] to-purple-950/40 border border-rose-500/25 flex flex-col gap-2.5 shadow-lg">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-600 to-orange-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20 shrink-0">
-                            <Trophy size={18} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs sm:text-sm font-black text-white whitespace-normal max-w-[140px] xs:max-w-[190px] sm:max-w-none">
-                                {currentUserName || "Your Profile"}
-                              </span>
-                              <span className="text-[9px] font-black text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 shrink-0 whitespace-nowrap">
-                                LVL {levelInfo.level}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-white/40 mt-0.5 whitespace-nowrap">Global Fan Standing</p>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0 bg-white/[0.03] px-2.5 py-1.5 rounded-xl border border-white/[0.05]">
-                          <span className="text-[9px] font-bold text-white/40 block leading-none">Next Level in</span>
-                          <span className="text-xs font-black text-amber-400 whitespace-nowrap leading-tight mt-0.5 block">
-                            +{levelInfo.xpRemaining.toLocaleString()} SXP
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.06]">
-                        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-                          <span className="text-[10px] font-bold text-white/40 uppercase">Rank</span>
-                          <span className="text-xs font-black text-white whitespace-nowrap">
-                            #{currentRank > 0 ? currentRank : "—"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
-                          <span className="text-[10px] font-bold text-rose-300/70 uppercase">Total SXP</span>
-                          <span className="text-xs font-black text-rose-400 whitespace-nowrap">
-                            {currentPoints.toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Top 3 Podium (Global) */}
-                    {!searchQuery && filteredGlobal.length >= 3 && (
-                      <div className="grid grid-cols-3 gap-2 pt-1">
-                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-slate-400/10 via-slate-500/5 to-transparent border border-slate-300/20 text-center relative min-w-0">
-                          <span className="text-base sm:text-lg mb-0.5 sm:mb-1">🥈</span>
-                          <span className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight">
-                            {filteredGlobal[1]?.userName}
-                          </span>
-                          <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 mt-1 shrink-0 whitespace-nowrap">
-                            {filteredGlobal[1]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-500/20 via-yellow-500/10 to-transparent border border-amber-500/40 text-center relative -mt-2 shadow-[0_0_20px_rgba(245,158,11,0.15)] min-w-0">
-                          <div className="flex items-center gap-1 text-lg sm:text-xl mb-0.5 sm:mb-1">
-                            <Crown size={15} className="text-amber-400" />
-                            <span>🥇</span>
-                          </div>
-                          <span className="text-[11px] sm:text-xs font-black text-amber-300 break-words line-clamp-1 text-center w-full leading-tight">
-                            {filteredGlobal[0]?.userName}
-                          </span>
-                          <span className="text-[11px] sm:text-xs font-black text-amber-400 mt-1 shrink-0 whitespace-nowrap">
-                            {filteredGlobal[0]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-amber-500">SXP</span>
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-700/10 via-amber-800/5 to-transparent border border-amber-700/30 text-center relative min-w-0">
-                          <span className="text-base sm:text-lg mb-0.5 sm:mb-1">🥉</span>
-                          <span className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight">
-                            {filteredGlobal[2]?.userName}
-                          </span>
-                          <span className="text-[10px] sm:text-[11px] font-bold text-amber-300/80 mt-1 shrink-0 whitespace-nowrap">
-                            {filteredGlobal[2]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Ranked List */}
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
-                        <span>Rank & Fan</span>
-                        <span>Total SXP</span>
-                      </div>
-
-                      {globalLoading && filteredGlobal.length === 0 ? (
-                        <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
-                          <RotateCw size={18} className="animate-spin text-rose-500" />
-                          <span>Loading Global Rankings...</span>
-                        </div>
-                      ) : filteredGlobal.length === 0 ? (
-                        <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
-                          No fans matched your search query.
-                        </div>
-                      ) : (
-                        filteredGlobal.map((fan, idx) => {
-                          const rank = fan.rank || idx + 1;
-                          const isMe =
-                            (activeUserId && (fan.userId === activeUserId || fan.userEmail === activeUserId)) ||
-                            (fan.userName && currentUserName && fan.userName.toLowerCase() === currentUserName.toLowerCase());
-
-                          return (
-                            <div
-                              key={fan.userId || idx}
-                              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${isMe
-                                ? "bg-rose-500/10 border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.2)]"
-                                : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
-                                }`}
-                            >
-                              <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <span
-                                  className={`text-xs font-black w-6 text-center shrink-0 ${rank === 1
-                                    ? "text-amber-400"
-                                    : rank === 2
-                                      ? "text-slate-300"
-                                      : rank === 3
-                                        ? "text-amber-600"
-                                        : "text-white/40"
-                                    }`}
-                                >
-                                  #{rank}
-                                </span>
-                                <div className="min-w-0 flex-1 pr-2">
-                                  {/* <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
-                                    <span className="break-words">{fan.userName || "Fan"}</span> */}
-                                  <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
-                                    <span
-                                      onClick={() => handleOpenUserProfile(fan.userId, fan.userHandle, fan.userName)}
-                                      className="break-words cursor-pointer hover:text-rose-300 hover:underline transition-colors"
-                                    >
-                                      {fan.userName || "Fan"}
-                                    </span>
-                                    {isMe && (
-                                      <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
-                                        YOU
-                                      </span>
-                                    )}
-                                  </p>
-                                  <p className="text-[10px] text-white/40 mt-0.5">Rank #{rank}</p>
-                                </div>
-                              </div>
-
-                              <div className="text-right shrink-0">
-                                <span className="text-xs font-black text-rose-400">
-                                  {fan.totalPoints?.toLocaleString()}
-                                </span>
-                                <span className="text-[10px] font-bold text-white/40 ml-1">SXP</span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* ══════════════════ TAB 2: FLIPARENA LEADERBOARD ══════════════════ */}
+                {/* ══════════════════ TAB 1: FLIPARENA LEADERBOARD ══════════════════ */}
                 {activeTab === "fliparena" && (
                   <div className="space-y-4">
                     {/* User Standing in FlipARENA */}
@@ -2708,6 +2544,172 @@ export default function LeaderboardOverlayModal({
                     </div>
                   </div>
                 )}
+
+                {/* ══════════════════ TAB 2: GLOBAL LEADERBOARD ══════════════════ */}
+                {activeTab === "global" && (
+                  <div className="space-y-4">
+                    {/* User Current Standing Card */}
+                    <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/40 via-[#141824] to-purple-950/40 border border-rose-500/25 flex flex-col gap-2.5 shadow-lg">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-600 to-orange-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20 shrink-0">
+                            <Trophy size={18} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs sm:text-sm font-black text-white whitespace-normal max-w-[140px] xs:max-w-[190px] sm:max-w-none">
+                                {currentUserName || "Your Profile"}
+                              </span>
+                              <span className="text-[9px] font-black text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 shrink-0 whitespace-nowrap">
+                                LVL {levelInfo.level}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-white/40 mt-0.5 whitespace-nowrap">Global Fan Standing</p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 bg-white/[0.03] px-2.5 py-1.5 rounded-xl border border-white/[0.05]">
+                          <span className="text-[9px] font-bold text-white/40 block leading-none">Next Level in</span>
+                          <span className="text-xs font-black text-amber-400 whitespace-nowrap leading-tight mt-0.5 block">
+                            +{levelInfo.xpRemaining.toLocaleString()} SXP
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.06]">
+                        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                          <span className="text-[10px] font-bold text-white/40 uppercase">Rank</span>
+                          <span className="text-xs font-black text-white whitespace-nowrap">
+                            #{currentRank > 0 ? currentRank : "—"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
+                          <span className="text-[10px] font-bold text-rose-300/70 uppercase">Total SXP</span>
+                          <span className="text-xs font-black text-rose-400 whitespace-nowrap">
+                            {currentPoints.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Top 3 Podium (Global) */}
+                    {!searchQuery && filteredGlobal.length >= 3 && (
+                      <div className="grid grid-cols-3 gap-2 pt-1">
+                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-slate-400/10 via-slate-500/5 to-transparent border border-slate-300/20 text-center relative min-w-0">
+                          <span className="text-base sm:text-lg mb-0.5 sm:mb-1">🥈</span>
+                          <span className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight">
+                            {filteredGlobal[1]?.userName}
+                          </span>
+                          <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 mt-1 shrink-0 whitespace-nowrap">
+                            {filteredGlobal[1]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-500/20 via-yellow-500/10 to-transparent border border-amber-500/40 text-center relative -mt-2 shadow-[0_0_20px_rgba(245,158,11,0.15)] min-w-0">
+                          <div className="flex items-center gap-1 text-lg sm:text-xl mb-0.5 sm:mb-1">
+                            <Crown size={15} className="text-amber-400" />
+                            <span>🥇</span>
+                          </div>
+                          <span className="text-[11px] sm:text-xs font-black text-amber-300 break-words line-clamp-1 text-center w-full leading-tight">
+                            {filteredGlobal[0]?.userName}
+                          </span>
+                          <span className="text-[11px] sm:text-xs font-black text-amber-400 mt-1 shrink-0 whitespace-nowrap">
+                            {filteredGlobal[0]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-amber-500">SXP</span>
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-700/10 via-amber-800/5 to-transparent border border-amber-700/30 text-center relative min-w-0">
+                          <span className="text-base sm:text-lg mb-0.5 sm:mb-1">🥉</span>
+                          <span className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight">
+                            {filteredGlobal[2]?.userName}
+                          </span>
+                          <span className="text-[10px] sm:text-[11px] font-bold text-amber-300/80 mt-1 shrink-0 whitespace-nowrap">
+                            {filteredGlobal[2]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ranked List */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
+                        <span>Rank & Fan</span>
+                        <span>Total SXP</span>
+                      </div>
+
+                      {globalLoading && filteredGlobal.length === 0 ? (
+                        <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
+                          <RotateCw size={18} className="animate-spin text-rose-500" />
+                          <span>Loading Global Rankings...</span>
+                        </div>
+                      ) : filteredGlobal.length === 0 ? (
+                        <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
+                          No fans matched your search query.
+                        </div>
+                      ) : (
+                        filteredGlobal.map((fan, idx) => {
+                          const rank = fan.rank || idx + 1;
+                          const isMe =
+                            (activeUserId && (fan.userId === activeUserId || fan.userEmail === activeUserId)) ||
+                            (fan.userName && currentUserName && fan.userName.toLowerCase() === currentUserName.toLowerCase());
+
+                          return (
+                            <div
+                              key={fan.userId || idx}
+                              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${isMe
+                                ? "bg-rose-500/10 border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.2)]"
+                                : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
+                                }`}
+                            >
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <span
+                                  className={`text-xs font-black w-6 text-center shrink-0 ${rank === 1
+                                    ? "text-amber-400"
+                                    : rank === 2
+                                      ? "text-slate-300"
+                                      : rank === 3
+                                        ? "text-amber-600"
+                                        : "text-white/40"
+                                    }`}
+                                >
+                                  #{rank}
+                                </span>
+                                <div className="min-w-0 flex-1 pr-2">
+                                  {/* <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
+                                    <span className="break-words">{fan.userName || "Fan"}</span> */}
+                                  <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
+                                    <span
+                                      onClick={() => handleOpenUserProfile(fan.userId, fan.userHandle, fan.userName)}
+                                      className="break-words cursor-pointer hover:text-rose-300 hover:underline transition-colors"
+                                    >
+                                      {fan.userName || "Fan"}
+                                    </span>
+                                    {isMe && (
+                                      <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
+                                        YOU
+                                      </span>
+                                    )}
+                                  </p>
+                                  <p className="text-[10px] text-white/40 mt-0.5">Rank #{rank}</p>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="text-xs font-black text-rose-400">
+                                  {fan.totalPoints?.toLocaleString()}
+                                </span>
+                                <span className="text-[10px] font-bold text-white/40 ml-1">SXP</span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                
 
                 {/* ══════════════════ TAB 3: ROAR LEADERBOARD ══════════════════ */}
                 {activeTab === "roar" && (

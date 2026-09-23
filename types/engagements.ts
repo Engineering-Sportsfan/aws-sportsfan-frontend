@@ -15,6 +15,8 @@ export interface FanBattlePayload {
   leftCompetitor: Competitor;
   rightCompetitor: Competitor;
   totalVotes: number;
+  startTime?: number | string;
+  scheduledStartTime?: number | string;
 }
 
 // ─── 2. Quiz ───────────────────────────────────────────────────────────────
@@ -61,6 +63,8 @@ export interface PollPayload {
   durationMinutes?: number;
   timerMinutes?: number;
   expiresAt?: number;
+  startTime?: number | string;
+  scheduledStartTime?: number | string;
 }
 
 // ─── 4. Prediction ─────────────────────────────────────────────────────────
@@ -84,6 +88,8 @@ export interface PredictionPayload {
   durationMinutes?: number;
   timerMinutes?: number;
   expiresAt?: number;
+  startTime?: number | string;
+  scheduledStartTime?: number | string;
 }
 
 // ─── Universal Engagement Entity ──────────────────────────────────────────
@@ -95,7 +101,9 @@ export interface EngagementItem {
   tags?: string[]; // e.g. ["⚔️ FAN BATTLE", "🔥 TRENDING"] or ["💬 QUIZ", "⭐ 50 PTS"]
   sport?: string; // "cricket" | "football" | "athletics" | "general"
   status: EngagementStatus;
-  
+  startTime?: number | string;
+  scheduledStartTime?: number | string;
+
   // Specific data payloads
   fanBattleData?: FanBattlePayload;
   quizData?: QuizPayload;
@@ -179,3 +187,17 @@ export interface ShareResponse {
   sharesCount: number;
   totalEngaged: number;
 }
+
+export interface CheckVoteStatusResponse {
+  hasVoted: boolean;
+  selectedOptionId: string | null;
+  vote?: any;
+  isExpired?: boolean;
+  isCorrect?: boolean | null;
+  accuracyBonusAwarded?: boolean;
+  wonBonusPoints?: number;
+  newlyAwarded?: boolean;
+  correctAnswer?: string | null;
+  winningChoiceId?: string | null;
+}
+

@@ -1,14 +1,10 @@
 // "use client";
 
-// import React, { useState, useEffect, useCallback, useRef } from "react";
+// import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 // import { useAuth } from "@/context/AuthContext";
 // import { Poll } from "@/types/Polls";
 // import { EngagementItem, EngagementType, QuizOption } from "@/types/engagements";
 // import { engagementService } from "@/services/engagement.service";
-// import PollsSection from "@/src/components/Polls-component/PollsSection";
-// import PredictionCard from "@/src/components/Prediction-component/PredictionCard";
-// import ChallengesSection from "@/src/components/FanBattle-Component/Challengessection";
-// import FanBattleCard from "@/src/components/FanBattle-Component/Fanbattlearena";
 // import {
 //   ArrowLeft,
 //   Heart,
@@ -30,6 +26,7 @@
 //   ChevronRight,
 //   X,
 //   RefreshCw,
+//   Lock,
 // } from "lucide-react";
 // import { motion, AnimatePresence } from "framer-motion";
 // import LeaderboardOverlayModal from "@/src/components/NewHomeComponents/LeaderboardOverlayModal";
@@ -42,44 +39,84 @@
 //   isPreview?: boolean;
 // }
 
-// interface UserQuizQuestion {
-//   id: string;
-//   question: string;
-//   optionA: string;
-//   optionB: string;
-//   optionC: string;
-//   optionD: string;
-//   correctOptionId: "A" | "B" | "C" | "D";
-//   pointsReward: number;
-//   explanation: string;
+// // ─── Time Helper Utilities ──────────────────────────────────────────────────
+// function formatCountdown(ms: number): string {
+//   if (ms <= 0) return "00:00";
+//   const totalSecs = Math.floor(ms / 1000);
+//   const hours = Math.floor(totalSecs / 3600);
+//   const mins = Math.floor((totalSecs % 3600) / 60);
+//   const secs = totalSecs % 60;
+//   if (hours > 0) {
+//     return `${hours}h ${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
+//   }
+//   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 // }
 
-// // ─── Initial Fallback Seed Engagements ──────────────────────────────────────
-// const FALLBACK_ENGAGEMENTS: EngagementItem[] = [];
+// function getEngagementStartTime(item: EngagementItem): number {
+//   return Number(
+//     item.quizData?.startTime ||
+//     item.quizData?.scheduledStartTime ||
+//     item.pollData?.startTime ||
+//     item.pollData?.scheduledStartTime ||
+//     item.predictionData?.startTime ||
+//     item.predictionData?.scheduledStartTime ||
+//     item.fanBattleData?.startTime ||
+//     item.fanBattleData?.scheduledStartTime ||
+//     item.startTime ||
+//     item.scheduledStartTime ||
+//     item.createdAt ||
+//     0
+//   );
+// }
+
+// // ─── Single-Vote Local Persistence Helpers (Survives Refresh & Login/Logout) ──
+// function getStoredVote(type: string, itemId: string, userId?: string): any {
+//   if (typeof window === "undefined") return null;
+//   try {
+//     if (userId) {
+//       const u = localStorage.getItem(`sf_${type}_voted_${itemId}_${userId}`);
+//       if (u) return JSON.parse(u);
+//     }
+//     const d = localStorage.getItem(`sf_${type}_voted_${itemId}`);
+//     if (d) return JSON.parse(d);
+//   } catch {}
+//   return null;
+// }
+
+// function setStoredVote(type: string, itemId: string, data: any, userId?: string) {
+//   if (typeof window === "undefined") return;
+//   try {
+//     const serialized = JSON.stringify(data);
+//     localStorage.setItem(`sf_${type}_voted_${itemId}`, serialized);
+//     if (userId) {
+//       localStorage.setItem(`sf_${type}_voted_${itemId}_${userId}`, serialized);
+//     }
+//   } catch {}
+// }
 
 // // ─── 1. Fan Battle Card Component ───────────────────────────────────────────
 // function DynamicFanBattleCard({
 //   item,
 //   userId,
+//   now,
 //   onToast,
 //   onEdit,
 // }: {
 //   item: EngagementItem;
 //   userId?: string;
+//   now: number;
 //   onToast: (msg: string) => void;
 //   onEdit?: (item: EngagementItem) => void;
 // }) {
-//   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(null);
+//   const initialStored = getStoredVote("fb", item.id, userId);
+//   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(
+//     initialStored?.side || (item.userVote as "left" | "right") || null
+//   );
 //   const [loading, setLoading] = useState(false);
 //   const [liked, setLiked] = useState(false);
 //   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
 //   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
 //   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-//   const [result, setResult] = useState<{
-//     leftPercentage: number;
-//     rightPercentage: number;
-//     totalVotes: number;
-//   } | null>(null);
 
 //   const left = item.fanBattleData?.leftCompetitor || {
 //     code: "IN",
@@ -95,7 +132,29 @@
 //     votes: 0,
 //   };
 
-//   // Check like state and vote status from Database / API
+//   const [result, setResult] = useState<{
+//     leftPercentage: number;
+//     rightPercentage: number;
+//     totalVotes: number;
+//   } | null>(() => {
+//     const s = initialStored?.side || (item.userVote as "left" | "right");
+//     if (!s) return null;
+//     const lVotes = left.votes || 0;
+//     const rVotes = right.votes || 0;
+//     const total = lVotes + rVotes + 1;
+//     const leftV = lVotes + (s === "left" ? 1 : 0);
+//     const leftPct = Math.round((leftV / total) * 100);
+//     return {
+//       leftPercentage: leftPct,
+//       rightPercentage: 100 - leftPct,
+//       totalVotes: total,
+//     };
+//   });
+
+//   const startTime = getEngagementStartTime(item);
+//   const isScheduled = startTime > now;
+//   const timeToStartMs = Math.max(0, startTime - now);
+
 //   useEffect(() => {
 //     if (item.userLiked) {
 //       setLiked(true);
@@ -105,9 +164,23 @@
 //       });
 //     }
 
+//     const stored = getStoredVote("fb", item.id, userId);
+//     if (stored?.side) {
+//       setSelectedSide(stored.side);
+//       const total = (left.votes || 0) + (right.votes || 0) || 1;
+//       const leftV = (left.votes || 0) + (stored.side === "left" ? 1 : 0);
+//       const leftPct = Math.round((leftV / total) * 100);
+//       setResult({
+//         leftPercentage: leftPct,
+//         rightPercentage: 100 - leftPct,
+//         totalVotes: total,
+//       });
+//     }
+
 //     if (item.userVoted && item.userVote) {
 //       const side = item.userVote as "left" | "right";
 //       setSelectedSide(side);
+//       setStoredVote("fb", item.id, { side }, userId);
 //       const total = (left.votes || 0) + (right.votes || 0) || 1;
 //       const leftPct = Math.round(((left.votes || 0) / total) * 100);
 //       setResult({
@@ -120,6 +193,7 @@
 //         if (res.hasVoted && res.selectedOptionId) {
 //           const side = res.selectedOptionId as "left" | "right";
 //           setSelectedSide(side);
+//           setStoredVote("fb", item.id, { side }, userId);
 //           const total = (left.votes || 0) + (right.votes || 0) || 1;
 //           const leftPct = Math.round(((left.votes || 0) / total) * 100);
 //           setResult({
@@ -133,9 +207,17 @@
 //   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, left.votes, right.votes]);
 
 //   const handleVote = async (side: "left" | "right") => {
-//     if (selectedSide || loading) return;
+//     if (isScheduled) {
+//       onToast(`This battle starts in ${formatCountdown(timeToStartMs)}!`);
+//       return;
+//     }
+//     if (selectedSide || loading || getStoredVote("fb", item.id, userId)) {
+//       onToast("You have already voted in this battle!");
+//       return;
+//     }
 //     setSelectedSide(side);
 //     setLoading(true);
+//     setStoredVote("fb", item.id, { side }, userId);
 //     setTotalEngaged((prev) => prev + 1);
 
 //     try {
@@ -146,6 +228,10 @@
 //         totalVotes: res?.totalVotes ?? (left.votes + right.votes + 1),
 //       };
 //       setResult(calculatedResult);
+//       onToast("+2 PTS earned for voting in Fan Battle! ⚔️");
+//       if (typeof window !== "undefined") {
+//         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
+//       }
 //     } catch (err: any) {
 //       const prevOption = (err?.response?.data?.selectedOptionId || side) as "left" | "right";
 //       const total = (left.votes || 0) + (right.votes || 0) + 1;
@@ -207,31 +293,39 @@
 //         <div className="flex items-center gap-1.5">
 //           <span className="text-[#FF3D57]">⚔️ FAN BATTLE</span>
 //           <span>•</span>
-//           <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 TRENDING</span>
+//           <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 +2 PTS / VOTE</span>
+//           {isScheduled && (
+//             <>
+//               <span>•</span>
+//               <span className="text-amber-400 flex items-center gap-1 font-mono">
+//                 <Clock size={10} /> STARTS IN {formatCountdown(timeToStartMs)}
+//               </span>
+//             </>
+//           )}
 //         </div>
 //         <div className="flex items-center gap-2">
 //           <span>{formattedTime}</span>
-//           {/* {onEdit && (
-//             <button
-//               onClick={() => onEdit(item)}
-//               title="Edit Fan Battle"
-//               className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.12] text-white/60 hover:text-white transition-all cursor-pointer"
-//             >
-//               <Pencil size={12} />
-//             </button>
-//           )} */}
 //         </div>
 //       </div>
 
 //       <h3 className="text-sm font-black mb-4">{item.title}</h3>
 
+//       {isScheduled && (
+//         <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center gap-2 text-xs font-black text-amber-300">
+//           <Lock size={13} />
+//           <span>Event scheduled · Voting opens in {formatCountdown(timeToStartMs)}</span>
+//         </div>
+//       )}
+
 //       <div className="grid grid-cols-7 items-center gap-3 mb-4">
 //         {/* Left Competitor */}
 //         <button
 //           onClick={() => handleVote("left")}
-//           disabled={loading || selectedSide !== null}
+//           disabled={loading || selectedSide !== null || isScheduled}
 //           className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${
-//             selectedSide === "left"
+//             isScheduled
+//               ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
+//               : selectedSide === "left"
 //               ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
 //               : selectedSide === "right"
 //               ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
@@ -262,9 +356,11 @@
 //         {/* Right Competitor */}
 //         <button
 //           onClick={() => handleVote("right")}
-//           disabled={loading || selectedSide !== null}
+//           disabled={loading || selectedSide !== null || isScheduled}
 //           className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${
-//             selectedSide === "right"
+//             isScheduled
+//               ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
+//               : selectedSide === "right"
 //               ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
 //               : selectedSide === "left"
 //               ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
@@ -286,15 +382,13 @@
 //         </button>
 //       </div>
 
-//       {/* Challenge Button */}
 //       <button
 //         onClick={handleShare}
 //         className="w-full py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] font-black text-xs flex items-center justify-center gap-2 active:scale-[0.99] transition-all cursor-pointer text-white/90"
 //       >
-//         <span>🫱🏼‍🫲🏾</span> Challenge a Friend
+//         <span>🫱🏼🫲🏾</span> Challenge a Friend
 //       </button>
 
-//       {/* Footer Counters */}
 //       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
 //         <div className="flex gap-4">
 //           <button
@@ -311,7 +405,7 @@
 //             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
 //           >
 //             <Share2 size={13} />
-//             <span>Share {sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+//             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
 //           </button>
 //         </div>
 //         <span>{totalEngaged.toLocaleString()} engaged</span>
@@ -320,31 +414,20 @@
 //   );
 // }
 
-// // ─── 2. Quiz Card Component (Multi-Question & Single-Question Supported) ───────
+// // ─── 2. Quiz Card Component (Interval & Schedule Enforced) ──────────────────
 // function DynamicQuizCard({
 //   item,
 //   userId,
+//   now,
 //   onToast,
 //   onEdit,
 // }: {
 //   item: EngagementItem;
 //   userId?: string;
+//   now: number;
 //   onToast: (msg: string) => void;
 //   onEdit?: (item: EngagementItem) => void;
 // }) {
-//   const [currentQIndex, setCurrentQIndex] = useState(0);
-//   const [selectedId, setSelectedId] = useState<string | null>(null);
-//   const [answered, setAnswered] = useState(false);
-//   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-//   const [totalScore, setTotalScore] = useState(0);
-//   const [quizFinished, setQuizFinished] = useState(false);
-
-//   const [liked, setLiked] = useState(false);
-//   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-//   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-//   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-
-//   // Normalize questions array
 //   const rawQuestions =
 //     item.quizData?.questions && item.quizData.questions.length > 0
 //       ? item.quizData.questions
@@ -365,13 +448,42 @@
 //         ];
 
 //   const totalQuestions = rawQuestions.length;
+
+//   const initialFinish = getStoredVote("quiz_finish", item.id, userId);
+//   const [quizFinished, setQuizFinished] = useState<boolean>(Boolean(initialFinish?.finished));
+//   const [totalScore, setTotalScore] = useState<number>(Number(initialFinish?.score) || 0);
+
+//   const [currentQIndex, setCurrentQIndex] = useState(0);
 //   const currentQ = rawQuestions[Math.min(currentQIndex, totalQuestions - 1)];
 //   const correctOptionId = currentQ?.correctOptionId || "A";
 //   const pointsReward = currentQ?.pointsReward || 50;
-//   const explanation = currentQ?.explanation || "";
-//   const frequencyMinutes = item.quizData?.frequencyMinutes || 10;
+//   const frequencyMinutes = Number(item.quizData?.frequencyMinutes || 10);
+//   const frequencyMs = frequencyMinutes * 60 * 1000;
 
-//   // Check like state and answered status from Database / API
+//   const initialQ = getStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, userId);
+//   const [selectedId, setSelectedId] = useState<string | null>(
+//     initialQ?.selectedId || (item.userVoted && item.userVote ? item.userVote : null)
+//   );
+//   const [answered, setAnswered] = useState<boolean>(Boolean(initialQ || item.userVoted || initialFinish?.finished));
+//   const [isCorrect, setIsCorrect] = useState<boolean | null>(initialQ ? initialQ.isCorrect : null);
+
+//   const [liked, setLiked] = useState(false);
+//   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+//   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+//   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+
+//   const startTime = getEngagementStartTime(item);
+//   const isScheduled = startTime > now;
+//   const timeToStartMs = Math.max(0, startTime - now);
+
+//   // Frequency Unlock Calculations: how many questions have unlocked by now?
+//   const elapsedSinceStart = Math.max(0, now - startTime);
+//   const unlockedQuestionCount = isScheduled
+//     ? 0
+//     : Math.min(totalQuestions, Math.floor(elapsedSinceStart / frequencyMs) + 1);
+//   const msToNextQuestionSlot = isScheduled ? 0 : Math.max(0, frequencyMs - (elapsedSinceStart % frequencyMs));
+//   const isNextQuestionLocked = answered && currentQIndex + 1 >= unlockedQuestionCount && currentQIndex + 1 < totalQuestions;
+
 //   useEffect(() => {
 //     if (item.userLiked) {
 //       setLiked(true);
@@ -381,11 +493,24 @@
 //       });
 //     }
 
-//     if (item.userVoted && item.userVote) {
+//     const finish = getStoredVote("quiz_finish", item.id, userId);
+//     if (finish?.finished) {
+//       setQuizFinished(true);
+//       if (finish.score !== undefined) setTotalScore(Number(finish.score));
+//       return;
+//     }
+
+//     const ans = getStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, userId);
+//     if (ans) {
+//       setSelectedId(ans.selectedId);
+//       setAnswered(true);
+//       setIsCorrect(ans.isCorrect);
+//     } else if (item.userVoted && item.userVote) {
 //       setSelectedId(item.userVote);
 //       setAnswered(true);
 //       const isRight = item.userVote.toUpperCase() === correctOptionId.toUpperCase();
 //       setIsCorrect(isRight);
+//       setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: item.userVote, isCorrect: isRight }, userId);
 //     } else if (userId) {
 //       engagementService.checkVoteStatus(item.id, userId).then((res) => {
 //         if (res.hasVoted && res.selectedOptionId) {
@@ -393,25 +518,40 @@
 //           setAnswered(true);
 //           const isRight = res.selectedOptionId.toUpperCase() === correctOptionId.toUpperCase();
 //           setIsCorrect(isRight);
+//           setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: res.selectedOptionId, isCorrect: isRight }, userId);
 //         }
 //       });
 //     }
-//   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, correctOptionId]);
+//   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, correctOptionId, currentQ?.id, currentQIndex]);
 
 //   const handleOptionSelect = async (optId: string) => {
-//     if (answered) return;
+//     if (answered || quizFinished || isScheduled) return;
+//     const existing = getStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, userId);
+//     if (existing || getStoredVote("quiz_finish", item.id, userId)) return;
+
 //     setSelectedId(optId);
 //     setAnswered(true);
 //     setTotalEngaged((prev) => prev + 1);
 
 //     const isRight = optId.toUpperCase() === correctOptionId.toUpperCase();
 //     setIsCorrect(isRight);
-//     if (isRight) {
-//       setTotalScore((prev) => prev + pointsReward);
+
+//     const earnedPoints = isRight ? pointsReward + 2 : 2;
+//     const nextTotal = totalScore + earnedPoints;
+//     setTotalScore(nextTotal);
+
+//     setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: optId, isCorrect: isRight, earnedPoints }, userId);
+
+//     if (totalQuestions === 1) {
+//       setQuizFinished(true);
+//       setStoredVote("quiz_finish", item.id, { finished: true, score: nextTotal }, userId);
 //     }
 
 //     try {
 //       await engagementService.voteEngagement(item.id, optId, userId, currentQ?.id);
+//       if (typeof window !== "undefined") {
+//         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: earnedPoints } }));
+//       }
 //     } catch (err: any) {
 //       const prevOpt = err?.response?.data?.selectedOptionId || optId;
 //       const right = prevOpt.toUpperCase() === correctOptionId.toUpperCase();
@@ -421,23 +561,28 @@
 //   };
 
 //   const handleNextQuestion = () => {
+//     if (isNextQuestionLocked) {
+//       onToast(`Next question unlocks in ${formatCountdown(msToNextQuestionSlot)}!`);
+//       return;
+//     }
 //     if (currentQIndex < totalQuestions - 1) {
-//       setCurrentQIndex((prev) => prev + 1);
-//       setSelectedId(null);
-//       setAnswered(false);
-//       setIsCorrect(null);
+//       const nextIdx = currentQIndex + 1;
+//       setCurrentQIndex(nextIdx);
+//       const nextQ = rawQuestions[nextIdx];
+//       const ans = getStoredVote(`quiz_q_${nextQ?.id || nextIdx}`, item.id, userId);
+//       if (ans) {
+//         setSelectedId(ans.selectedId);
+//         setAnswered(true);
+//         setIsCorrect(ans.isCorrect);
+//       } else {
+//         setSelectedId(null);
+//         setAnswered(false);
+//         setIsCorrect(null);
+//       }
 //     } else {
 //       setQuizFinished(true);
+//       setStoredVote("quiz_finish", item.id, { finished: true, score: totalScore }, userId);
 //     }
-//   };
-
-//   const handleRestartQuiz = () => {
-//     setCurrentQIndex(0);
-//     setSelectedId(null);
-//     setAnswered(false);
-//     setIsCorrect(null);
-//     setQuizFinished(false);
-//     setTotalScore(0);
 //   };
 
 //   const handleLike = async () => {
@@ -481,35 +626,33 @@
 //       exit={{ opacity: 0, y: -12 }}
 //       className="w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
 //     >
-//       {/* Card Header */}
 //       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
 //         <div className="flex items-center gap-1.5 uppercase">
 //           <span className="text-purple-400">🧠 QUIZ</span>
 //           <span>•</span>
-//           <span className="text-amber-400">⭐ {pointsReward} PTS/Q</span>
+//           <span className="text-amber-400">⭐ {pointsReward + 2} PTS</span>
 //           {frequencyMinutes && (
 //             <>
 //               <span>•</span>
-//               <span className="text-cyan-400">⏱️ {frequencyMinutes}M</span>
+//               <span className="text-cyan-400 font-mono">⏱️ {frequencyMinutes}M INTERVAL</span>
+//             </>
+//           )}
+//           {isScheduled && (
+//             <>
+//               <span>•</span>
+//               <span className="text-amber-400 font-mono flex items-center gap-1">
+//                 <Clock size={10} /> STARTS IN {formatCountdown(timeToStartMs)}
+//               </span>
 //             </>
 //           )}
 //         </div>
 //         <div className="flex items-center gap-2">
 //           <span>{formattedTime}</span>
-//           {/* {onEdit && (
-//             <button
-//               onClick={() => onEdit(item)}
-//               title="Edit Quiz"
-//               className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.12] text-white/60 hover:text-white transition-all cursor-pointer"
-//             >
-//               <Pencil size={12} />
-//             </button>
-//           )} */}
 //         </div>
 //       </div>
 
 //       <div className="flex items-center justify-between gap-2 mb-1.5">
-//         <h3 className="text-sm font-black text-white">{item.title}</h3>
+//         <h3 className="text-sm font-black text-white truncate">{item.title}</h3>
 //         {totalQuestions > 1 && (
 //           <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full shrink-0">
 //             Q {currentQIndex + 1}/{totalQuestions}
@@ -517,7 +660,6 @@
 //         )}
 //       </div>
 
-//       {/* Multi-Question Progress Bar */}
 //       {totalQuestions > 1 && (
 //         <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mb-3">
 //           <div
@@ -527,27 +669,16 @@
 //         </div>
 //       )}
 
-//       {quizFinished ? (
-//         /* Quiz Finished View */
-//         <motion.div
-//           initial={{ opacity: 0, scale: 0.95 }}
-//           animate={{ opacity: 1, scale: 1 }}
-//           className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center my-3"
-//         >
-//           <span className="text-2xl block mb-1">🏆</span>
-//           <h4 className="text-sm font-black text-white mb-1">Quiz Completed!</h4>
-//           <p className="text-xs text-white/70 mb-3">
-//             You scored <strong className="text-amber-400">+{totalScore} PTS</strong> across {totalQuestions} questions!
+//       {isScheduled ? (
+//         <div className="p-5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center my-3 space-y-2">
+//           <Clock size={24} className="mx-auto text-purple-400 animate-pulse" />
+//           <h4 className="text-sm font-black text-white">Quiz Scheduled</h4>
+//           <p className="text-xs text-white/70">
+//             Question #1 unlocks in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
 //           </p>
-//           <button
-//             onClick={handleRestartQuiz}
-//             className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer"
-//           >
-//             <RefreshCw size={13} /> Retake Quiz
-//           </button>
-//         </motion.div>
+//           <span className="text-[10px] text-white/40 block">Questions unlock every {frequencyMinutes} minutes</span>
+//         </div>
 //       ) : (
-//         /* Active Question View */
 //         <>
 //           <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{currentQ?.question}</p>
 
@@ -572,7 +703,7 @@
 //                 <button
 //                   key={letter}
 //                   onClick={() => handleOptionSelect(letter)}
-//                   disabled={answered}
+//                   disabled={answered || quizFinished}
 //                   className={`rounded-xl p-3 border font-bold text-xs text-left transition-all cursor-pointer flex items-center justify-between ${cardStyle}`}
 //                 >
 //                   <span className="truncate pr-1">
@@ -587,11 +718,7 @@
 //           </div>
 
 //           {answered && (
-//             <motion.div
-//               initial={{ opacity: 0, y: 6 }}
-//               animate={{ opacity: 1, y: 0 }}
-//               className="space-y-2 mb-3"
-//             >
+//             <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mb-3">
 //               <div
 //                 className={`text-[11px] font-black text-center p-2 rounded-xl border flex items-center justify-center gap-1.5 ${
 //                   isCorrect
@@ -600,30 +727,40 @@
 //                 }`}
 //               >
 //                 <span>{isCorrect ? "🎉" : "💡"}</span>
-//                 <span>{isCorrect ? `Correct! +${pointsReward} PTS` : `Incorrect! The answer is ${correctOptionId}`}</span>
+//                 <span>
+//                   {isCorrect
+//                     ? `Correct! +${pointsReward + 2} PTS (+2 participation)`
+//                     : `+2 PTS for participating · The answer is ${correctOptionId}`}
+//                 </span>
 //               </div>
 
-//               {/* {explanation && (
-//                 <p className="text-[11px] text-white/60 bg-white/[0.02] border border-white/[0.04] p-2 rounded-lg leading-relaxed">
-//                   ℹ️ {explanation}
-//                 </p>
-//               )} */}
-
 //               {totalQuestions > 1 && (
-//                 <button
-//                   onClick={handleNextQuestion}
-//                   className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-purple-600/20"
-//                 >
-//                   <span>{currentQIndex < totalQuestions - 1 ? "Next Question" : "Complete Quiz"}</span>
-//                   <ChevronRight size={14} />
-//                 </button>
+//                 <>
+//                   {isNextQuestionLocked ? (
+//                     <div className="p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl flex items-center justify-between text-xs font-bold text-white/80">
+//                       <span className="flex items-center gap-1.5 text-purple-300">
+//                         <Clock size={13} /> Next Question #{currentQIndex + 2} in:
+//                       </span>
+//                       <span className="font-mono text-amber-400 font-extrabold text-sm">
+//                         {formatCountdown(msToNextQuestionSlot)}
+//                       </span>
+//                     </div>
+//                   ) : (
+//                     <button
+//                       onClick={handleNextQuestion}
+//                       className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-purple-600/20"
+//                     >
+//                       <span>{currentQIndex < totalQuestions - 1 ? "Next Question" : "Complete Quiz"}</span>
+//                       <ChevronRight size={14} />
+//                     </button>
+//                   )}
+//                 </>
 //               )}
 //             </motion.div>
 //           )}
 //         </>
 //       )}
 
-//       {/* Footer Counters */}
 //       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
 //         <div className="flex gap-4">
 //           <button
@@ -640,7 +777,7 @@
 //             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
 //           >
 //             <Share2 size={13} />
-//             <span>Share {sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+//             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
 //           </button>
 //         </div>
 //         <span>{totalEngaged.toLocaleString()} engaged</span>
@@ -649,20 +786,25 @@
 //   );
 // }
 
-// // ─── 3. Poll Card Component ────────────────────────────────────────────────
+// // ─── 3. Poll Card Component (Duration & Expiry Enforced) ────────────────────
 // function DynamicPollCard({
 //   item,
 //   userId,
+//   now,
 //   onToast,
 //   onEdit,
 // }: {
 //   item: EngagementItem;
 //   userId?: string;
+//   now: number;
 //   onToast: (msg: string) => void;
 //   onEdit?: (item: EngagementItem) => void;
 // }) {
-//   const [selectedId, setSelectedId] = useState<string | null>(null);
-//   const [voted, setVoted] = useState(false);
+//   const initialVote = getStoredVote("poll", item.id, userId);
+//   const [selectedId, setSelectedId] = useState<string | null>(
+//     initialVote?.selectedId || item.userVote || null
+//   );
+//   const [voted, setVoted] = useState<boolean>(Boolean(initialVote || item.userVoted));
 //   const [loading, setLoading] = useState(false);
 //   const [options, setOptions] = useState(
 //     item.pollData?.options || [
@@ -676,6 +818,15 @@
 //   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
 //   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
 
+//   const startTime = getEngagementStartTime(item);
+//   const isScheduled = startTime > now;
+//   const timeToStartMs = Math.max(0, startTime - now);
+
+//   const durationMins = Number(item.pollData?.durationMinutes || item.pollData?.timerMinutes || 10);
+//   const expiresAt = item.pollData?.expiresAt || (startTime + durationMins * 60 * 1000);
+//   const isExpired = now >= expiresAt;
+//   const timeRemainingMs = Math.max(0, expiresAt - now);
+
 //   const totalVotes = options.reduce((sum, o) => sum + (o.votes || 0), 0) || 1;
 
 //   useEffect(() => {
@@ -687,24 +838,44 @@
 //       });
 //     }
 
+//     const stored = getStoredVote("poll", item.id, userId);
+//     if (stored?.selectedId) {
+//       setSelectedId(stored.selectedId);
+//       setVoted(true);
+//     }
+
 //     if (item.userVoted && item.userVote) {
 //       setSelectedId(item.userVote);
 //       setVoted(true);
+//       setStoredVote("poll", item.id, { selectedId: item.userVote }, userId);
 //     } else if (userId) {
 //       engagementService.checkVoteStatus(item.id, userId).then((res) => {
 //         if (res.hasVoted && res.selectedOptionId) {
 //           setSelectedId(res.selectedOptionId);
 //           setVoted(true);
+//           setStoredVote("poll", item.id, { selectedId: res.selectedOptionId }, userId);
 //         }
 //       });
 //     }
 //   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
 
 //   const handleVote = async (optId: string) => {
-//     if (voted || loading) return;
+//     if (isScheduled) {
+//       onToast(`Poll unlocks in ${formatCountdown(timeToStartMs)}!`);
+//       return;
+//     }
+//     if (isExpired) {
+//       onToast("This poll has ended!");
+//       return;
+//     }
+//     if (voted || loading || getStoredVote("poll", item.id, userId)) {
+//       onToast("You have already voted on this poll!");
+//       return;
+//     }
 //     setSelectedId(optId);
 //     setVoted(true);
 //     setLoading(true);
+//     setStoredVote("poll", item.id, { selectedId: optId }, userId);
 //     setTotalEngaged((prev) => prev + 1);
 
 //     try {
@@ -715,6 +886,10 @@
 //         setOptions((prev) =>
 //           prev.map((o) => (o.id === optId ? { ...o, votes: (o.votes || 0) + 1 } : o))
 //         );
+//       }
+//       onToast("+2 PTS earned for voting! 📊");
+//       if (typeof window !== "undefined") {
+//         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
 //       }
 //     } catch (err: any) {
 //       const prevOpt = err?.response?.data?.selectedOptionId || optId;
@@ -769,66 +944,101 @@
 //       className="w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
 //     >
 //       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-//         <span className="text-blue-400 uppercase font-black">📊 POLL</span>
+//         <div className="flex items-center gap-1.5 uppercase">
+//           <span className="text-blue-400 font-black">📊 POLL • +2 PTS / VOTE</span>
+//           {isScheduled ? (
+//             <>
+//               <span>•</span>
+//               <span className="text-amber-400 font-mono flex items-center gap-1">
+//                 <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
+//               </span>
+//             </>
+//           ) : isExpired ? (
+//             <>
+//               <span>•</span>
+//               <span className="text-rose-400 font-mono">🔒 CLOSED</span>
+//             </>
+//           ) : (
+//             <>
+//               <span>•</span>
+//               <span className="text-emerald-400 font-mono flex items-center gap-1">
+//                 <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
+//               </span>
+//             </>
+//           )}
+//         </div>
 //         <div className="flex items-center gap-2">
 //           <span>{formattedTime}</span>
-//           {/* {onEdit && (
-//             <button
-//               onClick={() => onEdit(item)}
-//               title="Edit Poll"
-//               className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.12] text-white/60 hover:text-white transition-all cursor-pointer"
-//             >
-//               <Pencil size={12} />
-//             </button>
-//           )} */}
 //         </div>
 //       </div>
 
-//       <h3 className="text-sm font-black mb-4">{item.pollData?.question || item.title}</h3>
+//       <h3 className="text-sm font-black mb-3">{item.pollData?.question || item.title}</h3>
 
-//       <div className="space-y-3 mb-4">
-//         {options.map((opt) => {
-//           const isSelected = selectedId === opt.id;
-//           const percentage =
-//             opt.percentage !== undefined
-//               ? opt.percentage
-//               : Math.round(((opt.votes || 0) / totalVotes) * 100);
+//       {isScheduled ? (
+//         <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center my-2 space-y-1">
+//           <Clock size={20} className="mx-auto text-blue-400 animate-pulse" />
+//           <h4 className="text-xs font-black text-white">Poll Scheduled</h4>
+//           <p className="text-[11px] text-white/60">
+//             Voting opens in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
+//           </p>
+//         </div>
+//       ) : (
+//         <div className="space-y-3 mb-4">
+//           {options.map((opt) => {
+//             const isSelected = selectedId === opt.id;
+//             const percentage =
+//               opt.percentage !== undefined
+//                 ? opt.percentage
+//                 : Math.round(((opt.votes || 0) / totalVotes) * 100);
 
-//           return (
-//             <button
-//               key={opt.id}
-//               onClick={() => handleVote(opt.id)}
-//               disabled={voted}
-//               className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${
-//                 isSelected
-//                   ? "border-blue-500/60 bg-blue-500/[0.07]"
-//                   : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
-//               }`}
-//             >
-//               {voted && (
-//                 <motion.div
-//                   initial={{ width: 0 }}
-//                   animate={{ width: `${percentage}%` }}
-//                   transition={{ duration: 0.6, ease: "easeOut" }}
-//                   className={`absolute left-0 top-0 bottom-0 z-0 ${
-//                     isSelected ? "bg-blue-500/20" : "bg-white/[0.04]"
-//                   }`}
-//                 />
-//               )}
-//               <span className="relative z-10 text-white/90 font-bold">{opt.text}</span>
-//               {voted && (
-//                 <span
-//                   className={`relative z-10 text-[11px] font-black ${
-//                     isSelected ? "text-blue-400" : "text-white/60"
-//                   }`}
-//                 >
-//                   {percentage}% {isSelected && "✓"}
+//             const isWinner =
+//               item.pollData?.correctAnswer &&
+//               opt.text &&
+//               item.pollData.correctAnswer.trim().toLowerCase() === opt.text.trim().toLowerCase();
+
+//             return (
+//               <button
+//                 key={opt.id}
+//                 onClick={() => handleVote(opt.id)}
+//                 disabled={voted || isExpired || loading}
+//                 className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${
+//                   isWinner && isExpired
+//                     ? "border-emerald-500/80 bg-emerald-500/[0.1]"
+//                     : isSelected
+//                     ? "border-blue-500/60 bg-blue-500/[0.07]"
+//                     : isExpired
+//                     ? "opacity-60 border-white/[0.05] bg-white/[0.01]"
+//                     : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
+//                 }`}
+//               >
+//                 {(voted || isExpired) && (
+//                   <motion.div
+//                     initial={{ width: 0 }}
+//                     animate={{ width: `${percentage}%` }}
+//                     transition={{ duration: 0.6, ease: "easeOut" }}
+//                     className={`absolute left-0 top-0 bottom-0 z-0 ${
+//                       isWinner ? "bg-emerald-500/20" : isSelected ? "bg-blue-500/20" : "bg-white/[0.04]"
+//                     }`}
+//                   />
+//                 )}
+//                 <span className="relative z-10 text-white/90 font-bold flex items-center gap-1.5">
+//                   {opt.text}
+//                   {isWinner && isExpired && <span className="text-emerald-400 text-[10px]">🏆 Winner</span>}
 //                 </span>
-//               )}
-//             </button>
-//           );
-//         })}
-//       </div>
+//                 {(voted || isExpired) && (
+//                   <span
+//                     className={`relative z-10 text-[11px] font-black ${
+//                       isWinner ? "text-emerald-400" : isSelected ? "text-blue-400" : "text-white/60"
+//                     }`}
+//                   >
+//                     {percentage}% {isSelected && "✓"}
+//                   </span>
+//                 )}
+//               </button>
+//             );
+//           })}
+//         </div>
+//       )}
 
 //       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
 //         <div className="flex gap-4">
@@ -846,7 +1056,7 @@
 //             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
 //           >
 //             <Share2 size={13} />
-//             <span>Share {sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+//             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
 //           </button>
 //         </div>
 //         <span>{totalEngaged.toLocaleString()} engaged</span>
@@ -855,20 +1065,34 @@
 //   );
 // }
 
-// // ─── 4. Prediction Card Component ──────────────────────────────────────────
+// // ─── 4. Prediction Card Component (Duration & Expiry Enforced) ──────────────
 // function DynamicPredictionCard({
 //   item,
 //   userId,
+//   now,
 //   onToast,
 //   onEdit,
 // }: {
 //   item: EngagementItem;
 //   userId?: string;
+//   now: number;
 //   onToast: (msg: string) => void;
 //   onEdit?: (item: EngagementItem) => void;
 // }) {
-//   const [selectedChoice, setSelectedChoice] = useState<"left" | "right" | null>(null);
-//   const [predicted, setPredicted] = useState(false);
+//   const pred = item.predictionData || {
+//     question: "India win the 1st Galle Test?",
+//     leftChoice: { id: "left", text: "Yes, India win", code: "IN", votes: 640 },
+//     rightChoice: { id: "right", text: "SL hold / win", code: "LK", votes: 260 },
+//     coinStake: 25,
+//     totalVotes: 900,
+//     status: "open",
+//   };
+
+//   const initialVote = getStoredVote("pred", item.id, userId);
+//   const [selectedChoice, setSelectedChoice] = useState<"left" | "right" | null>(
+//     initialVote?.choice || (item.userVote as "left" | "right") || null
+//   );
+//   const [predicted, setPredicted] = useState<boolean>(Boolean(initialVote || item.userVoted));
 //   const [loading, setLoading] = useState(false);
 //   const [liked, setLiked] = useState(false);
 //   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
@@ -878,16 +1102,24 @@
 //     leftPercentage: number;
 //     rightPercentage: number;
 //     coinsLocked: number;
-//   } | null>(null);
+//   } | null>(() => {
+//     const c = initialVote?.choice || (item.userVote as "left" | "right");
+//     if (!c) return null;
+//     return {
+//       leftPercentage: c === "left" ? 71 : 29,
+//       rightPercentage: c === "right" ? 71 : 29,
+//       coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
+//     };
+//   });
 
-//   const pred = item.predictionData || {
-//     question: "India win the 1st Galle Test?",
-//     leftChoice: { id: "left", text: "Yes, India win", code: "IN", votes: 640 },
-//     rightChoice: { id: "right", text: "SL hold / win", code: "LK", votes: 260 },
-//     coinStake: 25,
-//     totalVotes: 900,
-//     status: "open",
-//   };
+//   const startTime = getEngagementStartTime(item);
+//   const isScheduled = startTime > now;
+//   const timeToStartMs = Math.max(0, startTime - now);
+
+//   const durationMins = Number(item.predictionData?.durationMinutes || item.predictionData?.timerMinutes || 30);
+//   const expiresAt = item.predictionData?.expiresAt || (startTime + durationMins * 60 * 1000);
+//   const isExpired = now >= expiresAt;
+//   const timeRemainingMs = Math.max(0, expiresAt - now);
 
 //   useEffect(() => {
 //     if (item.userLiked) {
@@ -898,10 +1130,22 @@
 //       });
 //     }
 
+//     const stored = getStoredVote("pred", item.id, userId);
+//     if (stored?.choice) {
+//       setSelectedChoice(stored.choice);
+//       setPredicted(true);
+//       setResult({
+//         leftPercentage: stored.choice === "left" ? 71 : 29,
+//         rightPercentage: stored.choice === "right" ? 71 : 29,
+//         coinsLocked: stored.coinsLocked || pred.coinStake || 25,
+//       });
+//     }
+
 //     if (item.userVoted && item.userVote) {
 //       const choice = item.userVote as "left" | "right";
 //       setSelectedChoice(choice);
 //       setPredicted(true);
+//       setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
 //       const computedResult = {
 //         leftPercentage: choice === "left" ? 71 : 29,
 //         rightPercentage: choice === "right" ? 71 : 29,
@@ -914,6 +1158,7 @@
 //           const choice = res.selectedOptionId as "left" | "right";
 //           setSelectedChoice(choice);
 //           setPredicted(true);
+//           setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
 //           const computedResult = {
 //             leftPercentage: choice === "left" ? 71 : 29,
 //             rightPercentage: choice === "right" ? 71 : 29,
@@ -926,10 +1171,22 @@
 //   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, pred.coinStake]);
 
 //   const handlePredict = async (choice: "left" | "right") => {
-//     if (predicted || loading) return;
+//     if (isScheduled) {
+//       onToast(`Prediction unlocks in ${formatCountdown(timeToStartMs)}!`);
+//       return;
+//     }
+//     if (isExpired) {
+//       onToast("This prediction has closed!");
+//       return;
+//     }
+//     if (predicted || loading || getStoredVote("pred", item.id, userId)) {
+//       onToast("You have already made your prediction!");
+//       return;
+//     }
 //     setSelectedChoice(choice);
 //     setPredicted(true);
 //     setLoading(true);
+//     setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
 //     setTotalEngaged((prev) => prev + 1);
 
 //     try {
@@ -940,6 +1197,10 @@
 //         coinsLocked: res?.coinsLocked || pred.coinStake || 25,
 //       };
 //       setResult(computedResult);
+//       onToast("+2 PTS earned for prediction! 🎯");
+//       if (typeof window !== "undefined") {
+//         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
+//       }
 //     } catch (err: any) {
 //       const prevChoice = (err?.response?.data?.selectedOptionId || choice) as "left" | "right";
 //       setSelectedChoice(prevChoice);
@@ -998,62 +1259,80 @@
 //         <div className="flex items-center gap-1.5 uppercase">
 //           <span className="text-amber-400">🎯 PREDICTION</span>
 //           <span>•</span>
-//           {/* <span className="text-indigo-400">💎 POINTS</span> */}
+//           <span className="text-amber-300">⚡ +2 PTS / VOTE</span>
+//           {isScheduled ? (
+//             <>
+//               <span>•</span>
+//               <span className="text-amber-400 font-mono flex items-center gap-1">
+//                 <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
+//               </span>
+//             </>
+//           ) : isExpired ? (
+//             <>
+//               <span>•</span>
+//               <span className="text-rose-400 font-mono">🔒 CLOSED</span>
+//             </>
+//           ) : (
+//             <>
+//               <span>•</span>
+//               <span className="text-emerald-400 font-mono flex items-center gap-1">
+//                 <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
+//               </span>
+//             </>
+//           )}
 //         </div>
 //         <div className="flex items-center gap-2">
 //           <span>{formattedTime}</span>
-//           {/* {onEdit && (
-//             <button
-//               onClick={() => onEdit(item)}
-//               title="Edit Prediction"
-//               className="p-1.5 rounded-lg bg-white/[0.05] hover:bg-white/[0.12] text-white/60 hover:text-white transition-all cursor-pointer"
-//             >
-//               <Pencil size={12} />
-//             </button>
-//           )} */}
 //         </div>
 //       </div>
 
-//       <h3 className="text-sm font-black mb-1">{item.title || "Predict the outcome!"}</h3>
 //       <p className="text-xs font-semibold text-white/70 mb-4">{pred.question}</p>
 
-//       <div className="grid grid-cols-2 gap-3.5 mb-4">
-//         {/* Left Choice */}
-//         <button
-//           onClick={() => handlePredict("left")}
-//           disabled={predicted}
-//           className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
-//             selectedChoice === "left"
-//               ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-//               : predicted
-//               ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-//               : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-//           }`}
-//         >
-//           <span className="text-xs font-black">{pred.leftChoice.text}</span>
-//           <span className="text-[10px] font-black mt-1 text-white/50">
-//             {result ? `${result.leftPercentage}%` : "2X multiplier"}
-//           </span>
-//         </button>
+//       {isScheduled ? (
+//         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center my-2 space-y-1">
+//           <Clock size={20} className="mx-auto text-amber-400 animate-pulse" />
+//           <h4 className="text-xs font-black text-white">Prediction Scheduled</h4>
+//           <p className="text-[11px] text-white/60">
+//             Predictions open in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
+//           </p>
+//         </div>
+//       ) : (
+//         <div className="grid grid-cols-2 gap-3.5 mb-4">
+//           <button
+//             onClick={() => handlePredict("left")}
+//             disabled={predicted || isExpired || loading}
+//             className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
+//               selectedChoice === "left"
+//                 ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+//                 : predicted || isExpired
+//                 ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+//                 : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+//             }`}
+//           >
+//             <span className="text-xs font-black">{pred.leftChoice.text}</span>
+//             <span className="text-[10px] font-black mt-1 text-white/50">
+//               {result ? `${result.leftPercentage}%` : "2X multiplier"}
+//             </span>
+//           </button>
 
-//         {/* Right Choice */}
-//         <button
-//           onClick={() => handlePredict("right")}
-//           disabled={predicted}
-//           className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
-//             selectedChoice === "right"
-//               ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-//               : predicted
-//               ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-//               : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-//           }`}
-//         >
-//           <span className="text-xs font-black">{pred.rightChoice.text}</span>
-//           <span className="text-[10px] font-black mt-1 text-white/50">
-//             {result ? `${result.rightPercentage}%` : "5X multiplier"}
-//           </span>
-//         </button>
-//       </div>
+//           <button
+//             onClick={() => handlePredict("right")}
+//             disabled={predicted || isExpired || loading}
+//             className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
+//               selectedChoice === "right"
+//                 ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+//                 : predicted || isExpired
+//                 ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+//                 : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+//             }`}
+//           >
+//             <span className="text-xs font-black">{pred.rightChoice.text}</span>
+//             <span className="text-[10px] font-black mt-1 text-white/50">
+//               {result ? `${result.rightPercentage}%` : "5X multiplier"}
+//             </span>
+//           </button>
+//         </div>
+//       )}
 
 //       {predicted && (
 //         <motion.div
@@ -1062,7 +1341,7 @@
 //           className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl mb-2 flex items-center justify-center gap-1.5"
 //         >
 //           <span>🔒</span>
-//           <span>+{result?.coinsLocked || pred.coinStake || 25} FlipCoins locked in · Results after match</span>
+//           <span>+2 PTS earned! · {result?.coinsLocked || pred.coinStake || 25} FlipCoins locked · Results after match</span>
 //         </motion.div>
 //       )}
 
@@ -1082,7 +1361,7 @@
 //             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
 //           >
 //             <Share2 size={13} />
-//             <span>Share {sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+//             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
 //           </button>
 //         </div>
 //         <span>{totalEngaged.toLocaleString()} engaged</span>
@@ -1090,7 +1369,6 @@
 //     </motion.div>
 //   );
 // }
-// // ─── 5. Arena Event Creation & Edit Modal imported from ./ArenaEngagementModal ───
 
 // // ─── Main FlipArena Component ───────────────────────────────────────────────
 // export default function FlipArena({
@@ -1101,18 +1379,23 @@
 // }: FlipArenaProps) {
 //   const { user } = useAuth();
 //   const activeUserId = user?.userId || (user as any)?.actualUserId || user?.email;
-//   const [engagements, setEngagements] = useState<EngagementItem[]>(FALLBACK_ENGAGEMENTS);
+//   const [engagements, setEngagements] = useState<EngagementItem[]>([]);
 //   const [loadingEngagements, setLoadingEngagements] = useState(true);
-//   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle">("all");
+//   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction">("all");
 //   const [toastMessage, setToastMessage] = useState<string | null>(null);
 //   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
 
-//   // Modal State for user Create / Edit feature
+//   // 1-second live clock for all countdowns and frequency unlocks
+//   const [now, setNow] = useState<number>(Date.now());
+//   useEffect(() => {
+//     const timer = setInterval(() => setNow(Date.now()), 1000);
+//     return () => clearInterval(timer);
+//   }, []);
+
 //   const [modalOpen, setModalOpen] = useState(false);
 //   const [modalType, setModalType] = useState<EngagementType>("quiz");
 //   const [editingItem, setEditingItem] = useState<EngagementItem | null>(null);
 
-//   // Polls & Predictions for bottom active sections
 //   const [polls, setPolls] = useState<Poll[]>([]);
 //   const [loadingPolls, setLoadingPolls] = useState(true);
 
@@ -1124,7 +1407,6 @@
 //   const isFetchingEngagementsRef = useRef(false);
 //   const lastFetchTimeRef = useRef(0);
 
-//   // Fetch live engagements from backend API
 //   const fetchEngagements = useCallback(async () => {
 //     if (isFetchingEngagementsRef.current || Date.now() - lastFetchTimeRef.current < 4000) {
 //       return;
@@ -1142,11 +1424,11 @@
 //       if (liveItems && liveItems.length > 0) {
 //         setEngagements(liveItems);
 //       } else {
-//         setEngagements(FALLBACK_ENGAGEMENTS);
+//         setEngagements([]);
 //       }
 //     } catch (err) {
-//       console.warn("Could not fetch live engagements, using fallback:", err);
-//       setEngagements(FALLBACK_ENGAGEMENTS);
+//       console.warn("Could not fetch live engagements:", err);
+//       setEngagements([]);
 //     } finally {
 //       setLoadingEngagements(false);
 //       isFetchingEngagementsRef.current = false;
@@ -1157,7 +1439,6 @@
 //     fetchEngagements();
 //   }, [fetchEngagements]);
 
-//   // Auto-refresh when an event is created/updated from GlobalActionBar or elsewhere
 //   useEffect(() => {
 //     const handleGlobalCreated = () => {
 //       lastFetchTimeRef.current = 0;
@@ -1168,21 +1449,18 @@
 //     return () => window.removeEventListener("arena-engagement-created", handleGlobalCreated);
 //   }, [fetchEngagements]);
 
-//   // Open Create Modal
 //   const handleOpenCreate = (type: EngagementType = "quiz") => {
 //     setEditingItem(null);
 //     setModalType(type);
 //     setModalOpen(true);
 //   };
 
-//   // Open Edit Modal
 //   const handleOpenEdit = (item: EngagementItem) => {
 //     setEditingItem(item);
 //     setModalType(item.type);
 //     setModalOpen(true);
 //   };
 
-//   // Callback when item is created or updated
 //   const handleItemSaved = (savedItem: EngagementItem, isEdit: boolean) => {
 //     setEngagements((prev) => {
 //       if (isEdit) {
@@ -1190,12 +1468,22 @@
 //       }
 //       return [savedItem, ...prev];
 //     });
-//     // Invalidate short-term cache and refetch
+
 //     engagementService.invalidateCache();
 //     fetchEngagements();
+
+//     if (typeof window !== "undefined") {
+//       window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
+//       window.dispatchEvent(new CustomEvent("arena-engagement-created", { detail: savedItem }));
+//     }
+
+//     if (!isEdit) {
+//       showToast("Event published! +2 PTS earned 🚀");
+//     } else {
+//       showToast("Event updated successfully!");
+//     }
 //   };
 
-//   // Fetch legacy polls for bottom active section
 //   useEffect(() => {
 //     fetch("/api/polls")
 //       .then((res) => res.json())
@@ -1210,24 +1498,38 @@
 //       });
 //   }, []);
 
-//   // Filter and sort engagements chronologically (latest on top)
-//   const filteredEngagements = [...engagements]
-//     .filter((item) => {
-//       if (filter === "all") return true;
-//       if (filter === "battle") return item.type === "fan_battle";
-//       if (filter === "quiz") return item.type === "quiz";
-//       if (filter === "poll") return item.type === "poll" || item.type === "prediction";
-//       return true;
-//     })
-//     .sort((a, b) => {
-//       const timeA = typeof a.createdAt === "number" ? a.createdAt : new Date(a.createdAt || 0).getTime();
-//       const timeB = typeof b.createdAt === "number" ? b.createdAt : new Date(b.createdAt || 0).getTime();
-//       return timeB - timeA;
-//     });
+//   const filteredEngagements = useMemo(() => {
+//     return engagements
+//       .filter((item) => {
+//         if (!item || !item.title || !item.type) return false;
+
+//         // Don't show timer questions until they reach the set timer
+//         const startTime = getEngagementStartTime(item);
+//         if (startTime && startTime > now) {
+//           return false;
+//         }
+
+//         if (filter === "all") return true;
+//         if (filter === "battle") return item.type === "fan_battle";
+//         if (filter === "quiz") return item.type === "quiz";
+//         if (filter === "poll") return item.type === "poll";
+//         if (filter === "prediction") return item.type === "prediction";
+
+//         return true;
+//       })
+//       .sort((a, b) => {
+//         const getTime = (val: any) => {
+//           if (typeof val === "number") return val;
+//           const time = new Date(val || 0).getTime();
+//           return isNaN(time) ? 0 : time;
+//         };
+
+//         return getTime(b.createdAt) - getTime(a.createdAt);
+//       });
+//   }, [engagements, filter, now]);
 
 //   return (
 //     <div className="w-full bg-[#070b14] min-h-screen text-white flex flex-col font-sans pb-16 relative">
-//       {/* Toast Notification */}
 //       <AnimatePresence>
 //         {toastMessage && (
 //           <motion.div
@@ -1242,7 +1544,6 @@
 //         )}
 //       </AnimatePresence>
 
-//       {/* 1. Header Bar for Full Page */}
 //       {!isPreview && (
 //         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07] bg-[#070b14]/90 backdrop-blur-md sticky top-0 z-40">
 //           <div className="flex items-center gap-3">
@@ -1269,7 +1570,6 @@
 //         </div>
 //       )}
 
-//       {/* 2. Main Toggle Button Row for Full Page */}
 //       {!isPreview && (
 //         <div className="px-4 mb-4 mt-4">
 //           <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] shadow-inner">
@@ -1297,15 +1597,13 @@
 //         </div>
 //       )}
 
-//       {/* 3. Filter section "Today's Arena" + Create Button */}
 //       <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2 gap-2 flex-wrap">
 //         <div>
 //           <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
-//           <p className="text-[10px] text-white/35 mt-0.5">Official SF360 events · Earn FlipCoins</p>
+//           <p className="text-[10px] text-white/35 mt-0.5">Official SF360 events · Earn +2 PTS per engagement</p>
 //         </div>
 
 //         <div className="flex items-center gap-2 flex-wrap">
-//           {/* Leaderboard Button */}
 //           <button
 //             onClick={() => setShowLeaderboardModal(true)}
 //             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
@@ -1315,7 +1613,7 @@
 //             <span>Leaderboard</span>
 //           </button>
 //           <div className="flex gap-1 bg-white/[0.03] p-1 rounded-xl border border-white/[0.05]">
-//             {(["all", "quiz", "poll", "battle"] as const).map((tab) => (
+//             {(["all", "quiz", "poll", "battle", "prediction"] as const).map((tab) => (
 //               <button
 //                 key={tab}
 //                 onClick={() => setFilter(tab)}
@@ -1330,12 +1628,9 @@
 //             ))}
 //           </div>
 
-
-
-//           {/* Quick Create Event Icon Button */}
 //           <button
 //             onClick={() => handleOpenCreate("quiz")}
-//             title="Create Quiz, Battle or Poll"
+//             title="Create Quiz, Battle or Poll (+2 PTS)"
 //             className="p-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 border border-pink-500/30 text-pink-300 flex items-center gap-1 font-extrabold text-[11px] transition-all active:scale-95 cursor-pointer shadow-sm"
 //           >
 //             <Plus size={13} strokeWidth={2.8} />
@@ -1344,7 +1639,6 @@
 //         </div>
 //       </div>
 
-//       {/* 4. Live Engagements Feed */}
 //       <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full">
 //         {loadingEngagements && engagements.length === 0 ? (
 //           <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/40 text-xs font-bold">
@@ -1355,10 +1649,20 @@
 //           <div className="py-12 text-center text-xs font-bold text-white/40 border border-white/[0.06] rounded-2xl bg-[#0e111a] p-8 w-full max-w-lg space-y-3">
 //             <p>No events found for this filter.</p>
 //             <button
-//               onClick={() => handleOpenCreate(filter === "all" ? "quiz" : filter === "battle" ? "fan_battle" : filter)}
+//               onClick={() =>
+//                 handleOpenCreate(
+//                   filter === "all"
+//                     ? "quiz"
+//                     : filter === "battle"
+//                     ? "fan_battle"
+//                     : filter === "prediction"
+//                     ? "prediction"
+//                     : filter
+//                 )
+//               }
 //               className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"
 //             >
-//               <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()}
+//               <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 PTS)
 //             </button>
 //           </div>
 //         ) : (
@@ -1370,6 +1674,7 @@
 //                     key={item.id}
 //                     item={item}
 //                     userId={activeUserId}
+//                     now={now}
 //                     onToast={showToast}
 //                     onEdit={handleOpenEdit}
 //                   />
@@ -1381,6 +1686,7 @@
 //                     key={item.id}
 //                     item={item}
 //                     userId={activeUserId}
+//                     now={now}
 //                     onToast={showToast}
 //                     onEdit={handleOpenEdit}
 //                   />
@@ -1392,6 +1698,7 @@
 //                     key={item.id}
 //                     item={item}
 //                     userId={activeUserId}
+//                     now={now}
 //                     onToast={showToast}
 //                     onEdit={handleOpenEdit}
 //                   />
@@ -1403,6 +1710,7 @@
 //                     key={item.id}
 //                     item={item}
 //                     userId={activeUserId}
+//                     now={now}
 //                     onToast={showToast}
 //                     onEdit={handleOpenEdit}
 //                   />
@@ -1413,7 +1721,6 @@
 //           </AnimatePresence>
 //         )}
 
-//         {/* 6. View Full Flip Arena button in Preview mode */}
 //         {isPreview && (
 //           <div className="w-full max-w-lg mt-4 px-2">
 //             <button
@@ -1450,13 +1757,11 @@
 //         )}
 //       </div>
 
-//       {/* Leaderboard Overlay Modal */}
 //       <LeaderboardOverlayModal
 //         isOpen={showLeaderboardModal}
 //         onClose={() => setShowLeaderboardModal(false)}
 //       />
 
-//       {/* Creation & Edit Modal */}
 //       <ArenaEngagementModal
 //         isOpen={modalOpen}
 //         onClose={() => setModalOpen(false)}
@@ -1473,6 +1778,9 @@
 
 
 
+
+
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -1480,10 +1788,6 @@ import { useAuth } from "@/context/AuthContext";
 import { Poll } from "@/types/Polls";
 import { EngagementItem, EngagementType, QuizOption } from "@/types/engagements";
 import { engagementService } from "@/services/engagement.service";
-import PollsSection from "@/src/components/Polls-component/PollsSection";
-import PredictionCard from "@/src/components/Prediction-component/PredictionCard";
-import ChallengesSection from "@/src/components/FanBattle-Component/Challengessection";
-import FanBattleCard from "@/src/components/FanBattle-Component/Fanbattlearena";
 import {
   ArrowLeft,
   Heart,
@@ -1505,6 +1809,7 @@ import {
   ChevronRight,
   X,
   RefreshCw,
+  Lock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LeaderboardOverlayModal from "@/src/components/NewHomeComponents/LeaderboardOverlayModal";
@@ -1517,44 +1822,84 @@ interface FlipArenaProps {
   isPreview?: boolean;
 }
 
-interface UserQuizQuestion {
-  id: string;
-  question: string;
-  optionA: string;
-  optionB: string;
-  optionC: string;
-  optionD: string;
-  correctOptionId: "A" | "B" | "C" | "D";
-  pointsReward: number;
-  explanation: string;
+// ─── Time Helper Utilities ──────────────────────────────────────────────────
+function formatCountdown(ms: number): string {
+  if (ms <= 0) return "00:00";
+  const totalSecs = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSecs / 3600);
+  const mins = Math.floor((totalSecs % 3600) / 60);
+  const secs = totalSecs % 60;
+  if (hours > 0) {
+    return `${hours}h ${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
+  }
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-// ─── Initial Fallback Seed Engagements ──────────────────────────────────────
-const FALLBACK_ENGAGEMENTS: EngagementItem[] = [];
+function getEngagementStartTime(item: EngagementItem): number {
+  return Number(
+    item.quizData?.startTime ||
+    item.quizData?.scheduledStartTime ||
+    item.pollData?.startTime ||
+    item.pollData?.scheduledStartTime ||
+    item.predictionData?.startTime ||
+    item.predictionData?.scheduledStartTime ||
+    item.fanBattleData?.startTime ||
+    item.fanBattleData?.scheduledStartTime ||
+    item.startTime ||
+    item.scheduledStartTime ||
+    item.createdAt ||
+    0
+  );
+}
 
-// ─── 1. Fan Battle Card Component ───────────────────────────────────────────
+// ─── Single-Vote Local Persistence Helpers (For Vote Selection Only) ────────
+function getStoredVote(type: string, itemId: string, userId?: string): any {
+  if (typeof window === "undefined") return null;
+  try {
+    if (userId) {
+      const u = localStorage.getItem(`sf_${type}_voted_${itemId}_${userId}`);
+      if (u) return JSON.parse(u);
+    }
+    const d = localStorage.getItem(`sf_${type}_voted_${itemId}`);
+    if (d) return JSON.parse(d);
+  } catch { }
+  return null;
+}
+
+function setStoredVote(type: string, itemId: string, data: any, userId?: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const serialized = JSON.stringify(data);
+    localStorage.setItem(`sf_${type}_voted_${itemId}`, serialized);
+    if (userId) {
+      localStorage.setItem(`sf_${type}_voted_${itemId}_${userId}`, serialized);
+    }
+  } catch { }
+}
+
+// ─── 1. Fan Battle Card Component (+2 PTS Participation) ────────────────────
 function DynamicFanBattleCard({
   item,
   userId,
+  now,
   onToast,
   onEdit,
 }: {
   item: EngagementItem;
   userId?: string;
+  now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
 }) {
-  const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(null);
+  const initialStored = getStoredVote("fb", item.id, userId);
+  const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(
+    initialStored?.side || (item.userVote as "left" | "right") || null
+  );
   const [loading, setLoading] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-  const [result, setResult] = useState<{
-    leftPercentage: number;
-    rightPercentage: number;
-    totalVotes: number;
-  } | null>(null);
 
   const left = item.fanBattleData?.leftCompetitor || {
     code: "IN",
@@ -1570,7 +1915,29 @@ function DynamicFanBattleCard({
     votes: 0,
   };
 
-  // Check like state and vote status from Database / API
+  const [result, setResult] = useState<{
+    leftPercentage: number;
+    rightPercentage: number;
+    totalVotes: number;
+  } | null>(() => {
+    const s = initialStored?.side || (item.userVote as "left" | "right");
+    if (!s) return null;
+    const lVotes = left.votes || 0;
+    const rVotes = right.votes || 0;
+    const total = lVotes + rVotes + 1;
+    const leftV = lVotes + (s === "left" ? 1 : 0);
+    const leftPct = Math.round((leftV / total) * 100);
+    return {
+      leftPercentage: leftPct,
+      rightPercentage: 100 - leftPct,
+      totalVotes: total,
+    };
+  });
+
+  const startTime = getEngagementStartTime(item);
+  const isScheduled = startTime > now;
+  const timeToStartMs = Math.max(0, startTime - now);
+
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
@@ -1580,9 +1947,23 @@ function DynamicFanBattleCard({
       });
     }
 
+    const stored = getStoredVote("fb", item.id, userId);
+    if (stored?.side) {
+      setSelectedSide(stored.side);
+      const total = (left.votes || 0) + (right.votes || 0) || 1;
+      const leftV = (left.votes || 0) + (stored.side === "left" ? 1 : 0);
+      const leftPct = Math.round((leftV / total) * 100);
+      setResult({
+        leftPercentage: leftPct,
+        rightPercentage: 100 - leftPct,
+        totalVotes: total,
+      });
+    }
+
     if (item.userVoted && item.userVote) {
       const side = item.userVote as "left" | "right";
       setSelectedSide(side);
+      setStoredVote("fb", item.id, { side }, userId);
       const total = (left.votes || 0) + (right.votes || 0) || 1;
       const leftPct = Math.round(((left.votes || 0) / total) * 100);
       setResult({
@@ -1595,6 +1976,7 @@ function DynamicFanBattleCard({
         if (res.hasVoted && res.selectedOptionId) {
           const side = res.selectedOptionId as "left" | "right";
           setSelectedSide(side);
+          setStoredVote("fb", item.id, { side }, userId);
           const total = (left.votes || 0) + (right.votes || 0) || 1;
           const leftPct = Math.round(((left.votes || 0) / total) * 100);
           setResult({
@@ -1608,9 +1990,17 @@ function DynamicFanBattleCard({
   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, left.votes, right.votes]);
 
   const handleVote = async (side: "left" | "right") => {
-    if (selectedSide || loading) return;
+    if (isScheduled) {
+      onToast(`This battle starts in ${formatCountdown(timeToStartMs)}!`);
+      return;
+    }
+    if (selectedSide || loading || getStoredVote("fb", item.id, userId)) {
+      onToast("You have already voted in this battle!");
+      return;
+    }
     setSelectedSide(side);
     setLoading(true);
+    setStoredVote("fb", item.id, { side }, userId);
     setTotalEngaged((prev) => prev + 1);
 
     try {
@@ -1687,6 +2077,14 @@ function DynamicFanBattleCard({
           <span className="text-[#FF3D57]">⚔️ FAN BATTLE</span>
           <span>•</span>
           <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 +2 PTS / VOTE</span>
+          {isScheduled && (
+            <>
+              <span>•</span>
+              <span className="text-amber-400 flex items-center gap-1 font-mono">
+                <Clock size={10} /> STARTS IN {formatCountdown(timeToStartMs)}
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span>{formattedTime}</span>
@@ -1695,16 +2093,25 @@ function DynamicFanBattleCard({
 
       <h3 className="text-sm font-black mb-4">{item.title}</h3>
 
+      {isScheduled && (
+        <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center gap-2 text-xs font-black text-amber-300">
+          <Lock size={13} />
+          <span>Event scheduled · Voting opens in {formatCountdown(timeToStartMs)}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-7 items-center gap-3 mb-4">
         {/* Left Competitor */}
         <button
           onClick={() => handleVote("left")}
-          disabled={loading || selectedSide !== null}
-          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${selectedSide === "left"
-              ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
-              : selectedSide === "right"
-                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
+          disabled={loading || selectedSide !== null || isScheduled}
+          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${isScheduled
+              ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
+              : selectedSide === "left"
+                ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
+                : selectedSide === "right"
+                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
             }`}
         >
           <span className="text-2xl font-black block">{left.code}</span>
@@ -1731,12 +2138,14 @@ function DynamicFanBattleCard({
         {/* Right Competitor */}
         <button
           onClick={() => handleVote("right")}
-          disabled={loading || selectedSide !== null}
-          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${selectedSide === "right"
-              ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
-              : selectedSide === "left"
-                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
+          disabled={loading || selectedSide !== null || isScheduled}
+          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${isScheduled
+              ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
+              : selectedSide === "right"
+                ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
+                : selectedSide === "left"
+                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
             }`}
         >
           <span className="text-2xl font-black block">{right.code}</span>
@@ -1754,7 +2163,6 @@ function DynamicFanBattleCard({
         </button>
       </div>
 
-      {/* Challenge Button */}
       <button
         onClick={handleShare}
         className="w-full py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] font-black text-xs flex items-center justify-center gap-2 active:scale-[0.99] transition-all cursor-pointer text-white/90"
@@ -1762,7 +2170,6 @@ function DynamicFanBattleCard({
         <span>🫱🏼🫲🏾</span> Challenge a Friend
       </button>
 
-      {/* Footer Counters */}
       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
         <div className="flex gap-4">
           <button
@@ -1787,31 +2194,20 @@ function DynamicFanBattleCard({
   );
 }
 
-// ─── 2. Quiz Card Component (Multi-Question & Single-Question Supported) ───────
+// ─── 2. Quiz Card Component (Interval & Schedule Enforced) ──────────────────
 function DynamicQuizCard({
   item,
   userId,
+  now,
   onToast,
   onEdit,
 }: {
   item: EngagementItem;
   userId?: string;
+  now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
 }) {
-  const [currentQIndex, setCurrentQIndex] = useState(0);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [answered, setAnswered] = useState(false);
-  const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
-  const [totalScore, setTotalScore] = useState(0);
-  const [quizFinished, setQuizFinished] = useState(false);
-
-  const [liked, setLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-
-  // Normalize questions array
   const rawQuestions =
     item.quizData?.questions && item.quizData.questions.length > 0
       ? item.quizData.questions
@@ -1832,12 +2228,50 @@ function DynamicQuizCard({
       ];
 
   const totalQuestions = rawQuestions.length;
+
+  const initialFinish = getStoredVote("quiz_finish", item.id, userId);
+  const [quizFinished, setQuizFinished] = useState<boolean>(Boolean(initialFinish?.finished));
+  const [totalScore, setTotalScore] = useState<number>(Number(initialFinish?.score) || 0);
+
+  const [currentQIndex, setCurrentQIndex] = useState(0);
   const currentQ = rawQuestions[Math.min(currentQIndex, totalQuestions - 1)];
   const correctOptionId = currentQ?.correctOptionId || "A";
   const pointsReward = currentQ?.pointsReward || 50;
-  const frequencyMinutes = item.quizData?.frequencyMinutes || 10;
+  const frequencyMinutes = Number(item.quizData?.frequencyMinutes || 10);
+  const frequencyMs = frequencyMinutes * 60 * 1000;
 
-  // Check like state and answered status from Database / API
+  const initialQ =
+    getStoredVote(`quiz_q_${currentQ?.id}`, item.id, userId) ||
+    getStoredVote(`quiz_q_${currentQIndex}`, item.id, userId) ||
+    getStoredVote("quiz_ans", item.id, userId);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialQ?.selectedId || (item.userVoted && item.userVote ? item.userVote : null)
+  );
+  const [answered, setAnswered] = useState<boolean>(Boolean(initialQ || item.userVoted));
+  const [isCorrect, setIsCorrect] = useState<boolean | null>(
+    initialQ
+      ? initialQ.isCorrect
+      : item.userVoted && item.userVote
+        ? item.userVote.toUpperCase() === correctOptionId.toUpperCase()
+        : null
+  );
+
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+
+  const startTime = getEngagementStartTime(item);
+  const isScheduled = startTime > now;
+  const timeToStartMs = Math.max(0, startTime - now);
+
+  const elapsedSinceStart = Math.max(0, now - startTime);
+  const unlockedQuestionCount = isScheduled
+    ? 0
+    : Math.min(totalQuestions, Math.floor(elapsedSinceStart / frequencyMs) + 1);
+  const msToNextQuestionSlot = isScheduled ? 0 : Math.max(0, frequencyMs - (elapsedSinceStart % frequencyMs));
+  const isNextQuestionLocked = answered && currentQIndex + 1 >= unlockedQuestionCount && currentQIndex + 1 < totalQuestions;
+
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
@@ -1847,11 +2281,35 @@ function DynamicQuizCard({
       });
     }
 
-    if (item.userVoted && item.userVote) {
+    const finish = getStoredVote("quiz_finish", item.id, userId);
+    if (finish?.finished) {
+      setQuizFinished(true);
+      if (finish.score !== undefined) setTotalScore(Number(finish.score));
+    }
+
+    const ans =
+      getStoredVote(`quiz_q_${currentQ?.id}`, item.id, userId) ||
+      getStoredVote(`quiz_q_${currentQIndex}`, item.id, userId) ||
+      getStoredVote("quiz_ans", item.id, userId);
+    if (ans) {
+      setSelectedId(ans.selectedId);
+      setAnswered(true);
+      setIsCorrect(
+        ans.isCorrect !== undefined
+          ? ans.isCorrect
+          : ans.selectedId?.toUpperCase() === correctOptionId.toUpperCase()
+      );
+    } else if (item.userVoted && item.userVote) {
       setSelectedId(item.userVote);
       setAnswered(true);
       const isRight = item.userVote.toUpperCase() === correctOptionId.toUpperCase();
       setIsCorrect(isRight);
+      setStoredVote(
+        `quiz_q_${currentQ?.id || currentQIndex}`,
+        item.id,
+        { selectedId: item.userVote, isCorrect: isRight },
+        userId
+      );
     } else if (userId) {
       engagementService.checkVoteStatus(item.id, userId).then((res) => {
         if (res.hasVoted && res.selectedOptionId) {
@@ -1859,13 +2317,25 @@ function DynamicQuizCard({
           setAnswered(true);
           const isRight = res.selectedOptionId.toUpperCase() === correctOptionId.toUpperCase();
           setIsCorrect(isRight);
+          setStoredVote(
+            `quiz_q_${currentQ?.id || currentQIndex}`,
+            item.id,
+            { selectedId: res.selectedOptionId, isCorrect: isRight },
+            userId
+          );
         }
       });
     }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, correctOptionId]);
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, correctOptionId, currentQ?.id, currentQIndex]);
 
   const handleOptionSelect = async (optId: string) => {
-    if (answered) return;
+    if (answered || isScheduled) return;
+    const existing =
+      getStoredVote(`quiz_q_${currentQ?.id}`, item.id, userId) ||
+      getStoredVote(`quiz_q_${currentQIndex}`, item.id, userId) ||
+      getStoredVote("quiz_ans", item.id, userId);
+    if (existing) return;
+
     setSelectedId(optId);
     setAnswered(true);
     setTotalEngaged((prev) => prev + 1);
@@ -1873,14 +2343,34 @@ function DynamicQuizCard({
     const isRight = optId.toUpperCase() === correctOptionId.toUpperCase();
     setIsCorrect(isRight);
 
-    // Awards pointsReward + 2 PTS if correct, or 2 PTS participation if wrong
     const earnedPoints = isRight ? pointsReward + 2 : 2;
-    setTotalScore((prev) => prev + earnedPoints);
+    const nextTotal = totalScore + earnedPoints;
+    setTotalScore(nextTotal);
+
+    setStoredVote(
+      `quiz_q_${currentQ?.id || currentQIndex}`,
+      item.id,
+      { selectedId: optId, isCorrect: isRight, earnedPoints },
+      userId
+    );
+    setStoredVote(
+      "quiz_ans",
+      item.id,
+      { selectedId: optId, isCorrect: isRight, earnedPoints },
+      userId
+    );
+
+    if (totalQuestions === 1 || currentQIndex === totalQuestions - 1) {
+      setQuizFinished(true);
+      setStoredVote("quiz_finish", item.id, { finished: true, score: nextTotal }, userId);
+    }
 
     try {
       await engagementService.voteEngagement(item.id, optId, userId, currentQ?.id);
       if (typeof window !== "undefined") {
-        window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: earnedPoints } }));
+        window.dispatchEvent(
+          new CustomEvent("sf360:points-updated", { detail: { points: earnedPoints } })
+        );
       }
     } catch (err: any) {
       const prevOpt = err?.response?.data?.selectedOptionId || optId;
@@ -1891,23 +2381,28 @@ function DynamicQuizCard({
   };
 
   const handleNextQuestion = () => {
+    if (isNextQuestionLocked) {
+      onToast(`Next question unlocks in ${formatCountdown(msToNextQuestionSlot)}!`);
+      return;
+    }
     if (currentQIndex < totalQuestions - 1) {
-      setCurrentQIndex((prev) => prev + 1);
-      setSelectedId(null);
-      setAnswered(false);
-      setIsCorrect(null);
+      const nextIdx = currentQIndex + 1;
+      setCurrentQIndex(nextIdx);
+      const nextQ = rawQuestions[nextIdx];
+      const ans = getStoredVote(`quiz_q_${nextQ?.id || nextIdx}`, item.id, userId);
+      if (ans) {
+        setSelectedId(ans.selectedId);
+        setAnswered(true);
+        setIsCorrect(ans.isCorrect);
+      } else {
+        setSelectedId(null);
+        setAnswered(false);
+        setIsCorrect(null);
+      }
     } else {
       setQuizFinished(true);
+      setStoredVote("quiz_finish", item.id, { finished: true, score: totalScore }, userId);
     }
-  };
-
-  const handleRestartQuiz = () => {
-    setCurrentQIndex(0);
-    setSelectedId(null);
-    setAnswered(false);
-    setIsCorrect(null);
-    setQuizFinished(false);
-    setTotalScore(0);
   };
 
   const handleLike = async () => {
@@ -1951,16 +2446,23 @@ function DynamicQuizCard({
       exit={{ opacity: 0, y: -12 }}
       className="w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
     >
-      {/* Card Header */}
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-purple-400">🧠 QUIZ</span>
           <span>•</span>
-          <span className="text-amber-400">⭐ {pointsReward + 2} PTS (+2 PART.)</span>
+          <span className="text-amber-400">⭐ {pointsReward + 2} PTS</span>
           {frequencyMinutes && (
             <>
               <span>•</span>
-              <span className="text-cyan-400">⏱️ {frequencyMinutes}M</span>
+              <span className="text-cyan-400 font-mono">⏱️ {frequencyMinutes}M INTERVAL</span>
+            </>
+          )}
+          {isScheduled && (
+            <>
+              <span>•</span>
+              <span className="text-amber-400 font-mono flex items-center gap-1">
+                <Clock size={10} /> STARTS IN {formatCountdown(timeToStartMs)}
+              </span>
             </>
           )}
         </div>
@@ -1970,7 +2472,7 @@ function DynamicQuizCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        {/* <h3 className="text-sm font-black text-white">{item.title}</h3> */}
+        <h3 className="text-sm font-black text-white truncate">{item.title}</h3>
         {totalQuestions > 1 && (
           <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full shrink-0">
             Q {currentQIndex + 1}/{totalQuestions}
@@ -1978,7 +2480,6 @@ function DynamicQuizCard({
         )}
       </div>
 
-      {/* Multi-Question Progress Bar */}
       {totalQuestions > 1 && (
         <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mb-3">
           <div
@@ -1988,27 +2489,16 @@ function DynamicQuizCard({
         </div>
       )}
 
-      {quizFinished ? (
-        /* Quiz Finished View */
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center my-3"
-        >
-          <span className="text-2xl block mb-1">🏆</span>
-          <h4 className="text-sm font-black text-white mb-1">Quiz Completed!</h4>
-          <p className="text-xs text-white/70 mb-3">
-            You scored <strong className="text-amber-400">+{totalScore} PTS</strong> across {totalQuestions} questions!
+      {isScheduled ? (
+        <div className="p-5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center my-3 space-y-2">
+          <Clock size={24} className="mx-auto text-purple-400 animate-pulse" />
+          <h4 className="text-sm font-black text-white">Quiz Scheduled</h4>
+          <p className="text-xs text-white/70">
+            Question #1 unlocks in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
           </p>
-          <button
-            onClick={handleRestartQuiz}
-            className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs inline-flex items-center gap-1.5 transition-all cursor-pointer"
-          >
-            <RefreshCw size={13} /> Retake Quiz
-          </button>
-        </motion.div>
+          <span className="text-[10px] text-white/40 block">Questions unlock every {frequencyMinutes} minutes</span>
+        </div>
       ) : (
-        /* Active Question View */
         <>
           <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{currentQ?.question}</p>
 
@@ -2048,11 +2538,7 @@ function DynamicQuizCard({
           </div>
 
           {answered && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-2 mb-3"
-            >
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mb-3">
               <div
                 className={`text-[11px] font-black text-center p-2 rounded-xl border flex items-center justify-center gap-1.5 ${isCorrect
                     ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
@@ -2067,21 +2553,33 @@ function DynamicQuizCard({
                 </span>
               </div>
 
-              {totalQuestions > 1 && (
-                <button
-                  onClick={handleNextQuestion}
-                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-purple-600/20"
-                >
-                  <span>{currentQIndex < totalQuestions - 1 ? "Next Question" : "Complete Quiz"}</span>
-                  <ChevronRight size={14} />
-                </button>
+              {totalQuestions > 1 && currentQIndex < totalQuestions - 1 && (
+                <>
+                  {isNextQuestionLocked ? (
+                    <div className="p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl flex items-center justify-between text-xs font-bold text-white/80">
+                      <span className="flex items-center gap-1.5 text-purple-300">
+                        <Clock size={13} /> Next Question #{currentQIndex + 2} in:
+                      </span>
+                      <span className="font-mono text-amber-400 font-extrabold text-sm">
+                        {formatCountdown(msToNextQuestionSlot)}
+                      </span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleNextQuestion}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-purple-600/20"
+                    >
+                      <span>Next Question</span>
+                      <ChevronRight size={14} />
+                    </button>
+                  )}
+                </>
               )}
             </motion.div>
           )}
         </>
       )}
 
-      {/* Footer Counters */}
       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
         <div className="flex gap-4">
           <button
@@ -2106,21 +2604,29 @@ function DynamicQuizCard({
   );
 }
 
-// ─── 3. Poll Card Component ────────────────────────────────────────────────
+// ─── 3. Poll Card Component (Duration & Expiry Enforced +10 PTS Accuracy Bonus) ─
 function DynamicPollCard({
   item,
   userId,
+  now,
   onToast,
   onEdit,
 }: {
   item: EngagementItem;
   userId?: string;
+  now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [voted, setVoted] = useState(false);
+  const initialVote = getStoredVote("poll", item.id, userId);
+  const [selectedId, setSelectedId] = useState<string | null>(
+    initialVote?.selectedId || item.userVote || null
+  );
+  const [voted, setVoted] = useState<boolean>(Boolean(initialVote || item.userVoted));
   const [loading, setLoading] = useState(false);
+  const [bonusAwarded, setBonusAwarded] = useState<boolean>(false);
+  const [serverIsCorrect, setServerIsCorrect] = useState<boolean | null>(null);
+
   const [options, setOptions] = useState(
     item.pollData?.options || [
       { id: "1", text: "Jasprit Bumrah 🏏", votes: 420 },
@@ -2133,8 +2639,36 @@ function DynamicPollCard({
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
 
+  const startTime = getEngagementStartTime(item);
+  const isScheduled = startTime > now;
+  const timeToStartMs = Math.max(0, startTime - now);
+
+  const durationMins = Number(item.pollData?.durationMinutes || item.pollData?.timerMinutes || 10);
+  const expiresAt = item.pollData?.expiresAt || (startTime + durationMins * 60 * 1000);
+  const isExpired = now >= expiresAt;
+  const timeRemainingMs = Math.max(0, expiresAt - now);
+
   const totalVotes = options.reduce((sum, o) => sum + (o.votes || 0), 0) || 1;
 
+  const correctAnswer = item.pollData?.correctAnswer || item.pollData?.answer || "";
+
+  const checkIsOptionWinner = useCallback((opt: any) => {
+    if (!correctAnswer || !opt) return false;
+    const ca = correctAnswer.trim().toLowerCase();
+    const optText = String(opt.text || opt.label || "").trim().toLowerCase();
+    const optId = String(opt.id || "").trim().toLowerCase();
+    return (
+      optText === ca ||
+      optId === ca ||
+      (optText && ca && (optText.includes(ca) || ca.includes(optText))) ||
+      opt.isCorrect === true
+    );
+  }, [correctAnswer]);
+
+  const chosenOpt = options.find((o) => o.id === selectedId || o.text === selectedId);
+  const userWon = Boolean(chosenOpt && checkIsOptionWinner(chosenOpt));
+
+  // Sync vote status and likes on mount
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
@@ -2144,24 +2678,102 @@ function DynamicPollCard({
       });
     }
 
+    const stored = getStoredVote("poll", item.id, userId);
+    if (stored?.selectedId) {
+      setSelectedId(stored.selectedId);
+      setVoted(true);
+    }
+
     if (item.userVoted && item.userVote) {
       setSelectedId(item.userVote);
       setVoted(true);
-    } else if (userId) {
+      setStoredVote("poll", item.id, { selectedId: item.userVote }, userId);
+    }
+
+    if (userId) {
       engagementService.checkVoteStatus(item.id, userId).then((res) => {
         if (res.hasVoted && res.selectedOptionId) {
           setSelectedId(res.selectedOptionId);
           setVoted(true);
+          setStoredVote("poll", item.id, { selectedId: res.selectedOptionId }, userId);
         }
-      });
+        if (res.accuracyBonusAwarded || res.wonBonusPoints === 10) {
+          setBonusAwarded(true);
+          setServerIsCorrect(true);
+          if (res.newlyAwarded) {
+            onToast("🏆 Correct Answer! +10 PTS Accuracy Bonus Awarded! 🎉");
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 10 } }));
+            }
+          }
+        } else if (res.isCorrect !== undefined) {
+          setServerIsCorrect(res.isCorrect);
+        }
+      }).catch(() => { });
     }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, onToast]);
+
+  // Evaluate & Claim +10 Bonus after Timer Ends (Directly via Backend Database)
+  const bonusClaimTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!isExpired || !voted || bonusAwarded || bonusClaimTriggeredRef.current) return;
+
+    if (userId) {
+      bonusClaimTriggeredRef.current = true;
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res?.accuracyBonusAwarded || res?.wonBonusPoints === 10) {
+          setBonusAwarded(true);
+          setServerIsCorrect(true);
+          if (res?.newlyAwarded) {
+            onToast("🏆 Correct Answer! +10 PTS Accuracy Bonus Awarded! 🎉");
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 10 } }));
+            }
+          }
+        } else if (res?.isCorrect && !res?.accuracyBonusAwarded) {
+          fetch(`/api/engagements/${item.id}/vote`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "claim_bonus",
+              userId,
+              selectedOptionId: selectedId,
+            }),
+          })
+            .then((r) => r.json())
+            .then((claimRes) => {
+              if (claimRes?.accuracyBonusAwarded || claimRes?.wonBonusPoints === 10) {
+                setBonusAwarded(true);
+                setServerIsCorrect(true);
+                onToast("🏆 Correct Answer! +10 PTS Accuracy Bonus Awarded! 🎉");
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 10 } }));
+                }
+              }
+            })
+            .catch(() => { });
+        }
+      }).catch(() => { });
+    }
+  }, [isExpired, voted, bonusAwarded, item.id, userId, selectedId, onToast]);
 
   const handleVote = async (optId: string) => {
-    if (voted || loading) return;
+    if (isScheduled) {
+      onToast(`Poll unlocks in ${formatCountdown(timeToStartMs)}!`);
+      return;
+    }
+    if (isExpired) {
+      onToast("This poll has ended!");
+      return;
+    }
+    if (voted || loading || getStoredVote("poll", item.id, userId)) {
+      onToast("You have already voted on this poll!");
+      return;
+    }
     setSelectedId(optId);
     setVoted(true);
     setLoading(true);
+    setStoredVote("poll", item.id, { selectedId: optId }, userId);
     setTotalEngaged((prev) => prev + 1);
 
     try {
@@ -2230,54 +2842,129 @@ function DynamicPollCard({
       className="w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
     >
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-        <span className="text-blue-400 uppercase font-black">📊 POLL • +2 PTS / VOTE</span>
+        <div className="flex items-center gap-1.5 uppercase">
+          <span className="text-blue-400 font-black">📊 POLL • +2 PTS / VOTE</span>
+          {isScheduled ? (
+            <>
+              <span>•</span>
+              <span className="text-amber-400 font-mono flex items-center gap-1">
+                <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
+              </span>
+            </>
+          ) : isExpired ? (
+            <>
+              <span>•</span>
+              <span className="text-rose-400 font-mono">🔒 CLOSED</span>
+            </>
+          ) : (
+            <>
+              <span>•</span>
+              <span className="text-emerald-400 font-mono flex items-center gap-1">
+                <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
+              </span>
+            </>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <span>{formattedTime}</span>
         </div>
       </div>
 
-      <h3 className="text-sm font-black mb-4">{item.pollData?.question || item.title}</h3>
+      <h3 className="text-sm font-black mb-3">{item.pollData?.question || item.title}</h3>
 
-      <div className="space-y-3 mb-4">
-        {options.map((opt) => {
-          const isSelected = selectedId === opt.id;
-          const percentage =
-            opt.percentage !== undefined
-              ? opt.percentage
-              : Math.round(((opt.votes || 0) / totalVotes) * 100);
+      {isScheduled ? (
+        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center my-2 space-y-1">
+          <Clock size={20} className="mx-auto text-blue-400 animate-pulse" />
+          <h4 className="text-xs font-black text-white">Poll Scheduled</h4>
+          <p className="text-[11px] text-white/60">
+            Voting opens in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3 mb-4">
+          {/* Winner Celebration Status Banner */}
+          {isExpired && voted && (
+            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
+              {userWon || bonusAwarded || serverIsCorrect ? (
+                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                  <span className="flex items-center gap-1.5">
+                    <span>🎉</span>
+                    <span>Correct Answer! You earned +10 PTS Bonus (+12 PTS Total)</span>
+                  </span>
+                  <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                    +10 PTS
+                  </span>
+                </div>
+              ) : correctAnswer ? (
+                <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
+                  <span>Poll closed · Winning answer: <strong className="text-emerald-400">{correctAnswer}</strong></span>
+                  <span className="text-[10px] text-white/40 shrink-0">+2 PTS participation</span>
+                </div>
+              ) : null}
+            </motion.div>
+          )}
 
-          return (
-            <button
-              key={opt.id}
-              onClick={() => handleVote(opt.id)}
-              disabled={voted}
-              className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${isSelected
-                  ? "border-blue-500/60 bg-blue-500/[0.07]"
-                  : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
-                }`}
+          {/* Active Poll Participation Notice */}
+          {voted && !isExpired && (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-[11px] font-black text-center text-blue-400 bg-blue-500/10 border border-blue-500/20 p-2.5 rounded-xl mb-3 flex items-center justify-center gap-1.5"
             >
-              {voted && (
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${percentage}%` }}
-                  transition={{ duration: 0.6, ease: "easeOut" }}
-                  className={`absolute left-0 top-0 bottom-0 z-0 ${isSelected ? "bg-blue-500/20" : "bg-white/[0.04]"
-                    }`}
-                />
-              )}
-              <span className="relative z-10 text-white/90 font-bold">{opt.text}</span>
-              {voted && (
-                <span
-                  className={`relative z-10 text-[11px] font-black ${isSelected ? "text-blue-400" : "text-white/60"
-                    }`}
-                >
-                  {percentage}% {isSelected && "✓"}
+              <span>🔒</span>
+              <span>+2 PTS earned! · Closes in {formatCountdown(timeRemainingMs)} · Pick the winning answer to earn +10 PTS bonus!</span>
+            </motion.div>
+          )}
+
+          {options.map((opt) => {
+            const isSelected = selectedId === opt.id || selectedId === opt.text;
+            const percentage =
+              opt.percentage !== undefined
+                ? opt.percentage
+                : Math.round(((opt.votes || 0) / totalVotes) * 100);
+
+            const isWinner = checkIsOptionWinner(opt);
+
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleVote(opt.id)}
+                disabled={voted || isExpired || loading}
+                className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${isWinner && isExpired
+                    ? "border-emerald-500/80 bg-emerald-500/[0.1] shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+                    : isSelected
+                      ? "border-blue-500/60 bg-blue-500/[0.07]"
+                      : isExpired
+                        ? "opacity-60 border-white/[0.05] bg-white/[0.01]"
+                        : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
+                  }`}
+              >
+                {(voted || isExpired) && (
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${percentage}%` }}
+                    transition={{ duration: 0.6, ease: "easeOut" }}
+                    className={`absolute left-0 top-0 bottom-0 z-0 ${isWinner && isExpired ? "bg-emerald-500/20" : isSelected ? "bg-blue-500/20" : "bg-white/[0.04]"
+                      }`}
+                  />
+                )}
+                <span className="relative z-10 text-white/90 font-bold flex items-center gap-1.5">
+                  {opt.text}
+                  {isWinner && isExpired && <span className="text-emerald-400 text-[10px] font-black">🏆 Correct Answer</span>}
                 </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+                {(voted || isExpired) && (
+                  <span
+                    className={`relative z-10 text-[11px] font-black ${isWinner && isExpired ? "text-emerald-400" : isSelected ? "text-blue-400" : "text-white/60"
+                      }`}
+                  >
+                    {percentage}% {isSelected && "✓"}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
         <div className="flex gap-4">
@@ -2303,31 +2990,20 @@ function DynamicPollCard({
   );
 }
 
-// ─── 4. Prediction Card Component ──────────────────────────────────────────
+// ─── 4. Prediction Card Component (Duration & Expiry Enforced +10 PTS Accuracy Bonus) ─
 function DynamicPredictionCard({
   item,
   userId,
+  now,
   onToast,
   onEdit,
 }: {
   item: EngagementItem;
   userId?: string;
+  now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
 }) {
-  const [selectedChoice, setSelectedChoice] = useState<"left" | "right" | null>(null);
-  const [predicted, setPredicted] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [liked, setLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-  const [result, setResult] = useState<{
-    leftPercentage: number;
-    rightPercentage: number;
-    coinsLocked: number;
-  } | null>(null);
-
   const pred = item.predictionData || {
     question: "India win the 1st Galle Test?",
     leftChoice: { id: "left", text: "Yes, India win", code: "IN", votes: 640 },
@@ -2337,6 +3013,89 @@ function DynamicPredictionCard({
     status: "open",
   };
 
+  const initialVote = getStoredVote("pred", item.id, userId);
+  const [selectedChoice, setSelectedChoice] = useState<"left" | "right" | null>(
+    initialVote?.choice || (item.userVote as "left" | "right") || null
+  );
+  const [predicted, setPredicted] = useState<boolean>(Boolean(initialVote || item.userVoted));
+  const [loading, setLoading] = useState(false);
+  const [bonusAwarded, setBonusAwarded] = useState<boolean>(false);
+  const [serverIsCorrect, setServerIsCorrect] = useState<boolean | null>(null);
+
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+  const [result, setResult] = useState<{
+    leftPercentage: number;
+    rightPercentage: number;
+    coinsLocked: number;
+  } | null>(() => {
+    const c = initialVote?.choice || (item.userVote as "left" | "right");
+    if (!c) return null;
+    return {
+      leftPercentage: c === "left" ? 71 : 29,
+      rightPercentage: c === "right" ? 71 : 29,
+      coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
+    };
+  });
+
+  const startTime = getEngagementStartTime(item);
+  const isScheduled = startTime > now;
+  const timeToStartMs = Math.max(0, startTime - now);
+
+  const durationMins = Number(item.predictionData?.durationMinutes || item.predictionData?.timerMinutes || 30);
+  const expiresAt = item.predictionData?.expiresAt || (startTime + durationMins * 60 * 1000);
+  const isExpired = now >= expiresAt;
+  const timeRemainingMs = Math.max(0, expiresAt - now);
+
+  const winningTarget =
+    pred.winningChoiceId ||
+    pred.correctAnswer ||
+    pred.answer ||
+    item.predictionData?.correctAnswer ||
+    item.predictionData?.winningChoiceId ||
+    "";
+
+  const checkIsChoiceWinner = useCallback((choice: "left" | "right" | string | null): boolean => {
+    if (!choice || !winningTarget) return false;
+    const target = winningTarget.trim().toLowerCase();
+    const c = String(choice).trim().toLowerCase();
+    const leftText = String(pred.leftChoice?.text || "").trim().toLowerCase();
+    const leftCode = String(pred.leftChoice?.code || "").trim().toLowerCase();
+    const rightText = String(pred.rightChoice?.text || "").trim().toLowerCase();
+    const rightCode = String(pred.rightChoice?.code || "").trim().toLowerCase();
+
+    const isTargetLeft =
+      target === "left" ||
+      (!!leftText && target === leftText) ||
+      (!!leftCode && target === leftCode) ||
+      (!!leftText && leftText.includes(target) && target.length > 2);
+
+    const isTargetRight =
+      target === "right" ||
+      (!!rightText && target === rightText) ||
+      (!!rightCode && target === rightCode) ||
+      (!!rightText && rightText.includes(target) && target.length > 2);
+
+    const isUserLeft =
+      c === "left" ||
+      (!!leftText && c === leftText) ||
+      (!!leftCode && c === leftCode);
+
+    const isUserRight =
+      c === "right" ||
+      (!!rightText && c === rightText) ||
+      (!!rightCode && c === rightCode);
+
+    if (isTargetLeft && isUserLeft) return true;
+    if (isTargetRight && isUserRight) return true;
+    return c === target;
+  }, [winningTarget, pred.leftChoice?.text, pred.leftChoice?.code, pred.rightChoice?.text, pred.rightChoice?.code]);
+
+  const userWon = Boolean(predicted && checkIsChoiceWinner(selectedChoice));
+
+  // Sync vote status and likes on mount
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
@@ -2346,22 +3105,37 @@ function DynamicPredictionCard({
       });
     }
 
+    const stored = getStoredVote("pred", item.id, userId);
+    if (stored?.choice) {
+      setSelectedChoice(stored.choice);
+      setPredicted(true);
+      setResult({
+        leftPercentage: stored.choice === "left" ? 71 : 29,
+        rightPercentage: stored.choice === "right" ? 71 : 29,
+        coinsLocked: stored.coinsLocked || pred.coinStake || 25,
+      });
+    }
+
     if (item.userVoted && item.userVote) {
       const choice = item.userVote as "left" | "right";
       setSelectedChoice(choice);
       setPredicted(true);
+      setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
       const computedResult = {
         leftPercentage: choice === "left" ? 71 : 29,
         rightPercentage: choice === "right" ? 71 : 29,
         coinsLocked: pred.coinStake || 25,
       };
       setResult(computedResult);
-    } else if (userId) {
+    }
+
+    if (userId) {
       engagementService.checkVoteStatus(item.id, userId).then((res) => {
         if (res.hasVoted && res.selectedOptionId) {
           const choice = res.selectedOptionId as "left" | "right";
           setSelectedChoice(choice);
           setPredicted(true);
+          setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
           const computedResult = {
             leftPercentage: choice === "left" ? 71 : 29,
             rightPercentage: choice === "right" ? 71 : 29,
@@ -2369,15 +3143,83 @@ function DynamicPredictionCard({
           };
           setResult(computedResult);
         }
-      });
+        if (res.accuracyBonusAwarded || res.wonBonusPoints === 10) {
+          setBonusAwarded(true);
+          setServerIsCorrect(true);
+          if (res.newlyAwarded) {
+            onToast("🎯 Prediction Won! +10 PTS Accuracy Bonus Awarded! 🏆");
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 10 } }));
+            }
+          }
+        } else if (res.isCorrect !== undefined) {
+          setServerIsCorrect(res.isCorrect);
+        }
+      }).catch(() => { });
     }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, pred.coinStake]);
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, pred.coinStake, onToast]);
+
+  // Evaluate & Claim +10 Bonus after Timer Ends (Directly via Backend Database)
+  const predBonusClaimTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (!isExpired || !predicted || bonusAwarded || predBonusClaimTriggeredRef.current) return;
+
+    if (userId) {
+      predBonusClaimTriggeredRef.current = true;
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res?.accuracyBonusAwarded || res?.wonBonusPoints === 10) {
+          setBonusAwarded(true);
+          setServerIsCorrect(true);
+          if (res?.newlyAwarded) {
+            onToast("🎯 Prediction Won! +10 PTS Accuracy Bonus Awarded! 🏆");
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 10 } }));
+            }
+          }
+        } else if (res?.isCorrect && !res?.accuracyBonusAwarded) {
+          fetch(`/api/engagements/${item.id}/vote`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "claim_bonus",
+              userId,
+              selectedOptionId: selectedChoice,
+            }),
+          })
+            .then((r) => r.json())
+            .then((claimRes) => {
+              if (claimRes?.accuracyBonusAwarded || claimRes?.wonBonusPoints === 10) {
+                setBonusAwarded(true);
+                setServerIsCorrect(true);
+                onToast("🎯 Prediction Won! +10 PTS Accuracy Bonus Awarded! 🏆");
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 10 } }));
+                }
+              }
+            })
+            .catch(() => { });
+        }
+      }).catch(() => { });
+    }
+  }, [isExpired, predicted, bonusAwarded, item.id, userId, selectedChoice, onToast]);
 
   const handlePredict = async (choice: "left" | "right") => {
-    if (predicted || loading) return;
+    if (isScheduled) {
+      onToast(`Prediction unlocks in ${formatCountdown(timeToStartMs)}!`);
+      return;
+    }
+    if (isExpired) {
+      onToast("This prediction has closed!");
+      return;
+    }
+    if (predicted || loading || getStoredVote("pred", item.id, userId)) {
+      onToast("You have already made your prediction!");
+      return;
+    }
     setSelectedChoice(choice);
     setPredicted(true);
     setLoading(true);
+    setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
     setTotalEngaged((prev) => prev + 1);
 
     try {
@@ -2451,59 +3293,108 @@ function DynamicPredictionCard({
           <span className="text-amber-400">🎯 PREDICTION</span>
           <span>•</span>
           <span className="text-amber-300">⚡ +2 PTS / VOTE</span>
+          {isScheduled ? (
+            <>
+              <span>•</span>
+              <span className="text-amber-400 font-mono flex items-center gap-1">
+                <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
+              </span>
+            </>
+          ) : isExpired ? (
+            <>
+              <span>•</span>
+              <span className="text-rose-400 font-mono">🔒 CLOSED</span>
+            </>
+          ) : (
+            <>
+              <span>•</span>
+              <span className="text-emerald-400 font-mono flex items-center gap-1">
+                <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span>{formattedTime}</span>
         </div>
       </div>
 
-      {/* <h3 className="text-sm font-black mb-1">{item.title || "Predict the outcome!"}</h3> */}
       <p className="text-xs font-semibold text-white/70 mb-4">{pred.question}</p>
 
-      <div className="grid grid-cols-2 gap-3.5 mb-4">
-        {/* Left Choice */}
-        <button
-          onClick={() => handlePredict("left")}
-          disabled={predicted}
-          className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "left"
-              ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-              : predicted
-                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-            }`}
-        >
-          <span className="text-xs font-black">{pred.leftChoice.text}</span>
-          <span className="text-[10px] font-black mt-1 text-white/50">
-            {result ? `${result.leftPercentage}%` : "2X multiplier"}
-          </span>
-        </button>
+      {isScheduled ? (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center my-2 space-y-1">
+          <Clock size={20} className="mx-auto text-amber-400 animate-pulse" />
+          <h4 className="text-xs font-black text-white">Prediction Scheduled</h4>
+          <p className="text-[11px] text-white/60">
+            Predictions open in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3.5 mb-4">
+          <button
+            onClick={() => handlePredict("left")}
+            disabled={predicted || isExpired || loading}
+            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "left"
+                ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+                : predicted || isExpired
+                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+              }`}
+          >
+            <span className="text-xs font-black">{pred.leftChoice.text}</span>
+            <span className="text-[10px] font-black mt-1 text-white/50">
+              {result ? `${result.leftPercentage}%` : "2X multiplier"}
+            </span>
+          </button>
 
-        {/* Right Choice */}
-        <button
-          onClick={() => handlePredict("right")}
-          disabled={predicted}
-          className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "right"
-              ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-              : predicted
-                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-            }`}
-        >
-          <span className="text-xs font-black">{pred.rightChoice.text}</span>
-          <span className="text-[10px] font-black mt-1 text-white/50">
-            {result ? `${result.rightPercentage}%` : "5X multiplier"}
-          </span>
-        </button>
-      </div>
+          <button
+            onClick={() => handlePredict("right")}
+            disabled={predicted || isExpired || loading}
+            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "right"
+                ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+                : predicted || isExpired
+                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+              }`}
+          >
+            <span className="text-xs font-black">{pred.rightChoice.text}</span>
+            <span className="text-[10px] font-black mt-1 text-white/50">
+              {result ? `${result.rightPercentage}%` : "5X multiplier"}
+            </span>
+          </button>
+        </div>
+      )}
 
       {predicted && (
-        <motion.div
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl mb-2 flex items-center justify-center gap-1.5"
-        >
-          <span>🔒</span>
-          <span>+2 PTS earned! · {result?.coinsLocked || pred.coinStake || 25} FlipCoins locked · Results after match</span>
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
+          {isExpired ? (
+            userWon || bonusAwarded || serverIsCorrect ? (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                <span className="flex items-center gap-1.5">
+                  <span>🎉</span>
+                  <span>Prediction Won! You earned +10 PTS Bonus (+12 PTS Total)</span>
+                </span>
+                <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                  +10 PTS
+                </span>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
+                <span>
+                  Prediction closed · Winning outcome:{" "}
+                  <strong className="text-amber-400">{winningTarget || "Ended"}</strong>
+                </span>
+                <span className="text-[10px] text-white/40 shrink-0">+2 PTS participation</span>
+              </div>
+            )
+          ) : (
+            <div className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
+              <span>🔒</span>
+              <span>
+                +2 PTS earned! · {result?.coinsLocked || pred.coinStake || 25} FlipCoins locked · +10 PTS bonus if your prediction wins when timer closes!
+              </span>
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -2540,18 +3431,23 @@ export default function FlipArena({
 }: FlipArenaProps) {
   const { user } = useAuth();
   const activeUserId = user?.userId || (user as any)?.actualUserId || user?.email;
-  const [engagements, setEngagements] = useState<EngagementItem[]>(FALLBACK_ENGAGEMENTS);
+  const [engagements, setEngagements] = useState<EngagementItem[]>([]);
   const [loadingEngagements, setLoadingEngagements] = useState(true);
   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction">("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
 
-  // Modal State for user Create / Edit feature
+  // 1-second live clock for all countdowns and frequency unlocks
+  const [now, setNow] = useState<number>(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState<EngagementType>("quiz");
   const [editingItem, setEditingItem] = useState<EngagementItem | null>(null);
 
-  // Polls & Predictions for bottom active sections
   const [polls, setPolls] = useState<Poll[]>([]);
   const [loadingPolls, setLoadingPolls] = useState(true);
 
@@ -2563,29 +3459,43 @@ export default function FlipArena({
   const isFetchingEngagementsRef = useRef(false);
   const lastFetchTimeRef = useRef(0);
 
-  // Fetch live engagements from backend API
   const fetchEngagements = useCallback(async () => {
-    if (isFetchingEngagementsRef.current || Date.now() - lastFetchTimeRef.current < 4000) {
+    if (isFetchingEngagementsRef.current || Date.now() - lastFetchTimeRef.current < 2000) {
       return;
     }
     isFetchingEngagementsRef.current = true;
     lastFetchTimeRef.current = Date.now();
     setLoadingEngagements(true);
     try {
-      const liveItems = await engagementService.getEngagements({
-        sport: selectedSport !== "mixed" ? selectedSport : undefined,
+      let liveItems = await engagementService.getEngagements({
+        sport: selectedSport && selectedSport !== "mixed" && selectedSport !== "all" ? selectedSport : undefined,
         status: "active",
         userId: activeUserId,
       });
 
+      // Fallback 1: If sport-filtered query returned 0 items, fetch across all sports so arena is not empty
+      if ((!liveItems || liveItems.length === 0) && selectedSport && selectedSport !== "mixed" && selectedSport !== "all") {
+        liveItems = await engagementService.getEngagements({
+          status: "active",
+          userId: activeUserId,
+        });
+      }
+
+      // Fallback 2: If status="active" was too restrictive, fetch without status constraint
+      if (!liveItems || liveItems.length === 0) {
+        liveItems = await engagementService.getEngagements({
+          userId: activeUserId,
+        });
+      }
+
       if (liveItems && liveItems.length > 0) {
         setEngagements(liveItems);
       } else {
-        setEngagements(FALLBACK_ENGAGEMENTS);
+        setEngagements((prev) => (prev.length > 0 ? prev : []));
       }
     } catch (err) {
-      console.warn("Could not fetch live engagements, using fallback:", err);
-      setEngagements(FALLBACK_ENGAGEMENTS);
+      console.warn("Could not fetch live engagements:", err);
+      // Keep existing engagements if network temporarily fails
     } finally {
       setLoadingEngagements(false);
       isFetchingEngagementsRef.current = false;
@@ -2596,7 +3506,6 @@ export default function FlipArena({
     fetchEngagements();
   }, [fetchEngagements]);
 
-  // Auto-refresh when an event is created/updated from GlobalActionBar or elsewhere
   useEffect(() => {
     const handleGlobalCreated = () => {
       lastFetchTimeRef.current = 0;
@@ -2607,21 +3516,18 @@ export default function FlipArena({
     return () => window.removeEventListener("arena-engagement-created", handleGlobalCreated);
   }, [fetchEngagements]);
 
-  // Open Create Modal
   const handleOpenCreate = (type: EngagementType = "quiz") => {
     setEditingItem(null);
     setModalType(type);
     setModalOpen(true);
   };
 
-  // Open Edit Modal
   const handleOpenEdit = (item: EngagementItem) => {
     setEditingItem(item);
     setModalType(item.type);
     setModalOpen(true);
   };
 
-  // Callback when item is created or updated
   const handleItemSaved = (savedItem: EngagementItem, isEdit: boolean) => {
     setEngagements((prev) => {
       if (isEdit) {
@@ -2630,11 +3536,9 @@ export default function FlipArena({
       return [savedItem, ...prev];
     });
 
-    // Invalidate short-term cache and refetch
     engagementService.invalidateCache();
     fetchEngagements();
 
-    // Trigger platform points sync and global refresh
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
       window.dispatchEvent(new CustomEvent("arena-engagement-created", { detail: savedItem }));
@@ -2647,7 +3551,6 @@ export default function FlipArena({
     }
   };
 
-  // Fetch legacy polls for bottom active section
   useEffect(() => {
     fetch("/api/polls")
       .then((res) => res.json())
@@ -2662,53 +3565,33 @@ export default function FlipArena({
       });
   }, []);
 
-  // Filter and sort engagements chronologically (latest on top)
-  // const filteredEngagements = [...engagements]
-  //   .filter((item) => {
-  //     if (filter === "all") return true;
-  //     if (filter === "battle") return item.type === "fan_battle";
-  //     if (filter === "quiz") return item.type === "quiz";
-  //     if (filter === "poll") return item.type === "poll";
-  //      if (filter === "prediction") return item.type === "prediction";
-  //     return true;
-  //   })
-  //   .sort((a, b) => {
-  //     const timeA = typeof a.createdAt === "number" ? a.createdAt : new Date(a.createdAt || 0).getTime();
-  //     const timeB = typeof b.createdAt === "number" ? b.createdAt : new Date(b.createdAt || 0).getTime();
-  //     return timeB - timeA;
-  //   });
-
   const filteredEngagements = useMemo(() => {
-  return engagements
-    .filter((item) => {
-      // 1. Guard against null, untitled, or corrupted items
-      if (!item || !item.title || !item.type) return false;
+    return engagements
+      .filter((item) => {
+        if (!item || !item.title || !item.type) return false;
 
-      // 2. Filter by category
-      if (filter === "all") return true;
-      if (filter === "battle") return item.type === "fan_battle";
-      if (filter === "quiz") return item.type === "quiz";
-      if (filter === "poll") return item.type === "poll";
-      if (filter === "prediction") return item.type === "prediction";
+        const itemType = (item.type || "").toLowerCase().trim();
+        if (filter === "all") return true;
+        if (filter === "battle") return itemType === "fan_battle";
+        if (filter === "quiz") return itemType === "quiz";
+        if (filter === "poll") return itemType === "poll";
+        if (filter === "prediction") return itemType === "prediction";
 
-      return true;
-    })
-    .sort((a, b) => {
-      // 3. Safe timestamp extraction (prevents NaN sort bugs)
-      const getTime = (val: any) => {
-        if (typeof val === "number") return val;
-        const time = new Date(val || 0).getTime();
-        return isNaN(time) ? 0 : time;
-      };
+        return true;
+      })
+      .sort((a, b) => {
+        const getTime = (val: any) => {
+          if (typeof val === "number") return val;
+          const time = new Date(val || 0).getTime();
+          return isNaN(time) ? 0 : time;
+        };
 
-      return getTime(b.createdAt) - getTime(a.createdAt);
-    });
-}, [engagements, filter]);
-
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      });
+  }, [engagements, filter]);
 
   return (
     <div className="w-full bg-[#070b14] min-h-screen text-white flex flex-col font-sans pb-16 relative">
-      {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
@@ -2723,7 +3606,6 @@ export default function FlipArena({
         )}
       </AnimatePresence>
 
-      {/* 1. Header Bar for Full Page */}
       {!isPreview && (
         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07] bg-[#070b14]/90 backdrop-blur-md sticky top-0 z-40">
           <div className="flex items-center gap-3">
@@ -2750,7 +3632,6 @@ export default function FlipArena({
         </div>
       )}
 
-      {/* 2. Main Toggle Button Row for Full Page */}
       {!isPreview && (
         <div className="px-4 mb-4 mt-4">
           <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] shadow-inner">
@@ -2778,7 +3659,6 @@ export default function FlipArena({
         </div>
       )}
 
-      {/* 3. Filter section "Today's Arena" + Create Button */}
       <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2 gap-2 flex-wrap">
         <div>
           <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
@@ -2786,7 +3666,6 @@ export default function FlipArena({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Leaderboard Button */}
           <button
             onClick={() => setShowLeaderboardModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
@@ -2811,7 +3690,6 @@ export default function FlipArena({
             ))}
           </div>
 
-          {/* Quick Create Event Icon Button */}
           <button
             onClick={() => handleOpenCreate("quiz")}
             title="Create Quiz, Battle or Poll (+2 PTS)"
@@ -2823,7 +3701,6 @@ export default function FlipArena({
         </div>
       </div>
 
-      {/* 4. Live Engagements Feed */}
       <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full">
         {loadingEngagements && engagements.length === 0 ? (
           <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/40 text-xs font-bold">
@@ -2834,18 +3711,17 @@ export default function FlipArena({
           <div className="py-12 text-center text-xs font-bold text-white/40 border border-white/[0.06] rounded-2xl bg-[#0e111a] p-8 w-full max-w-lg space-y-3">
             <p>No events found for this filter.</p>
             <button
-              // onClick={() => handleOpenCreate(filter === "all" ? "quiz" : filter === "battle" ? "fan_battle" : filter)}
-               onClick={() =>
-    handleOpenCreate(
-      filter === "all"
-        ? "quiz"
-        : filter === "battle"
-        ? "fan_battle"
-        : filter === "prediction"
-        ? "prediction"
-        : filter
-    )
-  }
+              onClick={() =>
+                handleOpenCreate(
+                  filter === "all"
+                    ? "quiz"
+                    : filter === "battle"
+                      ? "fan_battle"
+                      : filter === "prediction"
+                        ? "prediction"
+                        : filter
+                )
+              }
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"
             >
               <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 PTS)
@@ -2860,6 +3736,7 @@ export default function FlipArena({
                     key={item.id}
                     item={item}
                     userId={activeUserId}
+                    now={now}
                     onToast={showToast}
                     onEdit={handleOpenEdit}
                   />
@@ -2871,6 +3748,7 @@ export default function FlipArena({
                     key={item.id}
                     item={item}
                     userId={activeUserId}
+                    now={now}
                     onToast={showToast}
                     onEdit={handleOpenEdit}
                   />
@@ -2882,6 +3760,7 @@ export default function FlipArena({
                     key={item.id}
                     item={item}
                     userId={activeUserId}
+                    now={now}
                     onToast={showToast}
                     onEdit={handleOpenEdit}
                   />
@@ -2893,6 +3772,7 @@ export default function FlipArena({
                     key={item.id}
                     item={item}
                     userId={activeUserId}
+                    now={now}
                     onToast={showToast}
                     onEdit={handleOpenEdit}
                   />
@@ -2903,7 +3783,6 @@ export default function FlipArena({
           </AnimatePresence>
         )}
 
-        {/* 6. View Full Flip Arena button in Preview mode */}
         {isPreview && (
           <div className="w-full max-w-lg mt-4 px-2">
             <button
@@ -2940,13 +3819,11 @@ export default function FlipArena({
         )}
       </div>
 
-      {/* Leaderboard Overlay Modal */}
       <LeaderboardOverlayModal
         isOpen={showLeaderboardModal}
         onClose={() => setShowLeaderboardModal(false)}
       />
 
-      {/* Creation & Edit Modal */}
       <ArenaEngagementModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}

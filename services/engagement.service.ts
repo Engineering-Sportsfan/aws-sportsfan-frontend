@@ -6,7 +6,10 @@ import {
   LikeResponse,
   ShareResponse,
   EngagementType,
+  CheckVoteStatusResponse,
 } from "@/types/engagements";
+
+export type { CheckVoteStatusResponse };
 
 export interface GetEngagementsParams {
   type?: EngagementType | "all" | string;
@@ -116,16 +119,23 @@ export const engagementService = {
   checkVoteStatus: async (
     id: string,
     userId?: string
-  ): Promise<{ hasVoted: boolean; selectedOptionId: string | null; vote?: any }> => {
+  ): Promise<CheckVoteStatusResponse> => {
     try {
       const url = `/api/engagements/${encodeURIComponent(id)}/vote${
         userId ? `?userId=${encodeURIComponent(userId)}` : ""
       }`;
-      const res = await axios.get<{ hasVoted: boolean; selectedOptionId: string | null; vote?: any }>(url);
+      const res = await axios.get<any>(url);
       return {
         hasVoted: Boolean(res.data?.hasVoted),
         selectedOptionId: res.data?.selectedOptionId || null,
         vote: res.data?.vote,
+        isExpired: Boolean(res.data?.isExpired),
+        isCorrect: res.data?.isCorrect ?? null,
+        accuracyBonusAwarded: Boolean(res.data?.accuracyBonusAwarded),
+        wonBonusPoints: Number(res.data?.wonBonusPoints || 0),
+        newlyAwarded: Boolean(res.data?.newlyAwarded),
+        correctAnswer: res.data?.correctAnswer || null,
+        winningChoiceId: res.data?.winningChoiceId || null,
       };
     } catch {
       return { hasVoted: false, selectedOptionId: null };
