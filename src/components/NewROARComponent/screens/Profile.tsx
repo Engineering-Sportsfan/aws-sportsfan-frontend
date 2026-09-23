@@ -1,3 +1,4 @@
+"use client";
 
 // "use client";
 // import { useState, useEffect } from "react";
@@ -12,6 +13,7 @@
 // import { useActivity } from "@/context/ActivityContext";
 // import Link from "next/link";
 // import { RoarJourneySection } from "../components/RoarJourneySection";
+
 
 // const FIRST_ROAR_BADGE_SRC = "/images/badges/postl1.png";
 // const toBadgeImageSrc = (imageUrl: string) => {
@@ -1309,6 +1311,7 @@
 // src\components\NewROARComponent\screens\Profile.tsx
 
 "use client";
+import { trackProfileSignalCreated } from "@/lib/analytics";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
@@ -2633,6 +2636,9 @@ export default function Profile({
     setAvatarPickerOpen(false);
     try { localStorage.setItem("roar_avatar_url", src); } catch { }
     window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: src } }));
+    try {
+      trackProfileSignalCreated("avatar", { avatar_url: src });
+    } catch (e) {}
     onToast("Avatar updated!");
     try { await axios.patch("/api/roar/profile", { avatarUrl: src }); } catch { }
   };
@@ -4043,6 +4049,7 @@ export default function Profile({
                 onClick={async () => {
                   setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
                   setEditOpen(false);
+                  try { trackProfileSignalCreated("profile_details"); } catch (e) {}
                   onToast("Profile updated successfully");
                   try { localStorage.setItem("roar_username", editName); } catch { }
                   try {
