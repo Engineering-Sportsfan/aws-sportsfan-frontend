@@ -1,3 +1,4 @@
+"use client";
 // // context/AuthContext.tsx
 
 // "use client";
@@ -359,10 +360,12 @@
 
 // context/AuthContext.tsx  — FRONTEND project
 
-"use client";
+// "use client"; (moved to line 1)
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import axios from "axios";
 import { useSession } from "next-auth/react";
+import { trackSignup, trackLoginSuccess } from "@/lib/analytics";
+import posthog from "posthog-js";
 
 interface User {
     email: string;
@@ -430,6 +433,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                             name: session.user.name || email.split("@")[0],
                             avatar: session.user.image || "",
                         });
+                        try {
+                            trackSignup(email, { email, name: session.user.name, method: "google" });
+                        } catch (e) {}
                         checkedUsersInMemory.add(email);
                         console.log("⚡ [AuthContext] User ensured in DynamoDB for:", email);
                     } catch (syncErr) {
@@ -448,6 +454,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     const response = await axios.get("/api/auth/host/me");
                     if (response.data.success && response.data.user) {
                         const u = response.data.user;
+                        try {
+                            trackLoginSuccess(u.userId || u.email, {
+                                email: u.email,
+                                name: u.name || session.user.name,
+                                role: u.role,
+                                method: "google",
+                            });
+                        } catch (e) {}
                         const fullName = u.name || session.user.name || u.email.split("@")[0];
                         const resolvedUserId = u.userId || u.actualUserId || u.id || u.uid || session.user.email;
                         const resolvedActualUserId = u.actualUserId || u.userId || u.id || u.uid;

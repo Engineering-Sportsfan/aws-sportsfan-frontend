@@ -1,3 +1,4 @@
+"use client";
 // "use client";
 
 // import axios from "axios";
@@ -321,9 +322,10 @@
 
 //src/components/features/auth/LoginForm.tsx
 
-"use client";
+// "use client"; (moved to line 1)
 
 import axios from "axios";
+import { trackLoginSuccess, trackLoginFailed } from "@/lib/analytics";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -386,6 +388,19 @@ export default function LoginCard() {
                     setShowChangePassword(true);
                 } else {
                     try {
+                        const u = response.data.user;
+                        const fullName = u?.name || [u?.firstName, u?.lastName].filter(Boolean).join(" ").trim() || "";
+                        trackLoginSuccess(u?.userId || u?.email || email, {
+                            email: u?.email || email,
+                            name: fullName,
+                            role: u?.role || "user",
+                            method: "email_password",
+                        });
+                    } catch (trackErr) {
+                        console.warn("[Analytics] LoginForm trackLoginSuccess error:", trackErr);
+                    }
+
+                    try {
                         localStorage.setItem("roar_v2_complete", "1");
                         if (response.data.user) {
                             const u = response.data.user;
@@ -414,6 +429,26 @@ export default function LoginCard() {
                 }
             }
         } catch (err: unknown) {
+            let reason = "unknown_error";
+            let statusCode = 500;
+            if (axios.isAxiosError(err)) {
+                statusCode = err.response?.status || 500;
+                if (statusCode === 401) reason = "invalid_credentials";
+                else if (statusCode === 403) reason = "access_denied";
+                else if (statusCode === 404) reason = "user_not_found";
+                else if (statusCode === 429) reason = "rate_limited";
+                else reason = err.response?.data?.error || "server_error";
+            }
+            try {
+                trackLoginFailed(email, {
+                    reason,
+                    status_code: statusCode,
+                    method: "email_password",
+                });
+            } catch (trackErr) {
+                console.warn("[Analytics] LoginForm trackLoginFailed error:", trackErr);
+            }
+
             if (axios.isAxiosError(err)) {
                 const status = err.response?.status;
                 const errorMessage = err.response?.data?.error;

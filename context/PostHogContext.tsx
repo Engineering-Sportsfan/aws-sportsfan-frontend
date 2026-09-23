@@ -44,8 +44,9 @@ function PostHogPageView() {
         '/MainModules/FlipArena': 'FlipArena',
       };
 
+      const lowerPath = pathname.toLowerCase();
       for (const [route, featName] of Object.entries(recommendedFeatures)) {
-        if (pathname.startsWith(route)) {
+        if (lowerPath.startsWith(route.toLowerCase()) || lowerPath.startsWith(('/' + featName).toLowerCase())) {
           posthog.capture('recommended_feature_visited', {
             feature_name: featName,
             route: pathname,

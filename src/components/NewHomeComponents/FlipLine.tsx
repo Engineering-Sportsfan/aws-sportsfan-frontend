@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import posthog from 'posthog-js';
+import { trackAdvocacy } from '@/lib/analytics';
 import { getBotCanonicalName } from '@/src/constants/bots';
 import {
   Heart,
@@ -1209,6 +1211,20 @@ export function FlipCardItem({
 
   const handleShare = async (c: FlipCard) => {
     if (typeof window === 'undefined') return;
+
+    try {
+      trackAdvocacy("content_shared", { card_id: c.id, author: c.author, sport: c.sport });
+      posthog.capture("content_shared", {
+        card_id: c.id,
+        author: c.author,
+        sport: c.sport,
+        content: c.content ? c.content.slice(0, 100) : undefined,
+      });
+      posthog.capture("advocacy_action", {
+        action_type: "content_shared",
+        card_id: c.id,
+      });
+    } catch (err) {}
 
     const cardIdParam = c.id !== undefined && c.id !== null ? String(c.id) : (c.sk || '');
     const shareUrl = `${window.location.origin}/MainModules/FlipLine?cardId=${encodeURIComponent(cardIdParam)}`;
