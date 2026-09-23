@@ -103,6 +103,16 @@ const nextConfig = {
           source: "/api/flipLong/:path*",
           destination: `${apiTarget}/api/flipLong/:path*`,
         },
+
+        // ── Welcome Message & Home Cards Rewrites ──
+        {
+          source: "/api/welcomemessage",
+          destination: `${apiTarget}/api/welcomemessage`,
+        },
+        {
+          source: "/api/welcomemessage/:path*",
+          destination: `${apiTarget}/api/welcomemessage/:path*`,
+        },
       ],
 
       afterFiles: [
@@ -203,6 +213,13 @@ const nextConfig = {
         {
           source: "/api/profile/:path*",
           destination: `${apiTarget}/api/profile/:path*`,
+        },
+
+        // Engagements (Fan Battle, Quiz, Polls, Predictions)
+        { source: "/api/engagements", destination: `${apiTarget}/api/engagements` },
+        {
+          source: "/api/engagements/:path*",
+          destination: `${apiTarget}/api/engagements/:path*`,
         },
 
         //Notifications

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { getBotCanonicalName } from '@/src/constants/bots';
@@ -204,12 +204,14 @@ function FlipLineSection({
   cards,
   loading,
   onCardUpdate,
+  highlightedCardId,
 }: {
   selectedSport: string;
   onViewFull: () => void;
   cards: FlipCard[];
   loading: boolean;
   onCardUpdate?: (updatedCard: FlipCard) => void;
+  highlightedCardId?: string | null;
 }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [askOpen, setAskOpen] = useState<number | string | null>(null);
@@ -334,6 +336,7 @@ function FlipLineSection({
         askOpen={askOpen}
         setAskOpen={setAskOpen}
         onCardUpdate={onCardUpdate}
+        highlightedCardId={highlightedCardId}
       />
 
       {/* View Full button */}
@@ -371,17 +374,94 @@ export function FlipLineFullScreen({
   cards,
   loading,
   onCardUpdate,
+  targetCardId,
 }: {
   onBack: () => void;
   selectedSport?: string;
   cards: FlipCard[];
   loading: boolean;
   onCardUpdate?: (updatedCard: FlipCard) => void;
+  targetCardId?: string | number | null;
 }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [askOpen, setAskOpen] = useState<number | string | null>(null);
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
+  const [targetId, setTargetId] = useState<string | null>(targetCardId ? String(targetCardId) : null);
+  const scrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (targetCardId) {
+      setTargetId(String(targetCardId));
+    } else if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlCardId = params.get('cardId') || params.get('postId') || params.get('id');
+      if (urlCardId) {
+        setTargetId(urlCardId);
+      } else if (window.location.hash) {
+        const hashId = window.location.hash.replace(/^#(flipline-card-|card-)?/, '');
+        if (hashId) setTargetId(hashId);
+      }
+    }
+  }, [targetCardId]);
+
+  useEffect(() => {
+    if (!targetId || loading || !Array.isArray(cards) || cards.length === 0 || scrolledRef.current) return;
+
+    const cleanTargetId = targetId.trim();
+    const foundCard = cards.find(
+      (c) =>
+        String(c.id) === cleanTargetId ||
+        (c.sk && String(c.sk) === cleanTargetId) ||
+        (c.sk && encodeURIComponent(String(c.sk)) === cleanTargetId)
+    );
+
+    if (foundCard) {
+      // Ensure current filter doesn't hide this target card
+      if (activeFilter !== 'all') {
+        const sportLower = (foundCard.sport || '').toLowerCase();
+        const matchesCurrentFilter =
+          (activeFilter === 'cricket' && sportLower === 'cricket') ||
+          (activeFilter === 'football' && sportLower === 'football') ||
+          (activeFilter === 'athletics' && sportLower === 'athletics') ||
+          (activeFilter === 'general' && sportLower === 'general') ||
+          (activeFilter === 'analysts' &&
+            (foundCard.type === 'analyst' || foundCard.type === 'expert' || foundCard.type === 'bot'));
+
+        if (!matchesCurrentFilter) {
+          setActiveFilter('all');
+        }
+      }
+
+      setHighlightedCardId(String(foundCard.id));
+      scrolledRef.current = true;
+
+      const scrollToElement = () => {
+        const el =
+          document.getElementById(`flipline-card-${foundCard.id}`) ||
+          document.querySelector(`[data-card-id="${foundCard.id}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      };
+
+      const timer1 = setTimeout(scrollToElement, 250);
+      const timer2 = setTimeout(scrollToElement, 600);
+      const timer3 = setTimeout(scrollToElement, 1200);
+
+      const clearHighlightTimer = setTimeout(() => {
+        setHighlightedCardId(null);
+      }, 7000);
+
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+        clearTimeout(clearHighlightTimer);
+      };
+    }
+  }, [targetId, loading, cards, activeFilter]);
 
   if (loading) {
     return (
@@ -639,6 +719,7 @@ export function FlipLineFullScreen({
             askOpen={askOpen}
             setAskOpen={setAskOpen}
             onCardUpdate={onCardUpdate}
+            highlightedCardId={highlightedCardId}
           />
           {/* Start-of-coverage marker */}
           <div style={{ paddingLeft: 14, paddingTop: 8, display: 'flex', alignItems: 'center' }}>
@@ -677,13 +758,13 @@ export function FlipLineFullScreen({
   );
 }
 
-/* ─── FlipTimeline detailed timeline view ───────────────────────────── */
 interface FlipTimelineProps {
   cards: FlipCard[];
   previewLimit?: number;
   askOpen: number | string | null;
   setAskOpen: (id: number | string | null) => void;
   onCardUpdate?: (updatedCard: FlipCard) => void;
+  highlightedCardId?: string | null;
 }
 
 const DolphinIcon = () => (
@@ -709,6 +790,7 @@ export function FlipCardItem({
   router,
   handleCtaClick,
   onCardUpdate,
+  isHighlighted = false,
 }: {
   card: FlipCard;
   index: number;
@@ -720,6 +802,7 @@ export function FlipCardItem({
   router: any;
   handleCtaClick: (ctaType: 'room' | 'watchalong' | 'drop' | string) => void;
   onCardUpdate?: (updatedCard: FlipCard) => void;
+  isHighlighted?: boolean;
 }) {
   const { user, getUserName, getUserDisplayName } = useAuth();
   const currentUserId =
@@ -1122,18 +1205,52 @@ export function FlipCardItem({
     }
   };
 
-  const handleShare = (c: FlipCard) => {
-    if (typeof window !== 'undefined' && navigator.share) {
-      navigator
-        .share({
-          title: `FlipLine from ${c.author}`,
-          text: c.content,
-          url: window.location.href,
-        })
-        .catch((err) => console.log(err));
-    } else if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(`"${c.content}" - ${c.author} on Sportsfan360`);
-      alert('Link copied to clipboard!');
+  const [copiedState, setCopiedState] = useState(false);
+
+  const handleShare = async (c: FlipCard) => {
+    if (typeof window === 'undefined') return;
+
+    const cardIdParam = c.id !== undefined && c.id !== null ? String(c.id) : (c.sk || '');
+    const shareUrl = `${window.location.origin}/MainModules/FlipLine?cardId=${encodeURIComponent(cardIdParam)}`;
+    const shareTitle = `FlipLine from ${c.author || 'Fan'}`;
+    const cleanContent = c.content ? c.content.replace(/\n+/g, ' ').slice(0, 120) : '';
+    const shareText = `"${cleanContent}${c.content && c.content.length > 120 ? '...' : ''}" - ${c.author || 'Fan'} on Sportsfan360`;
+
+    // Try Web Share API first if available (especially on mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch (err: any) {
+        // If user explicitly dismissed/aborted native share dialog, don't force clipboard fallback
+        if (err?.name === 'AbortError') return;
+      }
+    }
+
+    // Fallback: Copy direct shareable URL to clipboard
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedState(true);
+      setTimeout(() => setCopiedState(false), 2500);
+    } catch (e) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = shareUrl;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        setCopiedState(true);
+        setTimeout(() => setCopiedState(false), 2500);
+      } catch (err) {
+        console.error('Failed to copy link:', err);
+      }
     }
   };
 
@@ -1276,7 +1393,11 @@ export function FlipCardItem({
   const themeLabel = typeLabelMap[card.type] || card.type;
 
   return (
-    <div className="flex w-full relative sm:mb-2 md:mb-4">
+    <div
+      id={`flipline-card-${card.id}`}
+      data-card-id={String(card.id)}
+      className="flex w-full relative sm:mb-2 md:mb-4 scroll-mt-24 transition-all duration-500"
+    >
       {/* Left timeline axis */}
       <div className="w-[50px] shrink-0 flex flex-col items-center pt-1 relative">
         {(() => {
@@ -1303,7 +1424,8 @@ export function FlipCardItem({
         <div
           className="w-3 h-3 rounded-full bg-white border border-white/20 relative z-10 mt-3"
           style={{
-            boxShadow: '0 0 8px rgba(255, 255, 255, 0.8)',
+            boxShadow: isHighlighted ? '0 0 12px rgba(244, 63, 94, 1)' : '0 0 8px rgba(255, 255, 255, 0.8)',
+            backgroundColor: isHighlighted ? 'rgb(244, 63, 94)' : '#ffffff',
           }}
         />
 
@@ -1323,7 +1445,19 @@ export function FlipCardItem({
 
       {/* Right card container */}
       <div className="flex-1 md:pr-4 pb-1 md:pb-2 min-w-0">
-        <div className="transition-all duration-300 relative flex flex-col gap-3.5 w-full bg-[#161b22]/50 border border-[#21262d] rounded-2xl p-4 shadow-md backdrop-blur-sm">
+        <div
+          className={`transition-all duration-500 relative flex flex-col gap-3.5 w-full rounded-2xl p-4 shadow-md backdrop-blur-sm ${
+            isHighlighted
+              ? 'border-2 border-pink-500 ring-4 ring-pink-500/30 shadow-[0_0_30px_rgba(233,30,140,0.4)] bg-[#1a1c29]/95 scale-[1.01]'
+              : 'bg-[#161b22]/50 border border-[#21262d]'
+          }`}
+        >
+          {isHighlighted && (
+            <div className="absolute -top-3 right-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-pink-500 to-amber-500 text-white font-black text-[10px] uppercase tracking-wider shadow-lg animate-bounce">
+              <Share2 size={11} className="shrink-0" />
+              <span>Shared Moment</span>
+            </div>
+          )}
           {/* Row 1: Author info */}
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -1666,14 +1800,32 @@ export function FlipCardItem({
               </button>
 
               {/* Share Button */}
-              <button
-                onClick={() => handleShare(card)}
-                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors cursor-pointer"
-                title="Share"
-              >
-                <Share2 size={15} />
-                {/* <span className="text-[12.5px] font-extrabold leading-none">Share</span> */}
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => handleShare(card)}
+                  className={`flex items-center gap-1.5 transition-all cursor-pointer ${
+                    copiedState ? 'text-emerald-400 font-bold' : 'text-white/40 hover:text-white'
+                  }`}
+                  title={copiedState ? 'Link Copied!' : 'Share Post'}
+                >
+                  {copiedState ? <CheckCircle2 size={15} className="text-emerald-400" /> : <Share2 size={15} />}
+                  {copiedState && <span className="text-[11.5px] font-bold text-emerald-400">Copied!</span>}
+                </button>
+
+                {/* Floating Tooltip / Toast for Copy Confirmation */}
+                <AnimatePresence>
+                  {copiedState && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                      animate={{ opacity: 1, y: -6, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.9 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-orange-500 text-white font-extrabold text-[11px] whitespace-nowrap shadow-xl z-30 flex items-center gap-1.5 pointer-events-none"
+                    >
+                      <span>Link copied! 📋</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* Report Button */}
               <button
@@ -2251,6 +2403,7 @@ export function FlipTimeline({
   askOpen,
   setAskOpen,
   onCardUpdate,
+  highlightedCardId,
 }: FlipTimelineProps) {
   const router = useRouter();
 
@@ -2332,6 +2485,13 @@ export function FlipTimeline({
                 router={router}
                 handleCtaClick={handleCtaClick}
                 onCardUpdate={onCardUpdate}
+                isHighlighted={
+                  Boolean(
+                    highlightedCardId &&
+                      (String(card.id) === String(highlightedCardId) ||
+                        (card.sk && String(card.sk) === String(highlightedCardId)))
+                  )
+                }
               />
             ))}
           </div>
@@ -2341,12 +2501,29 @@ export function FlipTimeline({
   );
 }
 
-export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: string }) {
+export default function FlipLine({
+  selectedSport = 'mixed',
+  targetCardId,
+}: {
+  selectedSport?: string;
+  targetCardId?: string | number | null;
+}) {
   const router = useRouter();
   const [dbCards, setDbCards] = useState<FlipCard[]>([]);
   const [liveCards, setLiveCards] = useState<FlipCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'flipline' | 'fliparena'>('flipline');
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlCardId = targetCardId || params.get('cardId') || params.get('postId') || params.get('id');
+      if (urlCardId) {
+        setHighlightedCardId(String(urlCardId));
+      }
+    }
+  }, [targetCardId]);
 
   const fetchLiveTickerUpdates = async (): Promise<FlipCard[]> => {
     try {
@@ -2561,6 +2738,7 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
           cards={combinedCards}
           loading={loading}
           onCardUpdate={handleCardUpdate}
+          highlightedCardId={highlightedCardId}
         />
       )}
     </div>

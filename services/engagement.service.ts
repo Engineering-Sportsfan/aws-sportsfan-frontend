@@ -168,4 +168,39 @@ export const engagementService = {
     );
     return res.data;
   },
+
+  /**
+   * Create a new engagement (Quiz, Fan Battle, Poll, Prediction)
+   */
+  createEngagement: async (payload: Partial<EngagementItem>): Promise<{ success: boolean; engagement: EngagementItem }> => {
+    const res = await axios.post<{ success: boolean; engagement: EngagementItem }>(
+      "/api/engagements",
+      payload
+    );
+    cachedEngagements.clear();
+    return res.data;
+  },
+
+  /**
+   * Update an existing engagement (Quiz, Fan Battle, Poll, Prediction)
+   */
+  updateEngagement: async (id: string, payload: Partial<EngagementItem>): Promise<{ success: boolean; engagement: EngagementItem }> => {
+    const res = await axios.put<{ success: boolean; engagement: EngagementItem }>(
+      `/api/engagements/${encodeURIComponent(id)}`,
+      payload
+    );
+    cachedEngagements.clear();
+    return res.data;
+  },
+
+  /**
+   * Delete an engagement
+   */
+  deleteEngagement: async (id: string): Promise<{ success: boolean }> => {
+    const res = await axios.delete<{ success: boolean }>(
+      `/api/engagements/${encodeURIComponent(id)}`
+    );
+    cachedEngagements.clear();
+    return res.data;
+  },
 };
