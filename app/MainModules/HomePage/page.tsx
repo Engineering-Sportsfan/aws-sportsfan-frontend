@@ -381,6 +381,7 @@ import AthleticsSpotlight from "@/src/components/NewHomeComponents/AthleticsSpot
 import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
 import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
 import FlipLine from "@/src/components/NewHomeComponents/FlipLine";
+import WelcomeMessage from "@/src/components/NewHomeComponents/WelcomeMessage";
 import Onboarding from "@/src/components/NewROARComponent/screens/Onboarding";
 import { useAuth } from "@/context/AuthContext";
 
@@ -819,6 +820,7 @@ function HomePageInner() {
         /> */}
 
         <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
+        <WelcomeMessage />
         <FlipLine selectedSport={selectedSport} />
         <WatchAlongSessions />
         {/* <AthleticsSpotlight sport={selectedSport} /> */}

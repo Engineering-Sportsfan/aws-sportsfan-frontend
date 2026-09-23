@@ -1,4 +1,5 @@
 'use client';
+import { trackSignup } from "@/lib/analytics";
 
 import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -21,6 +22,11 @@ function SavePasswordPageContent() {
                 });
 
                 if (response.ok) {
+                    try {
+                        trackSignup(phone, { method: 'phone_password' });
+                    } catch (trackErr) {
+                        console.warn('[Analytics] save-password trackSignup error:', trackErr);
+                    }
                     // Redirect to homepage after successful save
                     router.push('/MainModules/HomePage');
                 }

@@ -48,6 +48,9 @@
 //       setOpen(true);
 //       if (phog) {
 //         phog.capture("open_reaction", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+        try {
+          trackMeaningfulInteraction("reaction", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+        } catch (e) {}
 //       }
 //     }, 280);
 //   }, [phog, postId, roomId, roomName]);
@@ -609,6 +612,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart } from "lucide-react";
 import { usePostHog } from "posthog-js/react";
+import { trackMeaningfulInteraction } from "@/lib/analytics";
 
 export type Reaction = "heart" | "fire" | "laugh" | "sad" | "thumb";
 

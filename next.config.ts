@@ -103,6 +103,16 @@ const nextConfig = {
           source: "/api/flipLong/:path*",
           destination: `${apiTarget}/api/flipLong/:path*`,
         },
+
+        // ── Welcome Message & Home Cards Rewrites ──
+        {
+          source: "/api/welcomemessage",
+          destination: `${apiTarget}/api/welcomemessage`,
+        },
+        {
+          source: "/api/welcomemessage/:path*",
+          destination: `${apiTarget}/api/welcomemessage/:path*`,
+        },
       ],
 
       afterFiles: [
