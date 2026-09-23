@@ -56,6 +56,11 @@ export interface PollPayload {
   question: string;
   options: PollChoice[];
   totalVotes: number;
+  answer?: string;
+  correctAnswer?: string;
+  durationMinutes?: number;
+  timerMinutes?: number;
+  expiresAt?: number;
 }
 
 // ─── 4. Prediction ─────────────────────────────────────────────────────────
@@ -74,6 +79,11 @@ export interface PredictionPayload {
   totalVotes: number;
   status?: "open" | "locked" | "settled";
   winningChoiceId?: string | null; // "left" | "right" once settled
+  answer?: string;
+  correctAnswer?: string;
+  durationMinutes?: number;
+  timerMinutes?: number;
+  expiresAt?: number;
 }
 
 // ─── Universal Engagement Entity ──────────────────────────────────────────
