@@ -3840,6 +3840,9 @@ function InlineSection({
       if (phog) {
         phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
       }
+      try {
+        trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+      } catch (e) {}
       setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
     } catch (err: any) {
       const isTimeout = err?.code === "ECONNABORTED" || err?.message?.includes("timeout");
@@ -4963,6 +4966,12 @@ export default function DiscussionRoom({
         room_id: roomId,
         room_name: roomName || ""
       });
+      try {
+        trackMeaningfulInteraction("enter_room", {
+          room_id: roomId,
+          room_name: roomName || ""
+        });
+      } catch (e) {}
     }
   }, [phog, roomId, roomName]);
   const votingInProgressRef = useRef<Set<string>>(new Set());
@@ -5777,6 +5786,9 @@ export default function DiscussionRoom({
       );
       if (res.data?.success) {
         const m = res.data.message;
+        try {
+          trackMeaningfulInteraction("comment", { room_id: roomId, room_name: roomName || "", msg_id: m.msgId });
+        } catch (e) {}
         setPosts(p => [...p, { id: m.msgId, fan: { username: displayUsername(m.authorUsername), authorUid: m.authorUid, badge: m.authorBadge, email: m.authorEmail, avatarUrl: m.authorAvatarUrl || m.avatarUrl || (m.authorUsername === userUsername ? userAvatarUrl : undefined) }, text: m.text, fireCount: m.fireCount ?? 0, heartCount: m.heartCount ?? 0, mindblownCount: m.mindblownCount ?? 0, goatCount: m.goatCount ?? 0, clapCount: m.clapCount ?? 0, nochanceCount: m.noChanceCount ?? 0, userReaction: null, replyCount: 0, agreeCount: 0, disagreeCount: 0, userVote: null, sideA: m.sideA ?? null, sideB: m.sideB ?? null, timeAgo: "now", createdAt: m.createdAt || Date.now(), type: m.type, mediaUrls: m.mediaUrls, quizQuestion: m.quizQuestion, quizOptions: m.quizOptions, quizCorrectOption: m.quizCorrectOption, quizUserAnswer: m.quizUserAnswer ?? null, quizTimer: m.quizTimer, quizPoints: m.quizPoints, quizParticipants: m.quizParticipants ?? 0, memGifUrl: m.memGifUrl ?? null, memTag: m.memTag ?? null }]);
         setInput(""); setAttachedUrl(null); setAttachedType(null);
         playSound("post");
@@ -5836,6 +5848,9 @@ export default function DiscussionRoom({
       }, { timeout: REQUEST_TIMEOUT_MS });
       if (res.data?.success) {
         const m = res.data.message;
+        try {
+          trackMeaningfulInteraction("reaction", { room_id: roomId, room_name: roomName || "", mem_tag: memTag });
+        } catch (e) {}
         setPosts(p => {
           if (p.some(post => post.id === m.msgId)) return p.filter(post => post.id !== tempId);
           return p.map(post => post.id === tempId ? { ...post, id: m.msgId, status: "sent", timeAgo: "now", createdAt: m.createdAt || Date.now(), memGifUrl: m.memGifUrl } : post);

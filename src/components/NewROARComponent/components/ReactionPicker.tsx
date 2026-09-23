@@ -805,6 +805,9 @@ export default function ReactionPicker({ currentReaction, count, onReact, disabl
     onReact(currentReaction === r ? null : r);
     setOpen(false);
     setHovered(null);
+    try {
+      trackMeaningfulInteraction("reaction", { post_id: postId, room_id: roomId, room_name: roomName || "", reaction: r });
+    } catch (e) {}
   };
 
   const active = currentReaction !== null;
