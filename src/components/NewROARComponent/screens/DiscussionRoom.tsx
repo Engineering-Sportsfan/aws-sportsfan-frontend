@@ -459,6 +459,9 @@
 //       await axios.post(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { text: fullText });
 //       if (phog) {
 //         phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+        try {
+          trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+        } catch (e) {}
 //       }
 //       setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
 //     } catch { }
@@ -3324,6 +3327,7 @@ import React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
+import { trackMeaningfulInteraction } from "@/lib/analytics";
 import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { useUserProfile } from "@/context/UserProfileContext";
 import axios from "axios";
@@ -6426,6 +6430,9 @@ export default function DiscussionRoom({
                                       room_id: roomId,
                                       room_name: roomName || ""
                                     });
+                                    try {
+                                      trackMeaningfulInteraction("poll_vote", { poll_id: p.id, poll_type: "debate_vs", option_id: voteVal, room_id: roomId, room_name: roomName || "" });
+                                    } catch (e) {}
                                   }
                                 } catch (err: any) {
                                   const status = err?.response?.status;
@@ -6588,6 +6595,9 @@ export default function DiscussionRoom({
                                           room_id: roomId,
                                           room_name: roomName || ""
                                         });
+                                        try {
+                                          trackMeaningfulInteraction("submit_prediction", { post_id: p.id, option_id: agree ? "agree" : "disagree", room_id: roomId, room_name: roomName || "" });
+                                        } catch (e) {}
                                         phog.capture("submit_prediction", {
                                           post_id: p.id,
                                           room_id: roomId,

@@ -1,3 +1,4 @@
+"use client";
 
 
 
@@ -344,6 +345,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
+import { trackMeaningfulInteraction } from "@/lib/analytics";
 
 type Message =
   | { role: "user"; content: string }
@@ -377,6 +379,9 @@ export default function AskAI() {
 
     if (phog) {
       phog.capture("ask_dolly_query", { query: trimmed });
+      try {
+        trackMeaningfulInteraction("ask_dolly", { query: trimmed });
+      } catch (e) {}
     }
 
     const userMsg: Message = { role: "user", content: trimmed };
