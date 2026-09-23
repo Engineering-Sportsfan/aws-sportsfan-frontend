@@ -1542,8 +1542,8 @@ export default function ArenaEngagementModal({
           predAnswer.trim().toLowerCase() === predLeftText.trim().toLowerCase() || predAnswer === "left"
             ? "left"
             : predAnswer.trim().toLowerCase() === predRightText.trim().toLowerCase() || predAnswer === "right"
-            ? "right"
-            : predAnswer.trim() || null;
+              ? "right"
+              : predAnswer.trim() || null;
 
         payload.predictionData = {
           question: predQuestion.trim(),
@@ -1671,11 +1671,10 @@ export default function ArenaEngagementModal({
                     key={tab.type}
                     type="button"
                     onClick={() => setActiveType(tab.type as EngagementType)}
-                    className={`py-1.5 sm:py-2 px-1 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                      activeType === tab.type
+                    className={`py-1.5 sm:py-2 px-1 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all cursor-pointer ${activeType === tab.type
                         ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md shadow-pink-500/20"
                         : "text-white/50 hover:text-white hover:bg-white/[0.04]"
-                    }`}
+                      }`}
                   >
                     <span className="whitespace-normal">{tab.label}</span>
                   </button>
@@ -1698,10 +1697,10 @@ export default function ArenaEngagementModal({
                       activeType === "quiz"
                         ? "e.g. Test Cricket Century Masters"
                         : activeType === "fan_battle"
-                        ? "e.g. Virat Kohli vs Babar Azam"
-                        : activeType === "poll"
-                        ? "e.g. Best Spinner in Galle?"
-                        : "e.g. Match Winner Prediction"
+                          ? "e.g. Virat Kohli vs Babar Azam"
+                          : activeType === "poll"
+                            ? "e.g. Best Spinner in Galle?"
+                            : "e.g. Match Winner Prediction"
                     }
                     className={inputStyle}
                     required
@@ -1817,20 +1816,18 @@ export default function ArenaEngagementModal({
                                   value={q[optionKey] as string}
                                   onChange={(e) => handleUpdateQuizQuestion(qIndex, optionKey, e.target.value)}
                                   placeholder={`Option ${letter}`}
-                                  className={`${inputStyle} pl-7 pr-8 ${
-                                    isCorrect ? "border-emerald-500/80 bg-emerald-500/[0.05]" : ""
-                                  }`}
+                                  className={`${inputStyle} pl-7 pr-8 ${isCorrect ? "border-emerald-500/80 bg-emerald-500/[0.05]" : ""
+                                    }`}
                                   required
                                 />
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateQuizQuestion(qIndex, "correctOptionId", letter)}
                                   title={`Set ${letter} as correct answer`}
-                                  className={`absolute right-2 top-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black transition-all cursor-pointer ${
-                                    isCorrect
+                                  className={`absolute right-2 top-2 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black transition-all cursor-pointer ${isCorrect
                                       ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/40"
                                       : "bg-white/[0.08] text-white/40 hover:text-white"
-                                  }`}
+                                    }`}
                                 >
                                   {isCorrect ? "✓" : letter}
                                 </button>
@@ -2040,11 +2037,10 @@ export default function ArenaEngagementModal({
                             type="button"
                             onClick={() => setPollAnswer(opt)}
                             title="Set this option as the correct outcome"
-                            className={`text-[10px] px-2.5 py-2 rounded-xl font-bold transition-all cursor-pointer shrink-0 border ${
-                              isSelectedAnswer
+                            className={`text-[10px] px-2.5 py-2 rounded-xl font-bold transition-all cursor-pointer shrink-0 border ${isSelectedAnswer
                                 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/40"
                                 : "bg-white/[0.04] text-white/40 hover:text-white border-white/5"
-                            }`}
+                              }`}
                           >
                             {isSelectedAnswer ? "✓ Winner" : "Mark"}
                           </button>
@@ -2113,12 +2109,11 @@ export default function ArenaEngagementModal({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div
-                      className={`p-3 rounded-xl border space-y-2 transition-all ${
-                        predAnswer &&
-                        (predAnswer === predLeftText || predAnswer === "Option A" || predAnswer === "left")
+                      className={`p-3 rounded-xl border space-y-2 transition-all ${predAnswer &&
+                          (predAnswer === predLeftText || predAnswer === "Option A" || predAnswer === "left")
                           ? "bg-emerald-500/[0.06] border-emerald-500/40"
                           : "bg-amber-500/[0.03] border-amber-500/20"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black text-amber-400 block uppercase">
@@ -2127,15 +2122,14 @@ export default function ArenaEngagementModal({
                         <button
                           type="button"
                           onClick={() => setPredAnswer(predLeftText || "Option A")}
-                          className={`text-[9px] px-1.5 py-0.5 rounded font-black transition-all cursor-pointer ${
-                            predAnswer &&
-                            (predAnswer === predLeftText || predAnswer === "Option A" || predAnswer === "left")
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-black transition-all cursor-pointer ${predAnswer &&
+                              (predAnswer === predLeftText || predAnswer === "Option A" || predAnswer === "left")
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                               : "text-white/40 hover:text-white"
-                          }`}
+                            }`}
                         >
                           {predAnswer &&
-                          (predAnswer === predLeftText || predAnswer === "Option A" || predAnswer === "left")
+                            (predAnswer === predLeftText || predAnswer === "Option A" || predAnswer === "left")
                             ? "✓ Winner"
                             : "Mark"}
                         </button>
@@ -2163,12 +2157,11 @@ export default function ArenaEngagementModal({
                     </div>
 
                     <div
-                      className={`p-3 rounded-xl border space-y-2 transition-all ${
-                        predAnswer &&
-                        (predAnswer === predRightText || predAnswer === "Option B" || predAnswer === "right")
+                      className={`p-3 rounded-xl border space-y-2 transition-all ${predAnswer &&
+                          (predAnswer === predRightText || predAnswer === "Option B" || predAnswer === "right")
                           ? "bg-emerald-500/[0.06] border-emerald-500/40"
                           : "bg-amber-500/[0.03] border-amber-500/20"
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black text-amber-400 block uppercase">
@@ -2177,15 +2170,14 @@ export default function ArenaEngagementModal({
                         <button
                           type="button"
                           onClick={() => setPredAnswer(predRightText || "Option B")}
-                          className={`text-[9px] px-1.5 py-0.5 rounded font-black transition-all cursor-pointer ${
-                            predAnswer &&
-                            (predAnswer === predRightText || predAnswer === "Option B" || predAnswer === "right")
+                          className={`text-[9px] px-1.5 py-0.5 rounded font-black transition-all cursor-pointer ${predAnswer &&
+                              (predAnswer === predRightText || predAnswer === "Option B" || predAnswer === "right")
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40"
                               : "text-white/40 hover:text-white"
-                          }`}
+                            }`}
                         >
                           {predAnswer &&
-                          (predAnswer === predRightText || predAnswer === "Option B" || predAnswer === "right")
+                            (predAnswer === predRightText || predAnswer === "Option B" || predAnswer === "right")
                             ? "✓ Winner"
                             : "Mark"}
                         </button>
@@ -2221,11 +2213,10 @@ export default function ArenaEngagementModal({
                           key={stake}
                           type="button"
                           onClick={() => setPredCoinStake(stake)}
-                          className={`flex-1 py-2 rounded-xl text-xs font-black border transition-all cursor-pointer ${
-                            predCoinStake === stake
+                          className={`flex-1 py-2 rounded-xl text-xs font-black border transition-all cursor-pointer ${predCoinStake === stake
                               ? "bg-amber-500/20 border-amber-500 text-amber-400"
                               : "bg-white/[0.02] border-white/10 text-white/60 hover:text-white"
-                          }`}
+                            }`}
                         >
                           💎 {stake}
                         </button>
