@@ -1970,7 +1970,7 @@ function DynamicQuizCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <h3 className="text-sm font-black text-white">{item.title}</h3>
+        {/* <h3 className="text-sm font-black text-white">{item.title}</h3> */}
         {totalQuestions > 1 && (
           <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full shrink-0">
             Q {currentQIndex + 1}/{totalQuestions}
@@ -2457,7 +2457,7 @@ function DynamicPredictionCard({
         </div>
       </div>
 
-      <h3 className="text-sm font-black mb-1">{item.title || "Predict the outcome!"}</h3>
+      {/* <h3 className="text-sm font-black mb-1">{item.title || "Predict the outcome!"}</h3> */}
       <p className="text-xs font-semibold text-white/70 mb-4">{pred.question}</p>
 
       <div className="grid grid-cols-2 gap-3.5 mb-4">
