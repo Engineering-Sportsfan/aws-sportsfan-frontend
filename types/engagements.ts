@@ -129,6 +129,8 @@ export interface EngagementItem {
   status: EngagementStatus;
   startTime?: number | string;
   scheduledStartTime?: number | string;
+  postingTime?: number | string;
+  postedAt?: number | string;
   creatorId?: string;
   creatorEmail?: string;
   creatorName?: string;
