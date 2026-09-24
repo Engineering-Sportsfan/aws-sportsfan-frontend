@@ -193,6 +193,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import { trackFanDNACompleted, trackInterestFollowed } from "@/lib/analytics";
 
 type ConfigItem = {
   id: string;
