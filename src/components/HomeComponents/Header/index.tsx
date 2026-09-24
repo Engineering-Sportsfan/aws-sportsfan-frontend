@@ -1111,7 +1111,7 @@ const PointsPill = memo(function PointsPill({
 
   if (small) {
     return (
-      <Link href="/MainModules/GlobalLeaderboard" title="View Points & Leaderboard" className="flex flex-col items-center group shrink-0">
+      <Link href="/MainModules/Profile" title="View Points & Leaderboard" className="flex flex-col items-center group shrink-0">
         <div className="w-8 h-8 flex flex-col items-center justify-center bg-[#111] border border-white/10 rounded-full group-hover:bg-white/5 group-hover:border-pink-500/40 transition-colors gap-0">
           <Star size={9} className="text-pink-500 fill-pink-500" />
           {loading ? (
