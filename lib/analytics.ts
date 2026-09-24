@@ -31,10 +31,11 @@ export function trackSignup(
 
   try {
     const email = properties?.email || (userId.includes('@') ? userId : undefined);
+    const resolvedId = userId.includes('@') ? userId.replace(/[@.]/g, '_') : userId;
     const fullName = [properties?.firstName, properties?.lastName].filter(Boolean).join(' ').trim();
     const displayName = fullName || email?.split('@')[0] || userId;
 
-    ph.identify(userId, {
+    ph.identify(resolvedId, {
       email,
       $email: email,
       name: displayName,
@@ -43,8 +44,12 @@ export function trackSignup(
       signup_date: new Date().toISOString(),
     });
 
+    if (userId !== resolvedId) {
+      try { ph.alias(userId, resolvedId); } catch (e) {}
+    }
+
     ph.capture('signup_completed', {
-      user_id: userId,
+      user_id: resolvedId,
       email,
       signup_method: properties?.method || 'email_otp',
       timestamp: new Date().toISOString(),
