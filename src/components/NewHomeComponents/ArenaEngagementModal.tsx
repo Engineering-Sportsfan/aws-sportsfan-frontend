@@ -1146,6 +1146,9 @@ import {
   Swords,
   BarChart2,
   Target,
+  Flame,
+  Image as ImageIcon,
+  UploadCloud,
   Plus,
   Trash2,
   Sparkles,
@@ -1155,6 +1158,27 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { engagementService } from "@/services/engagement.service";
 import { EngagementItem, EngagementType } from "@/types/engagements";
+
+const MEME_PRESET_TEMPLATES = [
+  {
+    title: "When your team says trust the process",
+    subtitle: "Same energy. Different priorities.",
+    imageUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&auto=format&fit=crop&q=80",
+    label: "🐱 Matchday Cat",
+  },
+  {
+    title: "Me watching the last over thriller",
+    subtitle: "Heart rate 180 bpm, 6 balls remaining!",
+    imageUrl: "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=800&auto=format&fit=crop&q=80",
+    label: "🏏 Cricket Heartbeat",
+  },
+  {
+    title: "Waiting for VAR review after scoring a banger",
+    subtitle: "Don't celebrate yet... check the screen!",
+    imageUrl: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=800&auto=format&fit=crop&q=80",
+    label: "⚽ VAR Suspense",
+  },
+];
 
 export interface UserQuizQuestion {
   id: string;
@@ -1202,6 +1226,10 @@ export default function ArenaEngagementModal({
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [sport, setSport] = useState("cricket");
+
+  // Meme Fields
+  const [memeImageUrl, setMemeImageUrl] = useState(MEME_PRESET_TEMPLATES[0].imageUrl);
+  const [memeUploading, setMemeUploading] = useState(false);
 
   // Fan Battle Fields
   const [fbLeftCode, setFbLeftCode] = useState("IN");
@@ -1252,7 +1280,10 @@ export default function ArenaEngagementModal({
       setSubtitle(editingItem.subtitle || "");
       setSport(editingItem.sport || "cricket");
 
-      if (editingItem.type === "fan_battle" && editingItem.fanBattleData) {
+      if (editingItem.type === "meme" && editingItem.memeData) {
+        setMemeImageUrl(editingItem.memeData.imageUrl || "");
+        setSubtitle(editingItem.subtitle || editingItem.memeData.caption || "");
+      } else if (editingItem.type === "fan_battle" && editingItem.fanBattleData) {
         setFbLeftCode(editingItem.fanBattleData.leftCompetitor.code || "IN");
         setFbLeftName(editingItem.fanBattleData.leftCompetitor.name || "");
         setFbLeftStat(editingItem.fanBattleData.leftCompetitor.stat || "");
@@ -1320,9 +1351,10 @@ export default function ArenaEngagementModal({
       }
     } else {
       setActiveType(initialType);
-      setTitle("");
-      setSubtitle("");
+      setTitle(initialType === "meme" ? "When your team says trust the process" : "");
+      setSubtitle(initialType === "meme" ? "Same energy. Different priorities." : "");
       setSport("cricket");
+      setMemeImageUrl(MEME_PRESET_TEMPLATES[0].imageUrl);
       setFbLeftName("");
       setFbLeftStat("");
       setFbRightName("");
@@ -1569,6 +1601,37 @@ export default function ArenaEngagementModal({
           timerMinutes: durationMins,
           expiresAt,
         };
+      } else if (activeType === "meme") {
+        if (!title.trim()) {
+          notifyUser("Please enter a headline/title for the meme.");
+          setSubmitting(false);
+          return;
+        }
+        if (!memeImageUrl.trim()) {
+          notifyUser("Please upload or choose a meme image.");
+          setSubmitting(false);
+          return;
+        }
+        payload.tags = ["🔥 MEME ARENA", "😂 VIRAL"];
+        payload.memeData = {
+          imageUrl: memeImageUrl.trim(),
+          caption: subtitle.trim() || title.trim(),
+          authorName: userName || "AmitFan",
+          authorHandle: userName ? `@${userName.toLowerCase().replace(/\s+/g, "")}` : "@AmitFan",
+          authorAvatar: user?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+          heatPercentage: editingItem?.memeData?.heatPercentage || 78,
+          totalVotes: editingItem?.memeData?.totalVotes || 1240,
+          reactions: editingItem?.memeData?.reactions || {
+            mild: 25,
+            funny: 310,
+            hot: 480,
+            fire: 320,
+            nuclear: 105,
+          },
+          commentsCount: editingItem?.memeData?.commentsCount || 43,
+          sharesCount: editingItem?.memeData?.sharesCount || 12,
+          createdAt: now,
+        };
       }
 
       if (editingItem) {
@@ -1636,16 +1699,28 @@ export default function ArenaEngagementModal({
                     <Swords size={16} className="sm:w-[18px] sm:h-[18px]" />
                   ) : activeType === "poll" ? (
                     <BarChart2 size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  ) : activeType === "meme" ? (
+                    <Flame size={16} className="sm:w-[18px] sm:h-[18px] text-orange-400" />
                   ) : (
                     <Target size={16} className="sm:w-[18px] sm:h-[18px]" />
                   )}
                 </span>
                 <div className="min-w-0">
                   <h2 className="text-sm sm:text-base font-black tracking-tight truncate">
-                    {editingItem ? "Edit Arena Event" : "Create Arena Event"}
+                    {editingItem
+                      ? activeType === "meme"
+                        ? "Edit Meme Arena"
+                        : "Edit Arena Event"
+                      : activeType === "meme"
+                        ? "Create Meme Arena"
+                        : "Create Arena Event"}
                   </h2>
                   <p className="text-[10px] text-white/40 truncate">
-                    {editingItem ? "Update quiz questions, battles, polls or predictions" : "Earn +2 PTS for creating quizzes, battles, polls & predictions"}
+                    {activeType === "meme"
+                      ? "Let fans drop their funniest sports memes"
+                      : editingItem
+                        ? "Update quiz questions, battles, polls or predictions"
+                        : "Earn +2 PTS for creating quizzes, battles, polls & predictions"}
                   </p>
                 </div>
               </div>
@@ -1660,23 +1735,33 @@ export default function ArenaEngagementModal({
             </div>
 
             {!editingItem && (
-              <div className="grid grid-cols-4 gap-1 sm:gap-1.5 p-1 bg-white/[0.03] border border-white/[0.06] rounded-xl sm:rounded-2xl">
+              <div className="grid grid-cols-5 gap-1 sm:gap-1.5 p-1 bg-white/[0.03] border border-white/[0.06] rounded-xl sm:rounded-2xl">
                 {[
                   { type: "quiz", label: "Quiz", icon: "🧠" },
                   { type: "fan_battle", label: "Battle", icon: "⚔️" },
                   { type: "poll", label: "Poll", icon: "📊" },
                   { type: "prediction", label: "Prediction", icon: "🎯" },
+                  { type: "meme", label: "Meme", icon: "🔥" },
                 ].map((tab) => (
                   <button
                     key={tab.type}
                     type="button"
-                    onClick={() => setActiveType(tab.type as EngagementType)}
+                    onClick={() => {
+                      setActiveType(tab.type as EngagementType);
+                      if (tab.type === "meme" && !title) {
+                        setTitle("When your team says trust the process");
+                        setSubtitle("Same energy. Different priorities.");
+                      }
+                    }}
                     className={`py-1.5 sm:py-2 px-1 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all cursor-pointer ${activeType === tab.type
-                        ? "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md shadow-pink-500/20"
+                        ? tab.type === "meme"
+                          ? "bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] text-white shadow-md shadow-orange-500/25"
+                          : "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md shadow-pink-500/20"
                         : "text-white/50 hover:text-white hover:bg-white/[0.04]"
                       }`}
                   >
-                    <span className="whitespace-normal">{tab.label}</span>
+                    <span>{tab.icon}</span>
+                    <span className="whitespace-normal hidden xs:inline">{tab.label}</span>
                   </button>
                 ))}
               </div>
@@ -2225,6 +2310,148 @@ export default function ArenaEngagementModal({
                   </div>
                 </div>
               )}
+
+              {/* ─── MEME FORM TAB ─── */}
+              {activeType === "meme" && (
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className={labelStyle}>Description (Optional)</label>
+                      <span className="text-[10px] text-white/40">
+                        {subtitle.length}/200
+                      </span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={subtitle}
+                      maxLength={200}
+                      onChange={(e) => setSubtitle(e.target.value)}
+                      placeholder="Add a little context for the meme..."
+                      className={`${inputStyle} resize-none`}
+                    />
+                  </div>
+
+                  <div>
+                    <label className={labelStyle}>Upload Meme</label>
+
+                    {/* Upload Box */}
+                    <div className="border-2 border-dashed border-white/15 hover:border-orange-500/50 rounded-2xl p-4 sm:p-5 bg-white/[0.02] text-center transition-all relative overflow-hidden group">
+                      {memeImageUrl ? (
+                        <div className="flex flex-col items-center gap-3">
+                          <div className="relative w-full max-h-[220px] rounded-xl overflow-hidden border border-white/10 bg-black/40 flex items-center justify-center">
+                            <img
+                              src={memeImageUrl}
+                              alt="Meme preview"
+                              className="max-h-[200px] w-auto object-contain rounded-lg"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setMemeImageUrl("")}
+                              className="absolute top-2 right-2 p-1.5 rounded-full bg-black/70 hover:bg-black text-white/80 hover:text-white transition-all cursor-pointer"
+                              title="Remove image"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <label className="px-3 py-1.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/40 text-[11px] font-extrabold cursor-pointer transition-all flex items-center gap-1.5">
+                              <UploadCloud size={13} />
+                              <span>Replace Image</span>
+                              <input
+                                type="file"
+                                accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) {
+                                    const reader = new FileReader();
+                                    reader.onload = () => {
+                                      setMemeImageUrl(reader.result as string);
+                                    };
+                                    reader.readAsDataURL(file);
+                                  }
+                                }}
+                              />
+                            </label>
+                          </div>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center py-4 cursor-pointer space-y-2">
+                          <div className="w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            <ImageIcon size={24} />
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-xs font-black text-white">Upload meme image</p>
+                            <p className="text-[10px] text-white/40">JPG, PNG • Max 10 MB</p>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/png, image/jpeg, image/jpg, image/webp, image/gif"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = () => {
+                                  setMemeImageUrl(reader.result as string);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Preset Templates */}
+                  <div className="space-y-2 pt-1">
+                    <label className="text-[10.5px] font-black text-white/50 uppercase tracking-wider block">
+                      Or pick a template:
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {MEME_PRESET_TEMPLATES.map((tmpl, idx) => {
+                        const isSelected = memeImageUrl === tmpl.imageUrl;
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setMemeImageUrl(tmpl.imageUrl);
+                              if (
+                                !title ||
+                                title === MEME_PRESET_TEMPLATES[0].title ||
+                                title === MEME_PRESET_TEMPLATES[1].title ||
+                                title === MEME_PRESET_TEMPLATES[2].title
+                              ) {
+                                setTitle(tmpl.title);
+                                setSubtitle(tmpl.subtitle);
+                              }
+                            }}
+                            className={`p-2 rounded-xl text-left border transition-all cursor-pointer flex flex-col gap-1.5 ${
+                              isSelected
+                                ? "bg-orange-500/15 border-orange-500/60 shadow-[0_0_12px_rgba(255,123,2,0.2)]"
+                                : "bg-white/[0.02] border-white/10 hover:border-white/20 hover:bg-white/[0.04]"
+                            }`}
+                          >
+                            <div className="w-full h-12 rounded-lg overflow-hidden bg-black/40">
+                              <img
+                                src={tmpl.imageUrl}
+                                alt={tmpl.label}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <span className="text-[10px] font-extrabold text-white/90 truncate block">
+                              {tmpl.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-3 sm:p-4 border-t border-white/[0.08] bg-[#0d111a] shrink-0 flex items-center justify-end gap-2 sm:gap-2.5">
@@ -2249,7 +2476,7 @@ export default function ArenaEngagementModal({
                 ) : (
                   <>
                     <Sparkles size={14} />
-                    <span>{editingItem ? "Update Event" : "Publish to Aren"}</span>
+                    <span>{editingItem ? "Update Event" : "Publish to Arena"}</span>
                   </>
                 )}
               </button>

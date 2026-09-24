@@ -1,5 +1,5 @@
-// types/engagements.ts — Type definitions for Fan Battles, Quizzes, Polls, and Predictions
-export type EngagementType = "fan_battle" | "quiz" | "poll" | "prediction";
+// types/engagements.ts — Type definitions for Fan Battles, Quizzes, Polls, Predictions, and Meme Arena
+export type EngagementType = "fan_battle" | "quiz" | "poll" | "prediction" | "meme";
 export type EngagementStatus = "active" | "inactive" | "expired" | "settled";
 
 // ─── 1. Fan Battle ─────────────────────────────────────────────────────────
@@ -92,6 +92,32 @@ export interface PredictionPayload {
   scheduledStartTime?: number | string;
 }
 
+// ─── 5. Meme Arena ─────────────────────────────────────────────────────────
+export type MemeReactionType = "mild" | "funny" | "hot" | "fire" | "nuclear";
+
+export interface MemeReactions {
+  mild: number;
+  funny: number;
+  hot: number;
+  fire: number;
+  nuclear: number;
+}
+
+export interface MemePayload {
+  imageUrl: string;
+  authorName?: string;
+  authorHandle?: string;
+  authorAvatar?: string;
+  heatPercentage?: number;
+  totalVotes?: number;
+  reactions?: MemeReactions;
+  commentsCount?: number;
+  sharesCount?: number;
+  userReaction?: MemeReactionType | null;
+  caption?: string;
+  createdAt?: number;
+}
+
 // ─── Universal Engagement Entity ──────────────────────────────────────────
 export interface EngagementItem {
   id: string;
@@ -109,6 +135,7 @@ export interface EngagementItem {
   quizData?: QuizPayload;
   pollData?: PollPayload;
   predictionData?: PredictionPayload;
+  memeData?: MemePayload;
 
   // Social / Engagement counters
   likes: number;

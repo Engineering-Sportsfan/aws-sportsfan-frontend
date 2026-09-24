@@ -1,7 +1,9 @@
+"use client";
 
 // 'use client';
 
 // import { useEffect, useState } from "react";
+
 // import { useRouter } from "next/navigation";
 // import { motion } from "framer-motion";
 // import axios from "axios";
@@ -185,7 +187,7 @@
 
 // MainModules/RoarPreference/page.tsx
 
-'use client';
+// "use client"; (moved to line 1)
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -443,6 +445,16 @@ export default function RoarPreferencesPage() {
     }
 
     setSaveState("saving");
+    try {
+      trackFanDNACompleted({
+        tags: sports,
+        sportStyle: "Active",
+        notificationsEnabled: true
+      });
+      if (sports && sports.length > 0) {
+        trackInterestFollowed("sports", sports.join(", "), sports.length);
+      }
+    } catch (e) {}
     try {
       const res = await axios.patch("/api/roar/onboarding", {
         sports,

@@ -9,8 +9,14 @@ export interface RadarCardItem {
   isLive?: boolean;
   icon: string;
   iconBg?: string;
-  themeColor: "emerald" | "purple" | "amber" | "cyan" | "rose";
+  themeColor?: "emerald" | "purple" | "amber" | "cyan" | "rose";
   venue?: string;
+  time?: string;
+  subEvent?: string;
+  detail?: string;
+  statusType?: "live" | "up_next" | "afternoon" | "evening" | string;
+  statusLabel?: string;
+  nodeColor?: "emerald" | "amber" | "blue" | string;
   teams?: {
     teamA: string;
     teamB?: string;
@@ -28,11 +34,19 @@ export interface AgendaEventItem {
   sport: string;
   subEvent: string;
   detail: string;
-  statusType: "live" | "up_next" | "afternoon" | "evening";
+  statusType: "live" | "up_next" | "afternoon" | "evening" | string;
   statusLabel: string;
   icon: string;
-  nodeColor: "emerald" | "amber" | "blue";
+  nodeColor?: "emerald" | "amber" | "blue" | string;
+  themeColor?: "emerald" | "purple" | "amber" | "cyan" | "rose";
   venue?: string;
+  teams?: {
+    teamA: string;
+    teamB?: string;
+    scoreA?: string;
+    scoreB?: string;
+  };
+  summary?: string;
   order?: number;
   active?: boolean;
 }
