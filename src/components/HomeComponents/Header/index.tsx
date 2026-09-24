@@ -1543,6 +1543,12 @@ export default function Header() {
             Logout
           </span>
         </LogoutButton>
+        <div className="h-px bg-white/5 mx-3.5" />
+        <div className="px-3.5 py-2 text-center select-none">
+          <p className="text-[10px] text-gray-500 font-medium tracking-wide">
+            This is beta program
+          </p>
+        </div>
       </div>
     ),
     []

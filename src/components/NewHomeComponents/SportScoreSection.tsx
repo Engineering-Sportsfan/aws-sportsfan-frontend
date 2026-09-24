@@ -953,7 +953,7 @@ export default function SportScoreSection({
           <img
             src="/images/asiangamesbanner.png"
             alt="Watch Along Banner"
-            className="w-full h-auto max-h-[260px] md:max-h-[300px] object-cover"
+            className="w-full h-auto max-h-[130px] md:max-h-[200px] object-fit"
           />
         </div>
 
