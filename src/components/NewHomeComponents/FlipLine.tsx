@@ -5145,6 +5145,11 @@ export default function FlipLine({
       if (urlCardId) {
         setHighlightedCardId(String(urlCardId));
       }
+      const urlItemId = params.get('itemId') || params.get('engagementId') || params.get('quizId');
+      const urlTab = params.get('tab');
+      if (urlItemId || urlTab === 'fliparena') {
+        setActiveTab('fliparena');
+      }
     }
   }, [targetCardId]);
 
