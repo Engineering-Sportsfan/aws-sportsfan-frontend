@@ -3489,11 +3489,11 @@ function DynamicMemeCard({
   const [voted, setVoted] = useState<boolean>(Boolean(initialStored || item.userVoted));
   const [loading, setLoading] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 420);
-  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || Number(meme.sharesCount) || 12);
-  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || Number(meme.totalVotes) || 1240);
-  const [heatPct, setHeatPct] = useState<number>(Number(meme.heatPercentage) || 78);
-  const [totalMemeVotes, setTotalMemeVotes] = useState<number>(Number(meme.totalVotes) || 1240);
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || Number(meme.sharesCount) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || Number(meme.totalVotes) || 0);
+  const [heatPct, setHeatPct] = useState<number>(Number(meme.heatPercentage) || 0);
+  const [totalMemeVotes, setTotalMemeVotes] = useState<number>(Number(meme.totalVotes) || 0);
   const [reactions, setReactions] = useState(meme.reactions || { mild: 25, funny: 310, hot: 480, fire: 320, nuclear: 105 });
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -3701,15 +3701,7 @@ function DynamicMemeCard({
                   <Pencil size={12} /> Edit Meme
                 </button>
               )}
-              <button
-                onClick={() => {
-                  setMenuOpen(false);
-                  handleShare();
-                }}
-                className="w-full px-3 py-1.5 text-left text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-2 font-bold cursor-pointer"
-              >
-                <Share2 size={12} /> Share Link
-              </button>
+
             </div>
           )}
         </div>
@@ -3806,22 +3798,7 @@ function DynamicMemeCard({
           <span className="text-white/50">{totalMemeVotes.toLocaleString()} votes</span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <span
-            className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
-            onClick={() => onToast("Meme comments opening soon! 💬")}
-          >
-            <MessageCircle size={13} />
-            <span>{meme.commentsCount || 43}</span>
-          </span>
-          <button
-            onClick={handleShare}
-            className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
-          >
-            <Share2 size={13} />
-            <span>Share</span>
-          </button>
-        </div>
+
       </div>
 
       {/* Action Buttons Row */}
@@ -3875,7 +3852,7 @@ function DynamicMemeCard({
             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
           >
             <Share2 size={13} />
-            <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+
           </button>
         </div>
         <span>{totalEngaged.toLocaleString()} engaged</span>
