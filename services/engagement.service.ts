@@ -99,7 +99,8 @@ export const engagementService = {
     id: string,
     selectedOptionId: string,
     userId?: string,
-    questionId?: string
+    questionId?: string,
+    meta?: Record<string, any>
   ): Promise<T> => {
     const res = await axios.post<T>(
       `/api/engagements/${encodeURIComponent(id)}/vote`,
@@ -107,6 +108,7 @@ export const engagementService = {
         selectedOptionId,
         userId,
         ...(questionId ? { questionId } : {}),
+        ...(meta || {}),
       }
     );
     cachedEngagements.clear();
