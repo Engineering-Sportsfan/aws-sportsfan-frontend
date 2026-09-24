@@ -770,7 +770,7 @@ function HomePageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  /*
+  
   // Onboarding temporarily disabled for Dew collaboration
   if (showOnboarding) {
     return (
@@ -788,7 +788,7 @@ function HomePageInner() {
       </div>
     );
   }
-  */
+
 
   return (
     <div className="flex flex-col w-full min-h-screen">
