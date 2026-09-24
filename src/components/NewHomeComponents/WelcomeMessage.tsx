@@ -644,7 +644,7 @@ export default function WelcomeMessage({
 
             <div className="flex flex-col min-w-0">
               <h3 className="text-[14px] sm:text-[15px] font-black uppercase tracking-wider text-white leading-tight flex items-center gap-1.5">
-                MORNING BRIEF
+                Daily Huddle 
               </h3>
               <p className="text-[12px] sm:text-[13px] font-medium text-[#D1A56A] leading-tight mt-0.5 truncate">
                 {welcomeConfig?.briefSubtitle || "Top 5 stories to know today"}

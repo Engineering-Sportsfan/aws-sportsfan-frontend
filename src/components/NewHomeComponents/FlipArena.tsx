@@ -1,1786 +1,3 @@
-// "use client";
-
-// import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-// import { useAuth } from "@/context/AuthContext";
-// import { Poll } from "@/types/Polls";
-// import { EngagementItem, EngagementType, QuizOption } from "@/types/engagements";
-// import { engagementService } from "@/services/engagement.service";
-// import {
-//   ArrowLeft,
-//   Heart,
-//   Share2,
-//   Sparkles,
-//   Trophy,
-//   Check,
-//   Zap,
-//   CheckCircle2,
-//   XCircle,
-//   Plus,
-//   Pencil,
-//   Trash2,
-//   Clock,
-//   Swords,
-//   HelpCircle,
-//   BarChart2,
-//   Target,
-//   ChevronRight,
-//   X,
-//   RefreshCw,
-//   Lock,
-// } from "lucide-react";
-// import { motion, AnimatePresence } from "framer-motion";
-// import LeaderboardOverlayModal from "@/src/components/NewHomeComponents/LeaderboardOverlayModal";
-// import ArenaEngagementModal from "./ArenaEngagementModal";
-
-// interface FlipArenaProps {
-//   selectedSport: string;
-//   activeTab?: "flipline" | "fliparena";
-//   setActiveTab?: (tab: "flipline" | "fliparena") => void;
-//   isPreview?: boolean;
-// }
-
-// // ─── Time Helper Utilities ──────────────────────────────────────────────────
-// function formatCountdown(ms: number): string {
-//   if (ms <= 0) return "00:00";
-//   const totalSecs = Math.floor(ms / 1000);
-//   const hours = Math.floor(totalSecs / 3600);
-//   const mins = Math.floor((totalSecs % 3600) / 60);
-//   const secs = totalSecs % 60;
-//   if (hours > 0) {
-//     return `${hours}h ${String(mins).padStart(2, "0")}m ${String(secs).padStart(2, "0")}s`;
-//   }
-//   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-// }
-
-// function getEngagementStartTime(item: EngagementItem): number {
-//   return Number(
-//     item.quizData?.startTime ||
-//     item.quizData?.scheduledStartTime ||
-//     item.pollData?.startTime ||
-//     item.pollData?.scheduledStartTime ||
-//     item.predictionData?.startTime ||
-//     item.predictionData?.scheduledStartTime ||
-//     item.fanBattleData?.startTime ||
-//     item.fanBattleData?.scheduledStartTime ||
-//     item.startTime ||
-//     item.scheduledStartTime ||
-//     item.createdAt ||
-//     0
-//   );
-// }
-
-// // ─── Single-Vote Local Persistence Helpers (Survives Refresh & Login/Logout) ──
-// function getStoredVote(type: string, itemId: string, userId?: string): any {
-//   if (typeof window === "undefined") return null;
-//   try {
-//     if (userId) {
-//       const u = localStorage.getItem(`sf_${type}_voted_${itemId}_${userId}`);
-//       if (u) return JSON.parse(u);
-//     }
-//     const d = localStorage.getItem(`sf_${type}_voted_${itemId}`);
-//     if (d) return JSON.parse(d);
-//   } catch {}
-//   return null;
-// }
-
-// function setStoredVote(type: string, itemId: string, data: any, userId?: string) {
-//   if (typeof window === "undefined") return;
-//   try {
-//     const serialized = JSON.stringify(data);
-//     localStorage.setItem(`sf_${type}_voted_${itemId}`, serialized);
-//     if (userId) {
-//       localStorage.setItem(`sf_${type}_voted_${itemId}_${userId}`, serialized);
-//     }
-//   } catch {}
-// }
-
-// // ─── 1. Fan Battle Card Component ───────────────────────────────────────────
-// function DynamicFanBattleCard({
-//   item,
-//   userId,
-//   now,
-//   onToast,
-//   onEdit,
-// }: {
-//   item: EngagementItem;
-//   userId?: string;
-//   now: number;
-//   onToast: (msg: string) => void;
-//   onEdit?: (item: EngagementItem) => void;
-// }) {
-//   const initialStored = getStoredVote("fb", item.id, userId);
-//   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(
-//     initialStored?.side || (item.userVote as "left" | "right") || null
-//   );
-//   const [loading, setLoading] = useState(false);
-//   const [liked, setLiked] = useState(false);
-//   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-//   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-//   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-
-//   const left = item.fanBattleData?.leftCompetitor || {
-//     code: "IN",
-//     name: "Virat Kohli",
-//     stat: "Avg 58.6 in Tests",
-//     votes: 0,
-//   };
-
-//   const right = item.fanBattleData?.rightCompetitor || {
-//     code: "PK",
-//     name: "Babar Azam",
-//     stat: "Avg 44.8 in Tests",
-//     votes: 0,
-//   };
-
-//   const [result, setResult] = useState<{
-//     leftPercentage: number;
-//     rightPercentage: number;
-//     totalVotes: number;
-//   } | null>(() => {
-//     const s = initialStored?.side || (item.userVote as "left" | "right");
-//     if (!s) return null;
-//     const lVotes = left.votes || 0;
-//     const rVotes = right.votes || 0;
-//     const total = lVotes + rVotes + 1;
-//     const leftV = lVotes + (s === "left" ? 1 : 0);
-//     const leftPct = Math.round((leftV / total) * 100);
-//     return {
-//       leftPercentage: leftPct,
-//       rightPercentage: 100 - leftPct,
-//       totalVotes: total,
-//     };
-//   });
-
-//   const startTime = getEngagementStartTime(item);
-//   const isScheduled = startTime > now;
-//   const timeToStartMs = Math.max(0, startTime - now);
-
-//   useEffect(() => {
-//     if (item.userLiked) {
-//       setLiked(true);
-//     } else if (userId) {
-//       engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-//         if (isLiked) setLiked(true);
-//       });
-//     }
-
-//     const stored = getStoredVote("fb", item.id, userId);
-//     if (stored?.side) {
-//       setSelectedSide(stored.side);
-//       const total = (left.votes || 0) + (right.votes || 0) || 1;
-//       const leftV = (left.votes || 0) + (stored.side === "left" ? 1 : 0);
-//       const leftPct = Math.round((leftV / total) * 100);
-//       setResult({
-//         leftPercentage: leftPct,
-//         rightPercentage: 100 - leftPct,
-//         totalVotes: total,
-//       });
-//     }
-
-//     if (item.userVoted && item.userVote) {
-//       const side = item.userVote as "left" | "right";
-//       setSelectedSide(side);
-//       setStoredVote("fb", item.id, { side }, userId);
-//       const total = (left.votes || 0) + (right.votes || 0) || 1;
-//       const leftPct = Math.round(((left.votes || 0) / total) * 100);
-//       setResult({
-//         leftPercentage: leftPct,
-//         rightPercentage: 100 - leftPct,
-//         totalVotes: total,
-//       });
-//     } else if (userId) {
-//       engagementService.checkVoteStatus(item.id, userId).then((res) => {
-//         if (res.hasVoted && res.selectedOptionId) {
-//           const side = res.selectedOptionId as "left" | "right";
-//           setSelectedSide(side);
-//           setStoredVote("fb", item.id, { side }, userId);
-//           const total = (left.votes || 0) + (right.votes || 0) || 1;
-//           const leftPct = Math.round(((left.votes || 0) / total) * 100);
-//           setResult({
-//             leftPercentage: leftPct,
-//             rightPercentage: 100 - leftPct,
-//             totalVotes: total,
-//           });
-//         }
-//       });
-//     }
-//   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, left.votes, right.votes]);
-
-//   const handleVote = async (side: "left" | "right") => {
-//     if (isScheduled) {
-//       onToast(`This battle starts in ${formatCountdown(timeToStartMs)}!`);
-//       return;
-//     }
-//     if (selectedSide || loading || getStoredVote("fb", item.id, userId)) {
-//       onToast("You have already voted in this battle!");
-//       return;
-//     }
-//     setSelectedSide(side);
-//     setLoading(true);
-//     setStoredVote("fb", item.id, { side }, userId);
-//     setTotalEngaged((prev) => prev + 1);
-
-//     try {
-//       const res: any = await engagementService.voteEngagement(item.id, side, userId);
-//       const calculatedResult = {
-//         leftPercentage: res?.leftPercentage ?? (side === "left" ? 68 : 32),
-//         rightPercentage: res?.rightPercentage ?? (side === "right" ? 68 : 32),
-//         totalVotes: res?.totalVotes ?? (left.votes + right.votes + 1),
-//       };
-//       setResult(calculatedResult);
-//       onToast("+2 PTS earned for voting in Fan Battle! ⚔️");
-//       if (typeof window !== "undefined") {
-//         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
-//       }
-//     } catch (err: any) {
-//       const prevOption = (err?.response?.data?.selectedOptionId || side) as "left" | "right";
-//       const total = (left.votes || 0) + (right.votes || 0) + 1;
-//       const leftV = (left.votes || 0) + (prevOption === "left" ? 1 : 0);
-//       const leftPct = Math.round((leftV / total) * 100);
-//       setSelectedSide(prevOption);
-//       setResult({
-//         leftPercentage: leftPct,
-//         rightPercentage: 100 - leftPct,
-//         totalVotes: total,
-//       });
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleLike = async () => {
-//     const nextLiked = !liked;
-//     const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
-//     setLiked(nextLiked);
-//     setLikesCount(nextCount);
-
-//     try {
-//       const res = await engagementService.toggleLikeEngagement(item.id, userId);
-//       if (res?.likesCount !== undefined) {
-//         setLikesCount(res.likesCount);
-//         setLiked(res.liked);
-//       }
-//     } catch { }
-//   };
-
-//   const handleShare = async () => {
-//     setSharesCount((prev) => prev + 1);
-//     setTotalEngaged((prev) => prev + 1);
-//     engagementService.shareEngagement(item.id).catch(() => { });
-
-//     const text = `⚔️ ${item.title} — ${left.name} vs ${right.name}! Vote now on SportsFan360.`;
-//     if (navigator.share) {
-//       navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
-//     } else {
-//       await navigator.clipboard.writeText(window.location.href);
-//       onToast("Challenge link copied to clipboard! 📋");
-//     }
-//   };
-
-//   const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
-//     hour: "2-digit",
-//     minute: "2-digit",
-//   });
-
-//   return (
-//     <motion.div
-//       initial={{ opacity: 0, y: 12 }}
-//       animate={{ opacity: 1, y: 0 }}
-//       exit={{ opacity: 0, y: -12 }}
-//       className="w-full max-w-lg bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative group"
-//     >
-//       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
-//         <div className="flex items-center gap-1.5">
-//           <span className="text-[#FF3D57]">⚔️ FAN BATTLE</span>
-//           <span>•</span>
-//           <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 +2 PTS / VOTE</span>
-//           {isScheduled && (
-//             <>
-//               <span>•</span>
-//               <span className="text-amber-400 flex items-center gap-1 font-mono">
-//                 <Clock size={10} /> STARTS IN {formatCountdown(timeToStartMs)}
-//               </span>
-//             </>
-//           )}
-//         </div>
-//         <div className="flex items-center gap-2">
-//           <span>{formattedTime}</span>
-//         </div>
-//       </div>
-
-//       <h3 className="text-sm font-black mb-4">{item.title}</h3>
-
-//       {isScheduled && (
-//         <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center gap-2 text-xs font-black text-amber-300">
-//           <Lock size={13} />
-//           <span>Event scheduled · Voting opens in {formatCountdown(timeToStartMs)}</span>
-//         </div>
-//       )}
-
-//       <div className="grid grid-cols-7 items-center gap-3 mb-4">
-//         {/* Left Competitor */}
-//         <button
-//           onClick={() => handleVote("left")}
-//           disabled={loading || selectedSide !== null || isScheduled}
-//           className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${
-//             isScheduled
-//               ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
-//               : selectedSide === "left"
-//               ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
-//               : selectedSide === "right"
-//               ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-//               : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
-//           }`}
-//         >
-//           <span className="text-2xl font-black block">{left.code}</span>
-//           <span className="text-xs font-black block mt-2 text-white">{left.name}</span>
-//           <span className="text-[9px] text-white/40 block mt-1 font-semibold">{left.stat}</span>
-//           {result && (
-//             <motion.span
-//               initial={{ scale: 0.8, opacity: 0 }}
-//               animate={{ scale: 1, opacity: 1 }}
-//               className="text-xs font-black block mt-2 text-[#FF3D57]"
-//             >
-//               {result.leftPercentage}% Voted {selectedSide === "left" && "✓"}
-//             </motion.span>
-//           )}
-//         </button>
-
-//         {/* VS Badge */}
-//         <div className="col-span-1 flex items-center justify-center">
-//           <span className="w-8 h-8 rounded-full bg-white/[0.06] border border-white/[0.1] text-[10px] font-black text-white/50 flex items-center justify-center">
-//             VS
-//           </span>
-//         </div>
-
-//         {/* Right Competitor */}
-//         <button
-//           onClick={() => handleVote("right")}
-//           disabled={loading || selectedSide !== null || isScheduled}
-//           className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${
-//             isScheduled
-//               ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
-//               : selectedSide === "right"
-//               ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
-//               : selectedSide === "left"
-//               ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-//               : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
-//           }`}
-//         >
-//           <span className="text-2xl font-black block">{right.code}</span>
-//           <span className="text-xs font-black block mt-2 text-white">{right.name}</span>
-//           <span className="text-[9px] text-white/40 block mt-1 font-semibold">{right.stat}</span>
-//           {result && (
-//             <motion.span
-//               initial={{ scale: 0.8, opacity: 0 }}
-//               animate={{ scale: 1, opacity: 1 }}
-//               className="text-xs font-black block mt-2 text-[#FF7B02]"
-//             >
-//               {result.rightPercentage}% Voted {selectedSide === "right" && "✓"}
-//             </motion.span>
-//           )}
-//         </button>
-//       </div>
-
-//       <button
-//         onClick={handleShare}
-//         className="w-full py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] hover:bg-white/[0.07] font-black text-xs flex items-center justify-center gap-2 active:scale-[0.99] transition-all cursor-pointer text-white/90"
-//       >
-//         <span>🫱🏼🫲🏾</span> Challenge a Friend
-//       </button>
-
-//       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-//         <div className="flex gap-4">
-//           <button
-//             onClick={handleLike}
-//             className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-//               liked ? "text-[#FF3D57]" : "hover:text-white"
-//             }`}
-//           >
-//             <Heart size={13} fill={liked ? "currentColor" : "none"} />
-//             <span>{likesCount.toLocaleString()}</span>
-//           </button>
-//           <button
-//             onClick={handleShare}
-//             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
-//           >
-//             <Share2 size={13} />
-//             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
-//           </button>
-//         </div>
-//         <span>{totalEngaged.toLocaleString()} engaged</span>
-//       </div>
-//     </motion.div>
-//   );
-// }
-
-// // ─── 2. Quiz Card Component (Interval & Schedule Enforced) ──────────────────
-// function DynamicQuizCard({
-//   item,
-//   userId,
-//   now,
-//   onToast,
-//   onEdit,
-// }: {
-//   item: EngagementItem;
-//   userId?: string;
-//   now: number;
-//   onToast: (msg: string) => void;
-//   onEdit?: (item: EngagementItem) => void;
-// }) {
-//   const rawQuestions =
-//     item.quizData?.questions && item.quizData.questions.length > 0
-//       ? item.quizData.questions
-//       : [
-//           {
-//             id: "q_1",
-//             question: item.quizData?.question || item.title || "Quick Live Cricket Quiz",
-//             options: item.quizData?.options || [
-//               { id: "A", text: "27" },
-//               { id: "B", text: "29" },
-//               { id: "C", text: "30" },
-//               { id: "D", text: "32" },
-//             ],
-//             correctOptionId: item.quizData?.correctOptionId || "C",
-//             pointsReward: item.quizData?.pointsReward || 50,
-//             explanation: item.quizData?.explanation || "Test your knowledge on SportsFan360!",
-//           },
-//         ];
-
-//   const totalQuestions = rawQuestions.length;
-
-//   const initialFinish = getStoredVote("quiz_finish", item.id, userId);
-//   const [quizFinished, setQuizFinished] = useState<boolean>(Boolean(initialFinish?.finished));
-//   const [totalScore, setTotalScore] = useState<number>(Number(initialFinish?.score) || 0);
-
-//   const [currentQIndex, setCurrentQIndex] = useState(0);
-//   const currentQ = rawQuestions[Math.min(currentQIndex, totalQuestions - 1)];
-//   const correctOptionId = currentQ?.correctOptionId || "A";
-//   const pointsReward = currentQ?.pointsReward || 50;
-//   const frequencyMinutes = Number(item.quizData?.frequencyMinutes || 10);
-//   const frequencyMs = frequencyMinutes * 60 * 1000;
-
-//   const initialQ = getStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, userId);
-//   const [selectedId, setSelectedId] = useState<string | null>(
-//     initialQ?.selectedId || (item.userVoted && item.userVote ? item.userVote : null)
-//   );
-//   const [answered, setAnswered] = useState<boolean>(Boolean(initialQ || item.userVoted || initialFinish?.finished));
-//   const [isCorrect, setIsCorrect] = useState<boolean | null>(initialQ ? initialQ.isCorrect : null);
-
-//   const [liked, setLiked] = useState(false);
-//   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-//   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-//   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-
-//   const startTime = getEngagementStartTime(item);
-//   const isScheduled = startTime > now;
-//   const timeToStartMs = Math.max(0, startTime - now);
-
-//   // Frequency Unlock Calculations: how many questions have unlocked by now?
-//   const elapsedSinceStart = Math.max(0, now - startTime);
-//   const unlockedQuestionCount = isScheduled
-//     ? 0
-//     : Math.min(totalQuestions, Math.floor(elapsedSinceStart / frequencyMs) + 1);
-//   const msToNextQuestionSlot = isScheduled ? 0 : Math.max(0, frequencyMs - (elapsedSinceStart % frequencyMs));
-//   const isNextQuestionLocked = answered && currentQIndex + 1 >= unlockedQuestionCount && currentQIndex + 1 < totalQuestions;
-
-//   useEffect(() => {
-//     if (item.userLiked) {
-//       setLiked(true);
-//     } else if (userId) {
-//       engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-//         if (isLiked) setLiked(true);
-//       });
-//     }
-
-//     const finish = getStoredVote("quiz_finish", item.id, userId);
-//     if (finish?.finished) {
-//       setQuizFinished(true);
-//       if (finish.score !== undefined) setTotalScore(Number(finish.score));
-//       return;
-//     }
-
-//     const ans = getStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, userId);
-//     if (ans) {
-//       setSelectedId(ans.selectedId);
-//       setAnswered(true);
-//       setIsCorrect(ans.isCorrect);
-//     } else if (item.userVoted && item.userVote) {
-//       setSelectedId(item.userVote);
-//       setAnswered(true);
-//       const isRight = item.userVote.toUpperCase() === correctOptionId.toUpperCase();
-//       setIsCorrect(isRight);
-//       setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: item.userVote, isCorrect: isRight }, userId);
-//     } else if (userId) {
-//       engagementService.checkVoteStatus(item.id, userId).then((res) => {
-//         if (res.hasVoted && res.selectedOptionId) {
-//           setSelectedId(res.selectedOptionId);
-//           setAnswered(true);
-//           const isRight = res.selectedOptionId.toUpperCase() === correctOptionId.toUpperCase();
-//           setIsCorrect(isRight);
-//           setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: res.selectedOptionId, isCorrect: isRight }, userId);
-//         }
-//       });
-//     }
-//   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, correctOptionId, currentQ?.id, currentQIndex]);
-
-//   const handleOptionSelect = async (optId: string) => {
-//     if (answered || quizFinished || isScheduled) return;
-//     const existing = getStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, userId);
-//     if (existing || getStoredVote("quiz_finish", item.id, userId)) return;
-
-//     setSelectedId(optId);
-//     setAnswered(true);
-//     setTotalEngaged((prev) => prev + 1);
-
-//     const isRight = optId.toUpperCase() === correctOptionId.toUpperCase();
-//     setIsCorrect(isRight);
-
-//     const earnedPoints = isRight ? pointsReward + 2 : 2;
-//     const nextTotal = totalScore + earnedPoints;
-//     setTotalScore(nextTotal);
-
-//     setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: optId, isCorrect: isRight, earnedPoints }, userId);
-
-//     if (totalQuestions === 1) {
-//       setQuizFinished(true);
-//       setStoredVote("quiz_finish", item.id, { finished: true, score: nextTotal }, userId);
-//     }
-
-//     try {
-//       await engagementService.voteEngagement(item.id, optId, userId, currentQ?.id);
-//       if (typeof window !== "undefined") {
-//         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: earnedPoints } }));
-//       }
-//     } catch (err: any) {
-//       const prevOpt = err?.response?.data?.selectedOptionId || optId;
-//       const right = prevOpt.toUpperCase() === correctOptionId.toUpperCase();
-//       setSelectedId(prevOpt);
-//       setIsCorrect(right);
-//     }
-//   };
-
-//   const handleNextQuestion = () => {
-//     if (isNextQuestionLocked) {
-//       onToast(`Next question unlocks in ${formatCountdown(msToNextQuestionSlot)}!`);
-//       return;
-//     }
-//     if (currentQIndex < totalQuestions - 1) {
-//       const nextIdx = currentQIndex + 1;
-//       setCurrentQIndex(nextIdx);
-//       const nextQ = rawQuestions[nextIdx];
-//       const ans = getStoredVote(`quiz_q_${nextQ?.id || nextIdx}`, item.id, userId);
-//       if (ans) {
-//         setSelectedId(ans.selectedId);
-//         setAnswered(true);
-//         setIsCorrect(ans.isCorrect);
-//       } else {
-//         setSelectedId(null);
-//         setAnswered(false);
-//         setIsCorrect(null);
-//       }
-//     } else {
-//       setQuizFinished(true);
-//       setStoredVote("quiz_finish", item.id, { finished: true, score: totalScore }, userId);
-//     }
-//   };
-
-//   const handleLike = async () => {
-//     const nextLiked = !liked;
-//     const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
-//     setLiked(nextLiked);
-//     setLikesCount(nextCount);
-
-//     try {
-//       const res = await engagementService.toggleLikeEngagement(item.id, userId);
-//       if (res?.likesCount !== undefined) {
-//         setLikesCount(res.likesCount);
-//         setLiked(res.liked);
-//       }
-//     } catch { }
-//   };
-
-//   const handleShare = async () => {
-//     setSharesCount((prev) => prev + 1);
-//     setTotalEngaged((prev) => prev + 1);
-//     engagementService.shareEngagement(item.id).catch(() => { });
-
-//     const text = `🧠 Quiz: "${item.title}" — Can you answer all questions? Play on SportsFan360!`;
-//     if (navigator.share) {
-//       navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
-//     } else {
-//       await navigator.clipboard.writeText(window.location.href);
-//       onToast("Quiz link copied to clipboard! 📋");
-//     }
-//   };
-
-//   const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
-//     hour: "2-digit",
-//     minute: "2-digit",
-//   });
-
-//   return (
-//     <motion.div
-//       initial={{ opacity: 0, y: 12 }}
-//       animate={{ opacity: 1, y: 0 }}
-//       exit={{ opacity: 0, y: -12 }}
-//       className="w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
-//     >
-//       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-//         <div className="flex items-center gap-1.5 uppercase">
-//           <span className="text-purple-400">🧠 QUIZ</span>
-//           <span>•</span>
-//           <span className="text-amber-400">⭐ {pointsReward + 2} PTS</span>
-//           {frequencyMinutes && (
-//             <>
-//               <span>•</span>
-//               <span className="text-cyan-400 font-mono">⏱️ {frequencyMinutes}M INTERVAL</span>
-//             </>
-//           )}
-//           {isScheduled && (
-//             <>
-//               <span>•</span>
-//               <span className="text-amber-400 font-mono flex items-center gap-1">
-//                 <Clock size={10} /> STARTS IN {formatCountdown(timeToStartMs)}
-//               </span>
-//             </>
-//           )}
-//         </div>
-//         <div className="flex items-center gap-2">
-//           <span>{formattedTime}</span>
-//         </div>
-//       </div>
-
-//       <div className="flex items-center justify-between gap-2 mb-1.5">
-//         <h3 className="text-sm font-black text-white truncate">{item.title}</h3>
-//         {totalQuestions > 1 && (
-//           <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full shrink-0">
-//             Q {currentQIndex + 1}/{totalQuestions}
-//           </span>
-//         )}
-//       </div>
-
-//       {totalQuestions > 1 && (
-//         <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mb-3">
-//           <div
-//             className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
-//             style={{ width: `${((currentQIndex + (answered ? 1 : 0)) / totalQuestions) * 100}%` }}
-//           />
-//         </div>
-//       )}
-
-//       {isScheduled ? (
-//         <div className="p-5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center my-3 space-y-2">
-//           <Clock size={24} className="mx-auto text-purple-400 animate-pulse" />
-//           <h4 className="text-sm font-black text-white">Quiz Scheduled</h4>
-//           <p className="text-xs text-white/70">
-//             Question #1 unlocks in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
-//           </p>
-//           <span className="text-[10px] text-white/40 block">Questions unlock every {frequencyMinutes} minutes</span>
-//         </div>
-//       ) : (
-//         <>
-//           <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{currentQ?.question}</p>
-
-//           <div className="grid grid-cols-2 gap-2.5 mb-3.5">
-//             {currentQ?.options?.map((opt: QuizOption) => {
-//               const letter = opt.id;
-//               const isThisCorrect = letter.toUpperCase() === correctOptionId.toUpperCase();
-//               const isSelected = selectedId === letter;
-
-//               let cardStyle = "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white/90";
-//               if (answered) {
-//                 if (isThisCorrect) {
-//                   cardStyle = "bg-emerald-500/15 border-emerald-500 text-emerald-400 font-black";
-//                 } else if (isSelected && !isThisCorrect) {
-//                   cardStyle = "bg-red-500/15 border-red-500 text-red-400";
-//                 } else {
-//                   cardStyle = "opacity-35 border-white/[0.04]";
-//                 }
-//               }
-
-//               return (
-//                 <button
-//                   key={letter}
-//                   onClick={() => handleOptionSelect(letter)}
-//                   disabled={answered || quizFinished}
-//                   className={`rounded-xl p-3 border font-bold text-xs text-left transition-all cursor-pointer flex items-center justify-between ${cardStyle}`}
-//                 >
-//                   <span className="truncate pr-1">
-//                     <span className="text-white/40 mr-1.5 font-bold">{letter}.</span>
-//                     {opt.text}
-//                   </span>
-//                   {answered && isThisCorrect && <Check size={14} className="text-emerald-400 shrink-0" />}
-//                   {answered && isSelected && !isThisCorrect && <XCircle size={14} className="text-red-400 shrink-0" />}
-//                 </button>
-//               );
-//             })}
-//           </div>
-
-//           {answered && (
-//             <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mb-3">
-//               <div
-//                 className={`text-[11px] font-black text-center p-2 rounded-xl border flex items-center justify-center gap-1.5 ${
-//                   isCorrect
-//                     ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-//                     : "bg-red-500/10 border-red-500/30 text-red-400"
-//                 }`}
-//               >
-//                 <span>{isCorrect ? "🎉" : "💡"}</span>
-//                 <span>
-//                   {isCorrect
-//                     ? `Correct! +${pointsReward + 2} PTS (+2 participation)`
-//                     : `+2 PTS for participating · The answer is ${correctOptionId}`}
-//                 </span>
-//               </div>
-
-//               {totalQuestions > 1 && (
-//                 <>
-//                   {isNextQuestionLocked ? (
-//                     <div className="p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl flex items-center justify-between text-xs font-bold text-white/80">
-//                       <span className="flex items-center gap-1.5 text-purple-300">
-//                         <Clock size={13} /> Next Question #{currentQIndex + 2} in:
-//                       </span>
-//                       <span className="font-mono text-amber-400 font-extrabold text-sm">
-//                         {formatCountdown(msToNextQuestionSlot)}
-//                       </span>
-//                     </div>
-//                   ) : (
-//                     <button
-//                       onClick={handleNextQuestion}
-//                       className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-purple-600/20"
-//                     >
-//                       <span>{currentQIndex < totalQuestions - 1 ? "Next Question" : "Complete Quiz"}</span>
-//                       <ChevronRight size={14} />
-//                     </button>
-//                   )}
-//                 </>
-//               )}
-//             </motion.div>
-//           )}
-//         </>
-//       )}
-
-//       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-//         <div className="flex gap-4">
-//           <button
-//             onClick={handleLike}
-//             className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-//               liked ? "text-[#FF3D57]" : "hover:text-white"
-//             }`}
-//           >
-//             <Heart size={13} fill={liked ? "currentColor" : "none"} />
-//             <span>{likesCount.toLocaleString()}</span>
-//           </button>
-//           <button
-//             onClick={handleShare}
-//             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
-//           >
-//             <Share2 size={13} />
-//             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
-//           </button>
-//         </div>
-//         <span>{totalEngaged.toLocaleString()} engaged</span>
-//       </div>
-//     </motion.div>
-//   );
-// }
-
-// // ─── 3. Poll Card Component (Duration & Expiry Enforced) ────────────────────
-// function DynamicPollCard({
-//   item,
-//   userId,
-//   now,
-//   onToast,
-//   onEdit,
-// }: {
-//   item: EngagementItem;
-//   userId?: string;
-//   now: number;
-//   onToast: (msg: string) => void;
-//   onEdit?: (item: EngagementItem) => void;
-// }) {
-//   const initialVote = getStoredVote("poll", item.id, userId);
-//   const [selectedId, setSelectedId] = useState<string | null>(
-//     initialVote?.selectedId || item.userVote || null
-//   );
-//   const [voted, setVoted] = useState<boolean>(Boolean(initialVote || item.userVoted));
-//   const [loading, setLoading] = useState(false);
-//   const [options, setOptions] = useState(
-//     item.pollData?.options || [
-//       { id: "1", text: "Jasprit Bumrah 🏏", votes: 420 },
-//       { id: "2", text: "Maheesh Theekshana 🌀", votes: 195 },
-//       { id: "3", text: "Ravindra Jadeja 🍌", votes: 240 },
-//     ]
-//   );
-//   const [liked, setLiked] = useState(false);
-//   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-//   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-//   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-
-//   const startTime = getEngagementStartTime(item);
-//   const isScheduled = startTime > now;
-//   const timeToStartMs = Math.max(0, startTime - now);
-
-//   const durationMins = Number(item.pollData?.durationMinutes || item.pollData?.timerMinutes || 10);
-//   const expiresAt = item.pollData?.expiresAt || (startTime + durationMins * 60 * 1000);
-//   const isExpired = now >= expiresAt;
-//   const timeRemainingMs = Math.max(0, expiresAt - now);
-
-//   const totalVotes = options.reduce((sum, o) => sum + (o.votes || 0), 0) || 1;
-
-//   useEffect(() => {
-//     if (item.userLiked) {
-//       setLiked(true);
-//     } else if (userId) {
-//       engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-//         if (isLiked) setLiked(true);
-//       });
-//     }
-
-//     const stored = getStoredVote("poll", item.id, userId);
-//     if (stored?.selectedId) {
-//       setSelectedId(stored.selectedId);
-//       setVoted(true);
-//     }
-
-//     if (item.userVoted && item.userVote) {
-//       setSelectedId(item.userVote);
-//       setVoted(true);
-//       setStoredVote("poll", item.id, { selectedId: item.userVote }, userId);
-//     } else if (userId) {
-//       engagementService.checkVoteStatus(item.id, userId).then((res) => {
-//         if (res.hasVoted && res.selectedOptionId) {
-//           setSelectedId(res.selectedOptionId);
-//           setVoted(true);
-//           setStoredVote("poll", item.id, { selectedId: res.selectedOptionId }, userId);
-//         }
-//       });
-//     }
-//   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
-
-//   const handleVote = async (optId: string) => {
-//     if (isScheduled) {
-//       onToast(`Poll unlocks in ${formatCountdown(timeToStartMs)}!`);
-//       return;
-//     }
-//     if (isExpired) {
-//       onToast("This poll has ended!");
-//       return;
-//     }
-//     if (voted || loading || getStoredVote("poll", item.id, userId)) {
-//       onToast("You have already voted on this poll!");
-//       return;
-//     }
-//     setSelectedId(optId);
-//     setVoted(true);
-//     setLoading(true);
-//     setStoredVote("poll", item.id, { selectedId: optId }, userId);
-//     setTotalEngaged((prev) => prev + 1);
-
-//     try {
-//       const res: any = await engagementService.voteEngagement(item.id, optId, userId);
-//       if (res?.success && res.options) {
-//         setOptions(res.options);
-//       } else {
-//         setOptions((prev) =>
-//           prev.map((o) => (o.id === optId ? { ...o, votes: (o.votes || 0) + 1 } : o))
-//         );
-//       }
-//       onToast("+2 PTS earned for voting! 📊");
-//       if (typeof window !== "undefined") {
-//         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
-//       }
-//     } catch (err: any) {
-//       const prevOpt = err?.response?.data?.selectedOptionId || optId;
-//       setSelectedId(prevOpt);
-//       setOptions((prev) =>
-//         prev.map((o) => (o.id === prevOpt ? { ...o, votes: (o.votes || 0) + 1 } : o))
-//       );
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleLike = async () => {
-//     const nextLiked = !liked;
-//     const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
-//     setLiked(nextLiked);
-//     setLikesCount(nextCount);
-
-//     try {
-//       const res = await engagementService.toggleLikeEngagement(item.id, userId);
-//       if (res?.likesCount !== undefined) {
-//         setLikesCount(res.likesCount);
-//         setLiked(res.liked);
-//       }
-//     } catch { }
-//   };
-
-//   const handleShare = async () => {
-//     setSharesCount((prev) => prev + 1);
-//     setTotalEngaged((prev) => prev + 1);
-//     engagementService.shareEngagement(item.id).catch(() => { });
-
-//     const text = `📊 Vote on this poll: "${item.pollData?.question || item.title}" on SportsFan360!`;
-//     if (navigator.share) {
-//       navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
-//     } else {
-//       await navigator.clipboard.writeText(window.location.href);
-//       onToast("Poll link copied to clipboard! 📋");
-//     }
-//   };
-
-//   const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
-//     hour: "2-digit",
-//     minute: "2-digit",
-//   });
-
-//   return (
-//     <motion.div
-//       initial={{ opacity: 0, y: 12 }}
-//       animate={{ opacity: 1, y: 0 }}
-//       exit={{ opacity: 0, y: -12 }}
-//       className="w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
-//     >
-//       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-//         <div className="flex items-center gap-1.5 uppercase">
-//           <span className="text-blue-400 font-black">📊 POLL • +2 PTS / VOTE</span>
-//           {isScheduled ? (
-//             <>
-//               <span>•</span>
-//               <span className="text-amber-400 font-mono flex items-center gap-1">
-//                 <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
-//               </span>
-//             </>
-//           ) : isExpired ? (
-//             <>
-//               <span>•</span>
-//               <span className="text-rose-400 font-mono">🔒 CLOSED</span>
-//             </>
-//           ) : (
-//             <>
-//               <span>•</span>
-//               <span className="text-emerald-400 font-mono flex items-center gap-1">
-//                 <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
-//               </span>
-//             </>
-//           )}
-//         </div>
-//         <div className="flex items-center gap-2">
-//           <span>{formattedTime}</span>
-//         </div>
-//       </div>
-
-//       <h3 className="text-sm font-black mb-3">{item.pollData?.question || item.title}</h3>
-
-//       {isScheduled ? (
-//         <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center my-2 space-y-1">
-//           <Clock size={20} className="mx-auto text-blue-400 animate-pulse" />
-//           <h4 className="text-xs font-black text-white">Poll Scheduled</h4>
-//           <p className="text-[11px] text-white/60">
-//             Voting opens in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
-//           </p>
-//         </div>
-//       ) : (
-//         <div className="space-y-3 mb-4">
-//           {options.map((opt) => {
-//             const isSelected = selectedId === opt.id;
-//             const percentage =
-//               opt.percentage !== undefined
-//                 ? opt.percentage
-//                 : Math.round(((opt.votes || 0) / totalVotes) * 100);
-
-//             const isWinner =
-//               item.pollData?.correctAnswer &&
-//               opt.text &&
-//               item.pollData.correctAnswer.trim().toLowerCase() === opt.text.trim().toLowerCase();
-
-//             return (
-//               <button
-//                 key={opt.id}
-//                 onClick={() => handleVote(opt.id)}
-//                 disabled={voted || isExpired || loading}
-//                 className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${
-//                   isWinner && isExpired
-//                     ? "border-emerald-500/80 bg-emerald-500/[0.1]"
-//                     : isSelected
-//                     ? "border-blue-500/60 bg-blue-500/[0.07]"
-//                     : isExpired
-//                     ? "opacity-60 border-white/[0.05] bg-white/[0.01]"
-//                     : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
-//                 }`}
-//               >
-//                 {(voted || isExpired) && (
-//                   <motion.div
-//                     initial={{ width: 0 }}
-//                     animate={{ width: `${percentage}%` }}
-//                     transition={{ duration: 0.6, ease: "easeOut" }}
-//                     className={`absolute left-0 top-0 bottom-0 z-0 ${
-//                       isWinner ? "bg-emerald-500/20" : isSelected ? "bg-blue-500/20" : "bg-white/[0.04]"
-//                     }`}
-//                   />
-//                 )}
-//                 <span className="relative z-10 text-white/90 font-bold flex items-center gap-1.5">
-//                   {opt.text}
-//                   {isWinner && isExpired && <span className="text-emerald-400 text-[10px]">🏆 Winner</span>}
-//                 </span>
-//                 {(voted || isExpired) && (
-//                   <span
-//                     className={`relative z-10 text-[11px] font-black ${
-//                       isWinner ? "text-emerald-400" : isSelected ? "text-blue-400" : "text-white/60"
-//                     }`}
-//                   >
-//                     {percentage}% {isSelected && "✓"}
-//                   </span>
-//                 )}
-//               </button>
-//             );
-//           })}
-//         </div>
-//       )}
-
-//       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-//         <div className="flex gap-4">
-//           <button
-//             onClick={handleLike}
-//             className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-//               liked ? "text-[#FF3D57]" : "hover:text-white"
-//             }`}
-//           >
-//             <Heart size={13} fill={liked ? "currentColor" : "none"} />
-//             <span>{likesCount.toLocaleString()}</span>
-//           </button>
-//           <button
-//             onClick={handleShare}
-//             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
-//           >
-//             <Share2 size={13} />
-//             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
-//           </button>
-//         </div>
-//         <span>{totalEngaged.toLocaleString()} engaged</span>
-//       </div>
-//     </motion.div>
-//   );
-// }
-
-// // ─── 4. Prediction Card Component (Duration & Expiry Enforced) ──────────────
-// function DynamicPredictionCard({
-//   item,
-//   userId,
-//   now,
-//   onToast,
-//   onEdit,
-// }: {
-//   item: EngagementItem;
-//   userId?: string;
-//   now: number;
-//   onToast: (msg: string) => void;
-//   onEdit?: (item: EngagementItem) => void;
-// }) {
-//   const pred = item.predictionData || {
-//     question: "India win the 1st Galle Test?",
-//     leftChoice: { id: "left", text: "Yes, India win", code: "IN", votes: 640 },
-//     rightChoice: { id: "right", text: "SL hold / win", code: "LK", votes: 260 },
-//     coinStake: 25,
-//     totalVotes: 900,
-//     status: "open",
-//   };
-
-//   const initialVote = getStoredVote("pred", item.id, userId);
-//   const [selectedChoice, setSelectedChoice] = useState<"left" | "right" | null>(
-//     initialVote?.choice || (item.userVote as "left" | "right") || null
-//   );
-//   const [predicted, setPredicted] = useState<boolean>(Boolean(initialVote || item.userVoted));
-//   const [loading, setLoading] = useState(false);
-//   const [liked, setLiked] = useState(false);
-//   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-//   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-//   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-//   const [result, setResult] = useState<{
-//     leftPercentage: number;
-//     rightPercentage: number;
-//     coinsLocked: number;
-//   } | null>(() => {
-//     const c = initialVote?.choice || (item.userVote as "left" | "right");
-//     if (!c) return null;
-//     return {
-//       leftPercentage: c === "left" ? 71 : 29,
-//       rightPercentage: c === "right" ? 71 : 29,
-//       coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
-//     };
-//   });
-
-//   const startTime = getEngagementStartTime(item);
-//   const isScheduled = startTime > now;
-//   const timeToStartMs = Math.max(0, startTime - now);
-
-//   const durationMins = Number(item.predictionData?.durationMinutes || item.predictionData?.timerMinutes || 30);
-//   const expiresAt = item.predictionData?.expiresAt || (startTime + durationMins * 60 * 1000);
-//   const isExpired = now >= expiresAt;
-//   const timeRemainingMs = Math.max(0, expiresAt - now);
-
-//   useEffect(() => {
-//     if (item.userLiked) {
-//       setLiked(true);
-//     } else if (userId) {
-//       engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-//         if (isLiked) setLiked(true);
-//       });
-//     }
-
-//     const stored = getStoredVote("pred", item.id, userId);
-//     if (stored?.choice) {
-//       setSelectedChoice(stored.choice);
-//       setPredicted(true);
-//       setResult({
-//         leftPercentage: stored.choice === "left" ? 71 : 29,
-//         rightPercentage: stored.choice === "right" ? 71 : 29,
-//         coinsLocked: stored.coinsLocked || pred.coinStake || 25,
-//       });
-//     }
-
-//     if (item.userVoted && item.userVote) {
-//       const choice = item.userVote as "left" | "right";
-//       setSelectedChoice(choice);
-//       setPredicted(true);
-//       setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
-//       const computedResult = {
-//         leftPercentage: choice === "left" ? 71 : 29,
-//         rightPercentage: choice === "right" ? 71 : 29,
-//         coinsLocked: pred.coinStake || 25,
-//       };
-//       setResult(computedResult);
-//     } else if (userId) {
-//       engagementService.checkVoteStatus(item.id, userId).then((res) => {
-//         if (res.hasVoted && res.selectedOptionId) {
-//           const choice = res.selectedOptionId as "left" | "right";
-//           setSelectedChoice(choice);
-//           setPredicted(true);
-//           setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
-//           const computedResult = {
-//             leftPercentage: choice === "left" ? 71 : 29,
-//             rightPercentage: choice === "right" ? 71 : 29,
-//             coinsLocked: pred.coinStake || 25,
-//           };
-//           setResult(computedResult);
-//         }
-//       });
-//     }
-//   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, pred.coinStake]);
-
-//   const handlePredict = async (choice: "left" | "right") => {
-//     if (isScheduled) {
-//       onToast(`Prediction unlocks in ${formatCountdown(timeToStartMs)}!`);
-//       return;
-//     }
-//     if (isExpired) {
-//       onToast("This prediction has closed!");
-//       return;
-//     }
-//     if (predicted || loading || getStoredVote("pred", item.id, userId)) {
-//       onToast("You have already made your prediction!");
-//       return;
-//     }
-//     setSelectedChoice(choice);
-//     setPredicted(true);
-//     setLoading(true);
-//     setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
-//     setTotalEngaged((prev) => prev + 1);
-
-//     try {
-//       const res: any = await engagementService.voteEngagement(item.id, choice, userId);
-//       const computedResult = {
-//         leftPercentage: res?.leftPercentage ?? (choice === "left" ? 71 : 29),
-//         rightPercentage: res?.rightPercentage ?? (choice === "right" ? 71 : 29),
-//         coinsLocked: res?.coinsLocked || pred.coinStake || 25,
-//       };
-//       setResult(computedResult);
-//       onToast("+2 PTS earned for prediction! 🎯");
-//       if (typeof window !== "undefined") {
-//         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
-//       }
-//     } catch (err: any) {
-//       const prevChoice = (err?.response?.data?.selectedOptionId || choice) as "left" | "right";
-//       setSelectedChoice(prevChoice);
-//       setResult({
-//         leftPercentage: prevChoice === "left" ? 71 : 29,
-//         rightPercentage: prevChoice === "right" ? 71 : 29,
-//         coinsLocked: pred.coinStake || 25,
-//       });
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleLike = async () => {
-//     const nextLiked = !liked;
-//     const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
-//     setLiked(nextLiked);
-//     setLikesCount(nextCount);
-
-//     try {
-//       const res = await engagementService.toggleLikeEngagement(item.id, userId);
-//       if (res?.likesCount !== undefined) {
-//         setLikesCount(res.likesCount);
-//         setLiked(res.liked);
-//       }
-//     } catch { }
-//   };
-
-//   const handleShare = async () => {
-//     setSharesCount((prev) => prev + 1);
-//     setTotalEngaged((prev) => prev + 1);
-//     engagementService.shareEngagement(item.id).catch(() => { });
-
-//     const text = `🎯 Predict: "${pred.question}" on SportsFan360!`;
-//     if (navigator.share) {
-//       navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
-//     } else {
-//       await navigator.clipboard.writeText(window.location.href);
-//       onToast("Prediction link copied to clipboard! 📋");
-//     }
-//   };
-
-//   const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
-//     hour: "2-digit",
-//     minute: "2-digit",
-//   });
-
-//   return (
-//     <motion.div
-//       initial={{ opacity: 0, y: 12 }}
-//       animate={{ opacity: 1, y: 0 }}
-//       exit={{ opacity: 0, y: -12 }}
-//       className="w-full max-w-lg bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
-//     >
-//       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-//         <div className="flex items-center gap-1.5 uppercase">
-//           <span className="text-amber-400">🎯 PREDICTION</span>
-//           <span>•</span>
-//           <span className="text-amber-300">⚡ +2 PTS / VOTE</span>
-//           {isScheduled ? (
-//             <>
-//               <span>•</span>
-//               <span className="text-amber-400 font-mono flex items-center gap-1">
-//                 <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
-//               </span>
-//             </>
-//           ) : isExpired ? (
-//             <>
-//               <span>•</span>
-//               <span className="text-rose-400 font-mono">🔒 CLOSED</span>
-//             </>
-//           ) : (
-//             <>
-//               <span>•</span>
-//               <span className="text-emerald-400 font-mono flex items-center gap-1">
-//                 <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
-//               </span>
-//             </>
-//           )}
-//         </div>
-//         <div className="flex items-center gap-2">
-//           <span>{formattedTime}</span>
-//         </div>
-//       </div>
-
-//       <p className="text-xs font-semibold text-white/70 mb-4">{pred.question}</p>
-
-//       {isScheduled ? (
-//         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center my-2 space-y-1">
-//           <Clock size={20} className="mx-auto text-amber-400 animate-pulse" />
-//           <h4 className="text-xs font-black text-white">Prediction Scheduled</h4>
-//           <p className="text-[11px] text-white/60">
-//             Predictions open in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
-//           </p>
-//         </div>
-//       ) : (
-//         <div className="grid grid-cols-2 gap-3.5 mb-4">
-//           <button
-//             onClick={() => handlePredict("left")}
-//             disabled={predicted || isExpired || loading}
-//             className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
-//               selectedChoice === "left"
-//                 ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-//                 : predicted || isExpired
-//                 ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-//                 : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-//             }`}
-//           >
-//             <span className="text-xs font-black">{pred.leftChoice.text}</span>
-//             <span className="text-[10px] font-black mt-1 text-white/50">
-//               {result ? `${result.leftPercentage}%` : "2X multiplier"}
-//             </span>
-//           </button>
-
-//           <button
-//             onClick={() => handlePredict("right")}
-//             disabled={predicted || isExpired || loading}
-//             className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
-//               selectedChoice === "right"
-//                 ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-//                 : predicted || isExpired
-//                 ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-//                 : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-//             }`}
-//           >
-//             <span className="text-xs font-black">{pred.rightChoice.text}</span>
-//             <span className="text-[10px] font-black mt-1 text-white/50">
-//               {result ? `${result.rightPercentage}%` : "5X multiplier"}
-//             </span>
-//           </button>
-//         </div>
-//       )}
-
-//       {predicted && (
-//         <motion.div
-//           initial={{ opacity: 0, y: 6 }}
-//           animate={{ opacity: 1, y: 0 }}
-//           className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl mb-2 flex items-center justify-center gap-1.5"
-//         >
-//           <span>🔒</span>
-//           <span>+2 PTS earned! · {result?.coinsLocked || pred.coinStake || 25} FlipCoins locked · Results after match</span>
-//         </motion.div>
-//       )}
-
-//       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-//         <div className="flex gap-4">
-//           <button
-//             onClick={handleLike}
-//             className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-//               liked ? "text-[#FF3D57]" : "hover:text-white"
-//             }`}
-//           >
-//             <Heart size={13} fill={liked ? "currentColor" : "none"} />
-//             <span>{likesCount.toLocaleString()}</span>
-//           </button>
-//           <button
-//             onClick={handleShare}
-//             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
-//           >
-//             <Share2 size={13} />
-//             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
-//           </button>
-//         </div>
-//         <span>{totalEngaged.toLocaleString()} engaged</span>
-//       </div>
-//     </motion.div>
-//   );
-// }
-
-// // ─── Main FlipArena Component ───────────────────────────────────────────────
-// export default function FlipArena({
-//   selectedSport,
-//   activeTab = "fliparena",
-//   setActiveTab,
-//   isPreview = true,
-// }: FlipArenaProps) {
-//   const { user } = useAuth();
-//   const activeUserId = user?.userId || (user as any)?.actualUserId || user?.email;
-//   const [engagements, setEngagements] = useState<EngagementItem[]>([]);
-//   const [loadingEngagements, setLoadingEngagements] = useState(true);
-//   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction">("all");
-//   const [toastMessage, setToastMessage] = useState<string | null>(null);
-//   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
-
-//   // 1-second live clock for all countdowns and frequency unlocks
-//   const [now, setNow] = useState<number>(Date.now());
-//   useEffect(() => {
-//     const timer = setInterval(() => setNow(Date.now()), 1000);
-//     return () => clearInterval(timer);
-//   }, []);
-
-//   const [modalOpen, setModalOpen] = useState(false);
-//   const [modalType, setModalType] = useState<EngagementType>("quiz");
-//   const [editingItem, setEditingItem] = useState<EngagementItem | null>(null);
-
-//   const [polls, setPolls] = useState<Poll[]>([]);
-//   const [loadingPolls, setLoadingPolls] = useState(true);
-
-//   const showToast = useCallback((msg: string) => {
-//     setToastMessage(msg);
-//     setTimeout(() => setToastMessage(null), 3000);
-//   }, []);
-
-//   const isFetchingEngagementsRef = useRef(false);
-//   const lastFetchTimeRef = useRef(0);
-
-//   const fetchEngagements = useCallback(async () => {
-//     if (isFetchingEngagementsRef.current || Date.now() - lastFetchTimeRef.current < 4000) {
-//       return;
-//     }
-//     isFetchingEngagementsRef.current = true;
-//     lastFetchTimeRef.current = Date.now();
-//     setLoadingEngagements(true);
-//     try {
-//       const liveItems = await engagementService.getEngagements({
-//         sport: selectedSport !== "mixed" ? selectedSport : undefined,
-//         status: "active",
-//         userId: activeUserId,
-//       });
-
-//       if (liveItems && liveItems.length > 0) {
-//         setEngagements(liveItems);
-//       } else {
-//         setEngagements([]);
-//       }
-//     } catch (err) {
-//       console.warn("Could not fetch live engagements:", err);
-//       setEngagements([]);
-//     } finally {
-//       setLoadingEngagements(false);
-//       isFetchingEngagementsRef.current = false;
-//     }
-//   }, [selectedSport, activeUserId]);
-
-//   useEffect(() => {
-//     fetchEngagements();
-//   }, [fetchEngagements]);
-
-//   useEffect(() => {
-//     const handleGlobalCreated = () => {
-//       lastFetchTimeRef.current = 0;
-//       engagementService.invalidateCache();
-//       fetchEngagements();
-//     };
-//     window.addEventListener("arena-engagement-created", handleGlobalCreated);
-//     return () => window.removeEventListener("arena-engagement-created", handleGlobalCreated);
-//   }, [fetchEngagements]);
-
-//   const handleOpenCreate = (type: EngagementType = "quiz") => {
-//     setEditingItem(null);
-//     setModalType(type);
-//     setModalOpen(true);
-//   };
-
-//   const handleOpenEdit = (item: EngagementItem) => {
-//     setEditingItem(item);
-//     setModalType(item.type);
-//     setModalOpen(true);
-//   };
-
-//   const handleItemSaved = (savedItem: EngagementItem, isEdit: boolean) => {
-//     setEngagements((prev) => {
-//       if (isEdit) {
-//         return prev.map((it) => (it.id === savedItem.id ? savedItem : it));
-//       }
-//       return [savedItem, ...prev];
-//     });
-
-//     engagementService.invalidateCache();
-//     fetchEngagements();
-
-//     if (typeof window !== "undefined") {
-//       window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
-//       window.dispatchEvent(new CustomEvent("arena-engagement-created", { detail: savedItem }));
-//     }
-
-//     if (!isEdit) {
-//       showToast("Event published! +2 PTS earned 🚀");
-//     } else {
-//       showToast("Event updated successfully!");
-//     }
-//   };
-
-//   useEffect(() => {
-//     fetch("/api/polls")
-//       .then((res) => res.json())
-//       .then((json) => {
-//         setPolls(Array.isArray(json?.data) ? json.data : []);
-//         setLoadingPolls(false);
-//       })
-//       .catch((err) => {
-//         console.error("Failed to fetch polls in FlipArena:", err);
-//         setPolls([]);
-//         setLoadingPolls(false);
-//       });
-//   }, []);
-
-//   const filteredEngagements = useMemo(() => {
-//     return engagements
-//       .filter((item) => {
-//         if (!item || !item.title || !item.type) return false;
-
-//         // Don't show timer questions until they reach the set timer
-//         const startTime = getEngagementStartTime(item);
-//         if (startTime && startTime > now) {
-//           return false;
-//         }
-
-//         if (filter === "all") return true;
-//         if (filter === "battle") return item.type === "fan_battle";
-//         if (filter === "quiz") return item.type === "quiz";
-//         if (filter === "poll") return item.type === "poll";
-//         if (filter === "prediction") return item.type === "prediction";
-
-//         return true;
-//       })
-//       .sort((a, b) => {
-//         const getTime = (val: any) => {
-//           if (typeof val === "number") return val;
-//           const time = new Date(val || 0).getTime();
-//           return isNaN(time) ? 0 : time;
-//         };
-
-//         return getTime(b.createdAt) - getTime(a.createdAt);
-//       });
-//   }, [engagements, filter, now]);
-
-//   return (
-//     <div className="w-full bg-[#070b14] min-h-screen text-white flex flex-col font-sans pb-16 relative">
-//       <AnimatePresence>
-//         {toastMessage && (
-//           <motion.div
-//             initial={{ opacity: 0, y: -20 }}
-//             animate={{ opacity: 1, y: 0 }}
-//             exit={{ opacity: 0, y: -20 }}
-//             className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#161e2e] border border-white/20 text-white text-xs font-extrabold px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 backdrop-blur-lg"
-//           >
-//             <Zap size={14} className="text-amber-400" />
-//             <span>{toastMessage}</span>
-//           </motion.div>
-//         )}
-//       </AnimatePresence>
-
-//       {!isPreview && (
-//         <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07] bg-[#070b14]/90 backdrop-blur-md sticky top-0 z-40">
-//           <div className="flex items-center gap-3">
-//             <button
-//               onClick={() => (window.location.href = "/MainModules/HomePage")}
-//               className="w-9 h-9 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-white/80 hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
-//             >
-//               <ArrowLeft size={16} />
-//             </button>
-//             <div>
-//               <div className="flex items-center gap-2">
-//                 <h1 className="text-base font-black tracking-tight">Flip Arena 🏟️</h1>
-//                 <span className="text-[9px] font-black bg-gradient-to-r from-pink-500 to-orange-500 text-white px-2 py-0.5 rounded-full tracking-wider animate-pulse">
-//                   LIVE
-//                 </span>
-//               </div>
-//               <div className="flex items-center gap-2 mt-0.5">
-//                 <span className="text-[9px] font-bold text-white/40">🏏 Cricket</span>
-//                 <span className="text-[9px] font-bold text-white/40">⚽ Football</span>
-//                 <span className="text-[9px] font-bold text-white/40">🏃 Athletics</span>
-//               </div>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-
-//       {!isPreview && (
-//         <div className="px-4 mb-4 mt-4">
-//           <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] shadow-inner">
-//             <button
-//               onClick={() => (window.location.href = "/MainModules/FlipLine")}
-//               className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer border-none"
-//               style={{
-//                 background: "transparent",
-//                 color: "rgba(255,255,255,0.4)",
-//               }}
-//             >
-//               <span className="text-sm">⚡</span> FlipLine
-//             </button>
-//             <button
-//               className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer border-none"
-//               style={{
-//                 background: "linear-gradient(90deg, #FF3D57, #FF7B02)",
-//                 color: "#fff",
-//                 boxShadow: "0 4px 15px rgba(255, 61, 87, 0.25)",
-//               }}
-//             >
-//               <span className="text-sm">🏟️</span> Flip Arena
-//             </button>
-//           </div>
-//         </div>
-//       )}
-
-//       <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2 gap-2 flex-wrap">
-//         <div>
-//           <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
-//           <p className="text-[10px] text-white/35 mt-0.5">Official SF360 events · Earn +2 PTS per engagement</p>
-//         </div>
-
-//         <div className="flex items-center gap-2 flex-wrap">
-//           <button
-//             onClick={() => setShowLeaderboardModal(true)}
-//             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
-//             title="Open Leaderboards"
-//           >
-//             <Trophy size={13} className="text-amber-400" />
-//             <span>Leaderboard</span>
-//           </button>
-//           <div className="flex gap-1 bg-white/[0.03] p-1 rounded-xl border border-white/[0.05]">
-//             {(["all", "quiz", "poll", "battle", "prediction"] as const).map((tab) => (
-//               <button
-//                 key={tab}
-//                 onClick={() => setFilter(tab)}
-//                 className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer"
-//                 style={{
-//                   backgroundColor: filter === tab ? "rgba(255,255,255,0.08)" : "transparent",
-//                   color: filter === tab ? "#fff" : "rgba(255,255,255,0.45)",
-//                 }}
-//               >
-//                 {tab === "all" ? "All" : tab}
-//               </button>
-//             ))}
-//           </div>
-
-//           <button
-//             onClick={() => handleOpenCreate("quiz")}
-//             title="Create Quiz, Battle or Poll (+2 PTS)"
-//             className="p-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 border border-pink-500/30 text-pink-300 flex items-center gap-1 font-extrabold text-[11px] transition-all active:scale-95 cursor-pointer shadow-sm"
-//           >
-//             <Plus size={13} strokeWidth={2.8} />
-//             <span className="hidden sm:inline">Add</span>
-//           </button>
-//         </div>
-//       </div>
-
-//       <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full">
-//         {loadingEngagements && engagements.length === 0 ? (
-//           <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/40 text-xs font-bold">
-//             <div className="w-6 h-6 border-2 border-[#FF3D57] border-t-transparent rounded-full animate-spin" />
-//             <span>Loading live arena battles...</span>
-//           </div>
-//         ) : filteredEngagements.length === 0 ? (
-//           <div className="py-12 text-center text-xs font-bold text-white/40 border border-white/[0.06] rounded-2xl bg-[#0e111a] p-8 w-full max-w-lg space-y-3">
-//             <p>No events found for this filter.</p>
-//             <button
-//               onClick={() =>
-//                 handleOpenCreate(
-//                   filter === "all"
-//                     ? "quiz"
-//                     : filter === "battle"
-//                     ? "fan_battle"
-//                     : filter === "prediction"
-//                     ? "prediction"
-//                     : filter
-//                 )
-//               }
-//               className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"
-//             >
-//               <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 PTS)
-//             </button>
-//           </div>
-//         ) : (
-//           <AnimatePresence mode="popLayout">
-//             {filteredEngagements.map((item) => {
-//               if (item.type === "fan_battle") {
-//                 return (
-//                   <DynamicFanBattleCard
-//                     key={item.id}
-//                     item={item}
-//                     userId={activeUserId}
-//                     now={now}
-//                     onToast={showToast}
-//                     onEdit={handleOpenEdit}
-//                   />
-//                 );
-//               }
-//               if (item.type === "quiz") {
-//                 return (
-//                   <DynamicQuizCard
-//                     key={item.id}
-//                     item={item}
-//                     userId={activeUserId}
-//                     now={now}
-//                     onToast={showToast}
-//                     onEdit={handleOpenEdit}
-//                   />
-//                 );
-//               }
-//               if (item.type === "poll") {
-//                 return (
-//                   <DynamicPollCard
-//                     key={item.id}
-//                     item={item}
-//                     userId={activeUserId}
-//                     now={now}
-//                     onToast={showToast}
-//                     onEdit={handleOpenEdit}
-//                   />
-//                 );
-//               }
-//               if (item.type === "prediction") {
-//                 return (
-//                   <DynamicPredictionCard
-//                     key={item.id}
-//                     item={item}
-//                     userId={activeUserId}
-//                     now={now}
-//                     onToast={showToast}
-//                     onEdit={handleOpenEdit}
-//                   />
-//                 );
-//               }
-//               return null;
-//             })}
-//           </AnimatePresence>
-//         )}
-
-//         {isPreview && (
-//           <div className="w-full max-w-lg mt-4 px-2">
-//             <button
-//               onClick={() => (window.location.href = "/MainModules/FlipArena")}
-//               className="w-full py-[11px] rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
-//               style={{
-//                 background: "rgba(255,255,255,0.045)",
-//                 border: "1px solid rgba(255,255,255,0.1)",
-//               }}
-//             >
-//               <span
-//                 style={{
-//                   fontSize: 11.5,
-//                   fontWeight: 800,
-//                   color: "rgba(255,255,255,0.55)",
-//                 }}
-//               >
-//                 View Full Flip Arena
-//               </span>
-//               <svg
-//                 width="11"
-//                 height="11"
-//                 viewBox="0 0 24 24"
-//                 fill="none"
-//                 stroke="rgba(255,255,255,0.4)"
-//                 strokeWidth="2.5"
-//                 strokeLinecap="round"
-//                 strokeLinejoin="round"
-//               >
-//                 <path d="M9 18l6-6-6-6" />
-//               </svg>
-//             </button>
-//           </div>
-//         )}
-//       </div>
-
-//       <LeaderboardOverlayModal
-//         isOpen={showLeaderboardModal}
-//         onClose={() => setShowLeaderboardModal(false)}
-//       />
-
-//       <ArenaEngagementModal
-//         isOpen={modalOpen}
-//         onClose={() => setModalOpen(false)}
-//         initialType={modalType}
-//         editingItem={editingItem}
-//         onSaved={handleItemSaved}
-//         onToast={showToast}
-//       />
-//     </div>
-//   );
-// }
-
-
-
-
-
-
-
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -1881,6 +98,14 @@ function setStoredVote(type: string, itemId: string, data: any, userId?: string)
   } catch { }
 }
 
+// ─── Direct Engagement Share URL Generator ───────────────────────────────────
+function getEngagementShareUrl(item: EngagementItem): string {
+  if (typeof window === "undefined") return "";
+  const origin = window.location.origin;
+  const itemType = item.type || "quiz";
+  return `${origin}/MainModules/FlipArena?itemId=${encodeURIComponent(item.id)}&type=${encodeURIComponent(itemType)}`;
+}
+
 // ─── 1. Fan Battle Card Component (+2 PTS Participation) ────────────────────
 function DynamicFanBattleCard({
   item,
@@ -1888,12 +113,14 @@ function DynamicFanBattleCard({
   now,
   onToast,
   onEdit,
+  isHighlighted = false,
 }: {
   item: EngagementItem;
   userId?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
+    isHighlighted?: boolean;
 }) {
   const initialStored = getStoredVote("fb", item.id, userId);
   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(
@@ -2055,11 +282,12 @@ function DynamicFanBattleCard({
     setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
-    const text = `⚔️ ${item.title} — ${left.name} vs ${right.name}! Vote now on SportsFan360.`;
+    const shareUrl = getEngagementShareUrl(item);
+    const text = `⚔️ ${item.title} — ${left.name} vs ${right.name}! Vote now on SportsFan360:`;
     if (navigator.share) {
-      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+      navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
     } else {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(shareUrl);
       onToast("Challenge link copied to clipboard! 📋");
     }
   };
@@ -2071,11 +299,24 @@ function DynamicFanBattleCard({
 
   return (
     <motion.div
+      id={`engagement-${item.id}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative group"
+      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative group transition-all duration-300 ${isHighlighted
+          ? "ring-2 ring-[#FF3D57] shadow-[0_0_35px_rgba(255,61,87,0.35)] scale-[1.01]"
+          : ""
+        }`}
     >
+      {isHighlighted && (
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-[#FF3D57]/20 to-orange-500/20 border border-[#FF3D57]/40 text-[10px] font-black text-rose-300 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Sparkles size={11} className="text-[#FF3D57] animate-pulse" />
+            <span>SHARED BATTLE</span>
+          </span>
+          <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
+        </div>
+      )}
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
         <div className="flex items-center gap-1.5">
           <span className="text-[#FF3D57]">⚔️ FAN BATTLE</span>
@@ -2205,12 +446,14 @@ function DynamicQuizCard({
   now,
   onToast,
   onEdit,
+  isHighlighted = false,
 }: {
   item: EngagementItem;
   userId?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
+    isHighlighted?: boolean;
 }) {
   const rawQuestions =
     item.quizData?.questions && item.quizData.questions.length > 0
@@ -2429,11 +672,12 @@ function DynamicQuizCard({
     setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
-    const text = `🧠 Quiz: "${item.title}" — Can you answer all questions? Play on SportsFan360!`;
+    const shareUrl = getEngagementShareUrl(item);
+    const text = `🧠 Quiz: "${item.title}" — Can you answer all questions? Play on SportsFan360:`;
     if (navigator.share) {
-      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+      navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
     } else {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(shareUrl);
       onToast("Quiz link copied to clipboard! 📋");
     }
   };
@@ -2445,11 +689,24 @@ function DynamicQuizCard({
 
   return (
     <motion.div
+      id={`engagement-${item.id}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
+      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+          ? "ring-2 ring-purple-500 shadow-[0_0_35px_rgba(168,85,247,0.35)] scale-[1.01]"
+          : ""
+        }`}
     >
+      {isHighlighted && (
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-500/40 text-[10px] font-black text-purple-300 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Sparkles size={11} className="text-purple-400 animate-pulse" />
+            <span>SHARED QUIZ</span>
+          </span>
+          <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
+        </div>
+      )}
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-purple-400">🧠 QUIZ</span>
@@ -2615,12 +872,14 @@ function DynamicPollCard({
   now,
   onToast,
   onEdit,
+  isHighlighted = false,
 }: {
   item: EngagementItem;
   userId?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
+    isHighlighted?: boolean;
 }) {
   const initialVote = getStoredVote("poll", item.id, userId);
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -2824,11 +1083,12 @@ function DynamicPollCard({
     setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
-    const text = `📊 Vote on this poll: "${item.pollData?.question || item.title}" on SportsFan360!`;
+    const shareUrl = getEngagementShareUrl(item);
+    const text = `📊 Vote on this poll: "${item.pollData?.question || item.title}" on SportsFan360:`;
     if (navigator.share) {
-      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+      navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
     } else {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(shareUrl);
       onToast("Poll link copied to clipboard! 📋");
     }
   };
@@ -2840,11 +1100,24 @@ function DynamicPollCard({
 
   return (
     <motion.div
+      id={`engagement-${item.id}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
+      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+          ? "ring-2 ring-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.35)] scale-[1.01]"
+          : ""
+        }`}
     >
+      {isHighlighted && (
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/40 text-[10px] font-black text-blue-300 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Sparkles size={11} className="text-blue-400 animate-pulse" />
+            <span>SHARED POLL</span>
+          </span>
+          <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
+        </div>
+      )}
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-blue-400 font-black">📊 POLL • +2 PTS / VOTE</span>
@@ -3001,12 +1274,14 @@ function DynamicPredictionCard({
   now,
   onToast,
   onEdit,
+  isHighlighted = false,
 }: {
   item: EngagementItem;
   userId?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
+    isHighlighted?: boolean;
 }) {
   const pred = item.predictionData || {
     question: "India win the 1st Galle Test?",
@@ -3271,11 +1546,12 @@ function DynamicPredictionCard({
     setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
-    const text = `🎯 Predict: "${pred.question}" on SportsFan360!`;
+    const shareUrl = getEngagementShareUrl(item);
+    const text = `🎯 Predict: "${pred.question || item.title}" on SportsFan360:`;
     if (navigator.share) {
-      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+      navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
     } else {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(shareUrl);
       onToast("Prediction link copied to clipboard! 📋");
     }
   };
@@ -3287,11 +1563,24 @@ function DynamicPredictionCard({
 
   return (
     <motion.div
+      id={`engagement-${item.id}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
+      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+          ? "ring-2 ring-amber-500 shadow-[0_0_35px_rgba(245,158,11,0.35)] scale-[1.01]"
+          : ""
+        }`}
     >
+      {isHighlighted && (
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-[10px] font-black text-amber-300 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Sparkles size={11} className="text-amber-400 animate-pulse" />
+            <span>SHARED PREDICTION</span>
+          </span>
+          <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
+        </div>
+      )}
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-amber-400">🎯 PREDICTION</span>
@@ -3426,60 +1715,93 @@ function DynamicPredictionCard({
   );
 }
 
-// ─── Default Meme Arena Fallback Item (Guarantees Instant Live Feed) ────────
-export const DEFAULT_MEME_ARENA_ITEM: EngagementItem = {
-  id: "meme_live_cat_matchday",
-  type: "meme",
-  title: "When your team says trust the process",
-  subtitle: "Same energy. Different priorities.",
-  tags: ["🔥 MEME ARENA", "😂 VIRAL"],
-  sport: "cricket",
-  status: "active",
-  memeData: {
-    imageUrl: "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
-    caption: "ME ON MONDAY vs ME ON MATCH DAY — SAME ENERGY. DIFFERENT PRIORITIES.",
-    authorName: "AmitFan",
-    authorHandle: "@AmitFan",
-    authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-    heatPercentage: 78,
-    totalVotes: 1240,
-    reactions: { mild: 25, funny: 310, hot: 480, fire: 320, nuclear: 105 },
-    commentsCount: 43,
-    sharesCount: 12,
-    createdAt: Date.now() - 2 * 3600 * 1000,
-  },
-  likes: 420,
-  shares: 88,
-  totalEngaged: 1240,
-  createdAt: Date.now() - 2 * 3600 * 1000,
-  updatedAt: Date.now() - 2 * 3600 * 1000,
-};
-
 // ─── 5. Meme Card Component (5 Heat Rating Tiers +2 PTS Participation) ───────
 function DynamicMemeCard({
   item,
   userId,
-  now,
   onToast,
   onEdit,
+  onDelete,
+  isHighlighted = false,
 }: {
   item: EngagementItem;
   userId?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
+  onDelete?: (item: EngagementItem) => void;
+  isHighlighted?: boolean;
 }) {
+  const { user } = useAuth();
+  const currentUserId = userId || user?.userId || (user as any)?.actualUserId || user?.email;
+  const currentUserEmail = user?.email || (user as any)?.userEmail || "";
+  const currentUserName = user?.name || (user as any)?.userName || (user as any)?.displayName || "";
+
   const meme = item.memeData || {
     imageUrl: "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
     caption: item.subtitle || item.title || "Matchday meme energy!",
-    authorName: "AmitFan",
-    authorHandle: "@AmitFan",
+    authorName: "SportsFan",
+    authorHandle: "@SportsFan",
     authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-    heatPercentage: 78,
-    totalVotes: 1240,
-    reactions: { mild: 25, funny: 310, hot: 480, fire: 320, nuclear: 105 },
-    commentsCount: 43,
-    sharesCount: 12,
+    heatPercentage: 0,
+    totalVotes: 0,
+    reactions: { mild: 0, funny: 0, hot: 0, fire: 0, nuclear: 0 },
+    commentsCount: 0,
+    sharesCount: 0,
+  };
+
+  // Dynamic Author Resolution
+  const authorName =
+    item.creatorName ||
+    (item as any).userName ||
+    meme.authorName ||
+    (item.creatorEmail ? item.creatorEmail.split("@")[0] : "") ||
+    ((item as any).userEmail ? (item as any).userEmail.split("@")[0] : "") ||
+    "SportsFan";
+
+  const authorHandle =
+    meme.authorHandle ||
+    (item.creatorEmail
+      ? `@${item.creatorEmail.split("@")[0]}`
+      : `@${authorName.replace(/\s+/g, "")}`);
+
+  const authorAvatar =
+    meme.authorAvatar ||
+    (item as any).creatorAvatar ||
+    (item as any).userAvatar ||
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+
+  // Check if current user is the author who posted this meme
+  const isAuthor = Boolean(
+    (currentUserId && (
+      item.creatorId === currentUserId ||
+      (item as any).userId === currentUserId ||
+      (item as any).creatorId === currentUserId
+    )) ||
+    (currentUserEmail && (
+      (item.creatorEmail && item.creatorEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
+      ((item as any).userEmail && (item as any).userEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
+      ((item as any).creatorEmail && (item as any).creatorEmail.toLowerCase() === currentUserEmail.toLowerCase())
+    )) ||
+    (currentUserName && (
+      (item.creatorName && item.creatorName.toLowerCase() === currentUserName.toLowerCase()) ||
+      (meme.authorName && meme.authorName.toLowerCase() === currentUserName.toLowerCase())
+    )) ||
+    (user as any)?.role === "admin"
+  );
+
+  const getTimeAgo = (timestamp?: number | string) => {
+    if (!timestamp) return "Just now";
+    const ts = typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
+    if (isNaN(ts) || ts <= 0) return "Just now";
+    const diff = Math.max(0, Date.now() - ts);
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
   };
 
   const initialStored = getStoredVote("meme", item.id, userId);
@@ -3492,9 +1814,9 @@ function DynamicMemeCard({
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || Number(meme.sharesCount) || 0);
   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || Number(meme.totalVotes) || 0);
-  const [heatPct, setHeatPct] = useState<number>(Number(meme.heatPercentage) || 0);
-  const [totalMemeVotes, setTotalMemeVotes] = useState<number>(Number(meme.totalVotes) || 0);
-  const [reactions, setReactions] = useState(meme.reactions || { mild: 25, funny: 310, hot: 480, fire: 320, nuclear: 105 });
+  const [heatPct, setHeatPct] = useState<number>(meme.heatPercentage !== undefined ? Number(meme.heatPercentage) : (Number(item.memeData?.heatPercentage) || 0));
+  const [totalMemeVotes, setTotalMemeVotes] = useState<number>(meme.totalVotes !== undefined ? Number(meme.totalVotes) : (Number(item.memeData?.totalVotes) || 0));
+  const [reactions, setReactions] = useState(meme.reactions || { mild: 0, funny: 0, hot: 0, fire: 0, nuclear: 0 });
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -3529,6 +1851,18 @@ function DynamicMemeCard({
     }
   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
 
+  useEffect(() => {
+    if (item.memeData?.reactions) {
+      setReactions(item.memeData.reactions);
+    }
+    if (item.memeData?.heatPercentage !== undefined) {
+      setHeatPct(Number(item.memeData.heatPercentage));
+    }
+    if (item.memeData?.totalVotes !== undefined) {
+      setTotalMemeVotes(Number(item.memeData.totalVotes));
+    }
+  }, [item.memeData]);
+
   const handleRateMeme = async (ratingToSubmit?: MemeReactionType) => {
     const finalRating = ratingToSubmit || selectedRating || "hot";
     if (voted || loading || getStoredVote("meme", item.id, userId)) {
@@ -3562,8 +1896,10 @@ function DynamicMemeCard({
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
       }
-    } catch {
-      onToast(`🔥 Voted ${finalRating.toUpperCase()}! +2 PTS earned!`);
+    } catch (err: any) {
+      const prevOption = err?.response?.data?.selectedOptionId || finalRating;
+      setSelectedRating(prevOption as MemeReactionType);
+      onToast(`🔥 Voted ${prevOption.toUpperCase()}! +2 PTS earned!`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
       }
@@ -3592,11 +1928,12 @@ function DynamicMemeCard({
     setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
-    const text = `🔥 Check out this meme: "${item.title}" on SportsFan360 Meme Arena!`;
+    const shareUrl = getEngagementShareUrl(item);
+    const text = `🔥 Check out this meme: "${item.title}" on SportsFan360 Meme Arena:`;
     if (navigator.share) {
-      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+      navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
     } else {
-      await navigator.clipboard.writeText(window.location.href);
+      await navigator.clipboard.writeText(shareUrl);
       onToast("Meme link copied to clipboard! 📋");
     }
   };
@@ -3604,7 +1941,6 @@ function DynamicMemeCard({
   const ratingTiers: {
     id: MemeReactionType;
     label: string;
-    iconText?: string;
     flameColor: string;
     bgSelected: string;
     borderSelected: string;
@@ -3633,7 +1969,6 @@ function DynamicMemeCard({
     {
       id: "fire",
       label: "Fire",
-      iconText: "🔥",
       flameColor: "text-orange-500",
       bgSelected: "bg-gradient-to-b from-orange-500/30 to-red-500/20",
       borderSelected: "border-orange-500",
@@ -3641,7 +1976,6 @@ function DynamicMemeCard({
     {
       id: "nuclear",
       label: "Nuclear",
-      iconText: "🔥🔥",
       flameColor: "text-fuchsia-400",
       bgSelected: "bg-gradient-to-b from-fuchsia-500/35 to-pink-500/25",
       borderSelected: "border-fuchsia-500",
@@ -3650,61 +1984,86 @@ function DynamicMemeCard({
 
   return (
     <motion.div
+      id={`engagement-${item.id}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
+      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-3.5 sm:p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+          ? "ring-2 ring-orange-500 shadow-[0_0_35px_rgba(249,115,22,0.35)] scale-[1.01]"
+          : ""
+        }`}
     >
+      {isHighlighted && (
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/40 text-[10px] font-black text-orange-300 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Sparkles size={11} className="text-orange-400 animate-pulse" />
+            <span>SHARED MEME</span>
+          </span>
+          <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
+        </div>
+      )}
       {/* Author Header Row */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <img
-            src={
-              meme.authorAvatar ||
-              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
-            }
-            alt={meme.authorName || "Author"}
+            src={authorAvatar}
+            alt={authorName}
             className="w-9 h-9 rounded-full object-cover border border-white/20 shrink-0"
             onError={(e: any) => {
               e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
             }}
           />
           <div className="min-w-0">
-            <h4 className="text-xs font-black text-white truncate">
-              Meme by {meme.authorHandle || `@${(meme.authorName || "AmitFan").replace(/\s+/g, "")}`}
+            <h4 className="text-xs font-black text-white truncate flex items-center gap-1.5">
+              <span>Meme by {authorName}</span>
+              <span className="text-white/40 text-[10px] font-semibold font-mono truncate">{authorHandle}</span>
             </h4>
             <div className="flex items-center gap-1.5 text-[9px] font-bold text-white/40">
-              <span>2h ago</span>
+              <span>{getTimeAgo(item.createdAt || (meme as any).createdAt)}</span>
               <span>•</span>
               <span className="text-orange-400 font-extrabold uppercase">🔥 MEME ARENA</span>
             </div>
           </div>
         </div>
 
-        <div className="relative">
-          <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="w-7 h-7 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
-          >
-            <MoreVertical size={15} />
-          </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-8 w-36 bg-[#161a26] border border-white/10 rounded-xl py-1 shadow-2xl z-30 text-xs">
-              {onEdit && (
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onEdit(item);
-                  }}
-                  className="w-full px-3 py-1.5 text-left text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-2 font-bold cursor-pointer"
-                >
-                  <Pencil size={12} /> Edit Meme
-                </button>
-              )}
-
-            </div>
-          )}
-        </div>
+        {/* Only the author who posted (or admin) can edit */}
+        {isAuthor && (onEdit || onDelete) && (
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
+              title="Meme options"
+            >
+              <MoreVertical size={15} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-8 w-36 bg-[#161a26] border border-white/10 rounded-xl py-1 shadow-2xl z-30 text-xs">
+                {onEdit && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onEdit(item);
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-2 font-bold cursor-pointer"
+                  >
+                    <Pencil size={12} /> Edit Meme
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete(item);
+                    }}
+                    className="w-full px-3 py-1.5 text-left text-rose-400 hover:bg-rose-500/15 hover:text-rose-300 flex items-center gap-2 font-bold cursor-pointer"
+                  >
+                    <Trash2 size={12} /> Delete Meme
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Meme Title / Headline */}
@@ -3737,50 +2096,72 @@ function DynamicMemeCard({
           <span className="text-xs font-black text-white flex items-center gap-1.5">
             <span>How Hot Is This Meme?</span>
           </span>
-          <button
-            type="button"
-            onClick={() => onToast("Rate this meme to earn +2 FlipPoints and boost its Arena rank! 🔥")}
-            className="text-white/40 hover:text-white/80 transition-colors cursor-pointer"
-            title="Heat Info"
-          >
-            <Info size={13} />
-          </button>
+          {voted && (
+            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Check size={10} /> Vote Recorded
+            </span>
+          )}
         </div>
 
         {/* 5-Tier Flame Reaction Selector */}
-        <div className="grid grid-cols-5 gap-1.5 p-1 bg-black/40 border border-white/[0.06] rounded-xl">
+        <div className="grid grid-cols-5 gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-black/40 border border-white/[0.06] rounded-xl w-full">
           {ratingTiers.map((tier) => {
             const isSelected = selectedRating === tier.id;
+            const tierVotes = Number(reactions?.[tier.id] || 0);
+            const tierPct = totalMemeVotes > 0 ? Math.round((tierVotes / totalMemeVotes) * 100) : 0;
+
             return (
               <button
                 key={tier.id}
                 type="button"
+                disabled={voted || loading}
                 onClick={() => {
+                  if (voted || loading) return;
                   setSelectedRating(tier.id);
-                  if (!voted) {
-                    // Preselect rating tier
-                  }
                 }}
-                className={`py-2 px-1 rounded-lg flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border ${
+                className={`py-1.5 sm:py-2 px-0.5 sm:px-1 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all border min-w-0 w-full relative overflow-hidden ${voted ? "cursor-default" : "cursor-pointer hover:bg-white/[0.05]"
+                  } ${
                   isSelected
-                    ? `${tier.bgSelected} ${tier.borderSelected} shadow-md scale-[1.03]`
-                    : "bg-white/[0.02] border-transparent hover:bg-white/[0.05] text-white/50"
+                  ? `${tier.bgSelected} ${tier.borderSelected} shadow-md scale-[1.02] sm:scale-[1.03]`
+                  : "bg-white/[0.02] border-transparent text-white/50"
                 }`}
               >
                 <Flame
                   size={16}
-                  className={`${tier.flameColor} transition-transform duration-200 ${
-                    isSelected ? "scale-125 animate-bounce" : "opacity-60"
+                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${tier.flameColor} transition-transform duration-200 ${isSelected ? "scale-110 sm:scale-125 animate-bounce" : "opacity-60"
                   }`}
                   fill={isSelected ? "currentColor" : "none"}
                 />
                 <span
-                  className={`text-[9px] font-black truncate w-full text-center ${
-                    isSelected ? tier.flameColor : "text-white/60"
-                  }`}
+                  className={`text-[8.5px] xs:text-[9.5px] sm:text-[10px] font-black tracking-tight text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-full px-0.5 ${isSelected ? tier.flameColor : "text-white/70"
+                    }`}
+                  title={tier.label}
                 >
-                  {tier.iconText ? `${tier.iconText} ${tier.label}` : tier.label}
+                  {tier.label}
                 </span>
+
+                {/* Vote Count & Percentage Badge after voting */}
+                {voted && (
+                  <div className="flex flex-col items-center w-full mt-0.5">
+                    <span
+                      className={`text-[8px] xs:text-[8.5px] sm:text-[9px] font-black px-1 leading-none text-center truncate max-w-full ${isSelected ? "text-white font-extrabold" : "text-white/60"
+                        }`}
+                    >
+                      {tierVotes.toLocaleString()}
+                    </span>
+                    <span className={`text-[7px] xs:text-[7.5px] sm:text-[8px] font-bold leading-none mt-0.5 ${isSelected ? tier.flameColor : "text-white/40"}`}>
+                      {tierPct}%
+                    </span>
+                    {/* Visual mini vote share indicator */}
+                    <div className="w-full bg-white/[0.08] h-1 rounded-full overflow-hidden mt-1 px-0.5">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${isSelected ? "bg-orange-500" : "bg-white/30"
+                          }`}
+                        style={{ width: `${tierPct}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </button>
             );
           })}
@@ -3797,16 +2178,14 @@ function DynamicMemeCard({
           <span className="text-white/20">•</span>
           <span className="text-white/50">{totalMemeVotes.toLocaleString()} votes</span>
         </div>
-
-
       </div>
 
-      {/* Action Buttons Row */}
-      <div className="grid grid-cols-3 gap-2">
+      {/* Action Buttons Row — Skip button hidden after voting */}
+      <div className={voted ? "w-full" : "grid grid-cols-3 gap-2"}>
         <button
           onClick={() => handleRateMeme(selectedRating)}
           disabled={voted || loading}
-          className={`col-span-2 py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95 ${
+          className={`${voted ? "w-full" : "col-span-2"} py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95 ${
             voted
               ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400"
               : "bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] hover:opacity-95 text-white shadow-orange-500/20"
@@ -3825,14 +2204,7 @@ function DynamicMemeCard({
           )}
         </button>
 
-        <button
-          onClick={() => {
-            onToast("Meme skipped! Loading next meme take... ⏭️");
-          }}
-          className="py-2.5 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/70 hover:text-white font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center"
-        >
-          Skip
-        </button>
+
       </div>
 
       {/* Engagement Footer */}
@@ -3852,7 +2224,6 @@ function DynamicMemeCard({
             className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
           >
             <Share2 size={13} />
-
           </button>
         </div>
         <span>{totalEngaged.toLocaleString()} engaged</span>
@@ -3870,7 +2241,7 @@ export default function FlipArena({
 }: FlipArenaProps) {
   const { user } = useAuth();
   const activeUserId = user?.userId || (user as any)?.actualUserId || user?.email;
-  const [engagements, setEngagements] = useState<EngagementItem[]>([DEFAULT_MEME_ARENA_ITEM]);
+  const [engagements, setEngagements] = useState<EngagementItem[]>([]);
   const [loadingEngagements, setLoadingEngagements] = useState(true);
   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction" | "meme">("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -3928,15 +2299,13 @@ export default function FlipArena({
       }
 
       if (liveItems && liveItems.length > 0) {
-        // Ensure default meme is present if backend hasn't seeded memes yet
-        const hasMeme = liveItems.some((i) => i.type === "meme");
-        setEngagements(hasMeme ? liveItems : [DEFAULT_MEME_ARENA_ITEM, ...liveItems]);
+        setEngagements(liveItems);
       } else {
-        setEngagements((prev) => (prev.length > 0 ? prev : [DEFAULT_MEME_ARENA_ITEM]));
+        setEngagements([]);
       }
     } catch (err) {
       console.warn("Could not fetch live engagements:", err);
-      // Keep existing engagements if network temporarily fails
+      setEngagements([]);
     } finally {
       setLoadingEngagements(false);
       isFetchingEngagementsRef.current = false;
@@ -3967,6 +2336,23 @@ export default function FlipArena({
     setEditingItem(item);
     setModalType(item.type);
     setModalOpen(true);
+  };
+
+  const handleDeleteEngagement = async (item: EngagementItem) => {
+    const isMeme = item.type === "meme";
+    const label = isMeme ? "meme" : "event";
+    if (!confirm(`Are you sure you want to delete this ${label} "${item.title || item.subtitle || "Untitled"}"?`)) {
+      return;
+    }
+    try {
+      await engagementService.deleteEngagement(item.id);
+      setEngagements((prev) => prev.filter((it) => it.id !== item.id));
+      showToast(`${isMeme ? "Meme" : "Event"} deleted successfully! 🗑️`);
+      engagementService.invalidateCache();
+    } catch (err) {
+      console.error("Failed to delete engagement item:", err);
+      showToast("Failed to delete item. Please try again.");
+    }
   };
 
   const handleItemSaved = (savedItem: EngagementItem, isEdit: boolean) => {
@@ -4006,10 +2392,87 @@ export default function FlipArena({
       });
   }, []);
 
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+
+  // Auto-detect and open shared item from URL (e.g. ?itemId=quiz_123 or ?quizId=... or ?engagementId=... or #quiz_123)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedId =
+      urlParams.get("itemId") ||
+      urlParams.get("quizId") ||
+      urlParams.get("engagementId") ||
+      urlParams.get("cardId") ||
+      urlParams.get("id") ||
+      (window.location.hash ? window.location.hash.replace("#", "").replace(/^engagement-/, "") : null);
+    const sharedType = urlParams.get("type");
+
+    if (sharedId) {
+      setHighlightedItemId(sharedId);
+
+      // Auto-set matching tab filter if type parameter is provided
+      if (sharedType) {
+        const typeClean = sharedType.toLowerCase().trim();
+        if (typeClean === "quiz") setFilter("quiz");
+        else if (typeClean === "poll") setFilter("poll");
+        else if (typeClean === "fan_battle" || typeClean === "battle") setFilter("battle");
+        else if (typeClean === "prediction") setFilter("prediction");
+        else if (typeClean === "meme") setFilter("meme");
+        else setFilter("all");
+      }
+
+      // If item is not in local engagements list yet, fetch it individually
+      engagementService.getEngagementById(sharedId).then((singleItem) => {
+        if (singleItem) {
+          setEngagements((prev) => {
+            if (prev.some((x) => x.id === singleItem.id)) return prev;
+            return [singleItem, ...prev];
+          });
+
+          // If no type was specified in URL, align filter to the fetched item's type
+          if (!sharedType && singleItem.type) {
+            const t = singleItem.type.toLowerCase().trim();
+            if (t === "quiz") setFilter("quiz");
+            else if (t === "poll") setFilter("poll");
+            else if (t === "fan_battle") setFilter("battle");
+            else if (t === "prediction") setFilter("prediction");
+            else if (t === "meme") setFilter("meme");
+          }
+
+          showToast(`🎯 Opened shared ${singleItem.type ? singleItem.type.toUpperCase() : "item"}: "${singleItem.title || 'Event'}"`);
+        }
+      }).catch((err) => {
+        console.warn("Could not fetch shared engagement item:", err);
+      });
+    }
+  }, [showToast]);
+
+  // Smoothly scroll and center the spotlighted card once rendered in the DOM
+  useEffect(() => {
+    if (!highlightedItemId) return;
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      const targetEl = document.getElementById(`engagement-${highlightedItemId}`);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        clearInterval(interval);
+      } else if (attempts > 25) {
+        clearInterval(interval);
+      }
+    }, 150);
+
+    return () => clearInterval(interval);
+  }, [highlightedItemId, engagements]);
+
   const filteredEngagements = useMemo(() => {
     return engagements
       .filter((item) => {
         if (!item || !item.title || !item.type) return false;
+
+        // Always include the highlighted shared item even if filter differs
+        if (highlightedItemId && item.id === highlightedItemId) return true;
 
         const itemType = (item.type || "").toLowerCase().trim();
         if (filter === "all") return true;
@@ -4022,6 +2485,12 @@ export default function FlipArena({
         return true;
       })
       .sort((a, b) => {
+        // Highlighted shared item always sorted to the very top
+        if (highlightedItemId) {
+          if (a.id === highlightedItemId) return -1;
+          if (b.id === highlightedItemId) return 1;
+        }
+
         const getTime = (val: any) => {
           if (typeof val === "number") return val;
           const time = new Date(val || 0).getTime();
@@ -4030,7 +2499,7 @@ export default function FlipArena({
 
         return getTime(b.createdAt) - getTime(a.createdAt);
       });
-  }, [engagements, filter]);
+  }, [engagements, filter, highlightedItemId]);
 
   return (
     <div className="w-full bg-[#070b14] min-h-screen text-white flex flex-col font-sans pb-16 relative">
@@ -4208,6 +2677,7 @@ export default function FlipArena({
         ) : (
           <AnimatePresence mode="popLayout">
             {filteredEngagements.map((item) => {
+              const isItemHighlighted = highlightedItemId === item.id;
               if (item.type === "fan_battle") {
                 return (
                   <DynamicFanBattleCard
@@ -4217,6 +2687,7 @@ export default function FlipArena({
                     now={now}
                     onToast={showToast}
                     onEdit={handleOpenEdit}
+                    isHighlighted={isItemHighlighted}
                   />
                 );
               }
@@ -4229,6 +2700,7 @@ export default function FlipArena({
                     now={now}
                     onToast={showToast}
                     onEdit={handleOpenEdit}
+                    isHighlighted={isItemHighlighted}
                   />
                 );
               }
@@ -4241,6 +2713,7 @@ export default function FlipArena({
                     now={now}
                     onToast={showToast}
                     onEdit={handleOpenEdit}
+                    isHighlighted={isItemHighlighted}
                   />
                 );
               }
@@ -4253,6 +2726,7 @@ export default function FlipArena({
                     now={now}
                     onToast={showToast}
                     onEdit={handleOpenEdit}
+                    isHighlighted={isItemHighlighted}
                   />
                 );
               }
@@ -4265,6 +2739,8 @@ export default function FlipArena({
                     now={now}
                     onToast={showToast}
                     onEdit={handleOpenEdit}
+                    onDelete={handleDeleteEngagement}
+                    isHighlighted={isItemHighlighted}
                   />
                 );
               }
