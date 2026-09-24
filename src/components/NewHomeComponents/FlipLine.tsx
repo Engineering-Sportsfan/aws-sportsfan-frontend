@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import posthog from 'posthog-js';
+import { trackAdvocacy } from '@/lib/analytics';
 import { getBotCanonicalName } from '@/src/constants/bots';
 import {
   Heart,
@@ -198,6 +200,30 @@ function renderFormattedContent(content: string) {
   });
 }
 
+function matchesSportFilter(card: FlipCard, target: string): boolean {
+  const t = target.toLowerCase();
+  const cardSport = (card.sport || '').toLowerCase();
+  const cardChannel = ((card as any).channel || '').toLowerCase();
+  const cardChannels = Array.isArray((card as any).channels)
+    ? (card as any).channels.map((ch: any) => String(ch).toLowerCase())
+    : typeof (card as any).channels === 'string'
+    ? (card as any).channels.split(',').map((ch: string) => ch.trim().toLowerCase())
+    : [];
+  const cardAllChannels = Array.isArray((card as any).allChannels)
+    ? (card as any).allChannels.map((ch: any) => String(ch).toLowerCase())
+    : typeof (card as any).allChannels === 'string'
+    ? (card as any).allChannels.split(',').map((ch: string) => ch.trim().toLowerCase())
+    : [];
+
+  return (
+    cardSport === t ||
+    cardChannel === t ||
+    cardChannels.includes(t) ||
+    cardAllChannels.includes(t)
+  );
+}
+
+
 function FlipLineSection({
   selectedSport,
   onViewFull,
@@ -231,14 +257,52 @@ function FlipLineSection({
   let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
 
   // Apply hashtag filter chips
+  // if (activeFilter === 'general') {
+  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
+  // } else if (activeFilter === 'cricket') {
+  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
+  // } else if (activeFilter === 'football') {
+  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
+  // } else if (activeFilter === 'athletics') {
+  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'athletics');
+  // } else if (activeFilter === 'expert') {
+  //   const filtered = displayCards.filter(
+  //     (c) =>
+  //       c.type === 'expert' ||
+  //       c.type === 'analyst' ||
+  //       c.type === 'bot' ||
+  //       c.author?.toLowerCase().includes('expert') ||
+  //       c.source?.toLowerCase().includes('expert') ||
+  //       c.tags?.some((t) => t.toLowerCase().includes('expert'))
+  //   );
+  //   if (filtered.length > 0) displayCards = filtered;
+  // } else if (activeFilter === 'analysts') {
+  //   const filtered = displayCards.filter(
+  //     (c) =>
+  //       c.type === 'expert' ||
+  //       c.type === 'analyst' ||
+  //       c.type === 'bot' ||
+  //       c.author?.toLowerCase().includes('analyst') ||
+  //       c.source?.toLowerCase().includes('analyst') ||
+  //       c.tags?.some((t) => t.toLowerCase().includes('analyst'))
+  //   );
+  //   if (filtered.length > 0) displayCards = filtered;
+  // }
+
+  // else if (selectedSport && selectedSport !== 'mixed') {
+  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === selectedSport.toLowerCase());
+  // }
+
+    // Apply hashtag filter chips (supports multi-channel posts)
+  // Apply hashtag filter chips (supports multi-channel posts)
   if (activeFilter === 'general') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'general'));
   } else if (activeFilter === 'cricket') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'cricket'));
   } else if (activeFilter === 'football') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'football'));
   } else if (activeFilter === 'athletics') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'athletics');
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'athletics'));
   } else if (activeFilter === 'expert') {
     const filtered = displayCards.filter(
       (c) =>
@@ -261,30 +325,10 @@ function FlipLineSection({
         c.tags?.some((t) => t.toLowerCase().includes('analyst'))
     );
     if (filtered.length > 0) displayCards = filtered;
+  } else if (selectedSport && selectedSport !== 'mixed') {
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, selectedSport));
   }
-  // else if (activeFilter === 'sf360-live') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.source?.toLowerCase().includes('live') ||
-  //       c.source?.toLowerCase().includes('roanuz') ||
-  //       c.type === 'bot' ||
-  //       c.isKey ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('live'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // } else if (activeFilter === 'fan-roar') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.type === 'fan' ||
-  //       c.ctaType === 'room' ||
-  //       c.source?.toLowerCase().includes('roar') ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('roar'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // }
-  else if (selectedSport && selectedSport !== 'mixed') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === selectedSport.toLowerCase());
-  }
+
 
   return (
     <div className="sm:mb-2 md:mb-4">
@@ -419,13 +463,25 @@ export function FlipLineFullScreen({
 
     if (foundCard) {
       // Ensure current filter doesn't hide this target card
+      // if (activeFilter !== 'all') {
+      //   const sportLower = (foundCard.sport || '').toLowerCase();
+      //   const matchesCurrentFilter =
+      //     (activeFilter === 'cricket' && sportLower === 'cricket') ||
+      //     (activeFilter === 'football' && sportLower === 'football') ||
+      //     (activeFilter === 'athletics' && sportLower === 'athletics') ||
+      //     (activeFilter === 'general' && sportLower === 'general') ||
+      //     (activeFilter === 'analysts' &&
+      //       (foundCard.type === 'analyst' || foundCard.type === 'expert' || foundCard.type === 'bot'));
+
+      //   if (!matchesCurrentFilter) {
+      //     setActiveFilter('all');
+      //   }
+      // }
+
+            // Ensure current filter doesn't hide this target card
       if (activeFilter !== 'all') {
-        const sportLower = (foundCard.sport || '').toLowerCase();
         const matchesCurrentFilter =
-          (activeFilter === 'cricket' && sportLower === 'cricket') ||
-          (activeFilter === 'football' && sportLower === 'football') ||
-          (activeFilter === 'athletics' && sportLower === 'athletics') ||
-          (activeFilter === 'general' && sportLower === 'general') ||
+          matchesSportFilter(foundCard, activeFilter) ||
           (activeFilter === 'analysts' &&
             (foundCard.type === 'analyst' || foundCard.type === 'expert' || foundCard.type === 'bot'));
 
@@ -485,14 +541,15 @@ export function FlipLineFullScreen({
   let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
 
   // Apply hashtag filter chips
+  // Apply hashtag filter chips (supports multi-channel posts)
   if (activeFilter === 'general') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'general'));
   } else if (activeFilter === 'cricket') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'cricket'));
   } else if (activeFilter === 'football') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'football'));
   } else if (activeFilter === 'athletics') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'athletics');
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'athletics'));
   } else if (activeFilter === 'analysts') {
     const filtered = displayCards.filter(
       (c) =>
@@ -504,30 +561,10 @@ export function FlipLineFullScreen({
         c.tags?.some((t) => t.toLowerCase().includes('analyst'))
     );
     if (filtered.length > 0) displayCards = filtered;
+  } else if (selectedSport && selectedSport !== 'mixed') {
+    displayCards = displayCards.filter((c) => matchesSportFilter(c, selectedSport));
   }
-  // else if (activeFilter === 'sf360-live') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.source?.toLowerCase().includes('live') ||
-  //       c.source?.toLowerCase().includes('roanuz') ||
-  //       c.type === 'bot' ||
-  //       c.isKey ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('live'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // } else if (activeFilter === 'fan-roar') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.type === 'fan' ||
-  //       c.ctaType === 'room' ||
-  //       c.source?.toLowerCase().includes('roar') ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('roar'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // }
-  else if (selectedSport && selectedSport !== 'mixed') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === selectedSport.toLowerCase());
-  }
+
 
   return (
     <div
@@ -1209,6 +1246,20 @@ export function FlipCardItem({
 
   const handleShare = async (c: FlipCard) => {
     if (typeof window === 'undefined') return;
+
+    try {
+      trackAdvocacy("content_shared", { card_id: c.id, author: c.author, sport: c.sport });
+      posthog.capture("content_shared", {
+        card_id: c.id,
+        author: c.author,
+        sport: c.sport,
+        content: c.content ? c.content.slice(0, 100) : undefined,
+      });
+      posthog.capture("advocacy_action", {
+        action_type: "content_shared",
+        card_id: c.id,
+      });
+    } catch (err) {}
 
     const cardIdParam = c.id !== undefined && c.id !== null ? String(c.id) : (c.sk || '');
     const shareUrl = `${window.location.origin}/MainModules/FlipLine?cardId=${encodeURIComponent(cardIdParam)}`;

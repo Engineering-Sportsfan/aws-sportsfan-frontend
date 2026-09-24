@@ -159,16 +159,64 @@ export default function WelcomeMessage({
     }
   }, [propUserName, user, getUserDisplayName, authLoading, authReady]);
 
+  // ─── Derive Radar Cards from TODAY'S AGENDA data ────────────────────────
+  // Ensures the exact same data from TODAY'S AGENDA is displayed in TODAY ON YOUR RADAR
+  const displayedRadarCards = useMemo<RadarCardItem[]>(() => {
+    if (agendaEvents.length > 0) {
+      return agendaEvents.map((evt, index) => {
+        const isLive = evt.statusType === "live" || evt.statusLabel?.toLowerCase() === "live";
+
+        let themeColor: RadarCardItem["themeColor"] = "purple";
+        if (evt.themeColor) {
+          themeColor = evt.themeColor;
+        } else if (isLive || evt.nodeColor === "emerald") {
+          themeColor = "emerald";
+        } else if (evt.statusType === "up_next" || evt.nodeColor === "amber") {
+          themeColor = "amber";
+        } else if (evt.nodeColor === "blue" || evt.statusType === "afternoon") {
+          themeColor = "cyan";
+        } else {
+          const colors: RadarCardItem["themeColor"][] = ["purple", "cyan", "rose", "emerald", "amber"];
+          themeColor = colors[index % colors.length];
+        }
+
+        const displayStatus = isLive ? "LIVE" : (evt.time || evt.statusLabel || "UPCOMING");
+
+        return {
+          id: evt.id || `agenda_${index}`,
+          sport: evt.sport,
+          event: evt.subEvent || evt.sport,
+          round: evt.detail || evt.time,
+          subEvent: evt.subEvent,
+          detail: evt.detail,
+          time: evt.time,
+          status: displayStatus,
+          statusType: evt.statusType,
+          statusLabel: evt.statusLabel,
+          isLive,
+          icon: evt.icon || "🏆",
+          themeColor,
+          venue: evt.venue,
+          teams: evt.teams,
+          summary: evt.summary || `${evt.sport} (${evt.subEvent || ""}) - ${evt.detail || ""}${evt.venue ? ` at ${evt.venue}` : ""}. Scheduled time: ${evt.time || "Today"}.`,
+          order: evt.order ?? index + 1,
+          active: evt.active,
+        };
+      });
+    }
+    return radarCards;
+  }, [agendaEvents, radarCards]);
+
   // Dynamically sync dot count with radar cards length
   useEffect(() => {
-    if (radarCards.length <= 1) {
-      setTotalDots(radarCards.length);
-    } else if (radarCards.length <= 3) {
-      setTotalDots(radarCards.length);
+    if (displayedRadarCards.length <= 1) {
+      setTotalDots(displayedRadarCards.length);
+    } else if (displayedRadarCards.length <= 3) {
+      setTotalDots(displayedRadarCards.length);
     } else {
-      setTotalDots(Math.min(5, Math.ceil(radarCards.length / 2)));
+      setTotalDots(Math.min(5, Math.ceil(displayedRadarCards.length / 2)));
     }
-  }, [radarCards.length]);
+  }, [displayedRadarCards.length]);
 
   // Handle horizontal scroll & indicator sync
   const handleScroll = useCallback(() => {
@@ -425,7 +473,7 @@ export default function WelcomeMessage({
               </div>
             ))}
           </div>
-        ) : radarCards.length > 0 ? (
+        ) : displayedRadarCards.length > 0 ? (
           <div
             ref={scrollRef}
             className="flex items-stretch gap-3 overflow-x-auto scrollbar-none scroll-smooth pb-1 pt-1 -mx-1 px-1 snap-x snap-mandatory"
@@ -435,7 +483,7 @@ export default function WelcomeMessage({
               WebkitOverflowScrolling: "touch",
             }}
           >
-            {radarCards.map((card, index) => {
+            {displayedRadarCards.map((card, index) => {
               const isSelected = activeCardIndex === index;
               const theme = getThemeStyles(card.themeColor, card.isLive, isSelected);
               const isNotified = notifiedCards.includes(card.id);
@@ -447,13 +495,10 @@ export default function WelcomeMessage({
                   whileTap={{ scale: 0.98 }}
                   onClick={() => {
                     setActiveCardIndex(index);
-                    if (onCardClick) {
-                      onCardClick(card);
-                    } else {
-                      setSelectedCardDetail(card);
-                    }
+                    if (onCardClick) onCardClick(card);
+                    else setSelectedCardDetail(card);
                   }}
-                  className={`shrink-0 w-[142px] sm:w-[155px] rounded-[18px] p-3 flex flex-col justify-between cursor-pointer transition-all duration-200 snap-start relative overflow-hidden ${
+                  className={`shrink-0 w-[142px] sm:w-[155px] rounded-[18px] p-3 flex flex-col justify-between transition-all duration-200 snap-start relative overflow-hidden cursor-pointer ${
                     isSelected || card.isLive
                       ? "bg-[#0b101d] border-2 " + theme.cardBorder
                       : "bg-[#0c101d] border " + theme.cardBorder
@@ -1126,7 +1171,14 @@ export default function WelcomeMessage({
                   </div>
                 )}
 
-                {selectedCardDetail.teams && (
+                {selectedCardDetail.time && (
+                  <div className="flex items-center gap-2 text-[12px] text-gray-400">
+                    <Clock size={14} className="text-amber-400 shrink-0" />
+                    <span>Scheduled: {selectedCardDetail.time}</span>
+                  </div>
+                )}
+
+                {selectedCardDetail.teams ? (
                   <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col gap-2">
                     <div className="flex items-center justify-between text-[13px] font-bold text-white">
                       <span>{selectedCardDetail.teams.teamA}</span>
@@ -1141,6 +1193,18 @@ export default function WelcomeMessage({
                           <span className="text-gray-400">{selectedCardDetail.teams.scoreB}</span>
                         )}
                       </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col gap-1">
+                    <div className="text-[13px] font-bold text-white flex items-center justify-between">
+                      <span>{selectedCardDetail.event}</span>
+                      <span className="text-emerald-400 text-[11px] font-bold">{selectedCardDetail.status}</span>
+                    </div>
+                    {selectedCardDetail.round && (
+                      <p className="text-[12px] text-gray-300">
+                        {selectedCardDetail.round}
+                      </p>
                     )}
                   </div>
                 )}
@@ -1169,10 +1233,13 @@ export default function WelcomeMessage({
 
                 <button
                   type="button"
-                  onClick={() => setSelectedCardDetail(null)}
+                  onClick={() => {
+                    setSelectedCardDetail(null);
+                    setIsAgendaOpen(true);
+                  }}
                   className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#E91E8C] to-[#FF6B35] text-white font-extrabold text-[13px] hover:opacity-95 transition-opacity text-center cursor-pointer"
                 >
-                  {selectedCardDetail.isLive ? "Watch Stream" : "Set Match Reminder"}
+                  View Full Agenda
                 </button>
               </div>
             </motion.div>

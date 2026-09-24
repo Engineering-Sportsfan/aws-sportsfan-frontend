@@ -1786,7 +1786,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { Poll } from "@/types/Polls";
-import { EngagementItem, EngagementType, QuizOption } from "@/types/engagements";
+import { EngagementItem, EngagementType, QuizOption, MemeReactionType } from "@/types/engagements";
 import { engagementService } from "@/services/engagement.service";
 import {
   ArrowLeft,
@@ -1810,6 +1810,10 @@ import {
   X,
   RefreshCw,
   Lock,
+  Flame,
+  MessageCircle,
+  MoreVertical,
+  Info,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LeaderboardOverlayModal from "@/src/components/NewHomeComponents/LeaderboardOverlayModal";
@@ -3422,6 +3426,464 @@ function DynamicPredictionCard({
   );
 }
 
+// ─── Default Meme Arena Fallback Item (Guarantees Instant Live Feed) ────────
+export const DEFAULT_MEME_ARENA_ITEM: EngagementItem = {
+  id: "meme_live_cat_matchday",
+  type: "meme",
+  title: "When your team says trust the process",
+  subtitle: "Same energy. Different priorities.",
+  tags: ["🔥 MEME ARENA", "😂 VIRAL"],
+  sport: "cricket",
+  status: "active",
+  memeData: {
+    imageUrl: "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
+    caption: "ME ON MONDAY vs ME ON MATCH DAY — SAME ENERGY. DIFFERENT PRIORITIES.",
+    authorName: "AmitFan",
+    authorHandle: "@AmitFan",
+    authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+    heatPercentage: 78,
+    totalVotes: 1240,
+    reactions: { mild: 25, funny: 310, hot: 480, fire: 320, nuclear: 105 },
+    commentsCount: 43,
+    sharesCount: 12,
+    createdAt: Date.now() - 2 * 3600 * 1000,
+  },
+  likes: 420,
+  shares: 88,
+  totalEngaged: 1240,
+  createdAt: Date.now() - 2 * 3600 * 1000,
+  updatedAt: Date.now() - 2 * 3600 * 1000,
+};
+
+// ─── 5. Meme Card Component (5 Heat Rating Tiers +2 PTS Participation) ───────
+function DynamicMemeCard({
+  item,
+  userId,
+  now,
+  onToast,
+  onEdit,
+}: {
+  item: EngagementItem;
+  userId?: string;
+  now: number;
+  onToast: (msg: string) => void;
+  onEdit?: (item: EngagementItem) => void;
+}) {
+  const meme = item.memeData || {
+    imageUrl: "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
+    caption: item.subtitle || item.title || "Matchday meme energy!",
+    authorName: "AmitFan",
+    authorHandle: "@AmitFan",
+    authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+    heatPercentage: 78,
+    totalVotes: 1240,
+    reactions: { mild: 25, funny: 310, hot: 480, fire: 320, nuclear: 105 },
+    commentsCount: 43,
+    sharesCount: 12,
+  };
+
+  const initialStored = getStoredVote("meme", item.id, userId);
+  const [selectedRating, setSelectedRating] = useState<MemeReactionType>(
+    (initialStored?.reaction as MemeReactionType) || (item.userVote as MemeReactionType) || "hot"
+  );
+  const [voted, setVoted] = useState<boolean>(Boolean(initialStored || item.userVoted));
+  const [loading, setLoading] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 420);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || Number(meme.sharesCount) || 12);
+  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || Number(meme.totalVotes) || 1240);
+  const [heatPct, setHeatPct] = useState<number>(Number(meme.heatPercentage) || 78);
+  const [totalMemeVotes, setTotalMemeVotes] = useState<number>(Number(meme.totalVotes) || 1240);
+  const [reactions, setReactions] = useState(meme.reactions || { mild: 25, funny: 310, hot: 480, fire: 320, nuclear: 105 });
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (item.userLiked) {
+      setLiked(true);
+    } else if (userId) {
+      engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+        if (isLiked) setLiked(true);
+      });
+    }
+
+    const stored = getStoredVote("meme", item.id, userId);
+    if (stored?.reaction) {
+      setSelectedRating(stored.reaction);
+      setVoted(true);
+    }
+
+    if (item.userVoted && item.userVote) {
+      setSelectedRating(item.userVote as MemeReactionType);
+      setVoted(true);
+      setStoredVote("meme", item.id, { reaction: item.userVote }, userId);
+    }
+
+    if (userId) {
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res.hasVoted && res.selectedOptionId) {
+          setSelectedRating(res.selectedOptionId as MemeReactionType);
+          setVoted(true);
+          setStoredVote("meme", item.id, { reaction: res.selectedOptionId }, userId);
+        }
+      }).catch(() => { });
+    }
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
+
+  const handleRateMeme = async (ratingToSubmit?: MemeReactionType) => {
+    const finalRating = ratingToSubmit || selectedRating || "hot";
+    if (voted || loading || getStoredVote("meme", item.id, userId)) {
+      onToast("You already voted on this meme!");
+      return;
+    }
+
+    setSelectedRating(finalRating);
+    setVoted(true);
+    setLoading(true);
+    setStoredVote("meme", item.id, { reaction: finalRating }, userId);
+    setTotalMemeVotes((prev) => prev + 1);
+    setTotalEngaged((prev) => prev + 1);
+
+    // Update reactions state and heat percentage locally
+    setReactions((prev) => {
+      const updated = { ...prev, [finalRating]: (prev[finalRating] || 0) + 1 };
+      const sum = Object.values(updated).reduce((a, b) => a + b, 0);
+      const score = updated.mild * 20 + updated.funny * 40 + updated.hot * 60 + updated.fire * 80 + updated.nuclear * 100;
+      if (sum > 0) setHeatPct(Math.min(100, Math.max(10, Math.round(score / sum))));
+      return updated;
+    });
+
+    try {
+      const res: any = await engagementService.voteEngagement(item.id, finalRating, userId);
+      if (res?.heatPercentage !== undefined) setHeatPct(res.heatPercentage);
+      if (res?.totalVotes !== undefined) setTotalMemeVotes(res.totalVotes);
+      if (res?.reactions) setReactions(res.reactions);
+
+      onToast(`🔥 Voted ${finalRating.toUpperCase()}! +2 PTS earned!`);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
+      }
+    } catch {
+      onToast(`🔥 Voted ${finalRating.toUpperCase()}! +2 PTS earned!`);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLike = async () => {
+    const nextLiked = !liked;
+    const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
+    setLiked(nextLiked);
+    setLikesCount(nextCount);
+
+    try {
+      const res = await engagementService.toggleLikeEngagement(item.id, userId);
+      if (res?.likesCount !== undefined) {
+        setLikesCount(res.likesCount);
+        setLiked(res.liked);
+      }
+    } catch { }
+  };
+
+  const handleShare = async () => {
+    setSharesCount((prev) => prev + 1);
+    setTotalEngaged((prev) => prev + 1);
+    engagementService.shareEngagement(item.id).catch(() => { });
+
+    const text = `🔥 Check out this meme: "${item.title}" on SportsFan360 Meme Arena!`;
+    if (navigator.share) {
+      navigator.share({ title: item.title, text, url: window.location.href }).catch(() => { });
+    } else {
+      await navigator.clipboard.writeText(window.location.href);
+      onToast("Meme link copied to clipboard! 📋");
+    }
+  };
+
+  const ratingTiers: {
+    id: MemeReactionType;
+    label: string;
+    iconText?: string;
+    flameColor: string;
+    bgSelected: string;
+    borderSelected: string;
+  }[] = [
+    {
+      id: "mild",
+      label: "Mild",
+      flameColor: "text-slate-400",
+      bgSelected: "bg-slate-500/20",
+      borderSelected: "border-slate-400",
+    },
+    {
+      id: "funny",
+      label: "Funny",
+      flameColor: "text-pink-400",
+      bgSelected: "bg-pink-500/25",
+      borderSelected: "border-pink-500",
+    },
+    {
+      id: "hot",
+      label: "Hot",
+      flameColor: "text-amber-400",
+      bgSelected: "bg-amber-500/25",
+      borderSelected: "border-amber-500",
+    },
+    {
+      id: "fire",
+      label: "Fire",
+      iconText: "🔥",
+      flameColor: "text-orange-500",
+      bgSelected: "bg-gradient-to-b from-orange-500/30 to-red-500/20",
+      borderSelected: "border-orange-500",
+    },
+    {
+      id: "nuclear",
+      label: "Nuclear",
+      iconText: "🔥🔥",
+      flameColor: "text-fuchsia-400",
+      bgSelected: "bg-gradient-to-b from-fuchsia-500/35 to-pink-500/25",
+      borderSelected: "border-fuchsia-500",
+    },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className="w-full max-w-lg bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative"
+    >
+      {/* Author Header Row */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <img
+            src={
+              meme.authorAvatar ||
+              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
+            }
+            alt={meme.authorName || "Author"}
+            className="w-9 h-9 rounded-full object-cover border border-white/20 shrink-0"
+            onError={(e: any) => {
+              e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+            }}
+          />
+          <div className="min-w-0">
+            <h4 className="text-xs font-black text-white truncate">
+              Meme by {meme.authorHandle || `@${(meme.authorName || "AmitFan").replace(/\s+/g, "")}`}
+            </h4>
+            <div className="flex items-center gap-1.5 text-[9px] font-bold text-white/40">
+              <span>2h ago</span>
+              <span>•</span>
+              <span className="text-orange-400 font-extrabold uppercase">🔥 MEME ARENA</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative">
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06] transition-all cursor-pointer"
+          >
+            <MoreVertical size={15} />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-8 w-36 bg-[#161a26] border border-white/10 rounded-xl py-1 shadow-2xl z-30 text-xs">
+              {onEdit && (
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onEdit(item);
+                  }}
+                  className="w-full px-3 py-1.5 text-left text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-2 font-bold cursor-pointer"
+                >
+                  <Pencil size={12} /> Edit Meme
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  handleShare();
+                }}
+                className="w-full px-3 py-1.5 text-left text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-2 font-bold cursor-pointer"
+              >
+                <Share2 size={12} /> Share Link
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Meme Title / Headline */}
+      {item.title && (
+        <h3 className="text-sm font-black text-white mb-2 tracking-tight leading-snug">
+          {item.title}
+        </h3>
+      )}
+
+      {/* Meme Visual Image Frame */}
+      <div className="relative w-full rounded-xl overflow-hidden border border-white/[0.08] mb-3.5 bg-black/60 shadow-inner group">
+        <img
+          src={meme.imageUrl}
+          alt={item.title || "Sports meme"}
+          className="w-full max-h-[380px] object-contain mx-auto transition-transform duration-300 group-hover:scale-[1.01]"
+          onError={(e: any) => {
+            e.target.src = "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80";
+          }}
+        />
+        {meme.caption && meme.caption !== item.title && (
+          <div className="p-2.5 bg-[#0a0d16]/95 border-t border-white/[0.06] text-[11px] font-bold text-white/80 text-center">
+            {meme.caption}
+          </div>
+        )}
+      </div>
+
+      {/* "How Hot Is This Meme?" Section */}
+      <div className="mb-3.5">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs font-black text-white flex items-center gap-1.5">
+            <span>How Hot Is This Meme?</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => onToast("Rate this meme to earn +2 FlipPoints and boost its Arena rank! 🔥")}
+            className="text-white/40 hover:text-white/80 transition-colors cursor-pointer"
+            title="Heat Info"
+          >
+            <Info size={13} />
+          </button>
+        </div>
+
+        {/* 5-Tier Flame Reaction Selector */}
+        <div className="grid grid-cols-5 gap-1.5 p-1 bg-black/40 border border-white/[0.06] rounded-xl">
+          {ratingTiers.map((tier) => {
+            const isSelected = selectedRating === tier.id;
+            return (
+              <button
+                key={tier.id}
+                type="button"
+                onClick={() => {
+                  setSelectedRating(tier.id);
+                  if (!voted) {
+                    // Preselect rating tier
+                  }
+                }}
+                className={`py-2 px-1 rounded-lg flex flex-col items-center justify-center gap-1 transition-all cursor-pointer border ${
+                  isSelected
+                    ? `${tier.bgSelected} ${tier.borderSelected} shadow-md scale-[1.03]`
+                    : "bg-white/[0.02] border-transparent hover:bg-white/[0.05] text-white/50"
+                }`}
+              >
+                <Flame
+                  size={16}
+                  className={`${tier.flameColor} transition-transform duration-200 ${
+                    isSelected ? "scale-125 animate-bounce" : "opacity-60"
+                  }`}
+                  fill={isSelected ? "currentColor" : "none"}
+                />
+                <span
+                  className={`text-[9px] font-black truncate w-full text-center ${
+                    isSelected ? tier.flameColor : "text-white/60"
+                  }`}
+                >
+                  {tier.iconText ? `${tier.iconText} ${tier.label}` : tier.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Heat Stats & Social Row */}
+      <div className="flex items-center justify-between text-[11px] font-bold text-white/60 mb-3 px-1">
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1 text-orange-400 font-black">
+            <BarChart2 size={13} className="text-orange-400" />
+            <span>{heatPct}% Heat</span>
+          </span>
+          <span className="text-white/20">•</span>
+          <span className="text-white/50">{totalMemeVotes.toLocaleString()} votes</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span
+            className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+            onClick={() => onToast("Meme comments opening soon! 💬")}
+          >
+            <MessageCircle size={13} />
+            <span>{meme.commentsCount || 43}</span>
+          </span>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+          >
+            <Share2 size={13} />
+            <span>Share</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Action Buttons Row */}
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          onClick={() => handleRateMeme(selectedRating)}
+          disabled={voted || loading}
+          className={`col-span-2 py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95 ${
+            voted
+              ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400"
+              : "bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] hover:opacity-95 text-white shadow-orange-500/20"
+          }`}
+        >
+          {voted ? (
+            <>
+              <Check size={14} className="text-emerald-400" />
+              <span>Voted {selectedRating.toUpperCase()} (+2 PTS)</span>
+            </>
+          ) : (
+            <>
+              <Flame size={14} className="animate-pulse" />
+              <span>Vote {selectedRating.charAt(0).toUpperCase() + selectedRating.slice(1)}</span>
+            </>
+          )}
+        </button>
+
+        <button
+          onClick={() => {
+            onToast("Meme skipped! Loading next meme take... ⏭️");
+          }}
+          className="py-2.5 px-3 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-white/70 hover:text-white font-black text-xs transition-all active:scale-95 cursor-pointer flex items-center justify-center"
+        >
+          Skip
+        </button>
+      </div>
+
+      {/* Engagement Footer */}
+      <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
+        <div className="flex gap-4">
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
+              liked ? "text-[#FF3D57]" : "hover:text-white"
+            }`}
+          >
+            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+            <span>{likesCount.toLocaleString()}</span>
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
+          >
+            <Share2 size={13} />
+            <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+          </button>
+        </div>
+        <span>{totalEngaged.toLocaleString()} engaged</span>
+      </div>
+    </motion.div>
+  );
+}
+
 // ─── Main FlipArena Component ───────────────────────────────────────────────
 export default function FlipArena({
   selectedSport,
@@ -3431,9 +3893,9 @@ export default function FlipArena({
 }: FlipArenaProps) {
   const { user } = useAuth();
   const activeUserId = user?.userId || (user as any)?.actualUserId || user?.email;
-  const [engagements, setEngagements] = useState<EngagementItem[]>([]);
+  const [engagements, setEngagements] = useState<EngagementItem[]>([DEFAULT_MEME_ARENA_ITEM]);
   const [loadingEngagements, setLoadingEngagements] = useState(true);
-  const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction">("all");
+  const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction" | "meme">("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
 
@@ -3489,9 +3951,11 @@ export default function FlipArena({
       }
 
       if (liveItems && liveItems.length > 0) {
-        setEngagements(liveItems);
+        // Ensure default meme is present if backend hasn't seeded memes yet
+        const hasMeme = liveItems.some((i) => i.type === "meme");
+        setEngagements(hasMeme ? liveItems : [DEFAULT_MEME_ARENA_ITEM, ...liveItems]);
       } else {
-        setEngagements((prev) => (prev.length > 0 ? prev : []));
+        setEngagements((prev) => (prev.length > 0 ? prev : [DEFAULT_MEME_ARENA_ITEM]));
       }
     } catch (err) {
       console.warn("Could not fetch live engagements:", err);
@@ -3545,7 +4009,7 @@ export default function FlipArena({
     }
 
     if (!isEdit) {
-      showToast("Event published! +2 PTS earned 🚀");
+      showToast(savedItem.type === "meme" ? "Meme dropped into the Arena! 🔥 +2 PTS earned" : "Event published! +2 PTS earned 🚀");
     } else {
       showToast("Event updated successfully!");
     }
@@ -3576,6 +4040,7 @@ export default function FlipArena({
         if (filter === "quiz") return itemType === "quiz";
         if (filter === "poll") return itemType === "poll";
         if (filter === "prediction") return itemType === "prediction";
+        if (filter === "meme") return itemType === "meme";
 
         return true;
       })
@@ -3674,26 +4139,35 @@ export default function FlipArena({
             <Trophy size={13} className="text-amber-400" />
             <span>Leaderboard</span>
           </button>
-          <div className="flex gap-1 bg-white/[0.03] p-1 rounded-xl border border-white/[0.05]">
-            {(["all", "quiz", "poll", "battle", "prediction"] as const).map((tab) => (
+          <div className="flex gap-1 bg-white/[0.03] p-1 rounded-xl border border-white/[0.05] overflow-x-auto">
+            {(["all", "quiz", "poll", "battle", "prediction", "meme"] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setFilter(tab)}
-                className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer"
+                className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer shrink-0"
                 style={{
                   backgroundColor: filter === tab ? "rgba(255,255,255,0.08)" : "transparent",
                   color: filter === tab ? "#fff" : "rgba(255,255,255,0.45)",
                 }}
               >
-                {tab === "all" ? "All" : tab}
+                {tab === "all" ? "All" : tab === "meme" ? "🔥 Meme" : tab}
               </button>
             ))}
           </div>
 
           <button
+            onClick={() => handleOpenCreate("meme")}
+            title="Add Sports Meme (+2 PTS)"
+            className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-500/20 via-pink-500/20 to-purple-500/20 hover:from-orange-500/30 hover:to-purple-500/30 border border-orange-500/40 text-orange-300 flex items-center gap-1.5 font-extrabold text-[10.5px] transition-all active:scale-95 cursor-pointer shadow-sm shrink-0"
+          >
+            <Flame size={13} className="text-orange-400 animate-pulse" />
+            <span>Add Meme</span>
+          </button>
+
+          <button
             onClick={() => handleOpenCreate("quiz")}
             title="Create Quiz, Battle or Poll (+2 PTS)"
-            className="p-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 border border-pink-500/30 text-pink-300 flex items-center gap-1 font-extrabold text-[11px] transition-all active:scale-95 cursor-pointer shadow-sm"
+            className="p-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 border border-pink-500/30 text-pink-300 flex items-center gap-1 font-extrabold text-[11px] transition-all active:scale-95 cursor-pointer shadow-sm shrink-0"
           >
             <Plus size={13} strokeWidth={2.8} />
             <span className="hidden sm:inline">Add</span>
@@ -3702,6 +4176,31 @@ export default function FlipArena({
       </div>
 
       <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full">
+        {/* Dedicated Meme Arena Header Banner when viewing Meme tab */}
+        {filter === "meme" && (
+          <div className="w-full max-w-lg bg-gradient-to-r from-orange-500/10 via-pink-500/10 to-purple-500/10 border border-orange-500/25 rounded-2xl p-4 flex items-center justify-between shadow-lg backdrop-blur-sm">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-white flex items-center gap-1.5">
+                  <Flame size={16} className="text-orange-400 animate-pulse" />
+                  <span>Meme Arena</span>
+                </span>
+                <span className="flex items-center gap-1 text-[9px] font-black bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Now
+                </span>
+              </div>
+              <p className="text-[10px] text-white/50 mt-0.5">Funniest memes. Hottest takes. Only on SportsFan360.</p>
+            </div>
+            <button
+              onClick={() => handleOpenCreate("meme")}
+              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-600 hover:opacity-95 text-white font-extrabold text-[11px] flex items-center gap-1 shadow-lg shadow-orange-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
+            >
+              <Plus size={13} /> Add Meme
+            </button>
+          </div>
+        )}
+
         {loadingEngagements && engagements.length === 0 ? (
           <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/40 text-xs font-bold">
             <div className="w-6 h-6 border-2 border-[#FF3D57] border-t-transparent rounded-full animate-spin" />
@@ -3719,7 +4218,9 @@ export default function FlipArena({
                       ? "fan_battle"
                       : filter === "prediction"
                         ? "prediction"
-                        : filter
+                        : filter === "meme"
+                          ? "meme"
+                          : filter
                 )
               }
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"
@@ -3769,6 +4270,18 @@ export default function FlipArena({
               if (item.type === "prediction") {
                 return (
                   <DynamicPredictionCard
+                    key={item.id}
+                    item={item}
+                    userId={activeUserId}
+                    now={now}
+                    onToast={showToast}
+                    onEdit={handleOpenEdit}
+                  />
+                );
+              }
+              if (item.type === "meme") {
+                return (
+                  <DynamicMemeCard
                     key={item.id}
                     item={item}
                     userId={activeUserId}

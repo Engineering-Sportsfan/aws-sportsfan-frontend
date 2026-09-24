@@ -389,8 +389,9 @@
 
 
 // components/NewROARComponent/screens/Onboarding.tsx
+'use client'
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 
@@ -403,14 +404,14 @@ type ConfigItem = {
   label: string;
   order: number;
   active: boolean;
-  // sports
   tagline?: string;
+  tag?: string;
   image?: string;
-  // engagement
   subtitle?: string;
+  description?: string;
   icon?: string;
-  // followEntities
   category?: string;
+  title?: string;
   sportId?: string;
 };
 
@@ -426,11 +427,64 @@ export default function Onboarding({ onComplete }: Props) {
   const [step, setStep] = useState(1); // 1, 2, 3
   const [dir, setDir] = useState(1);
 
+  // Dynamic step questions & subheadings loaded from admin config
+  const [stepHeadings, setStepHeadings] = useState<Record<number, { heading: string; subheading: string }>>({
+    1: {
+      heading: "Which sports do you follow?",
+      subheading: "Pick as many as you like — we'll tailor your feed, rooms and predictions around these.",
+    },
+    2: {
+      heading: "Who do you follow closely?",
+      subheading: "Based on what you picked — Indian teams, IPL/ISL franchises, and athletes across global events.",
+    },
+    3: {
+      heading: "How do you like to enjoy a match?",
+      subheading: "Pick as many as you like. This shapes how your Rooms and feed are set up — you can always change it later.",
+    },
+  });
+
   const [sportsOptions, setSportsOptions] = useState<ConfigItem[]>([]);
   const [followOptions, setFollowOptions] = useState<ConfigItem[]>([]);
   const [engagementOptions, setEngagementOptions] = useState<ConfigItem[]>([]);
-  const [loading, setLoading] = useState(true);
 
+  // "Don't see your favorite sports?" Dropdown config & user selection
+  const [requestedSportsOptions, setRequestedSportsOptions] = useState<ConfigItem[]>([]);
+  const [requestedSportsMeta, setRequestedSportsMeta] = useState({
+    heading: "Don't see your favorite sports?",
+    subheading: "Please select and we will work hard to get it to you soonest",
+  });
+  const [requestedSport, setRequestedSport] = useState<string>("");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    if (isDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isDropdownOpen]);
+
+  const toggleDropdown = () => {
+    if (!isDropdownOpen && dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setOpenUpward(spaceBelow < 240);
+    }
+    setIsDropdownOpen((prev) => !prev);
+  };
+
+  const [loading, setLoading] = useState(true);
   const [sports, setSports] = useState<string[]>([]);
   const [followEntities, setFollowEntities] = useState<string[]>([]);
   const [engagementPrefs, setEngagementPrefs] = useState<string[]>([]);
@@ -440,16 +494,57 @@ export default function Onboarding({ onComplete }: Props) {
     const load = async () => {
       setLoading(true);
       try {
-        const [s, f, e] = await Promise.all([
+        const [configS, configF, configE, configReq, user] = await Promise.all([
           axios.get(`${CONFIG_API}?type=sports`),
           axios.get(`${CONFIG_API}?type=followEntities`),
           axios.get(`${CONFIG_API}?type=engagement`),
+          axios.get(`${CONFIG_API}?type=requestedSports`),
+          axios.get("/api/roar/onboarding").catch(() => ({ data: null })),
         ]);
-        setSportsOptions(s.data.items ?? []);
-        setFollowOptions(f.data.items ?? []);
-        setEngagementOptions(e.data.items ?? []);
+
+        setSportsOptions(configS.data?.items ?? []);
+        setFollowOptions(configF.data?.items ?? []);
+        setEngagementOptions(configE.data?.items ?? []);
+        setRequestedSportsOptions(configReq.data?.items ?? []);
+
+        setStepHeadings({
+          1: {
+            heading: configS.data?.question || "Which sports do you follow?",
+            subheading: configS.data?.subtitle ?? "Pick as many as you like — we'll tailor your feed, rooms and predictions around these.",
+          },
+          2: {
+            heading: configF.data?.question || "Who do you follow closely?",
+            subheading: configF.data?.subtitle ?? "Based on what you picked — teams, franchises, and athletes across your sports.",
+          },
+          3: {
+            heading: configE.data?.question || "How do you like to enjoy a match?",
+            subheading: configE.data?.subtitle ?? "Pick as many as you like. This shapes how your Rooms and feed are set up — you can always change it later.",
+          },
+        });
+
+        if (configReq.data?.question) {
+          setRequestedSportsMeta({
+            heading: configReq.data.question,
+            subheading: configReq.data.subtitle ?? "Please select and we will work hard to get it to you soonest",
+          });
+        }
+
+        if (user?.data) {
+          if (Array.isArray(user.data.sports) && user.data.sports.length > 0) {
+            setSports(user.data.sports);
+          }
+          if (Array.isArray(user.data.followEntities) && user.data.followEntities.length > 0) {
+            setFollowEntities(user.data.followEntities);
+          }
+          if (Array.isArray(user.data.engagementPrefs) && user.data.engagementPrefs.length > 0) {
+            setEngagementPrefs(user.data.engagementPrefs);
+          }
+          if (user.data.requestedSport) {
+            setRequestedSport(user.data.requestedSport);
+          }
+        }
       } catch (err) {
-        console.error(err);
+        console.error("Error loading onboarding config:", err);
       } finally {
         setLoading(false);
       }
@@ -471,19 +566,21 @@ export default function Onboarding({ onComplete }: Props) {
   const toggleEngagement = (id: string) =>
     setEngagementPrefs((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
-  // group followOptions by category, only for chosen sports
-  const groupedFollow = followOptions
-    .filter((f) => !f.sportId || sports.includes(f.sportId))
-    .reduce((acc: Record<string, ConfigItem[]>, item) => {
-      const key = item.category || "Other";
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(item);
-      return acc;
-    }, {});
+  // Group followOptions by category or title, only for chosen sports
+  const groupedFollow = useMemo(() => {
+    return followOptions
+      .filter((f) => !f.sportId || sports.includes(f.sportId))
+      .reduce((acc: Record<string, ConfigItem[]>, item) => {
+        const key = item.category || item.title || "Other";
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+      }, {});
+  }, [followOptions, sports]);
 
   const handleComplete = async () => {
     setSubmitting(true);
-    const payload = { sports, followEntities, engagementPrefs };
+    const payload = { sports, followEntities, engagementPrefs, requestedSport };
     try {
       await axios.post("/api/roar/onboarding", payload);
     } catch (err) {
@@ -495,8 +592,15 @@ export default function Onboarding({ onComplete }: Props) {
   };
 
   const canContinueStep1 = sports.length > 0;
-  const canContinueStep2 = followEntities.length > 0;
-  const canContinueStep3 = engagementPrefs.length > 0;
+  const canContinueStep2 = useMemo(() => {
+    const hasAvailableOptions = Object.keys(groupedFollow).length > 0;
+    return hasAvailableOptions ? (followEntities.length > 0 || !!requestedSport) : true;
+  }, [groupedFollow, followEntities, requestedSport]);
+
+  const canContinueStep3 = useMemo(() => {
+    const hasAvailableOptions = engagementOptions.length > 0;
+    return hasAvailableOptions ? engagementPrefs.length > 0 : true;
+  }, [engagementOptions, engagementPrefs]);
 
   if (loading) {
     return (
@@ -511,13 +615,25 @@ export default function Onboarding({ onComplete }: Props) {
       {/* Progress bar — 3 segments */}
       <div className="flex gap-1.5 px-6 pt-6">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="flex-1 h-1 rounded-full bg-gray-800 overflow-hidden">
+          <button
+            key={i}
+            type="button"
+            onClick={() => {
+              if (i < step || (i === 2 && canContinueStep1) || (i === 3 && canContinueStep1 && canContinueStep2)) {
+                go(i);
+              }
+            }}
+            aria-label={`Go to step ${i}`}
+            className={`flex-1 h-1.5 rounded-full bg-gray-800 overflow-hidden border-none p-0 transition-all ${
+              i <= step ? "cursor-pointer" : "cursor-default"
+            }`}
+          >
             <div
               className={`h-full rounded-full bg-gradient-to-r from-pink-600 via-pink-500 to-orange-400 transition-all duration-300 ${
                 i <= step ? "w-full" : "w-0"
               }`}
             />
-          </div>
+          </button>
         ))}
       </div>
 
@@ -529,7 +645,7 @@ export default function Onboarding({ onComplete }: Props) {
           <button
             type="button"
             onClick={() => go(step - 1)}
-            className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-400 bg-transparent border-none cursor-pointer p-0"
+            className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-400 bg-transparent border-none cursor-pointer p-0 hover:text-white transition-colors"
           >
             <span aria-hidden="true">←</span> Back
           </button>
@@ -538,7 +654,7 @@ export default function Onboarding({ onComplete }: Props) {
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden relative px-6 pb-8">
         <AnimatePresence mode="wait" custom={dir}>
-          {/* STEP 1 — Which sports do you follow? */}
+          {/* STEP 1 — Sports */}
           {step === 1 && (
             <motion.div
               key="s1"
@@ -551,39 +667,48 @@ export default function Onboarding({ onComplete }: Props) {
               className="flex flex-col min-h-full"
             >
               <h2 className="font-black text-[32px] leading-[1.05] text-white mt-4">
-                Which sports do you follow?
+                {stepHeadings[1].heading}
               </h2>
               <p className="text-[14px] text-gray-400 mt-2">
-                Pick as many as you like — we&apos;ll tailor your feed, rooms and predictions
-                around these.
+                {stepHeadings[1].subheading}
               </p>
 
               <div className="grid grid-cols-2 gap-2 mt-6">
                 {sportsOptions.map((sp) => {
                   const sel = sports.includes(sp.id);
+                  const tagText = sp.tagline || sp.tag || sp.subtitle;
+
                   return (
-                    <button
+                    <motion.button
                       key={sp.id}
                       type="button"
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => toggleSport(sp.id)}
-                      className={`flex items-center gap-2 px-3 py-2.5 rounded-2xl border-2 text-left bg-gray-900/60 transition-colors ${
-                        sel ? "border-orange-400" : "border-gray-800"
+                      className={`flex gap-2.5 items-center px-3 py-2.5 rounded-2xl bg-gray-900/60 cursor-pointer text-left border-2 relative transition-all ${
+                        sel ? "border-orange-400 shadow-sm shadow-orange-500/20" : "border-gray-800 hover:border-gray-700"
                       }`}
                     >
-                      <span className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-base shrink-0">
-                        {sp.image ? (
-                          <img src={sp.image} alt={sp.label} className="w-5 h-5 object-contain" />
-                        ) : (
-                          "🏆"
+                      {(sp.image || sp.icon) && (
+                        <span className="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center shrink-0 overflow-hidden">
+                          {sp.image ? (
+                            <img src={sp.image} alt={sp.label} className="w-5 h-5 object-contain" />
+                          ) : (
+                            <span className="text-sm">{sp.icon}</span>
+                          )}
+                        </span>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-[13px] leading-tight text-white">
+                          {sp.label}
+                        </p>
+                        {tagText && (
+                          <p className="text-[10px] text-gray-400 mt-0.5 truncate">{tagText}</p>
                         )}
-                      </span>
-                      <span className="font-semibold text-white text-[13px] flex-1">
-                        {sp.label}
-                      </span>
+                      </div>
                       {sel && (
                         <span className="text-orange-400 font-bold text-[12px] shrink-0">✓</span>
                       )}
-                    </button>
+                    </motion.button>
                   );
                 })}
               </div>
@@ -603,7 +728,7 @@ export default function Onboarding({ onComplete }: Props) {
             </motion.div>
           )}
 
-          {/* STEP 2 — Who do you follow closely? */}
+          {/* STEP 2 — Follow Entities & Requested Sports */}
           {step === 2 && (
             <motion.div
               key="s2"
@@ -616,13 +741,13 @@ export default function Onboarding({ onComplete }: Props) {
               className="flex flex-col min-h-full"
             >
               <h2 className="font-black text-[32px] leading-[1.05] text-white mt-4">
-                Who do you follow closely?
+                {stepHeadings[2].heading}
               </h2>
               <p className="text-[14px] text-gray-400 mt-2">
-                Based on what you picked — teams, franchises, and athletes across your sports.
+                {stepHeadings[2].subheading}
               </p>
 
-              <div className="mt-6 space-y-4">
+              <div className="mt-6 space-y-5">
                 {Object.entries(groupedFollow).map(([category, entities]) => (
                   <div key={category}>
                     <p className="text-[10px] tracking-[0.1em] uppercase text-gray-500 font-semibold mb-2">
@@ -636,34 +761,149 @@ export default function Onboarding({ onComplete }: Props) {
                             key={ent.id}
                             type="button"
                             onClick={() => toggleFollow(ent.id)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 bg-gray-900/60 transition-colors ${
-                              sel ? "border-orange-400" : "border-gray-800"
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 bg-gray-900/60 transition-all cursor-pointer ${
+                              sel
+                                ? "border-orange-400 shadow-sm shadow-orange-500/20"
+                                : "border-gray-800 hover:border-gray-700"
                             }`}
                           >
-                            {ent.icon && (
+                            {ent.image ? (
+                              <img
+                                src={ent.image}
+                                alt={ent.label}
+                                className="w-4 h-4 rounded-full object-cover shrink-0"
+                              />
+                            ) : ent.icon ? (
                               <span
                                 className={`text-[10px] font-bold ${
-                                  sel ? "text-orange-400" : "text-gray-500"
+                                  sel ? "text-orange-400" : "text-gray-400"
                                 }`}
                               >
                                 {ent.icon}
                               </span>
+                            ) : null}
+                            <span className="text-[12px] font-semibold text-white">{ent.label}</span>
+                            {ent.tag && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 font-medium">
+                                {ent.tag}
+                              </span>
                             )}
-                            <span className="text-[12px] font-semibold text-white">
-                              {ent.label}
-                            </span>
-                            {sel && (
-                              <span className="text-orange-400 font-bold text-[11px]">✓</span>
-                            )}
+                            {sel && <span className="text-orange-400 font-bold text-[11px]">✓</span>}
                           </button>
                         );
                       })}
                     </div>
                   </div>
                 ))}
+
                 {Object.keys(groupedFollow).length === 0 && (
-                  <p className="text-gray-500 text-sm">No options available for your sports.</p>
+                  <div className="py-6 text-center">
+                    <p className="text-gray-400 text-sm">
+                      {followOptions.length === 0
+                        ? "No follow options configured yet."
+                        : sports.length === 0
+                        ? "Pick a sport first to see teams and athletes to follow."
+                        : "No specific teams or athletes found for your selected sports. You can continue to the next step."}
+                    </p>
+                  </div>
                 )}
+
+                {/* SPREADSHEET DROPDOWN: "Don't see your favorite sports?" */}
+                <div className="mt-8 p-4 rounded-2xl bg-gray-900/60 border-2 border-gray-800 space-y-2 relative">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">🎯</span>
+                    <h3 className="font-bold text-[13px] text-white">
+                      {requestedSportsMeta.heading}
+                    </h3>
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    {requestedSportsMeta.subheading}
+                  </p>
+                  <div className="relative pt-1" ref={dropdownRef}>
+                    <button
+                      type="button"
+                      onClick={toggleDropdown}
+                      className={`w-full h-11 px-3.5 flex items-center justify-between rounded-xl bg-gray-950 border text-left text-[13px] cursor-pointer transition-colors ${
+                        isDropdownOpen
+                          ? "border-orange-400 text-white"
+                          : "border-gray-700 text-gray-200 hover:border-gray-600"
+                      }`}
+                    >
+                      <span className={requestedSport ? "text-white font-medium truncate pr-2" : "text-gray-400 truncate pr-2"}>
+                        {requestedSport || "Select a sport to request…"}
+                      </span>
+                      <span className={`text-[10px] text-gray-400 shrink-0 transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}>
+                        ▼
+                      </span>
+                    </button>
+
+                    <AnimatePresence>
+                      {isDropdownOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: openUpward ? 6 : -6, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: openUpward ? 6 : -6, scale: 0.98 }}
+                          transition={{ duration: 0.15 }}
+                          className={`absolute left-0 right-0 max-h-52 overflow-y-auto rounded-xl bg-gray-950 border border-gray-700 shadow-2xl z-50 py-1 divide-y divide-gray-800/60 ${
+                            openUpward ? "bottom-full mb-2" : "top-full mt-2"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRequestedSport("");
+                              setIsDropdownOpen(false);
+                            }}
+                            className="w-full px-3.5 py-2.5 text-left text-[12px] text-gray-400 hover:text-white hover:bg-gray-900 transition-colors flex items-center justify-between cursor-pointer"
+                          >
+                            <span className="italic">Select a sport to request… (Clear)</span>
+                            {!requestedSport && <span className="text-orange-400 font-bold text-xs">✓</span>}
+                          </button>
+                          {requestedSportsOptions.map((opt) => {
+                            const isSelected = requestedSport === opt.label;
+                            return (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => {
+                                  setRequestedSport(opt.label);
+                                  setIsDropdownOpen(false);
+                                }}
+                                className={`w-full px-3.5 py-2.5 text-left text-[13px] transition-colors flex items-center justify-between cursor-pointer ${
+                                  isSelected
+                                    ? "bg-orange-500/15 text-orange-400 font-semibold"
+                                    : "text-gray-200 hover:bg-gray-900 hover:text-white"
+                                }`}
+                              >
+                                <span>{opt.label}</span>
+                                {isSelected && <span className="text-orange-400 font-bold text-xs">✓</span>}
+                              </button>
+                            );
+                          })}
+                          {requestedSportsOptions.length === 0 && (
+                            <div className="px-3.5 py-3 text-center text-xs text-gray-500">
+                              No sports available to request.
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                  {requestedSport && (
+                    <div className="flex items-center justify-between pt-0.5 text-[11px] text-orange-400">
+                      <span className="flex items-center gap-1 truncate pr-2">
+                        <span>✓</span> Selected to request: <span className="font-bold">{requestedSport}</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setRequestedSport("")}
+                        className="text-gray-400 hover:text-red-400 text-[10px] underline cursor-pointer bg-transparent border-none p-0 shrink-0"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex-1 mt-6" />
@@ -681,7 +921,7 @@ export default function Onboarding({ onComplete }: Props) {
             </motion.div>
           )}
 
-          {/* STEP 3 — How do you like to enjoy a match? */}
+          {/* STEP 3 — Engagement */}
           {step === 3 && (
             <motion.div
               key="s3"
@@ -694,34 +934,38 @@ export default function Onboarding({ onComplete }: Props) {
               className="flex flex-col min-h-full"
             >
               <h2 className="font-black text-[32px] leading-[1.05] text-white mt-4">
-                How do you like to enjoy a match?
+                {stepHeadings[3].heading}
               </h2>
               <p className="text-[14px] text-gray-400 mt-2">
-                Pick as many as you like. This shapes how your Rooms and feed are set up — you
-                can always change it later.
+                {stepHeadings[3].subheading}
               </p>
 
               <div className="flex flex-col gap-2 mt-6">
                 {engagementOptions.map((opt) => {
                   const sel = engagementPrefs.includes(opt.id);
+                  const subText = opt.subtitle || opt.description;
                   return (
                     <button
                       key={opt.id}
                       type="button"
                       onClick={() => toggleEngagement(opt.id)}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl border-2 text-left bg-gray-900/60 transition-colors ${
-                        sel ? "border-orange-400" : "border-gray-800"
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-2xl border-2 text-left bg-gray-900/60 transition-colors cursor-pointer ${
+                        sel ? "border-orange-400 shadow-sm shadow-orange-500/20" : "border-gray-800 hover:border-gray-700"
                       }`}
                     >
-                      <span className="w-9 h-9 rounded-xl bg-gray-800 flex items-center justify-center text-base shrink-0">
-                        {opt.icon || "⭐"}
+                      <span className="w-9 h-9 rounded-xl bg-gray-800 flex items-center justify-center text-base shrink-0 overflow-hidden">
+                        {opt.image ? (
+                          <img src={opt.image} alt={opt.label} className="w-5 h-5 object-contain" />
+                        ) : (
+                          opt.icon || "⭐"
+                        )}
                       </span>
-                      <span className="flex-1">
+                      <span className="flex-1 min-w-0">
                         <p className="font-bold text-white text-[13px] leading-tight">
                           {opt.label}
                         </p>
-                        {opt.subtitle && (
-                          <p className="text-[11px] text-gray-400 mt-0.5">{opt.subtitle}</p>
+                        {subText && (
+                          <p className="text-[11px] text-gray-400 mt-0.5 line-clamp-2">{subText}</p>
                         )}
                       </span>
                       {sel && (
@@ -730,6 +974,12 @@ export default function Onboarding({ onComplete }: Props) {
                     </button>
                   );
                 })}
+
+                {engagementOptions.length === 0 && (
+                  <div className="py-6 text-center">
+                    <p className="text-gray-400 text-sm">No engagement options configured yet.</p>
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 mt-6" />

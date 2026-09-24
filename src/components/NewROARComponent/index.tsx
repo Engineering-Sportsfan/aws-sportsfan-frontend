@@ -565,6 +565,17 @@ const openRecapForRoom = useCallback(async (room: Room) => {
           channelId,
         };
 
+        try {
+          if (phog) {
+            phog.capture("meaningful_interaction", {
+              interaction_type: "comment",
+              room_id: targetRoomId,
+              room_name: "ROAR Pulse",
+              text: payload.text,
+              post_type: postType,
+            });
+          }
+        } catch (trackErr) {}
         roomInjectPostRef.current?.(optimisticMsg);
 
         try {

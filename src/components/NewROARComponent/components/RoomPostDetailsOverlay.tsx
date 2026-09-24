@@ -715,6 +715,7 @@
 // import { useState, useEffect, useCallback, useRef } from "react";
 // import { AnimatePresence } from "framer-motion";
 // import { usePostHog } from "posthog-js/react";
+import { trackMeaningfulInteraction } from "@/lib/analytics";
 // import axios from "axios";
 // import AvatarWithBadge from "./AvatarWithBadge";
 // import { SplitBar } from "./shared";
