@@ -30,22 +30,113 @@ export function trackSignup(
   if (!ph) return;
 
   try {
-    const fullName = [properties?.firstName, properties?.lastName].filter(Boolean).join(' ');
-    ph.identify(userId, {
-      email: properties?.email,
-      name: fullName || undefined,
+    const email = properties?.email || (userId.includes('@') ? userId : undefined);
+    const resolvedId = userId.includes('@') ? userId.replace(/[@.]/g, '_') : userId;
+    const fullName = [properties?.firstName, properties?.lastName].filter(Boolean).join(' ').trim();
+    const displayName = fullName || email?.split('@')[0] || userId;
+
+    ph.identify(resolvedId, {
+      email,
+      $email: email,
+      name: displayName,
+      $name: displayName,
       signup_method: properties?.method || 'email_otp',
       signup_date: new Date().toISOString(),
     });
 
+    if (userId !== resolvedId) {
+      try { ph.alias(userId, resolvedId); } catch (e) {}
+    }
+
     ph.capture('signup_completed', {
-      user_id: userId,
-      email: properties?.email,
+      user_id: resolvedId,
+      email,
       signup_method: properties?.method || 'email_otp',
       timestamp: new Date().toISOString(),
+      $set: {
+        email,
+        $email: email,
+        name: displayName,
+        $name: displayName,
+      }
     });
   } catch (err) {
     console.warn('[Analytics] Failed to track signup:', err);
+  }
+}
+
+/**
+ * Auth: Login Success
+ */
+export function trackLoginSuccess(
+  userId: string,
+  properties?: {
+    email?: string;
+    name?: string;
+    role?: string;
+    method?: 'email_password' | 'google' | 'phone_otp' | string;
+  }
+): void {
+  const ph = getSafePostHog();
+  if (!ph) return;
+
+  try {
+    const email = properties?.email || (userId.includes('@') ? userId : undefined);
+    const displayName = properties?.name || email?.split('@')[0] || userId;
+
+    ph.identify(userId, {
+      email,
+      $email: email,
+      name: displayName,
+      $name: displayName,
+      role: properties?.role || 'user',
+      last_login: new Date().toISOString(),
+    });
+
+    ph.capture('login_successful', {
+      user_id: userId,
+      email,
+      role: properties?.role || 'user',
+      login_method: properties?.method || 'email_password',
+      timestamp: new Date().toISOString(),
+      $set: {
+        email,
+        $email: email,
+        name: displayName,
+        $name: displayName,
+        role: properties?.role || 'user',
+        last_login: new Date().toISOString(),
+      }
+    });
+  } catch (err) {
+    console.warn('[Analytics] Failed to track login success:', err);
+  }
+}
+
+/**
+ * Auth: Login Failed
+ */
+export function trackLoginFailed(
+  email: string,
+  properties?: {
+    reason?: string;
+    status_code?: number;
+    method?: 'email_password' | 'google' | string;
+  }
+): void {
+  const ph = getSafePostHog();
+  if (!ph) return;
+
+  try {
+    ph.capture('login_failed', {
+      email,
+      reason: properties?.reason || 'invalid_credentials',
+      status_code: properties?.status_code || 401,
+      login_method: properties?.method || 'email_password',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.warn('[Analytics] Failed to track login failure:', err);
   }
 }
 
