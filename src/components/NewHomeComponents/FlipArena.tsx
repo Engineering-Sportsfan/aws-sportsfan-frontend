@@ -2929,8 +2929,14 @@ function formatCountdown(ms: number): string {
   return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
 }
 
-function getEngagementStartTime(item: EngagementItem): number {
-  return Number(
+function getEngagementPostingTime(item: EngagementItem): number {
+  const raw =
+    (item as any).postingTime ||
+    (item as any).postedAt ||
+    (item.quizData as any)?.postingTime ||
+    (item.pollData as any)?.postingTime ||
+    (item.predictionData as any)?.postingTime ||
+    (item.fanBattleData as any)?.postingTime ||
     item.quizData?.startTime ||
     item.quizData?.scheduledStartTime ||
     item.pollData?.startTime ||
@@ -2941,9 +2947,47 @@ function getEngagementStartTime(item: EngagementItem): number {
     item.fanBattleData?.scheduledStartTime ||
     item.startTime ||
     item.scheduledStartTime ||
+    (item.memeData as any)?.createdAt ||
     item.createdAt ||
-    0
-  );
+    0;
+
+  if (typeof raw === "number") return raw;
+  const parsed = new Date(raw).getTime();
+  return isNaN(parsed) || parsed <= 0 ? (Number(item.createdAt) || 0) : parsed;
+}
+
+function getEngagementStartTime(item: EngagementItem): number {
+  return getEngagementPostingTime(item);
+}
+
+function formatEngagementPostingTime(item: EngagementItem): string {
+  const ts = getEngagementPostingTime(item) || Number(item.createdAt) || Date.now();
+  const date = new Date(ts);
+  if (isNaN(date.getTime())) return "";
+
+  const timeStr = date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const now = new Date();
+  const isToday =
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear();
+
+  if (isToday) return timeStr;
+
+  const yesterday = new Date();
+  yesterday.setDate(now.getDate() - 1);
+  const isYesterday =
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear();
+
+  if (isYesterday) return `Yesterday, ${timeStr}`;
+
+  return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${timeStr}`;
 }
 
 // ─── Single-Vote Local Persistence Helpers ──────────────────────────────────
@@ -3171,10 +3215,7 @@ function DynamicFanBattleCard({
     }
   };
 
-  const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const formattedTime = formatEngagementPostingTime(item);
 
   return (
     <motion.div
@@ -3397,7 +3438,31 @@ function DynamicQuizCard({
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  // Track whether the current user has already engaged with any question in this quiz
+  const hasAlreadyEngaged = useMemo(() => {
+    if (item.userVoted) return true;
+    if (getStoredVote("quiz_engaged", item.id, userId)) return true;
+    if (getStoredVote("quiz_finish", item.id, userId)) return true;
+    return rawQuestions.some((q, idx) =>
+      Boolean(getStoredVote(`quiz_q_${q?.id || idx}`, item.id, userId))
+    );
+  }, [item.id, item.userVoted, userId, rawQuestions]);
+
+  const hasEngagedRef = useRef<boolean>(hasAlreadyEngaged);
+
+  useEffect(() => {
+    if (hasAlreadyEngaged) {
+      hasEngagedRef.current = true;
+    }
+  }, [hasAlreadyEngaged]);
+
   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+
+  useEffect(() => {
+    if (item.totalEngaged !== undefined) {
+      setTotalEngaged((prev) => Math.max(prev, Number(item.totalEngaged) || 0));
+    }
+  }, [item.totalEngaged]);
 
   const startTime = getEngagementStartTime(item);
   const isScheduled = startTime > now;
@@ -3454,18 +3519,19 @@ function DynamicQuizCard({
     isAnsweringRef.current = true;
     setSelectedId(optId);
     setAnswered(true);
-    setTotalEngaged((prev) => prev + 1);
+
+    // CRITICAL FIX: Only increment totalEngaged ONCE per quiz set, not on each question!
+    const isFirstQuizEngagement = !hasEngagedRef.current;
+    if (isFirstQuizEngagement) {
+      hasEngagedRef.current = true;
+      setStoredVote("quiz_engaged", item.id, true, userId);
+      setTotalEngaged((prev) => prev + 1);
+    }
 
     const isRight = checkIsOptionCorrect(optId, currentQ);
     setIsCorrect(isRight);
 
-    // CRITICAL FIX: Award +2 participation ONCE per quiz event (on first question answered).
-    // Subsequent questions in the same quiz only award the +10 PTS bonus if answered correctly!
-    // const isFirstQuestion = currentQIndex === 0;
-    // const participationToAward = isFirstQuestion ? PARTICIPATION_POINTS : 0;
-    // const bonusToAward = isRight ? CORRECT_OPTION_BONUS : 0;
-    // const earnedPoints = participationToAward + bonusToAward;
-        // +2 for every question answered, +10 more if correct
+    // +2 for every question answered, +10 more if correct
     const earnedPoints = PARTICIPATION_POINTS + (isRight ? CORRECT_OPTION_BONUS : 0);
 
     const nextTotal = totalScore + earnedPoints;
@@ -3481,23 +3547,17 @@ function DynamicQuizCard({
     if (totalQuestions === 1 || currentQIndex === totalQuestions - 1) {
       setQuizFinished(true);
       setStoredVote("quiz_finish", item.id, { finished: true, score: nextTotal }, userId);
+      setStoredVote("quiz_engaged", item.id, true, userId);
     }
 
-    // try {
-    //   await engagementService.voteEngagement(item.id, optId, userId, currentQ?.id);
-    //   if (typeof window !== "undefined" && earnedPoints > 0) {
-    //     window.dispatchEvent(
-    //       new CustomEvent("sf360:points-updated", { detail: { points: earnedPoints } })
-    //     );
-    //   }
-    //   if (isRight) {
-    //     onToast(`🎉 Correct! +${CORRECT_OPTION_BONUS} PTS Bonus${isFirstQuestion ? ` (+${earnedPoints} PTS Total)` : ""}`);
-    //   } else if (isFirstQuestion) {
-    //     onToast(`💡 +${PARTICIPATION_POINTS} PTS for participating!`);
-    //   }
-    // } catch (err: any) {
-        try {
-      const res: any = await engagementService.voteEngagement(item.id, optId, userId, currentQ?.id);
+    try {
+      const res: any = await engagementService.voteEngagement(
+        item.id,
+        optId,
+        userId,
+        currentQ?.id,
+        { isFirstQuizEngagement, questionIndex: currentQIndex, totalQuestions }
+      );
       const earned = Number(res?.pointsAwarded ?? earnedPoints);
       if (typeof window !== "undefined" && earned > 0) {
         window.dispatchEvent(
@@ -3574,10 +3634,7 @@ function DynamicQuizCard({
     }
   };
 
-  const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const formattedTime = formatEngagementPostingTime(item);
 
   return (
     <motion.div
@@ -3602,14 +3659,14 @@ function DynamicQuizCard({
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-purple-400">🧠 QUIZ</span>
-          <span>•</span>
-          <span className="text-amber-400">⭐ +2 PTS / PLAY • +10 PTS CORRECT</span>
-          {frequencyMinutes && (
+          {/* <span>•</span> */}
+          {/* <span className="text-amber-400">⭐ +2 PTS / PLAY • +10 PTS CORRECT</span> */}
+          {/* {frequencyMinutes && (
             <>
               <span>•</span>
               <span className="text-cyan-400 font-mono">⏱️ {frequencyMinutes}M INTERVAL</span>
             </>
-          )}
+          )} */}
           {isScheduled && (
             <>
               <span>•</span>
@@ -3625,7 +3682,7 @@ function DynamicQuizCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        <h3 className="text-sm font-black text-white truncate">{item.title}</h3>
+        {/* <h3 className="text-sm font-black text-white truncate">{item.title}</h3> */}
         {totalQuestions > 1 && (
           <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full shrink-0">
             Q {currentQIndex + 1}/{totalQuestions}
@@ -4029,10 +4086,7 @@ function DynamicPollCard({
     }
   };
 
-  const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const formattedTime = formatEngagementPostingTime(item);
 
   return (
     <motion.div
@@ -4536,10 +4590,7 @@ function DynamicPredictionCard({
     }
   };
 
-  const formattedTime = new Date(item.createdAt || Date.now()).toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const formattedTime = formatEngagementPostingTime(item);
 
   return (
     <motion.div
@@ -5003,7 +5054,7 @@ function DynamicMemeCard({
               <span className="text-white/40 text-[10px] font-semibold font-mono truncate">{authorHandle}</span>
             </h4>
             <div className="flex items-center gap-1.5 text-[9px] font-bold text-white/40">
-              <span>{getTimeAgo(item.createdAt || (meme as any).createdAt)}</span>
+              <span>{getTimeAgo(getEngagementPostingTime(item))}</span>
               <span>•</span>
               <span className="text-orange-400 font-extrabold uppercase">🔥 MEME ARENA</span>
             </div>
@@ -5479,13 +5530,7 @@ export default function FlipArena({
           if (b.id === highlightedItemId) return 1;
         }
 
-        const getTime = (val: any) => {
-          if (typeof val === "number") return val;
-          const time = new Date(val || 0).getTime();
-          return isNaN(time) ? 0 : time;
-        };
-
-        return getTime(b.createdAt) - getTime(a.createdAt);
+        return getEngagementPostingTime(b) - getEngagementPostingTime(a);
       });
   }, [engagements, filter, highlightedItemId]);
 

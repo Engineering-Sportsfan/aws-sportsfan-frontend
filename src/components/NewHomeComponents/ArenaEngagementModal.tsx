@@ -1272,9 +1272,16 @@ export default function ArenaEngagementModal({
         setFbRightName(editingItem.fanBattleData.rightCompetitor.name || "");
         setFbRightStat(editingItem.fanBattleData.rightCompetitor.stat || "");
       } else if (editingItem.type === "quiz" && editingItem.quizData) {
-        if (editingItem.quizData.startTime || editingItem.quizData.scheduledStartTime) {
+        const rawStartTime =
+          editingItem.quizData.startTime ||
+          editingItem.quizData.scheduledStartTime ||
+          (editingItem.quizData as any).postingTime ||
+          editingItem.postingTime ||
+          editingItem.startTime ||
+          editingItem.scheduledStartTime;
+        if (rawStartTime) {
           try {
-            const d = new Date(Number(editingItem.quizData.startTime || editingItem.quizData.scheduledStartTime));
+            const d = new Date(Number(rawStartTime));
             const pad = (n: number) => String(n).padStart(2, "0");
             setQuizStartTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
           } catch {
@@ -1440,6 +1447,9 @@ export default function ArenaEngagementModal({
         creatorId: activeUserId,
         creatorEmail: userEmail,
         creatorName: userName,
+        postingTime: now,
+        startTime: now,
+        scheduledStartTime: now,
       };
 
       if (activeType === "fan_battle") {
@@ -1473,6 +1483,10 @@ export default function ArenaEngagementModal({
         }
 
         const startMs = quizStartTime ? new Date(quizStartTime).getTime() : now;
+        payload.startTime = startMs;
+        payload.scheduledStartTime = startMs;
+        payload.postingTime = startMs;
+
         const formattedQuestions = validQuestions.map((q, idx) => ({
           id: q.id || `q_${idx + 1}`,
           question: q.question.trim(),
@@ -1496,6 +1510,7 @@ export default function ArenaEngagementModal({
         payload.quizData = {
           startTime: startMs,
           scheduledStartTime: startMs,
+          postingTime: startMs,
           frequencyMinutes: Number(quizFrequencyMinutes) || 10,
           questions: formattedQuestions,
           question: formattedQuestions[0]?.question || finalTitle,
