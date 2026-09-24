@@ -421,7 +421,7 @@ function HomePageInner() {
     } catch {}
   }, []);
 
-  /*
+  
   // Onboarding temporarily disabled for Dew collaboration
   useEffect(() => {
     if (!authReady) return;
@@ -475,7 +475,7 @@ function HomePageInner() {
 
     checkOnboarding();
   }, [authReady, isAuthenticated, user]);
-  */
+  
 
   useEffect(() => {
     if (showOnboarding) {

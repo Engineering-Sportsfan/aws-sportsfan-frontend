@@ -1312,7 +1312,7 @@
 
 "use client";
 import { trackProfileSignalCreated } from "@/lib/analytics";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import Image from "next/image";
@@ -1337,6 +1337,7 @@ import {
 } from "@/src/constants/bots";
 import { EXPERT_TAGS, getExpertCanonicalName, EXPERT_BIOS, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 import { RoarJourneySection } from "../components/RoarJourneySection";
+import { useLeaderboard } from "@/context/LeaderboardContext";
 
 const EXPERT_STYLE_PRESETS = [
   {
@@ -1425,6 +1426,13 @@ interface RoarShareUser {
   userId?: string | number;
   reputationScore?: number;
   accuracy?: number;
+}
+
+function calculateLevelData(totalXp: number) {
+  let level = 1, need = 1000, acc = 0;
+  while (totalXp >= acc + need) { acc += need; level++; need = level * 1000; }
+  const cur = totalXp - acc;
+  return { level, xpRemaining: need - cur, pct: Math.min(100, Math.round((cur / need) * 100)) };
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -1517,28 +1525,28 @@ function IdentityCard({
           <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.65)", lineHeight: 1.5, margin: 0 }}>
             {subtitle}
           </p>
-         {tags.length > 0 && (
-  <div style={{
-    display: "flex",
-    flexWrap: "nowrap",
-    gap: 4,
-    marginTop: 2,
-    overflowX: "auto",
-    maxWidth: "100%",
-  }}>
-    {tags.map((t) => (
-      <span key={t} style={{
-        fontSize: 10.5, fontWeight: 700, color: "#f472b6",
-        background: "rgba(233,30,140,0.15)", border: "1px solid rgba(233,30,140,0.3)",
-        padding: "4px 8px", borderRadius: 20,
-        whiteSpace: "nowrap",
-        flexShrink: 0,
-      }}>
-        {t}
-      </span>
-    ))}
-  </div>
-)}
+          {tags.length > 0 && (
+            <div style={{
+              display: "flex",
+              flexWrap: "nowrap",
+              gap: 4,
+              marginTop: 2,
+              overflowX: "auto",
+              maxWidth: "100%",
+            }}>
+              {tags.map((t) => (
+                <span key={t} style={{
+                  fontSize: 10.5, fontWeight: 700, color: "#f472b6",
+                  background: "rgba(233,30,140,0.15)", border: "1px solid rgba(233,30,140,0.3)",
+                  padding: "4px 8px", borderRadius: 20,
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
+                }}>
+                  {t}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1789,7 +1797,7 @@ export default function Profile({
   // Room name lookup: roomId -> { name, icon } (from /api/roar/rooms), used to label
   // activity cards with the actual room name instead of falling back to "General Room".
 
-  
+
   const [roomsById, setRoomsById] = useState<Record<string, { name: string; icon?: string }>>({});
   const EXTENDED_BOT_PROFILE_NAMES = ["Arjun Mehta", "Neha Iyer", "Riya Kapoor", "Kabir Sharma"];
 
@@ -1814,7 +1822,7 @@ export default function Profile({
     fetchRooms();
   }, []);
 
-  
+
 
   const getRoomName = (roomId?: string, fallback?: string) =>
     (roomId && roomsById[roomId]?.name) || fallback || "General Room";
@@ -2485,6 +2493,81 @@ export default function Profile({
     return () => { cancelled = true; };
   }, [profileMetadata?.user?.username]);
 
+  const { leaderboard: globalLeaderboard, currentUserPoints, currentUserRank } = useLeaderboard();
+
+  const [pointsTab, setPointsTab] = useState<"fliparena" | "global">("fliparena");
+  const [arenaStats, setArenaStats] = useState<{ points: number; rank: number; accuracy: string; correct: number; total: number } | null>(null);
+  const [arenaLoading, setArenaLoading] = useState(false);
+
+  const targetKeys = useMemo(() => {
+    const s = new Set<string>();
+    const add = (v: any) => {
+      const k = String(v ?? "").trim().toLowerCase();
+      if (k) { s.add(k); s.add(k.replace(/[@.]/g, "_")); }
+    };
+    const pu = profileMetadata?.user;
+    if (!isOtherProfile) { add(authUser?.userId); add(authUser?.actualUserId); add(authUser?.email); add(loggedInUserId); }
+    add(pu?.actualUserId); add(pu?.userId); add(pu?.email); add(viewingProfile); add(fanData?.userId);
+    return s;
+  }, [isOtherProfile, authUser, loggedInUserId, profileMetadata?.user, viewingProfile, fanData?.userId]);
+
+  const isTarget = useCallback((e: any) =>
+    [e?.userId, e?.actualUserId, e?.id, e?.userEmail, e?.email].some((v) => {
+      const k = String(v ?? "").trim().toLowerCase();
+      return !!k && (targetKeys.has(k) || targetKeys.has(k.replace(/[@.]/g, "_")));
+    }), [targetKeys]);
+
+  const fetchArena = useCallback(async () => {
+    if (targetKeys.size === 0) return;
+    setArenaLoading(true);
+    try {
+      const res = await axios.get("/api/engagements/quiz/leaderboard");
+      const d = res?.data;
+      const raw: any[] = [d, d?.leaderboard, d?.data?.entries, d?.data?.leaderboard, d?.data, d?.entries].find(Array.isArray) || [];
+      const rows = raw
+        .map((e: any) => {
+          const correct = Number(e.correctCount ?? e.correctAnswers ?? 0);
+          const total = Number(e.totalAnswered ?? e.totalQuestions ?? 0);
+          const acc = e.accuracy ?? (total > 0 ? Math.round((correct / total) * 100) : 0);
+          return {
+            raw: e, points: Number(e.totalPoints ?? e.points ?? e.score ?? 0), correct, total,
+            accuracy: String(acc).endsWith("%") ? String(acc) : `${acc}%`
+          };
+        })
+        .sort((a, b) => b.points - a.points);
+      const idx = rows.findIndex((r) => isTarget(r.raw));
+      setArenaStats(idx >= 0
+        ? { points: rows[idx].points, rank: idx + 1, accuracy: rows[idx].accuracy, correct: rows[idx].correct, total: rows[idx].total }
+        : null);
+    } catch {
+      setArenaStats(null);
+    } finally {
+      setArenaLoading(false);
+    }
+  }, [targetKeys, isTarget]);
+
+  useEffect(() => {
+    fetchArena();
+    window.addEventListener("sf360:points-updated", fetchArena);
+    window.addEventListener("arena-engagement-created", fetchArena);
+    return () => {
+      window.removeEventListener("sf360:points-updated", fetchArena);
+      window.removeEventListener("arena-engagement-created", fetchArena);
+    };
+  }, [fetchArena]);
+
+  const globalStats = useMemo(() => {
+    const list = Array.isArray(globalLeaderboard) ? globalLeaderboard : [];
+    const idx = list.findIndex(isTarget);
+    const entry: any = idx >= 0 ? list[idx] : null;
+    if (!isOtherProfile) {
+      return { points: currentUserPoints ?? entry?.totalPoints ?? 0, rank: currentUserRank || entry?.rank || (idx >= 0 ? idx + 1 : 0) };
+    }
+    return { points: entry?.totalPoints ?? profileMetadata?.user?.totalPoints ?? 0, rank: entry?.rank ?? (idx >= 0 ? idx + 1 : 0) };
+  }, [globalLeaderboard, isTarget, isOtherProfile, currentUserPoints, currentUserRank, profileMetadata?.user?.totalPoints]);
+
+  const levelInfo = useMemo(() => calculateLevelData(globalStats.points), [globalStats.points]);
+
   if (loading || !profileMetadata) {
     return (
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", color: "var(--text-muted)" }}>
@@ -2497,19 +2580,19 @@ export default function Profile({
   const isBotProfile = isBotName(user?.username) || !!botCanonicalName || user?.isBot === true;
   const expertCanonicalName = getExpertCanonicalName(user?.username);
   const isExpertProfile = !!expertCanonicalName;
- const rawAvatar =
-  (isBotProfile && botCanonicalName ? BOT_AVATARS[botCanonicalName] : null) ||
-  (isBotProfile && user?.username && BOT_AVATARS[user.username] ? BOT_AVATARS[user.username] : null) ||
-  (isExpertProfile && expertCanonicalName ? EXPERT_AVATARS[expertCanonicalName] : null) ||
-  user?.avatarUrl ||
-  user?.avatar ||
-  user?.photoURL ||
-  user?.image ||
-  user?.profilePicture ||
-  selectedAvatar ||
-  authUser?.avatar ||
-  authUser?.photoURL ||
-  (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null);
+  const rawAvatar =
+    (isBotProfile && botCanonicalName ? BOT_AVATARS[botCanonicalName] : null) ||
+    (isBotProfile && user?.username && BOT_AVATARS[user.username] ? BOT_AVATARS[user.username] : null) ||
+    (isExpertProfile && expertCanonicalName ? EXPERT_AVATARS[expertCanonicalName] : null) ||
+    user?.avatarUrl ||
+    user?.avatar ||
+    user?.photoURL ||
+    user?.image ||
+    user?.profilePicture ||
+    selectedAvatar ||
+    authUser?.avatar ||
+    authUser?.photoURL ||
+    (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null);
 
   const displayAvatar = sanitizeAvatarUrl(rawAvatar);
 
@@ -2645,7 +2728,7 @@ export default function Profile({
     window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: src } }));
     try {
       trackProfileSignalCreated("avatar", { avatar_url: src });
-    } catch (e) {}
+    } catch (e) { }
     onToast("Avatar updated!");
     try { await axios.patch("/api/roar/profile", { avatarUrl: src }); } catch { }
   };
@@ -3053,6 +3136,7 @@ export default function Profile({
       ) : !isExpertProfile ? (
         <>
           {/* ── Stats row ── */}
+          {false && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, padding: "22px 14px 0" }}>
             {[
               { value: statPosts, label: "Posts", accent: true },
@@ -3136,6 +3220,7 @@ export default function Profile({
               </div>
             ))}
           </div>
+          )}
         </>
       ) : null}
 
@@ -3364,7 +3449,7 @@ export default function Profile({
       {!isBotProfile && !isExpertProfile && (
         <>
           {/* ── ROAR Points bar ── */}
-          <div style={{ padding: "18px 14px 0" }}>
+          {/* <div style={{ padding: "18px 14px 0" }}>
             <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Roar Points</span>
@@ -3373,6 +3458,69 @@ export default function Profile({
               <div style={{ height: 10, background: "rgba(255,255,255,0.08)", borderRadius: 5, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${repPct}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 5, transition: "width 1s ease" }} />
               </div>
+            </div>
+          </div> */}
+          {/* ── Points: FlipARENA / Total ── */}
+          <div style={{ padding: "18px 14px 0" }}>
+            <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+                {([["fliparena", "FlipARENA"], ["global", "Global"]] as const).map(([id, label]) => (
+                  <button key={id} onClick={() => setPointsTab(id)}
+                    style={{
+                      flex: 1, padding: "7px 0", borderRadius: 20, border: "none", cursor: "pointer",
+                      fontSize: 12, fontWeight: 700, transition: "all 0.18s",
+                      background: pointsTab === id ? "#fff" : "rgba(255,255,255,0.08)",
+                      color: pointsTab === id ? "#0a0a10" : "rgba(255,255,255,0.6)",
+                    }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {pointsTab === "fliparena" ? (
+                arenaLoading && !arenaStats ? (
+                  <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>Loading…</p>
+                ) : (
+                  <>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                      {[
+                        { label: "Arena PTS", value: (arenaStats?.points ?? 0).toLocaleString() },
+                        { label: "Rank", value: arenaStats ? `#${arenaStats.rank}` : "—" },
+                        { label: "Accuracy", value: arenaStats?.accuracy ?? "0%" },
+                      ].map(({ label, value }) => (
+                        <div key={label} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 12, background: "rgba(255,255,255,0.04)" }}>
+                          <div className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{value}</div>
+                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "10px 0 0", textAlign: "center" }}>
+                      {arenaStats ? `${arenaStats.correct}/${arenaStats.total} correct` : "No FlipARENA activity yet."}
+                    </p>
+                  </>
+                )
+              ) : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}>
+                    {[
+                      { label: "Total SXP", value: globalStats.points.toLocaleString() },
+                      { label: "Global Rank", value: globalStats.rank > 0 ? `#${globalStats.rank}` : "—" },
+                      { label: "Level", value: `LVL ${levelInfo.level}` },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 12, background: "rgba(255,255,255,0.04)" }}>
+                        <div className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{value}</div>
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${levelInfo.pct}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 4, transition: "width 1s ease" }} />
+                  </div>
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "8px 0 0", textAlign: "right" }}>
+                    +{levelInfo.xpRemaining.toLocaleString()} SXP to next level
+                  </p>
+                </>
+              )}
             </div>
           </div>
 
@@ -4063,7 +4211,7 @@ export default function Profile({
                 onClick={async () => {
                   setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, university: editUniversity, institution: editUniversity, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
                   setEditOpen(false);
-                  try { trackProfileSignalCreated("profile_details"); } catch (e) {}
+                  try { trackProfileSignalCreated("profile_details"); } catch (e) { }
                   onToast("Profile updated successfully");
                   try { localStorage.setItem("roar_username", editName); } catch { }
                   try {
