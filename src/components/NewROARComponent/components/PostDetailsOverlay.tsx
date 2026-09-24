@@ -952,6 +952,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { AnimatePresence } from "framer-motion";
 import { usePostHog } from "posthog-js/react";
+import { trackMeaningfulInteraction } from "@/lib/analytics";
 import axios from "axios";
 import AvatarWithBadge from "./AvatarWithBadge";
 import { SplitBar } from "./shared";
@@ -1125,6 +1126,13 @@ export default function PostDetailsOverlay({
             room_name: roomName || ""
           });
         }
+        try {
+          trackMeaningfulInteraction("comment", {
+            post_id: post.id,
+            room_id: post.roomId,
+            room_name: roomName || ""
+          });
+        } catch (e) {}
         setTimeout(() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }), 400);
       }
     } catch { onToast("Error posting comment"); }
