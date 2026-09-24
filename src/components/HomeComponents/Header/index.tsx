@@ -1127,7 +1127,7 @@ const PointsPill = memo(function PointsPill({
   }
 
   return (
-    <Link href="/MainModules/GlobalLeaderboard" title="View Points & Leaderboard">
+    <Link href="/MainModules/Profile" title="View Points & Leaderboard">
       <div className="flex items-center gap-1.5 bg-[#111] border border-white/10 hover:border-pink-500/40 rounded-full px-2.5 py-1.5 transition-colors cursor-pointer group">
         <Star
           size={14}
