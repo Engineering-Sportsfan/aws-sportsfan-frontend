@@ -2168,17 +2168,6 @@ function DynamicMemeCard({
         </div>
       </div>
 
-      {/* Heat Stats & Social Row */}
-      <div className="flex items-center justify-between text-[11px] font-bold text-white/60 mb-3 px-1">
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 text-orange-400 font-black">
-            <BarChart2 size={13} className="text-orange-400" />
-            <span>{heatPct}% Heat</span>
-          </span>
-          <span className="text-white/20">•</span>
-          <span className="text-white/50">{totalMemeVotes.toLocaleString()} votes</span>
-        </div>
-      </div>
 
       {/* Action Buttons Row — Skip button hidden after voting */}
       <div className={voted ? "w-full" : "grid grid-cols-3 gap-2"}>
