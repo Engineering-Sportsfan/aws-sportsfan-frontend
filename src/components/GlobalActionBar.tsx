@@ -110,7 +110,7 @@ export default function GlobalActionBar() {
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04]">
                 <Newspaper size={16} className="text-white" />
               </span>
-              Flipline
+              FlipLine
             </button>
 
             <button

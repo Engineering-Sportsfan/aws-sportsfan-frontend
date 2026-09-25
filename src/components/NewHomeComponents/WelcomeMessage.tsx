@@ -602,30 +602,34 @@ export default function WelcomeMessage({
               👋
             </span>
           </div>
-          <p className="text-[13px] sm:text-[14px] font-medium text-[#67E8F9] tracking-normal mt-0.5 opacity-90">
-            {resolvedSubtitle}
-          </p>
+
         </div>
 
         {/* See all Link */}
-        <button
-          type="button"
-          onClick={() => {
-            if (onSeeAllClick) onSeeAllClick();
-            else setIsAgendaOpen(true);
-          }}
-          className="flex items-center gap-1 text-[13px] sm:text-[14px] font-bold text-[#E91E8C] hover:text-[#FF4081] transition-colors pt-0.5 group cursor-pointer"
-        >
-          <span>See all</span>
-          <span className="text-[14px] font-black group-hover:translate-x-0.5 transition-transform">&gt;</span>
-        </button>
+
       </div>
 
       {/* ─── 2. Section Subtitle ────────────────────────────────────────── */}
       <div className="mt-1">
-        <span className="text-[11px] sm:text-[12px] font-extrabold uppercase tracking-[0.14em] text-[#38BDF8] opacity-85">
-          TODAY ON YOUR RADAR
-        </span>
+        <h3 className="text-[14px] sm:text-[15px] font-black uppercase tracking-wider text-white leading-tight flex items-center gap-1.5">
+          {resolvedSubtitle}
+        </h3>
+        <div className="flex flex-row justify-between items-center min-w-0 w-full">
+          <p className="text-[12px] sm:text-[13px] font-medium text-[#D1A56A] leading-tight truncate">
+            Today on your radar
+          </p> 
+          <button
+            type="button" 
+            onClick={() => { if (onSeeAllClick) onSeeAllClick(); else setIsAgendaOpen(true); }}
+            className="flex items-center gap-1 text-[13px] sm:text-[14px] font-bold text-[#E91E8C] hover:text-[#FF4081] transition-colors group cursor-pointer whitespace-nowrap"
+          > 
+            <div> 
+              <span>See all</span>
+              <span className="text-[14px] font-black group-hover:translate-x-0.5 transition-transform">&gt;</span> 
+            </div> 
+          </button>
+        </div>
+
       </div>
 
       {/* ─── 3. Horizontal Scrollable Radar Cards ───────────────────────── */}
@@ -803,7 +807,7 @@ export default function WelcomeMessage({
           </div>
 
           <div className="flex items-center gap-1 text-[13px] sm:text-[14px] font-bold text-[#F59E0B] group-hover:text-[#FBBF24] transition-colors shrink-0 pl-2">
-            <span>Read Brief</span>
+            <span>Read Briefing</span>
             <span className="text-[15px] font-extrabold group-hover:translate-x-1 transition-transform">
               →
             </span>
