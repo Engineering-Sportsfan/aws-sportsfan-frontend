@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   ChevronRight, 
@@ -30,10 +31,48 @@ import {
   AgendaEventItem, 
   MorningBriefStory, 
   WelcomeConfig,
-  resolveDynamicAgendaEvents 
+  resolveDynamicAgendaEvents,
+  cleanAiResponse
 } from "@/services/welcomeMessage.service";
 
 export type { RadarCardItem, AgendaEventItem, MorningBriefStory, WelcomeConfig };
+
+/**
+ * Cleanly renders formatted text, bold highlights and bullet points from AI answers
+ */
+function formatAiAnswerText(text: string | null) {
+  if (!text) return null;
+  const lines = text.split("\n");
+  return (
+    <div className="space-y-1.5 text-[12.5px] leading-relaxed">
+      {lines.map((line, lIdx) => {
+        const trimmed = line.trim();
+        if (!trimmed) return <div key={lIdx} className="h-1" />;
+        const isBullet = trimmed.startsWith("•") || trimmed.startsWith("-") || trimmed.startsWith("*");
+        const cleanLine = isBullet ? trimmed.replace(/^[•\-*]\s*/, "") : trimmed;
+        const parts = cleanLine.split(/(\*\*[^*]+\*\*)/g);
+
+        return (
+          <div key={lIdx} className={`flex ${isBullet ? "items-start gap-1.5 pl-1" : "items-baseline"}`}>
+            {isBullet && <span className="text-purple-400 font-bold select-none shrink-0">•</span>}
+            <p className="leading-snug">
+              {parts.map((part, pIdx) => {
+                if (part.startsWith("**") && part.endsWith("**")) {
+                  return (
+                    <strong key={pIdx} className="font-extrabold text-white">
+                      {part.slice(2, -2)}
+                    </strong>
+                  );
+                }
+                return <span key={pIdx}>{part}</span>;
+              })}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 interface WelcomeMessageProps {
   userName?: string;
@@ -50,6 +89,7 @@ export default function WelcomeMessage({
   onSeeAllClick,
   onReadBriefClick,
 }: WelcomeMessageProps) {
+  const router = useRouter();
   const { user, getUserDisplayName, loading: authLoading, authReady } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -328,21 +368,21 @@ export default function WelcomeMessage({
     setAgendaLoading(true);
     setAgendaAnswer(null);
 
-    // Build context from current agenda events
+    // Build rich, structured sports schedule context from agendaEvents
     const agendaContext = agendaEvents
       .map(
         (e) =>
-          `[${e.sport} - ${e.subEvent || e.sport}]: Status=${e.statusLabel || e.statusType}, Time=${e.time}, Details=${e.detail || ""}${e.venue ? `, Venue=${e.venue}` : ""}`
+          `[Event: ${e.sport} - ${e.subEvent || e.sport} | Status: ${e.statusLabel || e.statusType} | Time: ${e.time || "Today"} | Details: ${e.detail || "Match scheduled"}${e.venue ? ` | Venue: ${e.venue}` : ""}${e.teams ? ` | Teams/Score: ${e.teams.teamA} ${e.teams.scoreA || ""} vs ${e.teams.teamB || ""} ${e.teams.scoreB || ""}` : ""}]`
       )
-      .join("; ");
+      .join("\n");
 
     try {
       const aiResponse = await welcomeMessageService.askFlipAI(
         q,
-        `Today's Sports Agenda Schedule: ${agendaContext}`
+        `Today's Live Sports Schedule:\n${agendaContext}`
       );
       if (aiResponse && aiResponse.trim()) {
-        setAgendaAnswer(aiResponse);
+        setAgendaAnswer(cleanAiResponse(aiResponse, q));
         setAgendaLoading(false);
         return;
       }
@@ -350,33 +390,48 @@ export default function WelcomeMessage({
       console.warn("Agenda AI error, using fallback response:", err);
     }
 
-    // Heuristic contextual fallback if AI service is offline or returns empty
+    // High-accuracy fallback answering specifically without repeating question
     const lower = q.toLowerCase();
     const matchedEvent = agendaEvents.find(
       (e) =>
         lower.includes(e.sport.toLowerCase()) ||
-        lower.includes(e.subEvent.toLowerCase()) ||
+        lower.includes((e.subEvent || "").toLowerCase()) ||
         (e.detail && lower.includes(e.detail.toLowerCase())) ||
         (e.venue && lower.includes(e.venue.toLowerCase()))
     );
 
     let ans = "";
     if (matchedEvent) {
-      ans = `📌 **${matchedEvent.sport} (${matchedEvent.subEvent}):** Scheduled at **${matchedEvent.time}**${matchedEvent.venue ? ` at ${matchedEvent.venue}` : ""}. Status: **${matchedEvent.statusLabel || matchedEvent.statusType.toUpperCase()}**. Match details: ${matchedEvent.detail}`;
-    } else if (lower.includes("alarm") || lower.includes("time") || lower.includes("when")) {
-      const upcomingList = agendaEvents.slice(0, 3).map(e => `• **${e.time}** - ${e.sport} (${e.subEvent})`).join("\n");
-      ans = `⏰ **Key upcoming times from your agenda:**\n${upcomingList || "Check the agenda timeline above for all scheduled timings."}`;
-    } else if (lower.includes("live") || lower.includes("attention") || lower.includes("now")) {
-      const liveEvents = agendaEvents.filter(e => e.statusType === "live");
-      if (liveEvents.length > 0) {
-        ans = `🔥 **Live Right Now:** ${liveEvents.map(e => `${e.sport} (${e.subEvent}) - ${e.detail}`).join(", ")}`;
+      const isLive = matchedEvent.statusType === "live" || matchedEvent.statusLabel?.toLowerCase() === "live";
+      if (isLive) {
+        ans = `🔥 **${matchedEvent.sport} (${matchedEvent.subEvent || matchedEvent.sport})** is **LIVE NOW**${matchedEvent.venue ? ` at ${matchedEvent.venue}` : ""}! Current details: ${matchedEvent.detail || "Match in progress"}${matchedEvent.teams?.scoreA ? ` (${matchedEvent.teams.teamA} ${matchedEvent.teams.scoreA} - ${matchedEvent.teams.scoreB || ""} ${matchedEvent.teams.teamB || ""})` : ""}.`;
+      } else if (matchedEvent.statusType === "completed") {
+        ans = `✅ **${matchedEvent.sport} (${matchedEvent.subEvent || matchedEvent.sport})** is **COMPLETED**. Result: ${matchedEvent.detail || "Match finished"}${matchedEvent.venue ? ` at ${matchedEvent.venue}` : ""}.`;
       } else {
-        ans = `⏳ There are no matches currently marked LIVE. Next up on your schedule is **${agendaEvents[0]?.sport || "upcoming events"}** at **${agendaEvents[0]?.time || "today"}**!`;
+        ans = `⏰ **${matchedEvent.sport} (${matchedEvent.subEvent || matchedEvent.sport})** is scheduled for **${matchedEvent.time}**${matchedEvent.venue ? ` at ${matchedEvent.venue}` : ""}. Status: **${matchedEvent.statusLabel || "SCHEDULED"}** (${matchedEvent.detail || "Upcoming fixture"}).`;
       }
+    } else if (lower.includes("live") || lower.includes("attention") || lower.includes("now") || lower.includes("ongoing")) {
+      const liveEvents = agendaEvents.filter(e => e.statusType === "live" || e.statusLabel === "LIVE");
+      if (liveEvents.length > 0) {
+        ans = `🔥 **Live Matches In Action Right Now:**\n` + liveEvents.map(e => `• **${e.sport}** (${e.subEvent || e.sport}) - ${e.detail || "Live"} at ${e.venue || "arena"}`).join("\n");
+      } else {
+        const nextUp = agendaEvents.find(e => e.statusType === "up_next") || agendaEvents[0];
+        ans = `There are no events marked LIVE at this moment. The next scheduled fixture is **${nextUp?.sport || "upcoming events"} (${nextUp?.subEvent || nextUp?.sport || ""})** starting at **${nextUp?.time || "today"}**!`;
+      }
+    } else if (lower.includes("alarm") || lower.includes("reminder") || lower.includes("when") || lower.includes("time") || lower.includes("schedule")) {
+      const upcomingList = agendaEvents.filter(e => e.statusType !== "completed").slice(0, 4);
+      if (upcomingList.length > 0) {
+        ans = `⏰ **Upcoming matches to watch for today:**\n` + upcomingList.map(e => `• **${e.time}** - ${e.sport} (${e.subEvent || e.sport}): ${e.detail || e.statusLabel}`).join("\n");
+      } else {
+        ans = `Today's schedule has ${agendaEvents.length} events listed. Check the timeline above for all start times.`;
+      }
+    } else if (lower.includes("marquee") || lower.includes("top") || lower.includes("best") || lower.includes("key")) {
+      ans = `🌟 **Top Marquee Events Today:**\n` + agendaEvents.slice(0, 4).map(e => `• **${e.time}** · **${e.sport}** (${e.subEvent || e.sport}) - ${e.detail || e.statusLabel}`).join("\n");
     } else {
-      ans = `💡 **Flip Insight on "${q}":** Today's agenda includes ${agendaEvents.length} scheduled events across ${Array.from(new Set(agendaEvents.map(e => e.sport))).join(", ") || "multiple sports"}. Stay tuned for live updates and results!`;
+      ans = `Today's agenda covers ${agendaEvents.length} events across ${Array.from(new Set(agendaEvents.map(e => e.sport))).join(", ") || "various sports"}. You can ask about start times, venues, or live scores for any sport above!`;
     }
-    setAgendaAnswer(ans);
+
+    setAgendaAnswer(cleanAiResponse(ans, q));
     setAgendaLoading(false);
   };
 
@@ -389,16 +444,16 @@ export default function WelcomeMessage({
 
     // Build context from today's brief stories
     const briefContext = briefStories
-      .map((s, idx) => `Story #${idx + 1} [${s.sport} - ${s.title}]: ${s.description}`)
-      .join("; ");
+      .map((s, idx) => `[Story #${idx + 1} | Sport: ${s.sport} | Headline: "${s.title}" | Full Story: ${s.description}]`)
+      .join("\n");
 
     try {
       const aiResponse = await welcomeMessageService.askFlipAI(
         q,
-        `Today's Daily Huddle / Morning Brief Top Stories: ${briefContext}`
+        `Today's Top Sports Brief Stories:\n${briefContext}`
       );
       if (aiResponse && aiResponse.trim()) {
-        setBriefAnswer(aiResponse);
+        setBriefAnswer(cleanAiResponse(aiResponse, q));
         setBriefLoading(false);
         return;
       }
@@ -406,25 +461,81 @@ export default function WelcomeMessage({
       console.warn("Brief AI error, using fallback response:", err);
     }
 
-    // Heuristic contextual fallback if AI service is offline
+    // High-accuracy fallback answering specifically without repeating question
     const lower = q.toLowerCase();
     const matchedStory = briefStories.find(
       (s) =>
         lower.includes(s.title.toLowerCase()) ||
-        lower.includes(s.sport.toLowerCase())
+        lower.includes(s.sport.toLowerCase()) ||
+        s.description.toLowerCase().split(/\s+/).some(word => word.length > 4 && lower.includes(word))
     );
 
     let ans = "";
     if (matchedStory) {
-      ans = `🥇 **${matchedStory.title} (${matchedStory.sport}):** ${matchedStory.description}`;
-    } else if (lower.includes("summary") || lower.includes("headline") || lower.includes("top")) {
-      ans = `📰 **Today's Top Brief Headlines:**\n${briefStories.slice(0, 3).map((s, idx) => `${idx + 1}. **${s.title}** - ${s.description}`).join("\n")}`;
+      ans = `🏆 **${matchedStory.title}** (${matchedStory.sport})\n\n${matchedStory.description}`;
+    } else if (lower.includes("contender") || lower.includes("medal") || lower.includes("who")) {
+      ans = `🥇 **Top Medal Contenders & Key Athletes Today:**\n` + briefStories.slice(0, 3).map((s, idx) => `• **${s.title}** (${s.sport}): ${s.description}`).join("\n");
+    } else if (lower.includes("headline") || lower.includes("biggest") || lower.includes("top story")) {
+      const top = briefStories[0] || { title: "Today's Top Action", sport: "Sports", description: "Exciting games underway across all arenas." };
+      ans = `🌟 **Top Headline Today:** **${top.title}** (${top.sport})\n\n${top.description}`;
+    } else if (lower.includes("summary") || lower.includes("all stories") || lower.includes("quick summary")) {
+      ans = `📰 **Today's Headlines Summary:**\n` + briefStories.map((s, idx) => `${idx + 1}. **${s.title}** (${s.sport}) - ${s.description}`).join("\n");
     } else {
-      ans = `💡 **Flip Story Insight on "${q}":** Today's brief covers ${briefStories.length} curated stories covering ${Array.from(new Set(briefStories.map(s => s.sport))).join(", ") || "major sports"}. Tap any story card above for quick highlights!`;
+      ans = `Today's Daily Huddle features ${briefStories.length} top stories across ${Array.from(new Set(briefStories.map(s => s.sport))).join(", ") || "all sports"}. Select any headline above or ask about a specific player or match!`;
     }
-    setBriefAnswer(ans);
+
+    setBriefAnswer(cleanAiResponse(ans, q));
     setBriefLoading(false);
   };
+
+  // ─── FlipArena Banner Component for Modals ──────────────────────────────
+  const renderFlipArenaBanner = () => (
+    <motion.div
+      whileHover={{ scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      onClick={() => router.push("/MainModules/FlipArena")}
+      className="w-full rounded-[20px] p-3.5 sm:p-4 border border-[#EC4899]/35 hover:border-[#EC4899]/65 transition-all duration-200 cursor-pointer flex items-center justify-between gap-3 relative overflow-hidden group shadow-[0_4px_20px_rgba(0,0,0,0.45),0_0_18px_rgba(236,72,153,0.14)]"
+      style={{
+        background: "linear-gradient(135deg, #130A1F 0%, #0D0715 60%, #08040E 100%)",
+      }}
+    >
+      {/* Background Subtle Pink Glow */}
+      <div
+        className="absolute -top-10 -right-10 w-32 h-32 rounded-full pointer-events-none opacity-25 group-hover:opacity-40 transition-opacity"
+        style={{
+          background: "radial-gradient(circle, #EC4899 0%, transparent 70%)",
+        }}
+      />
+
+      {/* Left: Stadium Icon & Text */}
+      <div className="flex items-center gap-3 relative z-10 min-w-0">
+        <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-[#220E2E] border border-[#EC4899]/35 flex items-center justify-center shrink-0 shadow-[0_0_14px_rgba(236,72,153,0.25)] text-[22px] sm:text-[24px]">
+          🏟️
+        </div>
+        <div className="flex flex-col min-w-0">
+          <h3 className="text-[14px] sm:text-[15px] font-black uppercase tracking-wider text-[#EC4899] leading-tight flex items-center gap-1.5">
+            FLIPARENA
+          </h3>
+          <p className="text-[11.5px] sm:text-[12.5px] font-semibold text-gray-400 leading-tight mt-0.5 truncate">
+            Polls · Battles · Quizzes
+          </p>
+        </div>
+      </div>
+
+      {/* Right: Jump In Gradient Button */}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          router.push("/MainModules/FlipArena");
+        }}
+        className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-gradient-to-r from-[#EC4899] via-[#F43F5E] to-[#F97316] text-white font-extrabold text-[12.5px] sm:text-[13.5px] shadow-[0_4px_16px_rgba(236,72,153,0.45)] hover:opacity-95 active:scale-95 transition-all flex items-center justify-center gap-1 shrink-0 cursor-pointer relative z-10"
+      >
+        <span>Jump In</span>
+        <span className="text-[14px] font-black">→</span>
+      </button>
+    </motion.div>
+  );
 
   // Helper for card theme styling
   const getThemeStyles = (theme?: RadarCardItem["themeColor"], isLive?: boolean, isSelected?: boolean) => {
@@ -856,6 +967,9 @@ export default function WelcomeMessage({
                   )}
                 </div>
 
+                {/* FlipArena Engagement Banner */}
+                {renderFlipArenaBanner()}
+
                 {/* Agenda Bottom ASK FLIP Section */}
                 <div 
                   className="w-full rounded-2xl p-4 sm:p-5 border border-purple-500/25 relative overflow-hidden"
@@ -873,9 +987,8 @@ export default function WelcomeMessage({
 
                   <div className="flex items-center gap-2.5 mb-3.5 relative z-10">
                     <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#7C3AED] via-[#C084FC] to-[#EC4899] p-[1.5px] shadow-[0_0_12px_rgba(168,85,247,0.4)]">
-                      <div className="w-full h-full rounded-full bg-[#130B24] flex items-center justify-center text-[18px]">
-                        🐬
-                      </div>
+                      <img src="/images/dollyavatar.png" alt="" className="w-full h-full object-cover" />
+
                     </div>
                     <div>
                       <h3 className="text-[14px] sm:text-[15px] font-black text-white uppercase tracking-wide flex items-center gap-1">
@@ -939,7 +1052,7 @@ export default function WelcomeMessage({
                               <span>Flip AI Analysis</span>
                             </div>
                             <div className="text-white/95">
-                              {agendaAnswer}
+                                {formatAiAnswerText(agendaAnswer)}
                             </div>
                           </div>
                         )}
@@ -1079,6 +1192,9 @@ export default function WelcomeMessage({
                   ))
                 )}
 
+                {/* FlipArena Engagement Banner */}
+                {renderFlipArenaBanner()}
+
                 {/* Bottom ASK FLIP Section for Morning Brief */}
                 <div 
                   className="w-full rounded-2xl p-4 sm:p-5 border border-purple-500/25 relative overflow-hidden mt-4"
@@ -1097,9 +1213,8 @@ export default function WelcomeMessage({
                   {/* Header: Mascot Avatar + Text */}
                   <div className="flex items-center gap-2.5 mb-3.5 relative z-10">
                     <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#7C3AED] via-[#C084FC] to-[#EC4899] p-[1.5px] shadow-[0_0_12px_rgba(168,85,247,0.4)]">
-                      <div className="w-full h-full rounded-full bg-[#130B24] flex items-center justify-center text-[18px]">
-                        🐬
-                      </div>
+                      <img src="/images/dollyavatar.png" alt="" className="w-full h-full object-cover" />
+
                     </div>
                     <div>
                       <h3 className="text-[14px] sm:text-[15px] font-black text-white uppercase tracking-wide flex items-center gap-1">
@@ -1167,7 +1282,7 @@ export default function WelcomeMessage({
                               <span>Flip AI Analysis</span>
                             </div>
                             <div className="text-white/95">
-                              {briefAnswer}
+                                {formatAiAnswerText(briefAnswer)}
                             </div>
                           </div>
                         )}

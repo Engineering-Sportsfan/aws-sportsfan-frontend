@@ -5623,23 +5623,7 @@ export default function FlipArena({
             ))}
           </div>
 
-          <button
-            onClick={() => handleOpenCreate("meme")}
-            title="Add Sports Meme (+2 PTS)"
-            className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-500/20 via-pink-500/20 to-purple-500/20 hover:from-orange-500/30 hover:to-purple-500/30 border border-orange-500/40 text-orange-300 flex items-center gap-1.5 font-extrabold text-[10.5px] transition-all active:scale-95 cursor-pointer shadow-sm shrink-0"
-          >
-            <Flame size={13} className="text-orange-400 animate-pulse" />
-            <span>Add Meme</span>
-          </button>
 
-          <button
-            onClick={() => handleOpenCreate("quiz")}
-            title="Create Quiz, Battle or Poll (+2 PTS)"
-            className="p-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 border border-pink-500/30 text-pink-300 flex items-center gap-1 font-extrabold text-[11px] transition-all active:scale-95 cursor-pointer shadow-sm shrink-0"
-          >
-            <Plus size={13} strokeWidth={2.8} />
-            <span className="hidden sm:inline">Add</span>
-          </button>
         </div>
       </div>
 

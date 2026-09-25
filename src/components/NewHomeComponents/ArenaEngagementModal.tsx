@@ -1703,7 +1703,18 @@ export default function ArenaEngagementModal({
           <div className="p-3.5 sm:p-5 pb-3 border-b border-white/[0.08] shrink-0 bg-[#0d111a]">
             <div className="flex items-center justify-between mb-2.5 sm:mb-3">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="p-1.5 sm:p-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-purple-500/20 text-pink-400 border border-pink-500/30 shrink-0">
+                <span
+                  className={`p-1.5 sm:p-2 rounded-xl border shrink-0 transition-colors ${activeType === "quiz"
+                      ? "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                      : activeType === "fan_battle"
+                        ? "bg-rose-500/20 text-rose-400 border-rose-500/30"
+                        : activeType === "poll"
+                          ? "bg-blue-500/20 text-blue-400 border-blue-500/30"
+                          : activeType === "prediction"
+                            ? "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                            : "bg-orange-500/20 text-orange-400 border-orange-500/30"
+                    }`}
+                >
                   {activeType === "quiz" ? (
                     <HelpCircle size={16} className="sm:w-[18px] sm:h-[18px]" />
                   ) : activeType === "fan_battle" ? (
@@ -1719,19 +1730,45 @@ export default function ArenaEngagementModal({
                 <div className="min-w-0">
                   <h2 className="text-sm sm:text-base font-black tracking-tight truncate">
                     {editingItem
-                      ? activeType === "meme"
-                        ? "Edit Meme Arena"
-                        : "Edit Arena Event"
-                      : activeType === "meme"
-                        ? "Create Meme Arena"
-                        : "Create Arena Event"}
+                      ? activeType === "quiz"
+                        ? "Edit Arena Quiz"
+                        : activeType === "fan_battle"
+                          ? "Edit Fan Battle"
+                          : activeType === "poll"
+                            ? "Edit Sports Poll"
+                            : activeType === "prediction"
+                              ? "Edit Prediction"
+                              : "Edit Meme Arena"
+                      : activeType === "quiz"
+                        ? "Create Live Quiz"
+                        : activeType === "fan_battle"
+                          ? "Create Fan Battle"
+                          : activeType === "poll"
+                            ? "Create Sports Poll"
+                            : activeType === "prediction"
+                              ? "Create Match Prediction"
+                              : "Create Meme"}
                   </h2>
                   <p className="text-[10px] text-white/40 truncate">
-                    {activeType === "meme"
-                      ? "Let fans drop their funniest sports memes"
+                    {activeType === "quiz"
+                      ? editingItem
+                        ? "Update quiz questions, interval timer, and answers"
+                        : "Challenge fans with sports trivia questions · Earn +2 PTS"
+                      : activeType === "fan_battle"
+                        ? editingItem
+                          ? "Update competitor names, codes, and battle stats"
+                          : "Pit players or teams head-to-head in a live battle · Earn +2 PTS"
+                        : activeType === "poll"
+                          ? editingItem
+                            ? "Update poll question, duration, and voting options"
+                            : "Ask fans a question & get instant community votes · Earn +2 PTS"
+                          : activeType === "prediction"
+                            ? editingItem
+                              ? "Update prediction choices, timer, and expected outcome"
+                              : "Set up match predictions and let fans predict outcomes · Earn +2 PTS"
                       : editingItem
-                        ? "Update quiz questions, battles, polls or predictions"
-                        : "Earn +2 PTS for creating quizzes, battles, polls & predictions"}
+                              ? "Update your sports meme caption and image"
+                              : "Drop your funniest sports meme into the Arena · Earn +2 PTS"}
                   </p>
                 </div>
               </div>
@@ -1753,28 +1790,38 @@ export default function ArenaEngagementModal({
                   { type: "poll", label: "Poll", icon: "📊" },
                   { type: "prediction", label: "Prediction", icon: "🎯" },
                   { type: "meme", label: "Meme", icon: "🔥" },
-                ].map((tab) => (
-                  <button
-                    key={tab.type}
-                    type="button"
-                    onClick={() => {
-                      setActiveType(tab.type as EngagementType);
-                      if (tab.type === "meme" && !title) {
-                        setTitle("When your team says trust the process");
-                        setSubtitle("Same energy. Different priorities.");
-                      }
-                    }}
-                    className={`py-1.5 sm:py-2 px-1 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all cursor-pointer ${activeType === tab.type
-                        ? tab.type === "meme"
-                          ? "bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] text-white shadow-md shadow-orange-500/25"
-                          : "bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-md shadow-pink-500/20"
+                ].map((tab) => {
+                  const isActive = activeType === tab.type;
+                  return (
+                    <button
+                      key={tab.type}
+                      type="button"
+                      onClick={() => {
+                        const nextType = tab.type as EngagementType;
+                        setActiveType(nextType);
+                        if (nextType === "meme" && !title) {
+                          setTitle("When your team says trust the process");
+                          setSubtitle("Same energy. Different priorities.");
+                        }
+                      }}
+                      className={`py-1.5 sm:py-2 px-1 rounded-lg sm:rounded-xl text-[10px] sm:text-[11px] font-extrabold flex items-center justify-center gap-1 transition-all cursor-pointer ${isActive
+                          ? tab.type === "meme"
+                            ? "bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] text-white shadow-md shadow-orange-500/25"
+                          : tab.type === "poll"
+                            ? "bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/20"
+                            : tab.type === "fan_battle"
+                              ? "bg-gradient-to-r from-rose-600 to-orange-600 text-white shadow-md shadow-rose-500/20"
+                              : tab.type === "prediction"
+                                ? "bg-gradient-to-r from-amber-600 to-yellow-500 text-white shadow-md shadow-amber-500/20"
+                                : "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md shadow-purple-500/20"
                         : "text-white/50 hover:text-white hover:bg-white/[0.04]"
                       }`}
-                  >
-                    <span>{tab.icon}</span>
-                    <span className="whitespace-normal hidden xs:inline">{tab.label}</span>
-                  </button>
-                ))}
+                    >
+                      <span>{tab.icon}</span>
+                      <span className="whitespace-normal hidden xs:inline">{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2443,7 +2490,27 @@ export default function ArenaEngagementModal({
                 ) : (
                   <>
                     <Sparkles size={14} />
-                    <span>{editingItem ? "Update Event" : "Publish to Arena"}</span>
+                      <span>
+                        {editingItem
+                          ? activeType === "fan_battle"
+                            ? "Update Battle"
+                            : activeType === "quiz"
+                              ? "Update Quiz"
+                              : activeType === "poll"
+                                ? "Update Poll"
+                                : activeType === "prediction"
+                                  ? "Update Prediction"
+                                  : "Update Meme"
+                          : activeType === "fan_battle"
+                            ? "Publish Battle"
+                            : activeType === "quiz"
+                              ? "Publish Quiz"
+                              : activeType === "poll"
+                                ? "Publish Poll"
+                                : activeType === "prediction"
+                                  ? "Publish Prediction"
+                                  : "Publish Meme"}
+                      </span>
                   </>
                 )}
               </button>
