@@ -10,7 +10,7 @@ import axios from "axios";
 import { Home, UserPlus } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useRef, useLayoutEffect } from "react";
 import SportsFan360Footer from "@/src/components/footer-component/Footer";
 import { useAuth } from "@/context/AuthContext";
@@ -251,11 +251,21 @@ export default function MainModulesLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user: authUser, authReady, isAuthenticated } = useAuth();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const bottomNavRef = useRef<HTMLDivElement>(null);
+
+  // Redirect unauthenticated users across all MainModules to main login page (/)
+  useEffect(() => {
+    if (!authReady) return;
+    if (!isAuthenticated || !authUser) {
+      router.replace("/");
+    }
+  }, [authReady, isAuthenticated, authUser, router]);
 
   useLayoutEffect(() => {
     const el = bottomNavRef.current;
@@ -328,6 +338,14 @@ export default function MainModulesLayout({
   const isFanszonePath = pathname === "/MainModules/Fanszone" || pathname?.startsWith("/MainModules/Fanszone/");
   const isFlipGuruPath = pathname === "/MainModules/flipGuru" || pathname?.startsWith("/MainModules/flipGuru/");
 
+
+  if (authReady && (!isAuthenticated || !authUser)) {
+    return (
+      <div className="w-full min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-gray-700 border-t-[#E91E8C] animate-spin" />
+      </div>
+    );
+  }
 
   if (isWatchRoom) {
     return (

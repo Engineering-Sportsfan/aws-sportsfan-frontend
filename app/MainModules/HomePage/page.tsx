@@ -422,6 +422,14 @@ function HomePageInner() {
   }, []);
 
   
+  // Redirect to login if user is not authenticated
+  useEffect(() => {
+    if (!authReady) return;
+    if (!isAuthenticated || !user) {
+      router.replace("/");
+    }
+  }, [authReady, isAuthenticated, user, router]);
+
   // Onboarding temporarily disabled for Dew collaboration
   useEffect(() => {
     if (!authReady) return;
@@ -782,6 +790,14 @@ function HomePageInner() {
   }
 
   if (checkingOnboarding && isAuthenticated) {
+    return (
+      <div className="w-full min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-gray-700 border-t-[#E91E8C] animate-spin" />
+      </div>
+    );
+  }
+
+  if (authReady && (!isAuthenticated || !user)) {
     return (
       <div className="w-full min-h-screen bg-black flex items-center justify-center">
         <div className="w-8 h-8 rounded-full border-2 border-gray-700 border-t-[#E91E8C] animate-spin" />
