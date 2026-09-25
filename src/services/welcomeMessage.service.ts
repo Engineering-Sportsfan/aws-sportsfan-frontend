@@ -218,6 +218,7 @@ export interface WelcomeConfig {
   id?: string;
   actionSubtitle?: string;
   agendaDateTitle?: string;
+  briefTitle?: string;
   briefSubtitle?: string;
 }
 
@@ -266,6 +267,37 @@ export const welcomeMessageService = {
       return [];
     } catch {
       return [];
+    }
+  },
+
+  /**
+   * Ask Flip AI for WelcomeMessage Agenda or Morning Brief
+   * Matches the FlipLine AI querying mechanism using /api/ask-ai
+   */
+  async askFlipAI(question: string, context?: string): Promise<string> {
+    try {
+      const fullPrompt = context
+        ? `Context: "${context}". Question about this: "${question}". Answer this question in a concise, insightful and engaging sports fan format.`
+        : question;
+
+      const res = await fetch("/api/ask-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: fullPrompt,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.answer) {
+          return data.answer;
+        }
+      }
+      return "";
+    } catch (err) {
+      console.warn("[welcomeMessageService] Ask Flip AI API error:", err);
+      return "";
     }
   },
 };

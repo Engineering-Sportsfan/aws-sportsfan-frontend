@@ -33,6 +33,8 @@ function PostHogPageView() {
       });
 
       // L1 KPI: Routing - Track Reaching Recommended Features
+      // Temporarily disabled (KPI 04 is yet to be fully confirmed)
+      /*
       const recommendedFeatures: Record<string, string> = {
         '/MainModules/ROAR': 'ROAR',
         '/MainModules/WatchAlong': 'WatchAlong',
@@ -55,6 +57,7 @@ function PostHogPageView() {
           break;
         }
       }
+      */
     }
   }, [pathname, searchParams, posthog]);
 

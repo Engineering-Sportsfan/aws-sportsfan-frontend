@@ -1,4 +1,5 @@
 "use client";
+import { trackInterestFollowed } from "@/lib/analytics";
 
 import { ClubProfile } from "@/types/ClubProfile";
 import PlaylistDialog from "../../playlistdialog-component/playlistdialog";
@@ -34,7 +35,7 @@ export default function ClubProfileActions({ club }: Props) {
             {/* ── Row 1: Follow · Watch Me · Share ── */}
             <div className="flex items-center gap-2 md:gap-3">
                 {/* Follow button */}
-                <button className="flex flex-1 items-center justify-center gap-2 h-[46px] md:h-[52px] rounded-full bg-gradient-to-r from-[#e91e8c] to-[#ff5722] text-white text-[14px] md:text-base font-bold tracking-wide border-0 cursor-pointer hover:opacity-90 transition-opacity">
+                <button onClick={() => trackInterestFollowed("team", String(club.name || "Unknown Team"), 1)} className="flex flex-1 items-center justify-center gap-2 h-[46px] md:h-[52px] rounded-full bg-gradient-to-r from-[#e91e8c] to-[#ff5722] text-white text-[14px] md:text-base font-bold tracking-wide border-0 cursor-pointer hover:opacity-90 transition-opacity">
                     <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
                         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
                         <circle cx="9" cy="7" r="4" />

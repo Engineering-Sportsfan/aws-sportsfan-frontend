@@ -1,3 +1,4 @@
+import { trackMeaningfulInteraction } from '@/lib/analytics';
 // // components/watch-along/LiveChat.tsx
 // "use client";
 
@@ -292,6 +293,7 @@ export default function LiveChat({ matchId, userRole }: LiveChatProps) {
             const result = await sendChatMessage(matchId, userName, message, "text-pink-400");
             if (result) {
                 setMessage("");
+                try { trackMeaningfulInteraction('watchalong_chat_message', { room_name: matchId }); } catch(e){}
                 // NOTE: sendChatMessage already appends the new message to state
                 // via setChats — no need to re-fetch from Firestore
             }
