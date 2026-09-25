@@ -610,6 +610,7 @@ export default function RegisterPage() {
           </button> */}
             <button
                               onClick={() => {
+                                  try { sessionStorage.setItem("google_auth_intent", "signup"); } catch (e) {}
                                   const currentOrigin = window.location.origin;
                                   signIn("google", {
                                       callbackUrl: `${currentOrigin}/MainModules/HomePage`

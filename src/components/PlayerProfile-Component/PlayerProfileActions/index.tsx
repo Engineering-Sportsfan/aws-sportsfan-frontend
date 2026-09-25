@@ -1,6 +1,8 @@
 // components/PlayerProfile-Component/PlayerProfileActions/index.tsx
 
 "use client";
+import { trackInterestFollowed } from "@/lib/analytics";
+
 
 import React, { useEffect, useRef, useState, useCallback, MouseEvent as RMouseEvent, TouchEvent as RTouchEvent } from "react";
 import { signIn } from "next-auth/react";
@@ -1821,6 +1823,7 @@ export default function PlayerProfileActions({ player, playerId }: Props) {
 
     setIsFollowLoading(true);
     setIsFollowing(true);
+    try { trackInterestFollowed("player", String(player.name || "Unknown Player"), 1); } catch (e) {}
     try {
       const payload = {
         userId: user.userId || user.email,

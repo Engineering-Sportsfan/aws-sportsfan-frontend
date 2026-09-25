@@ -1,7 +1,8 @@
-// "use client";
-
+"use client";
+// 
 // import Link from "next/link";
 // import { useRouter, useSearchParams } from "next/navigation";
+// import { trackMeaningfulInteraction } from '@/lib/analytics';
 // import React, { useEffect, useState, useRef } from "react";
 // import axios from "axios";
 // import { useAuth } from "@/context/AuthContext";
@@ -607,6 +608,7 @@
 //     isSubmittingRef.current = true;
 //     setHasAnsweredCurrent(true);
 //     setSelectedAnswer(answer);
+    try { trackMeaningfulInteraction('fanbattle_quiz_answer', { room_name: 'FanBattle', quiz_level: levelLabel }); } catch (e) {}
 //     setSubmitting(true);
 
 //     const currentQuestion = allQuestions[currentIndex];
@@ -866,7 +868,6 @@
 
 
 
-"use client";
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";

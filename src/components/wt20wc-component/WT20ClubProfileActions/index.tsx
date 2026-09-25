@@ -1,5 +1,7 @@
 // components/wt20-component/WT20ClubProfileActions/index.tsx
 "use client";
+import { trackInterestFollowed } from "@/lib/analytics";
+
 
 import { useState, useEffect } from "react";
 import { WT20Club } from "@/types/wt20Club";
@@ -52,6 +54,7 @@ export default function WT20ClubProfileActions({ club }: Props) {
   const handleFollowClick = () => {
     if (isFollowing) { setShowUnfollowConfirm(true); return; }
     setIsFollowing(true);
+    try { trackInterestFollowed("team", String(club.country || club.name || "Unknown Team"), 1); } catch (e) {}
     setToastMessage(`Following ${club.country}`);
   };
   const confirmUnfollow = () => {
