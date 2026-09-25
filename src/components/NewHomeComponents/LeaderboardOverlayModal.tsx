@@ -2508,15 +2508,15 @@ export default function LeaderboardOverlayModal({
                                   #{quizzer.rank}
                                 </span>
                                 <div className="min-w-0 flex-1 pr-2">
-                                  {/* <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
-                                    <span className="break-words">{quizzer.username}</span> */}
                                   <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
+                                    <span className="break-words">{quizzer.username}</span>
+                                    {/* <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
                                     <span
                                       onClick={() => handleOpenUserProfile(quizzer.userId, undefined, quizzer.username)}
                                       className="break-words cursor-pointer hover:text-amber-300 hover:underline transition-colors"
                                     >
                                       {quizzer.username}
-                                    </span>
+                                    </span> */}
                                     {isMe && (
                                       <span className="text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase shrink-0">
                                         YOU
@@ -2676,15 +2676,15 @@ export default function LeaderboardOverlayModal({
                                   #{rank}
                                 </span>
                                 <div className="min-w-0 flex-1 pr-2">
-                                  {/* <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
-                                    <span className="break-words">{fan.userName || "Fan"}</span> */}
                                   <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
+                                    <span className="break-words">{fan.userName || "Fan"}</span>
+                                    {/* <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
                                     <span
                                       onClick={() => handleOpenUserProfile(fan.userId, fan.userHandle, fan.userName)}
                                       className="break-words cursor-pointer hover:text-rose-300 hover:underline transition-colors"
                                     >
                                       {fan.userName || "Fan"}
-                                    </span>
+                                    </span> */}
                                     {isMe && (
                                       <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
                                         YOU
@@ -2709,7 +2709,7 @@ export default function LeaderboardOverlayModal({
                   </div>
                 )}
 
-                
+
 
                 {/* ══════════════════ TAB 3: ROAR LEADERBOARD ══════════════════ */}
                 {activeTab === "roar" && (
@@ -2789,15 +2789,15 @@ export default function LeaderboardOverlayModal({
                                   #{fan.rank}
                                 </span>
                                 <div className="min-w-0 flex-1 pr-2">
-                                  {/* <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="text-xs font-black text-white break-words">{fan.username}</span> */}
                                   <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs font-black text-white break-words">{fan.username}</span>
+                                    {/* <div className="flex items-center gap-1.5 flex-wrap">
                                     <span
                                       onClick={() => handleOpenUserProfile(fan.userId, undefined, fan.username)}
                                       className="text-xs font-black text-white break-words cursor-pointer hover:text-orange-300 hover:underline transition-colors"
                                     >
                                       {fan.username}
-                                    </span>
+                                    </span> */}
                                     {isYou && (
                                       <span className="text-[8px] font-black bg-orange-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
                                         YOU
@@ -3033,13 +3033,13 @@ export default function LeaderboardOverlayModal({
 
                                                   <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                                      {/* <span className="text-xs font-black text-white break-words">{p.userName}</span> */}
-                                                      <span
+                                                      <span className="text-xs font-black text-white break-words">{p.userName}</span>
+                                                      {/* <span
                                                         onClick={() => handleOpenUserProfile(p.userId, undefined, p.userName)}
                                                         className="text-xs font-black text-white break-words cursor-pointer hover:text-amber-300 hover:underline transition-colors"
                                                       >
                                                         {p.userName}
-                                                      </span>
+                                                      </span> */}
                                                       {isCurrentUser && (
                                                         <span className="text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase font-mono">
                                                           YOU
