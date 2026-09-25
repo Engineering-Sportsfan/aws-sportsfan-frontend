@@ -424,7 +424,9 @@ export default function LoginCard() {
                     if (response.data.user?.role === "host") {
                         window.location.href = "/MainModules/HostDashboard";
                     } else {
-                        window.location.href = "/MainModules/HomePage";
+                        const redirectParam = searchParams.get("redirect");
+                        const targetUrl = redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//") ? redirectParam : "/MainModules/HomePage";
+                        window.location.href = targetUrl;
                     }
                 }
             }
@@ -654,8 +656,10 @@ export default function LoginCard() {
                     onClick={() => {
                         try { sessionStorage.setItem("google_auth_intent", "login"); } catch (e) {}
                         const currentOrigin = window.location.origin;
+                        const redirectParam = searchParams.get("redirect");
+                        const targetUrl = redirectParam && redirectParam.startsWith("/") && !redirectParam.startsWith("//") ? redirectParam : "/MainModules/HomePage";
                         signIn("google", {
-                            callbackUrl: `${currentOrigin}/MainModules/HomePage`
+                            callbackUrl: `${currentOrigin}${targetUrl}`
                         });
                     }}
                     className="w-full bg-white text-black py-2.5 rounded-full font-medium flex items-center justify-center gap-2 mb-3.5 hover:bg-gray-100 transition text-sm cursor-pointer"
