@@ -129,6 +129,17 @@ export interface EngagementItem {
   status: EngagementStatus;
   startTime?: number | string;
   scheduledStartTime?: number | string;
+  postingTime?: number | string;
+  postedAt?: number | string;
+  creatorId?: string;
+  creatorEmail?: string;
+  creatorName?: string;
+  creatorHandle?: string;
+  creatorAvatar?: string;
+  userId?: string;
+  userEmail?: string;
+  userName?: string;
+  userAvatar?: string;
 
   // Specific data payloads
   fanBattleData?: FanBattlePayload;
