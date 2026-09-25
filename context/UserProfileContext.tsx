@@ -134,8 +134,8 @@ export const UserProfileProvider = ({ children }: { children: ReactNode }) => {
         setUserProfile({
           actualUserId: data.user.actualUserId,
           username: data.user.username,
-          avatarUrl: sanitizeAvatarUrl(rawAv) || rawAv,   // base64 data URI / URL
-          avatar: data.user.avatar,          // Google CDN URL (fallback)
+          avatarUrl: sanitizeAvatarUrl(rawAv) || (rawAv && rawAv !== "undefined" && rawAv !== "null" ? rawAv : undefined),   // base64 data URI / URL
+          avatar: data.user.avatar && data.user.avatar !== "undefined" && data.user.avatar !== "null" ? data.user.avatar : undefined,          // Google CDN URL (fallback)
           name: data.user.name,
           badge: data.user.badge,
           email: data.user.email,
