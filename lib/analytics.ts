@@ -152,6 +152,12 @@ export function trackFanDNACompleted(data: {
   const ph = getSafePostHog();
   if (!ph) return;
 
+  // Prevent double-firing Fan DNA
+  if (typeof window !== "undefined") {
+    if (localStorage.getItem("sf_fan_dna_tracked") === "true") return;
+    localStorage.setItem("sf_fan_dna_tracked", "true");
+  }
+
   try {
     ph.capture('fan_dna_completed', {
       purpose: data.purpose,
@@ -248,9 +254,14 @@ export function trackMeaningfulInteraction(
 
     ph.capture('meaningful_interaction', {
       interaction_type: interactionType,
-      is_first_interaction: isFirst,
+      is_first_interaction: isFirst, // Legacy local storage flag
       room_name: metadata?.room_name || metadata?.roomName || 'GENERAL',
       ...metadata,
+      $set_once: { 
+        has_completed_meaningful_interaction: true, 
+        first_meaningful_interaction_type: interactionType,
+        first_meaningful_interaction_date: new Date().toISOString()
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
@@ -302,6 +313,12 @@ export function trackAdvocacy(
       ...metadata,
       timestamp: new Date().toISOString(),
     });
+    if (actionType === 'content_shared') {
+      ph.capture('content_shared', {
+        ...metadata,
+        timestamp: new Date().toISOString(),
+      });
+    }
   } catch (err) {
     console.warn('[Analytics] Failed to track advocacy action:', err);
   }

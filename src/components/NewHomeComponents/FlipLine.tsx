@@ -1,3 +1,4 @@
+import { trackMeaningfulInteraction } from '@/lib/analytics';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -1249,12 +1250,7 @@ export function FlipCardItem({
 
     try {
       trackAdvocacy("content_shared", { card_id: c.id, author: c.author, sport: c.sport });
-      posthog.capture("content_shared", {
-        card_id: c.id,
-        author: c.author,
-        sport: c.sport,
-        content: c.content ? c.content.slice(0, 100) : undefined,
-      });
+
       posthog.capture("advocacy_action", {
         action_type: "content_shared",
         card_id: c.id,
@@ -1898,7 +1894,12 @@ export function FlipCardItem({
 
             {/* AI Dolphin button */}
             <button
-              onClick={() => setAskOpen(isExpanded ? null : card.id)}
+              onClick={() => {
+                  setAskOpen(isExpanded ? null : card.id);
+                  if (!isExpanded) {
+                    try { trackMeaningfulInteraction('flipline_card_flip', { card_id: card.id, room_name: 'FlipLine' }); } catch (e) {}
+                  }
+                }}
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-bold border transition-all duration-300 cursor-pointer"
               style={{
                 background: isExpanded ? `${themeColor}22` : 'rgba(255, 255, 255, 0.03)',

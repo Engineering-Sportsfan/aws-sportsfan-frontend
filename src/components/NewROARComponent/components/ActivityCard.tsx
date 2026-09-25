@@ -83,10 +83,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
 const cardRef = useRef<HTMLDivElement>(null);
   const handleShare = async () => {
-    posthog.capture("content_shared", {
-      activity_id: activity.id,
-      activity_type: activity.type
-    });
+
     try {
       trackAdvocacy("content_shared", { activity_id: activity.id, activity_type: activity.type });
     } catch (e) {}

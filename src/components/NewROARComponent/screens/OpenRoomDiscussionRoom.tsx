@@ -1223,8 +1223,6 @@ export default function OpenRoomDiscussionRoom({
         try {
             trackAdvocacy("content_shared", { post_id: post.id, room_id: roomId, room_name: roomName || "" });
             if (phog) {
-                phog.capture("content_shared", { post_id: post.id, room_id: roomId, post_text: post.text });
-                phog.capture("advocacy_action", { action_type: "content_shared", post_id: post.id, room_id: roomId });
             }
         } catch (e) {}
         if (typeof navigator !== "undefined" && navigator.clipboard) {
@@ -1238,8 +1236,6 @@ export default function OpenRoomDiscussionRoom({
         try {
             trackAdvocacy("content_shared", { room_id: roomId, room_name: roomName || "", type: "room_share" });
             if (phog) {
-                phog.capture("content_shared", { room_id: roomId, room_name: roomName || "" });
-                phog.capture("advocacy_action", { action_type: "content_shared", room_id: roomId });
             }
         } catch (e) {}
         if (typeof navigator !== "undefined" && navigator.share) navigator.share({ title: "SF360 Infinity Room", url: window.location.href });
