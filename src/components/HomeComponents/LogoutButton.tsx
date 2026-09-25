@@ -65,8 +65,8 @@ export default function LogoutButton({ className, children }: { className?: stri
     localStorage.removeItem("roar_badge");
     localStorage.removeItem("auth_user");
 
-    // 5. Hard redirect
-    window.location.replace("/auth/login");
+    // 5. Hard redirect to main login page
+    window.location.replace("/");
   };
 
   return (

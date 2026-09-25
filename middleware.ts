@@ -8,7 +8,6 @@ const publicRoutes = [
     '/auth/register',
     '/auth/error',
     '/auth/forgot-password',
-    '/MainModules/invite',
     '/api',
     '/images',
     '/ingest', // Allow PostHog tracking events to bypass login
@@ -22,18 +21,35 @@ export async function middleware(request: NextRequest) {
         return pathname.startsWith(route);
     });
 
-    const session = await auth();
-    const manualToken = request.cookies.get("token")?.value;
-    const isLoggedIn = !!session?.user || !!manualToken;
+    // Safely check NextAuth session without letting Edge runtime errors crash middleware
+    let session = null;
+    try {
+        session = await auth();
+    } catch {
+        session = null;
+    }
 
+    const sessionToken =
+        request.cookies.get("__Secure-authjs.session-token")?.value ||
+        request.cookies.get("authjs.session-token")?.value ||
+        request.cookies.get("__Secure-next-auth.session-token")?.value ||
+        request.cookies.get("next-auth.session-token")?.value;
+
+    const manualToken = request.cookies.get("token")?.value;
+    const hasValidManualToken =
+        Boolean(manualToken && manualToken !== "undefined" && manualToken !== "null" && manualToken.trim().length > 10);
+
+    const isLoggedIn = !!session?.user || !!sessionToken || hasValidManualToken;
+
+    // 1. Unauthenticated users trying to access protected routes -> redirect to login (/)
     if (!isLoggedIn && !isPublicRoute) {
-        const loginUrl = new URL('/auth/login', request.url);
+        const loginUrl = new URL('/', request.url);
         loginUrl.searchParams.set('redirect', pathname);
         return NextResponse.redirect(loginUrl);
     }
 
-    const authPages = ['/auth/login', '/auth/register'];
-    if (isLoggedIn && authPages.some(p => pathname.startsWith(p))) {
+    // 2. Already logged in users trying to access login pages -> redirect to HomePage
+    if (isLoggedIn && (pathname === '/' || pathname.startsWith('/auth/login') || pathname.startsWith('/auth/register'))) {
         return NextResponse.redirect(new URL('/MainModules/HomePage', request.url));
     }
 
