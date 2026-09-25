@@ -224,6 +224,67 @@ function matchesSportFilter(card: FlipCard, target: string): boolean {
   );
 }
 
+/* ─── Channel filter chips (shared by home section + full screen) ─── */
+const FILTER_CHIPS = [
+  { id: 'all', label: '#all', emoji: '⚡' },
+  { id: 'cricket', label: '#cricket', emoji: '🏏' },
+  { id: 'football', label: '#football', emoji: '⚽' },
+  { id: 'athletics', label: '#athletics', emoji: '🏃' },
+  { id: 'expert', label: '#expert', emoji: '🎯' },
+  { id: 'analysts', label: '#analysts', emoji: '🎙' },
+];
+
+// Every channel/tag a card belongs to, normalised (lowercase, no leading #)
+function getCardChannels(card: FlipCard): string[] {
+  const c = card as any;
+  const toList = (v: any): string[] =>
+    Array.isArray(v) ? v.map((x) => String(x)) : typeof v === 'string' ? v.split(',') : [];
+
+  return [c.sport, c.channel, ...toList(c.channels), ...toList(c.allChannels), ...toList(c.tags)]
+    .map((x) => String(x || '').trim().toLowerCase().replace(/^#/, ''))
+    .filter(Boolean);
+}
+
+function isExpertCard(card: FlipCard): boolean {
+  const ch = getCardChannels(card);
+  return (
+    String(card.type || '').toLowerCase() === 'expert' ||
+    ch.includes('expert') ||
+    ch.includes('experts')
+  );
+}
+
+function isAnalystCard(card: FlipCard): boolean {
+  const ch = getCardChannels(card);
+  return (
+    String(card.type || '').toLowerCase() === 'analyst' ||
+    ch.includes('analyst') ||
+    ch.includes('analysts')
+  );
+}
+
+function matchesChannelFilter(card: FlipCard, filterId: string): boolean {
+  switch (filterId) {
+    case 'all':
+      return true;
+    case 'expert':
+      return isExpertCard(card);
+    case 'analysts':
+      return isAnalystCard(card);
+    default:
+      return matchesSportFilter(card, filterId); // cricket / football / athletics
+  }
+}
+
+function applyChannelFilter(cards: FlipCard[], activeFilter: string, selectedSport?: string): FlipCard[] {
+  if (activeFilter !== 'all') {
+    return cards.filter((c) => matchesChannelFilter(c, activeFilter));
+  }
+  if (selectedSport && selectedSport !== 'mixed') {
+    return cards.filter((c) => matchesSportFilter(c, selectedSport));
+  }
+  return cards;
+}
 
 function FlipLineSection({
   selectedSport,
@@ -255,81 +316,8 @@ function FlipLineSection({
   }
 
   const safeCards = Array.isArray(cards) ? cards : [];
-  let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
-
-  // Apply hashtag filter chips
-  // if (activeFilter === 'general') {
-  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
-  // } else if (activeFilter === 'cricket') {
-  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
-  // } else if (activeFilter === 'football') {
-  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
-  // } else if (activeFilter === 'athletics') {
-  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'athletics');
-  // } else if (activeFilter === 'expert') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.type === 'expert' ||
-  //       c.type === 'analyst' ||
-  //       c.type === 'bot' ||
-  //       c.author?.toLowerCase().includes('expert') ||
-  //       c.source?.toLowerCase().includes('expert') ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('expert'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // } else if (activeFilter === 'analysts') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.type === 'expert' ||
-  //       c.type === 'analyst' ||
-  //       c.type === 'bot' ||
-  //       c.author?.toLowerCase().includes('analyst') ||
-  //       c.source?.toLowerCase().includes('analyst') ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('analyst'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // }
-
-  // else if (selectedSport && selectedSport !== 'mixed') {
-  //   displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === selectedSport.toLowerCase());
-  // }
-
-    // Apply hashtag filter chips (supports multi-channel posts)
-  // Apply hashtag filter chips (supports multi-channel posts)
-  if (activeFilter === 'general') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'general'));
-  } else if (activeFilter === 'cricket') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'cricket'));
-  } else if (activeFilter === 'football') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'football'));
-  } else if (activeFilter === 'athletics') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'athletics'));
-  } else if (activeFilter === 'expert') {
-    const filtered = displayCards.filter(
-      (c) =>
-        c.type === 'expert' ||
-        c.type === 'analyst' ||
-        c.type === 'bot' ||
-        c.author?.toLowerCase().includes('expert') ||
-        c.source?.toLowerCase().includes('expert') ||
-        c.tags?.some((t) => t.toLowerCase().includes('expert'))
-    );
-    if (filtered.length > 0) displayCards = filtered;
-  } else if (activeFilter === 'analysts') {
-    const filtered = displayCards.filter(
-      (c) =>
-        c.type === 'expert' ||
-        c.type === 'analyst' ||
-        c.type === 'bot' ||
-        c.author?.toLowerCase().includes('analyst') ||
-        c.source?.toLowerCase().includes('analyst') ||
-        c.tags?.some((t) => t.toLowerCase().includes('analyst'))
-    );
-    if (filtered.length > 0) displayCards = filtered;
-  } else if (selectedSport && selectedSport !== 'mixed') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, selectedSport));
-  }
-
+  const baseCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
+  const displayCards = applyChannelFilter(baseCards, activeFilter, selectedSport);
 
   return (
     <div className="sm:mb-2 md:mb-4">
@@ -338,18 +326,7 @@ function FlipLineSection({
         className="flex items-center gap-2 md:px-4 md:mb-4 overflow-x-auto no-scrollbar"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {[
-          { id: 'all', label: '#all', emoji: '⚡' },
-          { id: 'general', label: '#general', emoji: '📢' },
-          { id: 'cricket', label: '#cricket', emoji: '🏏' },
-          { id: 'football', label: '#football', emoji: '⚽' },
-          { id: 'athletics', label: '#athletics', emoji: '🏃' },
-          { id: 'expert', label: '#expert', emoji: '🎯' },
-          { id: 'analysts', label: '#analysts', emoji: '🎙' },
-
-          // { id: 'sf360-live', label: '#sf360-live', emoji: '📡' },
-          // { id: 'fan-roar', label: '#fan-roar', emoji: '🔥' },
-        ].map((chip) => {
+        {FILTER_CHIPS.map((chip) => {
           const isActive = activeFilter === chip.id;
           return (
             <button
@@ -464,31 +441,8 @@ export function FlipLineFullScreen({
 
     if (foundCard) {
       // Ensure current filter doesn't hide this target card
-      // if (activeFilter !== 'all') {
-      //   const sportLower = (foundCard.sport || '').toLowerCase();
-      //   const matchesCurrentFilter =
-      //     (activeFilter === 'cricket' && sportLower === 'cricket') ||
-      //     (activeFilter === 'football' && sportLower === 'football') ||
-      //     (activeFilter === 'athletics' && sportLower === 'athletics') ||
-      //     (activeFilter === 'general' && sportLower === 'general') ||
-      //     (activeFilter === 'analysts' &&
-      //       (foundCard.type === 'analyst' || foundCard.type === 'expert' || foundCard.type === 'bot'));
-
-      //   if (!matchesCurrentFilter) {
-      //     setActiveFilter('all');
-      //   }
-      // }
-
-            // Ensure current filter doesn't hide this target card
-      if (activeFilter !== 'all') {
-        const matchesCurrentFilter =
-          matchesSportFilter(foundCard, activeFilter) ||
-          (activeFilter === 'analysts' &&
-            (foundCard.type === 'analyst' || foundCard.type === 'expert' || foundCard.type === 'bot'));
-
-        if (!matchesCurrentFilter) {
-          setActiveFilter('all');
-        }
+      if (activeFilter !== 'all' && !matchesChannelFilter(foundCard, activeFilter)) {
+        setActiveFilter('all');
       }
 
       setHighlightedCardId(String(foundCard.id));
@@ -539,33 +493,8 @@ export function FlipLineFullScreen({
   }
 
   const safeCards = Array.isArray(cards) ? cards : [];
-  let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
-
-  // Apply hashtag filter chips
-  // Apply hashtag filter chips (supports multi-channel posts)
-  if (activeFilter === 'general') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'general'));
-  } else if (activeFilter === 'cricket') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'cricket'));
-  } else if (activeFilter === 'football') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'football'));
-  } else if (activeFilter === 'athletics') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, 'athletics'));
-  } else if (activeFilter === 'analysts') {
-    const filtered = displayCards.filter(
-      (c) =>
-        c.type === 'expert' ||
-        c.type === 'analyst' ||
-        c.type === 'bot' ||
-        c.author?.toLowerCase().includes('analyst') ||
-        c.source?.toLowerCase().includes('analyst') ||
-        c.tags?.some((t) => t.toLowerCase().includes('analyst'))
-    );
-    if (filtered.length > 0) displayCards = filtered;
-  } else if (selectedSport && selectedSport !== 'mixed') {
-    displayCards = displayCards.filter((c) => matchesSportFilter(c, selectedSport));
-  }
-
+  const baseCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
+  const displayCards = applyChannelFilter(baseCards, activeFilter, selectedSport);
 
   return (
     <div
@@ -626,49 +555,7 @@ export function FlipLineFullScreen({
               LIVE
             </span>
           </div>
-          {/* <div
-            style={{
-              fontSize: 9,
-              color: 'rgba(255,255,255,0.35)',
-              marginTop: 2,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span>🏏 Cricket</span>
-            <span>⚽ Football</span>
-            <span>🏃 Athletics</span>
-          </div> */}
         </div>
-        {/* <div
-          style={{
-            display: 'flex',
-            borderRadius: 99,
-            padding: 2,
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.09)',
-          }}
-        >
-          {(['full', 'key'] as const).map((d) => (
-            <button
-              key={d}
-              onClick={() => setDensity(d)}
-              style={{
-                padding: '3px 11px',
-                borderRadius: 99,
-                fontSize: 9.5,
-                fontWeight: 800,
-                background: density === d ? 'rgba(168,85,247,0.85)' : 'transparent',
-                color: density === d ? 'white' : 'rgba(255,255,255,0.38)',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {d === 'full' ? 'Full' : 'Key'}
-            </button>
-          ))}
-        </div> */}
       </div>
 
       {/* Multi-sport & Tag Filter Chips (Horizontally Scrollable) */}
@@ -676,16 +563,7 @@ export function FlipLineFullScreen({
         className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar border-b border-white/[0.06]"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {[
-          { id: 'all', label: '#all', emoji: '⚡' },
-          { id: 'general', label: '#general', emoji: '📢' },
-          { id: 'cricket', label: '#cricket', emoji: '🏏' },
-          { id: 'football', label: '#football', emoji: '⚽' },
-          { id: 'athletics', label: '#athletics', emoji: '🏃' },
-          { id: 'analysts', label: '#analysts', emoji: '🎙' },
-          // { id: 'sf360-live', label: '#sf360-live', emoji: '📡' },
-          // { id: 'fan-roar', label: '#fan-roar', emoji: '🔥' },
-        ].map((chip) => {
+        {FILTER_CHIPS.map((chip) => {
           const isActive = activeFilter === chip.id;
           return (
             <button
@@ -709,45 +587,6 @@ export function FlipLineFullScreen({
           );
         })}
       </div>
-
-      {/* Legend strip */}
-      {/* <div
-        style={{
-          flexShrink: 0,
-          display: 'flex',
-          gap: 14,
-          padding: '8px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          alignItems: 'center',
-        }}
-      >
-        {(
-          [
-            { c: 'rgb(168,85,247)', l: 'Analyst' },
-            { c: 'rgb(233,30,140)', l: 'Fan ROAR' },
-            { c: 'rgb(255,107,53)', l: 'SF360 Drop' },
-          ] as const
-        ).map(({ c, l }) => (
-          <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: c,
-                boxShadow: `0 0 6px ${c}aa`,
-              }}
-            />
-            <span style={{ fontSize: 8.5, fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>
-              {l}
-            </span>
-          </div>
-        ))}
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.22)', fontWeight: 600 }}>
-          Newest first
-        </span>
-      </div> */}
 
       {/* Scrollable timeline */}
       <div style={{ flex: 1, overflowY: 'auto', paddingTop: 0, paddingBottom: 32 }}>
@@ -1346,42 +1185,6 @@ export function FlipCardItem({
   };
 
   // ── 10. Open User Profile Navigation ─────────────────────────────────────────
-  // const handleOpenAuthorProfile = () => {
-  //   if (card.type === 'bot') {
-  //     const botName = card.author === 'Flip' ? 'Dolly' : card.author;
-  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botName)}`);
-  //     return;
-  //   }
-
-  //   const targetUser =
-  //     card.userId ||
-  //     card.email ||
-  //     (card.handle && card.handle !== '@fan' && card.handle !== '@you' ? card.handle.replace(/^@/, '') : null) ||
-  //     (card.author && card.author !== 'Fan' && card.author !== 'You' ? card.author : null) ||
-  //     (isCurrentUser ? (currentUserEmail || currentUserId) : null);
-
-  //   if (targetUser) {
-  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
-  //   } else {
-  //     router.push('/MainModules/ROAR');
-  //   }
-  // };
-
-  // const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
-  //   const targetUser =
-  //     targetUserId ||
-  //     (targetHandle && targetHandle !== '@fan' && targetHandle !== '@you' ? targetHandle.replace(/^@/, '') : null) ||
-  //     (targetName && targetName !== 'Fan' && targetName !== 'You' ? targetName : null) ||
-  //     (currentUserEmail || currentUserId);
-
-  //   if (targetUser) {
-  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
-  //   } else {
-  //     router.push('/MainModules/ROAR');
-  //   }
-  // };
-
-
   const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
     const botCanon = getBotCanonicalName(targetName) || getBotCanonicalName(targetUserId);
     if (botCanon) {
@@ -1402,8 +1205,7 @@ export function FlipCardItem({
     }
   };
 
-
-  // ── 10. Open User Profile Navigation ─────────────────────────────────────────
+  // ── 11. Open Author Profile Navigation ───────────────────────────────────────
   const handleOpenAuthorProfile = () => {
     const botCanon = card.type === 'bot'
       ? (getBotCanonicalName(card.author) || 'Dolly')
@@ -1427,7 +1229,6 @@ export function FlipCardItem({
       router.push('/MainModules/ROAR');
     }
   };
-
 
   // Total comment count = sum of comments + sum of replies
   const totalCommentsCount = commentsList.reduce(
@@ -1783,36 +1584,6 @@ export function FlipCardItem({
             );
           })()}
 
-          {/* Row 4: FOMO Banner */}
-          {/* {card.fomoMsg && (
-            <div
-              className="flex items-center justify-between gap-3 rounded-2xl p-3 bg-[#0d0a14] border border-pink-500/15"
-              style={{
-                borderColor: `${themeColor}2a`,
-                background: `linear-gradient(135deg, rgba(7, 11, 20, 0.98), rgba(15, 10, 25, 0.6))`,
-              }}
-            >
-              <p className="text-[12px] font-semibold text-white/85 leading-snug">🔥 {card.fomoMsg}</p>
-              <button
-                onClick={() => handleCtaClick(card.ctaType || 'room')}
-                className="shrink-0 px-4 py-2 rounded-xl text-[12px] font-extrabold text-white transition-all active:scale-95 cursor-pointer"
-                style={{
-                  background:
-                    card.ctaType === 'room'
-                      ? 'linear-gradient(135deg, #E91E8C, #FF6B35)'
-                      : card.ctaType === 'watchalong'
-                        ? 'linear-gradient(135deg, #7c3aed, #E91E8C)'
-                        : 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-                }}
-              >
-                {card.ctaType === 'room' && 'Join Room →'}
-                {card.ctaType === 'watchalong' && 'Watch Along →'}
-                {card.ctaType === 'drop' && 'Claim Drop →'}
-                {!['room', 'watchalong', 'drop'].includes(card.ctaType || '') && 'Explore →'}
-              </button>
-            </div>
-          )} */}
-
           {/* Row 5: Action buttons (Like, Comment, Share, Flip) */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -1908,7 +1679,6 @@ export function FlipCardItem({
                 boxShadow: isExpanded ? `0 0 10px ${themeColor}33` : 'none',
               }}
             >
-              {/* <DolphinIcon /> */}
               <img src="/images/dollyavatar.png" alt="dolphin" className="w-4 h-4" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
               <span>{isExpanded ? 'Flipped' : 'ASKFlip'}</span>
             </button>
@@ -2573,6 +2343,11 @@ export default function FlipLine({
       const urlCardId = targetCardId || params.get('cardId') || params.get('postId') || params.get('id');
       if (urlCardId) {
         setHighlightedCardId(String(urlCardId));
+      }
+      const urlItemId = params.get('itemId') || params.get('engagementId') || params.get('quizId');
+      const urlTab = params.get('tab');
+      if (urlItemId || urlTab === 'fliparena') {
+        setActiveTab('fliparena');
       }
     }
   }, [targetCardId]);

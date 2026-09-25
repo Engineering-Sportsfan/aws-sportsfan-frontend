@@ -1159,26 +1159,7 @@ import { useAuth } from "@/context/AuthContext";
 import { engagementService } from "@/services/engagement.service";
 import { EngagementItem, EngagementType } from "@/types/engagements";
 
-const MEME_PRESET_TEMPLATES = [
-  {
-    title: "When your team says trust the process",
-    subtitle: "Same energy. Different priorities.",
-    imageUrl: "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=800&auto=format&fit=crop&q=80",
-    label: "🐱 Matchday Cat",
-  },
-  {
-    title: "Me watching the last over thriller",
-    subtitle: "Heart rate 180 bpm, 6 balls remaining!",
-    imageUrl: "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=800&auto=format&fit=crop&q=80",
-    label: "🏏 Cricket Heartbeat",
-  },
-  {
-    title: "Waiting for VAR review after scoring a banger",
-    subtitle: "Don't celebrate yet... check the screen!",
-    imageUrl: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=800&auto=format&fit=crop&q=80",
-    label: "⚽ VAR Suspense",
-  },
-];
+
 
 export interface UserQuizQuestion {
   id: string;
@@ -1228,7 +1209,7 @@ export default function ArenaEngagementModal({
   const [sport, setSport] = useState("cricket");
 
   // Meme Fields
-  const [memeImageUrl, setMemeImageUrl] = useState(MEME_PRESET_TEMPLATES[0].imageUrl);
+  const [memeImageUrl, setMemeImageUrl] = useState("");
   const [memeUploading, setMemeUploading] = useState(false);
 
   // Fan Battle Fields
@@ -1291,9 +1272,16 @@ export default function ArenaEngagementModal({
         setFbRightName(editingItem.fanBattleData.rightCompetitor.name || "");
         setFbRightStat(editingItem.fanBattleData.rightCompetitor.stat || "");
       } else if (editingItem.type === "quiz" && editingItem.quizData) {
-        if (editingItem.quizData.startTime || editingItem.quizData.scheduledStartTime) {
+        const rawStartTime =
+          editingItem.quizData.startTime ||
+          editingItem.quizData.scheduledStartTime ||
+          (editingItem.quizData as any).postingTime ||
+          editingItem.postingTime ||
+          editingItem.startTime ||
+          editingItem.scheduledStartTime;
+        if (rawStartTime) {
           try {
-            const d = new Date(Number(editingItem.quizData.startTime || editingItem.quizData.scheduledStartTime));
+            const d = new Date(Number(rawStartTime));
             const pad = (n: number) => String(n).padStart(2, "0");
             setQuizStartTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
           } catch {
@@ -1351,10 +1339,10 @@ export default function ArenaEngagementModal({
       }
     } else {
       setActiveType(initialType);
-      setTitle(initialType === "meme" ? "When your team says trust the process" : "");
-      setSubtitle(initialType === "meme" ? "Same energy. Different priorities." : "");
+      setTitle("");
+      setSubtitle("");
       setSport("cricket");
-      setMemeImageUrl(MEME_PRESET_TEMPLATES[0].imageUrl);
+      setMemeImageUrl("");
       setFbLeftName("");
       setFbLeftStat("");
       setFbRightName("");
@@ -1459,6 +1447,9 @@ export default function ArenaEngagementModal({
         creatorId: activeUserId,
         creatorEmail: userEmail,
         creatorName: userName,
+        postingTime: now,
+        startTime: now,
+        scheduledStartTime: now,
       };
 
       if (activeType === "fan_battle") {
@@ -1492,6 +1483,10 @@ export default function ArenaEngagementModal({
         }
 
         const startMs = quizStartTime ? new Date(quizStartTime).getTime() : now;
+        payload.startTime = startMs;
+        payload.scheduledStartTime = startMs;
+        payload.postingTime = startMs;
+
         const formattedQuestions = validQuestions.map((q, idx) => ({
           id: q.id || `q_${idx + 1}`,
           question: q.question.trim(),
@@ -1515,6 +1510,7 @@ export default function ArenaEngagementModal({
         payload.quizData = {
           startTime: startMs,
           scheduledStartTime: startMs,
+          postingTime: startMs,
           frequencyMinutes: Number(quizFrequencyMinutes) || 10,
           questions: formattedQuestions,
           question: formattedQuestions[0]?.question || finalTitle,
@@ -1612,25 +1608,40 @@ export default function ArenaEngagementModal({
           setSubmitting(false);
           return;
         }
+        const resolvedAuthorName =
+          userName ||
+          (user as any)?.displayName ||
+          (userEmail ? userEmail.split("@")[0] : "") ||
+          "SportsFan";
+        const resolvedAuthorAvatar =
+          user?.avatar ||
+          (user as any)?.photoURL ||
+          (user as any)?.picture ||
+          (user as any)?.profilePic ||
+          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+        const resolvedAuthorHandle = userEmail
+          ? `@${userEmail.split("@")[0]}`
+          : `@${resolvedAuthorName.toLowerCase().replace(/\s+/g, "")}`;
+
         payload.tags = ["🔥 MEME ARENA", "😂 VIRAL"];
         payload.memeData = {
           imageUrl: memeImageUrl.trim(),
           caption: subtitle.trim() || title.trim(),
-          authorName: userName || "AmitFan",
-          authorHandle: userName ? `@${userName.toLowerCase().replace(/\s+/g, "")}` : "@AmitFan",
-          authorAvatar: user?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-          heatPercentage: editingItem?.memeData?.heatPercentage || 78,
-          totalVotes: editingItem?.memeData?.totalVotes || 1240,
+          authorName: editingItem?.memeData?.authorName || resolvedAuthorName,
+          authorHandle: editingItem?.memeData?.authorHandle || resolvedAuthorHandle,
+          authorAvatar: editingItem?.memeData?.authorAvatar || resolvedAuthorAvatar,
+          heatPercentage: editingItem?.memeData?.heatPercentage !== undefined ? editingItem.memeData.heatPercentage : 0,
+          totalVotes: editingItem?.memeData?.totalVotes !== undefined ? editingItem.memeData.totalVotes : 0,
           reactions: editingItem?.memeData?.reactions || {
-            mild: 25,
-            funny: 310,
-            hot: 480,
-            fire: 320,
-            nuclear: 105,
+            mild: 0,
+            funny: 0,
+            hot: 0,
+            fire: 0,
+            nuclear: 0,
           },
-          commentsCount: editingItem?.memeData?.commentsCount || 43,
-          sharesCount: editingItem?.memeData?.sharesCount || 12,
-          createdAt: now,
+          commentsCount: editingItem?.memeData?.commentsCount !== undefined ? editingItem.memeData.commentsCount : 0,
+          sharesCount: editingItem?.memeData?.sharesCount !== undefined ? editingItem.memeData.sharesCount : 0,
+          createdAt: editingItem?.memeData?.createdAt || editingItem?.createdAt || now,
         };
       }
 
@@ -2405,51 +2416,7 @@ export default function ArenaEngagementModal({
                     </div>
                   </div>
 
-                  {/* Preset Templates */}
-                  <div className="space-y-2 pt-1">
-                    <label className="text-[10.5px] font-black text-white/50 uppercase tracking-wider block">
-                      Or pick a template:
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {MEME_PRESET_TEMPLATES.map((tmpl, idx) => {
-                        const isSelected = memeImageUrl === tmpl.imageUrl;
-                        return (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => {
-                              setMemeImageUrl(tmpl.imageUrl);
-                              if (
-                                !title ||
-                                title === MEME_PRESET_TEMPLATES[0].title ||
-                                title === MEME_PRESET_TEMPLATES[1].title ||
-                                title === MEME_PRESET_TEMPLATES[2].title
-                              ) {
-                                setTitle(tmpl.title);
-                                setSubtitle(tmpl.subtitle);
-                              }
-                            }}
-                            className={`p-2 rounded-xl text-left border transition-all cursor-pointer flex flex-col gap-1.5 ${
-                              isSelected
-                                ? "bg-orange-500/15 border-orange-500/60 shadow-[0_0_12px_rgba(255,123,2,0.2)]"
-                                : "bg-white/[0.02] border-white/10 hover:border-white/20 hover:bg-white/[0.04]"
-                            }`}
-                          >
-                            <div className="w-full h-12 rounded-lg overflow-hidden bg-black/40">
-                              <img
-                                src={tmpl.imageUrl}
-                                alt={tmpl.label}
-                                className="w-full h-full object-cover"
-                              />
-                            </div>
-                            <span className="text-[10px] font-extrabold text-white/90 truncate block">
-                              {tmpl.label}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+
                 </div>
               )}
             </div>

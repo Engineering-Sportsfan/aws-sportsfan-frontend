@@ -29,7 +29,8 @@ import {
   RadarCardItem, 
   AgendaEventItem, 
   MorningBriefStory, 
-  WelcomeConfig 
+  WelcomeConfig,
+  resolveDynamicAgendaEvents 
 } from "@/services/welcomeMessage.service";
 
 export type { RadarCardItem, AgendaEventItem, MorningBriefStory, WelcomeConfig };
@@ -159,11 +160,25 @@ export default function WelcomeMessage({
     }
   }, [propUserName, user, getUserDisplayName, authLoading, authReady]);
 
+  // Live 15-second clock ticker to automatically transition event statuses in real time
+  const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Dynamically calculate event statuses (completed, live, up_next, scheduled) based on current clock time
+  const dynamicAgendaEvents = useMemo(() => {
+    return resolveDynamicAgendaEvents(agendaEvents, currentTime);
+  }, [agendaEvents, currentTime]);
+
   // ─── Derive Radar Cards from TODAY'S AGENDA data ────────────────────────
   // Ensures the exact same data from TODAY'S AGENDA is displayed in TODAY ON YOUR RADAR
   const displayedRadarCards = useMemo<RadarCardItem[]>(() => {
-    if (agendaEvents.length > 0) {
-      return agendaEvents.map((evt, index) => {
+    if (dynamicAgendaEvents.length > 0) {
+      return dynamicAgendaEvents.map((evt, index) => {
         const isLive = evt.statusType === "live" || evt.statusLabel?.toLowerCase() === "live";
 
         let themeColor: RadarCardItem["themeColor"] = "purple";
@@ -173,14 +188,22 @@ export default function WelcomeMessage({
           themeColor = "emerald";
         } else if (evt.statusType === "up_next" || evt.nodeColor === "amber") {
           themeColor = "amber";
-        } else if (evt.nodeColor === "blue" || evt.statusType === "afternoon") {
+        } else if (evt.statusType === "completed" || evt.nodeColor === "gray") {
           themeColor = "cyan";
+        } else if (evt.nodeColor === "blue" || evt.statusType === "scheduled" || evt.statusType === "afternoon") {
+          themeColor = "purple";
         } else {
           const colors: RadarCardItem["themeColor"][] = ["purple", "cyan", "rose", "emerald", "amber"];
           themeColor = colors[index % colors.length];
         }
 
-        const displayStatus = isLive ? "LIVE" : (evt.time || evt.statusLabel || "UPCOMING");
+        const displayStatus = isLive
+          ? "LIVE"
+          : evt.statusType === "completed"
+          ? "COMPLETED"
+          : evt.statusType === "up_next"
+          ? "UP NEXT"
+          : evt.time || evt.statusLabel || "SCHEDULED";
 
         return {
           id: evt.id || `agenda_${index}`,
@@ -198,14 +221,18 @@ export default function WelcomeMessage({
           themeColor,
           venue: evt.venue,
           teams: evt.teams,
-          summary: evt.summary || `${evt.sport} (${evt.subEvent || ""}) - ${evt.detail || ""}${evt.venue ? ` at ${evt.venue}` : ""}. Scheduled time: ${evt.time || "Today"}.`,
+          summary:
+            evt.summary ||
+            `${evt.sport} (${evt.subEvent || ""}) - ${evt.detail || ""}${
+              evt.venue ? ` at ${evt.venue}` : ""
+            }. Scheduled time: ${evt.time || "Today"}.`,
           order: evt.order ?? index + 1,
           active: evt.active,
         };
       });
     }
     return radarCards;
-  }, [agendaEvents, radarCards]);
+  }, [dynamicAgendaEvents, radarCards]);
 
   // Dynamically sync dot count with radar cards length
   useEffect(() => {
@@ -617,7 +644,7 @@ export default function WelcomeMessage({
 
             <div className="flex flex-col min-w-0">
               <h3 className="text-[14px] sm:text-[15px] font-black uppercase tracking-wider text-white leading-tight flex items-center gap-1.5">
-                MORNING BRIEF
+                Daily Huddle 
               </h3>
               <p className="text-[12px] sm:text-[13px] font-medium text-[#D1A56A] leading-tight mt-0.5 truncate">
                 {welcomeConfig?.briefSubtitle || "Top 5 stories to know today"}
@@ -699,19 +726,22 @@ export default function WelcomeMessage({
                         </div>
                       ))}
                     </div>
-                  ) : agendaEvents.length === 0 ? (
+                  ) : dynamicAgendaEvents.length === 0 ? (
                     <div className="py-8 text-center text-gray-400 text-[13px]">
                       No agenda events scheduled for today.
                     </div>
                   ) : (
-                    agendaEvents.map((evt, idx) => {
-                      const isLast = idx === agendaEvents.length - 1;
+                    dynamicAgendaEvents.map((evt, idx) => {
+                      const isLast = idx === dynamicAgendaEvents.length - 1;
 
                       let nodeStyle = "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
                       let badgeStyle = "bg-[#0b1c33] text-[#60A5FA] border border-[#1E40AF]/60";
                       let badgeGlow = "";
 
-                      if (evt.statusType === "live") {
+                      if (evt.statusType === "completed") {
+                        nodeStyle = "bg-gray-400 shadow-[0_0_6px_rgba(156,163,175,0.4)]";
+                        badgeStyle = "bg-[#1e293b] text-[#94a3b8] border border-[#475569]/50";
+                      } else if (evt.statusType === "live") {
                         nodeStyle = "bg-emerald-400 shadow-[0_0_10px_#34D399]";
                         badgeStyle = "bg-[#04281E] text-[#10B981] border border-[#10B981]/50";
                         badgeGlow = "shadow-[0_0_10px_rgba(16,185,129,0.25)]";
@@ -719,6 +749,9 @@ export default function WelcomeMessage({
                         nodeStyle = "bg-amber-400 shadow-[0_0_10px_#FBBF24]";
                         badgeStyle = "bg-[#2E1F06] text-[#FBBF24] border border-[#D97706]/60";
                         badgeGlow = "shadow-[0_0_10px_rgba(251,191,36,0.25)]";
+                      } else {
+                        nodeStyle = "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
+                        badgeStyle = "bg-[#0b1c33] text-[#60A5FA] border border-[#1E40AF]/60";
                       }
 
                       return (
@@ -764,7 +797,17 @@ export default function WelcomeMessage({
                                 {evt.statusType === "live" && (
                                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                                 )}
-                                {evt.statusLabel || (evt.statusType === "live" ? "LIVE" : evt.statusType === "up_next" ? "UP NEXT" : "AFTERNOON")}
+                                {evt.statusType === "completed" && (
+                                  <span className="text-[10px]">✓</span>
+                                )}
+                                {evt.statusLabel ||
+                                  (evt.statusType === "completed"
+                                    ? "COMPLETED"
+                                    : evt.statusType === "live"
+                                    ? "LIVE"
+                                    : evt.statusType === "up_next"
+                                    ? "UP NEXT"
+                                    : "SCHEDULED")}
                               </span>
                             </div>
                           </div>
