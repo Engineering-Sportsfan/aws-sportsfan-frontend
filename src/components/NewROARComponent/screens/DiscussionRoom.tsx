@@ -1,3 +1,4 @@
+"use client";
 // import React from "react";
 // import { useState, useEffect, useRef, useCallback } from "react";
 // import { useRouter } from "next/navigation";
@@ -459,6 +460,9 @@
 //       await axios.post(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { text: fullText });
 //       if (phog) {
 //         phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+//         try {
+//           trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+//         } catch (e) {}
 //       }
 //       setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
 //     } catch { }
@@ -3324,6 +3328,7 @@ import React from "react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { usePostHog } from "posthog-js/react";
+import { trackMeaningfulInteraction, trackAdvocacy } from "@/lib/analytics";
 import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { useUserProfile } from "@/context/UserProfileContext";
 import axios from "axios";
@@ -3832,10 +3837,25 @@ function InlineSection({
     if (!fullText || sending) return;
     setSending(true);
     try {
+      trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "", text: fullText });
+      if (phog) {
+        phog.capture("meaningful_interaction", {
+          interaction_type: "comment",
+          post_id: postId,
+          room_id: roomId,
+          room_name: roomName || "",
+          text: fullText,
+        });
+      }
+    } catch (e) {}
+    try {
       await axios.post(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { text: fullText }, { timeout: REQUEST_TIMEOUT_MS });
       if (phog) {
         phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
       }
+      try {
+        trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+      } catch (e) {}
       setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
     } catch (err: any) {
       const isTimeout = err?.code === "ECONNABORTED" || err?.message?.includes("timeout");
@@ -4959,6 +4979,12 @@ export default function DiscussionRoom({
         room_id: roomId,
         room_name: roomName || ""
       });
+      try {
+        trackMeaningfulInteraction("enter_room", {
+          room_id: roomId,
+          room_name: roomName || ""
+        });
+      } catch (e) {}
     }
   }, [phog, roomId, roomName]);
   const votingInProgressRef = useRef<Set<string>>(new Set());
@@ -5677,6 +5703,18 @@ export default function DiscussionRoom({
     setLocalReactions(p => ({ ...p, [msgId]: optimisticState }));
     lastLocalReactAtRef.current[msgId] = Date.now();
     pendingReactRef.current[msgId] = true;
+    try {
+      trackMeaningfulInteraction("reaction", { room_id: roomId, room_name: roomName || "", msg_id: msgId, reaction: newReaction });
+      if (phog) {
+        phog.capture("meaningful_interaction", {
+          interaction_type: "reaction",
+          room_id: roomId,
+          room_name: roomName || "",
+          msg_id: msgId,
+          reaction: newReaction,
+        });
+      }
+    } catch (e) {}
     // Failsafe: release the pending lock even if the request hangs, so the
     // person can retry instead of the reaction button going permanently dead.
     const failsafe = setTimeout(() => { pendingReactRef.current[msgId] = false; }, REQUEST_TIMEOUT_MS + 3000);
@@ -5754,7 +5792,7 @@ export default function DiscussionRoom({
   };
 
   const send = async () => {
-    if (!roomId || isMatchEnded) return;
+    if (!roomId) return;
     if (postCooldown > 0) return;
     const text = input.trim();
     if (!text && !attachedUrl) return;
@@ -5766,6 +5804,19 @@ export default function DiscussionRoom({
     }, REQUEST_TIMEOUT_MS + 3000);
     const clientMsgId = `${currentUserId || "anon"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     try {
+      trackMeaningfulInteraction("comment", { room_id: roomId, room_name: roomName || "", text });
+      if (phog) {
+        phog.capture("meaningful_interaction", {
+          interaction_type: "comment",
+          room_id: roomId,
+          room_name: roomName || "",
+          text,
+        });
+      }
+    } catch (trackErr) {
+      console.warn("[Analytics] Meaningful interaction track error:", trackErr);
+    }
+    try {
       const res = await axios.post(
         `/api/roar/rooms/${roomId}/messages`,
         { text: text || "Shared media", type: mode, mediaUrls: attachedUrl ? [attachedUrl] : undefined, clientMsgId },
@@ -5773,6 +5824,9 @@ export default function DiscussionRoom({
       );
       if (res.data?.success) {
         const m = res.data.message;
+        try {
+          trackMeaningfulInteraction("comment", { room_id: roomId, room_name: roomName || "", msg_id: m.msgId });
+        } catch (e) {}
         setPosts(p => [...p, { id: m.msgId, fan: { username: displayUsername(m.authorUsername), authorUid: m.authorUid, badge: m.authorBadge, email: m.authorEmail, avatarUrl: m.authorAvatarUrl || m.avatarUrl || (m.authorUsername === userUsername ? userAvatarUrl : undefined) }, text: m.text, fireCount: m.fireCount ?? 0, heartCount: m.heartCount ?? 0, mindblownCount: m.mindblownCount ?? 0, goatCount: m.goatCount ?? 0, clapCount: m.clapCount ?? 0, nochanceCount: m.noChanceCount ?? 0, userReaction: null, replyCount: 0, agreeCount: 0, disagreeCount: 0, userVote: null, sideA: m.sideA ?? null, sideB: m.sideB ?? null, timeAgo: "now", createdAt: m.createdAt || Date.now(), type: m.type, mediaUrls: m.mediaUrls, quizQuestion: m.quizQuestion, quizOptions: m.quizOptions, quizCorrectOption: m.quizCorrectOption, quizUserAnswer: m.quizUserAnswer ?? null, quizTimer: m.quizTimer, quizPoints: m.quizPoints, quizParticipants: m.quizParticipants ?? 0, memGifUrl: m.memGifUrl ?? null, memTag: m.memTag ?? null }]);
         setInput(""); setAttachedUrl(null); setAttachedType(null);
         playSound("post");
@@ -5811,7 +5865,7 @@ export default function DiscussionRoom({
   };
 
   const handleQuickReactPost = async (opt: typeof QUICK_REACT_OPTS[0]) => {
-    if (!roomId || isMatchEnded) return;
+    if (!roomId) return;
     setShowQuickCompose(false);
     const memTag = opt.id.replace("qr_", "");
 
@@ -5832,6 +5886,17 @@ export default function DiscussionRoom({
       }, { timeout: REQUEST_TIMEOUT_MS });
       if (res.data?.success) {
         const m = res.data.message;
+        try {
+          trackMeaningfulInteraction("reaction", { room_id: roomId, room_name: roomName || "", mem_tag: memTag });
+          if (phog) {
+            phog.capture("meaningful_interaction", {
+              interaction_type: "reaction",
+              room_id: roomId,
+              room_name: roomName || "",
+              mem_tag: memTag,
+            });
+          }
+        } catch (e) {}
         setPosts(p => {
           if (p.some(post => post.id === m.msgId)) return p.filter(post => post.id !== tempId);
           return p.map(post => post.id === tempId ? { ...post, id: m.msgId, status: "sent", timeAgo: "now", createdAt: m.createdAt || Date.now(), memGifUrl: m.memGifUrl } : post);
@@ -5855,6 +5920,9 @@ export default function DiscussionRoom({
 
   const handleBack = (e: React.PointerEvent | React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onBack(); };
   const shareRoomLink = () => {
+    try {
+      trackAdvocacy("content_shared", { room_id: roomId, room_name: roomName || "", type: "room_link" });
+    } catch (e) {}
     if (typeof navigator !== "undefined" && navigator.share) navigator.share({ title: "SF360 Infinity Room", url: window.location.href });
     else { copyToClipboard(window.location.href); onToast("Link copied!"); }
   };
@@ -6426,6 +6494,9 @@ export default function DiscussionRoom({
                                       room_id: roomId,
                                       room_name: roomName || ""
                                     });
+                                    try {
+                                      trackMeaningfulInteraction("poll_vote", { poll_id: p.id, poll_type: "debate_vs", option_id: voteVal, room_id: roomId, room_name: roomName || "" });
+                                    } catch (e) {}
                                   }
                                 } catch (err: any) {
                                   const status = err?.response?.status;
@@ -6588,6 +6659,9 @@ export default function DiscussionRoom({
                                           room_id: roomId,
                                           room_name: roomName || ""
                                         });
+                                        try {
+                                          trackMeaningfulInteraction("submit_prediction", { post_id: p.id, option_id: agree ? "agree" : "disagree", room_id: roomId, room_name: roomName || "" });
+                                        } catch (e) {}
                                         phog.capture("submit_prediction", {
                                           post_id: p.id,
                                           room_id: roomId,
@@ -6909,7 +6983,7 @@ export default function DiscussionRoom({
                     onSelect={(u) => mention.insertMention(u, input, setInput, mainInputRef)}
                   />
                 )}
-                {input === "" && !uploading && postCooldown === 0 && !isMatchEnded && (
+                {input === "" && !uploading && postCooldown === 0 && (
                   <div className="absolute left-2.5 top-0 bottom-0 flex items-center pointer-events-none">
                     <span className="text-xs font-medium truncate" style={{ color: MODE_COLOR["post"] || "var(--text-secondary)" }}>{PLACEHOLDER["post"]}</span>
                   </div>
@@ -6918,16 +6992,14 @@ export default function DiscussionRoom({
                 <input
                   ref={mainInputRef}
                   type="text"
-                  disabled={uploading || postCooldown > 0 || isMatchEnded}
+                  disabled={uploading || postCooldown > 0}
                   value={input}
                   onChange={e => {
-                    if (isMatchEnded) return;
                     const value = e.target.value;
                     setInput(value);
                     mention.handleMentionInputChange(value, e.target.selectionStart || value.length);
                   }}
                   onKeyDown={e => {
-                    if (isMatchEnded) return;
                     if (mention.handleMentionKeyDown(e, input, setInput, mainInputRef)) return;
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -6941,7 +7013,7 @@ export default function DiscussionRoom({
               </div>
 
               <motion.button
-                whileTap={{ scale: 0.96 }} onClick={send} disabled={uploading || isSending || postCooldown > 0 || isMatchEnded}
+                whileTap={{ scale: 0.96 }} onClick={send} disabled={uploading || isSending || postCooldown > 0}
                 className="w-6 h-6 rounded-full border-none -mr-1 text-white text-base font-bold flex items-center justify-center cursor-pointer shrink-0 bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]"
                 style={{ opacity: uploading ? 0.5 : 1 }}
               >

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { usePostHog } from "posthog-js/react";
+import { trackAdvocacy } from "@/lib/analytics";
 import { useUserProfile } from "@/context/UserProfileContext";
 import AvatarWithBadge from "../components/AvatarWithBadge";
 import ReactionPicker, { type Reaction } from "../components/ReactionPicker";
@@ -977,6 +978,17 @@ export default function OpenRoomDiscussionRoom({
         const countDelta = newActive && !wasActive ? 1 : (!newActive && wasActive ? -1 : 0);
         const optimisticState = { reaction: newReaction, heartCount: Math.max(0, prev.heartCount + countDelta) };
         setLocalReactions(p => ({ ...p, [msgId]: optimisticState }));
+        try {
+          if (phog) {
+            phog.capture("meaningful_interaction", {
+              interaction_type: "reaction",
+              room_id: roomId,
+              room_name: roomName || "",
+              msg_id: msgId,
+              reaction: newReaction,
+            });
+          }
+        } catch (e) {}
         lastLocalReactAtRef.current[msgId] = Date.now();
         pendingReactRef.current[msgId] = true;
         const failsafe = setTimeout(() => { pendingReactRef.current[msgId] = false; }, REQUEST_TIMEOUT_MS + 3000);
@@ -1045,6 +1057,16 @@ export default function OpenRoomDiscussionRoom({
                 payload.channelId = postChannelId;
             }
 
+            try {
+              if (phog) {
+                phog.capture("meaningful_interaction", {
+                  interaction_type: "comment",
+                  room_id: roomId,
+                  room_name: roomName || "",
+                  text,
+                });
+              }
+            } catch (e) {}
             const res = await axios.post(
                 `/api/roar/rooms/${roomId}/messages`,
                 payload,
@@ -1197,7 +1219,25 @@ export default function OpenRoomDiscussionRoom({
         finally { setUploading(false); if (e.target) e.target.value = ""; }
     };
 
+    const handleSharePost = (post: any) => {
+        try {
+            trackAdvocacy("content_shared", { post_id: post.id, room_id: roomId, room_name: roomName || "" });
+            if (phog) {
+            }
+        } catch (e) {}
+        if (typeof navigator !== "undefined" && navigator.clipboard) {
+            navigator.clipboard.writeText(window.location.origin + `/MainModules/ROAR?post=${post.id}`).then(() => onToast("Post link copied to clipboard!"));
+        } else {
+            onToast("Link copied!");
+        }
+    };
+
     const shareRoomLink = () => {
+        try {
+            trackAdvocacy("content_shared", { room_id: roomId, room_name: roomName || "", type: "room_share" });
+            if (phog) {
+            }
+        } catch (e) {}
         if (typeof navigator !== "undefined" && navigator.share) navigator.share({ title: "SF360 Infinity Room", url: window.location.href });
         else { navigator.clipboard.writeText(window.location.href).then(() => onToast("Link copied!")); }
     };
@@ -1749,7 +1789,7 @@ export default function OpenRoomDiscussionRoom({
                                             <span style={{ fontSize: 9 }}>{replyCount}</span>
                                             {isOpen ? <ChevronUp size={10} style={{ opacity: 0.7 }} /> : <ChevronDown size={10} style={{ opacity: 0.5 }} />}
                                         </button>
-                                        <button onClick={e => { e.stopPropagation(); /* share logic */ }} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#9494ad", fontSize: 11, fontWeight: 600 }}>
+                                        <button onClick={e => { e.stopPropagation(); handleSharePost(p); }} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#9494ad", fontSize: 11, fontWeight: 600 }}>
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                 <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
                                                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />

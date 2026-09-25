@@ -1,3 +1,4 @@
+"use client";
 // "use client";
 
 // import { useState } from "react";
@@ -355,6 +356,8 @@ import Link from "next/link";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
+import { trackSignup } from "@/lib/analytics";
+
 
 type Step = "register" | "otp" | "password";
 
@@ -514,6 +517,11 @@ export default function RegisterPage() {
     setLoading(true); setError("");
     try {
       await axios.post('/api/auth/set-password', { email, password });
+      try {
+        trackSignup(email, { email, firstName, lastName, method: "email_otp" });
+      } catch (trackErr) {
+        console.warn("[Analytics] RegisterForm trackSignup error:", trackErr);
+      }
      router.push("/auth/login");
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
@@ -602,6 +610,7 @@ export default function RegisterPage() {
           </button> */}
             <button
                               onClick={() => {
+                                  try { sessionStorage.setItem("google_auth_intent", "signup"); } catch (e) {}
                                   const currentOrigin = window.location.origin;
                                   signIn("google", {
                                       callbackUrl: `${currentOrigin}/MainModules/HomePage`

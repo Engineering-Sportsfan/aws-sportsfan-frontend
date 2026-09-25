@@ -1,3 +1,4 @@
+"use client";
 // // context/AuthContext.tsx
 
 // "use client";
@@ -359,10 +360,12 @@
 
 // context/AuthContext.tsx  — FRONTEND project
 
-"use client";
+// "use client"; (moved to line 1)
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import axios from "axios";
 import { useSession } from "next-auth/react";
+import { trackSignup, trackLoginSuccess } from "@/lib/analytics";
+import posthog from "posthog-js";
 
 interface User {
     email: string;
@@ -424,12 +427,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
                 // ⚡ AUTO-CREATE / VERIFY IN DYNAMODB (Runs ONCE per tab session)
                 if (!checkedUsersInMemory.has(email)) {
+                    checkedUsersInMemory.add(email);
                     try {
-                        await axios.post("/api/auth/google-signup", {
+                        const response = await axios.post("/api/auth/google-signup", {
                             email,
                             name: session.user.name || email.split("@")[0],
                             avatar: session.user.image || "",
                         });
+                        
+                        // ⚡ Determine if new user based on backend response AND fallback intent
+                        const isNewUserFromDB = response?.data?.isNewUser; // true, false, or undefined
+                        const isSignupIntent = typeof window !== "undefined" && sessionStorage.getItem("google_auth_intent") === "signup";
+                        const alreadyTracked = typeof window !== "undefined" && localStorage.getItem("sf_signup_tracked_" + email);
+
+                        // 100% Bulletproof: If DB says false, ignore intent. If DB is undefined (fallback), use intent.
+                        const shouldTrack = isNewUserFromDB === true || (isNewUserFromDB === undefined && isSignupIntent);
+
+                        if (shouldTrack && !alreadyTracked) {
+                            try {
+                                // trackSignup(email, { email, name: session.user.name, method: "google" }); // Moved to Backend for bulletproof reliability
+                                localStorage.setItem("sf_signup_tracked_" + email, "true");
+                                sessionStorage.removeItem("google_auth_intent");
+                            } catch (e) {}
+                        } else if (isNewUserFromDB === false && isSignupIntent) {
+                            // If they clicked signup but are an old user, we keep the intent so block 2 tracks it as a login.
+                        }
                         checkedUsersInMemory.add(email);
                         console.log("⚡ [AuthContext] User ensured in DynamoDB for:", email);
                     } catch (syncErr) {
@@ -448,6 +470,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                     const response = await axios.get("/api/auth/host/me");
                     if (response.data.success && response.data.user) {
                         const u = response.data.user;
+                        
+                        if (typeof window !== 'undefined') {
+                            const intent = sessionStorage.getItem('google_auth_intent');
+                            if (intent) {
+                                try {
+                                    trackLoginSuccess(u.userId || u.email, {
+                                        email: u.email,
+                                        name: u.name || session.user.name,
+                                        role: u.role,
+                                        method: "google",
+                                    });
+                                    sessionStorage.removeItem('google_auth_intent');
+                                } catch (e) {}
+                            }
+                        }
+                        
                         const fullName = u.name || session.user.name || u.email.split("@")[0];
                         const resolvedUserId = u.userId || u.actualUserId || u.id || u.uid || session.user.email;
                         const resolvedActualUserId = u.actualUserId || u.userId || u.id || u.uid;

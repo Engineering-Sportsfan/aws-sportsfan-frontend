@@ -1,3 +1,4 @@
+"use client";
 // // components/preferences/index.tsx
 
 // "use client";
@@ -333,8 +334,9 @@
 
 
 
-"use client";
+// "use client"; (moved to line 1)
 
+import { trackFanDNACompleted, trackInterestFollowed } from "@/lib/analytics";
 import { useState, useCallback, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -614,6 +616,17 @@ export default function PreferencesOnboarding() {
 
     setSubmitting(true);
     setApiError(null);
+    try {
+      trackFanDNACompleted({
+        purpose,
+        tags: selectedSports,
+        sportStyle: contentStyle,
+        notificationsEnabled: Object.values(notifications).some(Boolean),
+      });
+      if (selectedSports && selectedSports.length > 0) {
+        trackInterestFollowed("sports", selectedSports.join(", "), selectedSports.length);
+      }
+    } catch (trackErr) {}
 
     const payload = {
       userId: user.userId,
@@ -658,6 +671,19 @@ export default function PreferencesOnboarding() {
         }
       }
 
+      try {
+        trackFanDNACompleted({
+          purpose,
+          tags: selectedSports,
+          sportStyle: contentStyle,
+          notificationsEnabled: Object.values(notifications).some(Boolean),
+        });
+        if (selectedSports.length > 0) {
+          trackInterestFollowed("sports", selectedSports.join(", "), selectedSports.length);
+        }
+      } catch (trackErr) {
+        console.warn("[Analytics] preferences track error:", trackErr);
+      }
       setStep(4);
     } catch (err: unknown) {
       setApiError(err instanceof Error ? err.message : "Something went wrong. Try again.");

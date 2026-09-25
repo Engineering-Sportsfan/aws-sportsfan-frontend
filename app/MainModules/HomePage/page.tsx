@@ -381,6 +381,7 @@ import AthleticsSpotlight from "@/src/components/NewHomeComponents/AthleticsSpot
 import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
 import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
 import FlipLine from "@/src/components/NewHomeComponents/FlipLine";
+import WelcomeMessage from "@/src/components/NewHomeComponents/WelcomeMessage";
 import Onboarding from "@/src/components/NewROARComponent/screens/Onboarding";
 import { useAuth } from "@/context/AuthContext";
 
@@ -420,7 +421,7 @@ function HomePageInner() {
     } catch {}
   }, []);
 
-  /*
+  
   // Onboarding temporarily disabled for Dew collaboration
   useEffect(() => {
     if (!authReady) return;
@@ -474,7 +475,7 @@ function HomePageInner() {
 
     checkOnboarding();
   }, [authReady, isAuthenticated, user]);
-  */
+  
 
   useEffect(() => {
     if (showOnboarding) {
@@ -769,7 +770,7 @@ function HomePageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  /*
+  
   // Onboarding temporarily disabled for Dew collaboration
   if (showOnboarding) {
     return (
@@ -787,7 +788,7 @@ function HomePageInner() {
       </div>
     );
   }
-  */
+
 
   return (
     <div className="flex flex-col w-full min-h-screen">
@@ -819,6 +820,7 @@ function HomePageInner() {
         /> */}
 
         <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
+        <WelcomeMessage />
         <FlipLine selectedSport={selectedSport} />
         <WatchAlongSessions />
         {/* <AthleticsSpotlight sport={selectedSport} /> */}

@@ -6,7 +6,10 @@ import {
   LikeResponse,
   ShareResponse,
   EngagementType,
+  CheckVoteStatusResponse,
 } from "@/types/engagements";
+
+export type { CheckVoteStatusResponse };
 
 export interface GetEngagementsParams {
   type?: EngagementType | "all" | string;
@@ -96,7 +99,8 @@ export const engagementService = {
     id: string,
     selectedOptionId: string,
     userId?: string,
-    questionId?: string
+    questionId?: string,
+    meta?: Record<string, any>
   ): Promise<T> => {
     const res = await axios.post<T>(
       `/api/engagements/${encodeURIComponent(id)}/vote`,
@@ -104,6 +108,7 @@ export const engagementService = {
         selectedOptionId,
         userId,
         ...(questionId ? { questionId } : {}),
+        ...(meta || {}),
       }
     );
     cachedEngagements.clear();
@@ -116,16 +121,23 @@ export const engagementService = {
   checkVoteStatus: async (
     id: string,
     userId?: string
-  ): Promise<{ hasVoted: boolean; selectedOptionId: string | null; vote?: any }> => {
+  ): Promise<CheckVoteStatusResponse> => {
     try {
       const url = `/api/engagements/${encodeURIComponent(id)}/vote${
         userId ? `?userId=${encodeURIComponent(userId)}` : ""
       }`;
-      const res = await axios.get<{ hasVoted: boolean; selectedOptionId: string | null; vote?: any }>(url);
+      const res = await axios.get<any>(url);
       return {
         hasVoted: Boolean(res.data?.hasVoted),
         selectedOptionId: res.data?.selectedOptionId || null,
         vote: res.data?.vote,
+        isExpired: Boolean(res.data?.isExpired),
+        isCorrect: res.data?.isCorrect ?? null,
+        accuracyBonusAwarded: Boolean(res.data?.accuracyBonusAwarded),
+        wonBonusPoints: Number(res.data?.wonBonusPoints || 0),
+        newlyAwarded: Boolean(res.data?.newlyAwarded),
+        correctAnswer: res.data?.correctAnswer || null,
+        winningChoiceId: res.data?.winningChoiceId || null,
       };
     } catch {
       return { hasVoted: false, selectedOptionId: null };
@@ -166,6 +178,41 @@ export const engagementService = {
     const res = await axios.post<ShareResponse>(
       `/api/engagements/${encodeURIComponent(id)}/share`
     );
+    return res.data;
+  },
+
+  /**
+   * Create a new engagement (Quiz, Fan Battle, Poll, Prediction)
+   */
+  createEngagement: async (payload: Partial<EngagementItem>): Promise<{ success: boolean; engagement: EngagementItem }> => {
+    const res = await axios.post<{ success: boolean; engagement: EngagementItem }>(
+      "/api/engagements",
+      payload
+    );
+    cachedEngagements.clear();
+    return res.data;
+  },
+
+  /**
+   * Update an existing engagement (Quiz, Fan Battle, Poll, Prediction)
+   */
+  updateEngagement: async (id: string, payload: Partial<EngagementItem>): Promise<{ success: boolean; engagement: EngagementItem }> => {
+    const res = await axios.put<{ success: boolean; engagement: EngagementItem }>(
+      `/api/engagements/${encodeURIComponent(id)}`,
+      payload
+    );
+    cachedEngagements.clear();
+    return res.data;
+  },
+
+  /**
+   * Delete an engagement
+   */
+  deleteEngagement: async (id: string): Promise<{ success: boolean }> => {
+    const res = await axios.delete<{ success: boolean }>(
+      `/api/engagements/${encodeURIComponent(id)}`
+    );
+    cachedEngagements.clear();
     return res.data;
   },
 };

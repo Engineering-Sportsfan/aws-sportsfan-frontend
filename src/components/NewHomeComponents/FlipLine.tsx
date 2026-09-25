@@ -1,6 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { trackMeaningfulInteraction } from '@/lib/analytics';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import posthog from 'posthog-js';
+import { trackAdvocacy } from '@/lib/analytics';
 import { getBotCanonicalName } from '@/src/constants/bots';
 import {
   Heart,
@@ -198,18 +201,105 @@ function renderFormattedContent(content: string) {
   });
 }
 
+function matchesSportFilter(card: FlipCard, target: string): boolean {
+  const t = target.toLowerCase();
+  const cardSport = (card.sport || '').toLowerCase();
+  const cardChannel = ((card as any).channel || '').toLowerCase();
+  const cardChannels = Array.isArray((card as any).channels)
+    ? (card as any).channels.map((ch: any) => String(ch).toLowerCase())
+    : typeof (card as any).channels === 'string'
+    ? (card as any).channels.split(',').map((ch: string) => ch.trim().toLowerCase())
+    : [];
+  const cardAllChannels = Array.isArray((card as any).allChannels)
+    ? (card as any).allChannels.map((ch: any) => String(ch).toLowerCase())
+    : typeof (card as any).allChannels === 'string'
+    ? (card as any).allChannels.split(',').map((ch: string) => ch.trim().toLowerCase())
+    : [];
+
+  return (
+    cardSport === t ||
+    cardChannel === t ||
+    cardChannels.includes(t) ||
+    cardAllChannels.includes(t)
+  );
+}
+
+/* ─── Channel filter chips (shared by home section + full screen) ─── */
+const FILTER_CHIPS = [
+  { id: 'all', label: '#all', emoji: '⚡' },
+  { id: 'cricket', label: '#cricket', emoji: '🏏' },
+  { id: 'football', label: '#football', emoji: '⚽' },
+  { id: 'athletics', label: '#athletics', emoji: '🏃' },
+  { id: 'expert', label: '#expert', emoji: '🎯' },
+  { id: 'analysts', label: '#analysts', emoji: '🎙' },
+];
+
+// Every channel/tag a card belongs to, normalised (lowercase, no leading #)
+function getCardChannels(card: FlipCard): string[] {
+  const c = card as any;
+  const toList = (v: any): string[] =>
+    Array.isArray(v) ? v.map((x) => String(x)) : typeof v === 'string' ? v.split(',') : [];
+
+  return [c.sport, c.channel, ...toList(c.channels), ...toList(c.allChannels), ...toList(c.tags)]
+    .map((x) => String(x || '').trim().toLowerCase().replace(/^#/, ''))
+    .filter(Boolean);
+}
+
+function isExpertCard(card: FlipCard): boolean {
+  const ch = getCardChannels(card);
+  return (
+    String(card.type || '').toLowerCase() === 'expert' ||
+    ch.includes('expert') ||
+    ch.includes('experts')
+  );
+}
+
+function isAnalystCard(card: FlipCard): boolean {
+  const ch = getCardChannels(card);
+  return (
+    String(card.type || '').toLowerCase() === 'analyst' ||
+    ch.includes('analyst') ||
+    ch.includes('analysts')
+  );
+}
+
+function matchesChannelFilter(card: FlipCard, filterId: string): boolean {
+  switch (filterId) {
+    case 'all':
+      return true;
+    case 'expert':
+      return isExpertCard(card);
+    case 'analysts':
+      return isAnalystCard(card);
+    default:
+      return matchesSportFilter(card, filterId); // cricket / football / athletics
+  }
+}
+
+function applyChannelFilter(cards: FlipCard[], activeFilter: string, selectedSport?: string): FlipCard[] {
+  if (activeFilter !== 'all') {
+    return cards.filter((c) => matchesChannelFilter(c, activeFilter));
+  }
+  if (selectedSport && selectedSport !== 'mixed') {
+    return cards.filter((c) => matchesSportFilter(c, selectedSport));
+  }
+  return cards;
+}
+
 function FlipLineSection({
   selectedSport,
   onViewFull,
   cards,
   loading,
   onCardUpdate,
+  highlightedCardId,
 }: {
   selectedSport: string;
   onViewFull: () => void;
   cards: FlipCard[];
   loading: boolean;
   onCardUpdate?: (updatedCard: FlipCard) => void;
+  highlightedCardId?: string | null;
 }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [askOpen, setAskOpen] = useState<number | string | null>(null);
@@ -226,63 +316,8 @@ function FlipLineSection({
   }
 
   const safeCards = Array.isArray(cards) ? cards : [];
-  let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
-
-  // Apply hashtag filter chips
-  if (activeFilter === 'general') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
-  } else if (activeFilter === 'cricket') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
-  } else if (activeFilter === 'football') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
-  } else if (activeFilter === 'athletics') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'athletics');
-  } else if (activeFilter === 'expert') {
-    const filtered = displayCards.filter(
-      (c) =>
-        c.type === 'expert' ||
-        c.type === 'analyst' ||
-        c.type === 'bot' ||
-        c.author?.toLowerCase().includes('expert') ||
-        c.source?.toLowerCase().includes('expert') ||
-        c.tags?.some((t) => t.toLowerCase().includes('expert'))
-    );
-    if (filtered.length > 0) displayCards = filtered;
-  } else if (activeFilter === 'analysts') {
-    const filtered = displayCards.filter(
-      (c) =>
-        c.type === 'expert' ||
-        c.type === 'analyst' ||
-        c.type === 'bot' ||
-        c.author?.toLowerCase().includes('analyst') ||
-        c.source?.toLowerCase().includes('analyst') ||
-        c.tags?.some((t) => t.toLowerCase().includes('analyst'))
-    );
-    if (filtered.length > 0) displayCards = filtered;
-  }
-  // else if (activeFilter === 'sf360-live') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.source?.toLowerCase().includes('live') ||
-  //       c.source?.toLowerCase().includes('roanuz') ||
-  //       c.type === 'bot' ||
-  //       c.isKey ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('live'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // } else if (activeFilter === 'fan-roar') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.type === 'fan' ||
-  //       c.ctaType === 'room' ||
-  //       c.source?.toLowerCase().includes('roar') ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('roar'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // }
-  else if (selectedSport && selectedSport !== 'mixed') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === selectedSport.toLowerCase());
-  }
+  const baseCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
+  const displayCards = applyChannelFilter(baseCards, activeFilter, selectedSport);
 
   return (
     <div className="sm:mb-2 md:mb-4">
@@ -291,18 +326,7 @@ function FlipLineSection({
         className="flex items-center gap-2 md:px-4 md:mb-4 overflow-x-auto no-scrollbar"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {[
-          { id: 'all', label: '#all', emoji: '⚡' },
-          { id: 'general', label: '#general', emoji: '📢' },
-          { id: 'cricket', label: '#cricket', emoji: '🏏' },
-          { id: 'football', label: '#football', emoji: '⚽' },
-          { id: 'athletics', label: '#athletics', emoji: '🏃' },
-          { id: 'expert', label: '#expert', emoji: '🎯' },
-          { id: 'analysts', label: '#analysts', emoji: '🎙' },
-
-          // { id: 'sf360-live', label: '#sf360-live', emoji: '📡' },
-          // { id: 'fan-roar', label: '#fan-roar', emoji: '🔥' },
-        ].map((chip) => {
+        {FILTER_CHIPS.map((chip) => {
           const isActive = activeFilter === chip.id;
           return (
             <button
@@ -334,6 +358,7 @@ function FlipLineSection({
         askOpen={askOpen}
         setAskOpen={setAskOpen}
         onCardUpdate={onCardUpdate}
+        highlightedCardId={highlightedCardId}
       />
 
       {/* View Full button */}
@@ -371,17 +396,83 @@ export function FlipLineFullScreen({
   cards,
   loading,
   onCardUpdate,
+  targetCardId,
 }: {
   onBack: () => void;
   selectedSport?: string;
   cards: FlipCard[];
   loading: boolean;
   onCardUpdate?: (updatedCard: FlipCard) => void;
+  targetCardId?: string | number | null;
 }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [askOpen, setAskOpen] = useState<number | string | null>(null);
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
+  const [targetId, setTargetId] = useState<string | null>(targetCardId ? String(targetCardId) : null);
+  const scrolledRef = useRef(false);
+
+  useEffect(() => {
+    if (targetCardId) {
+      setTargetId(String(targetCardId));
+    } else if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlCardId = params.get('cardId') || params.get('postId') || params.get('id');
+      if (urlCardId) {
+        setTargetId(urlCardId);
+      } else if (window.location.hash) {
+        const hashId = window.location.hash.replace(/^#(flipline-card-|card-)?/, '');
+        if (hashId) setTargetId(hashId);
+      }
+    }
+  }, [targetCardId]);
+
+  useEffect(() => {
+    if (!targetId || loading || !Array.isArray(cards) || cards.length === 0 || scrolledRef.current) return;
+
+    const cleanTargetId = targetId.trim();
+    const foundCard = cards.find(
+      (c) =>
+        String(c.id) === cleanTargetId ||
+        (c.sk && String(c.sk) === cleanTargetId) ||
+        (c.sk && encodeURIComponent(String(c.sk)) === cleanTargetId)
+    );
+
+    if (foundCard) {
+      // Ensure current filter doesn't hide this target card
+      if (activeFilter !== 'all' && !matchesChannelFilter(foundCard, activeFilter)) {
+        setActiveFilter('all');
+      }
+
+      setHighlightedCardId(String(foundCard.id));
+      scrolledRef.current = true;
+
+      const scrollToElement = () => {
+        const el =
+          document.getElementById(`flipline-card-${foundCard.id}`) ||
+          document.querySelector(`[data-card-id="${foundCard.id}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      };
+
+      const timer1 = setTimeout(scrollToElement, 250);
+      const timer2 = setTimeout(scrollToElement, 600);
+      const timer3 = setTimeout(scrollToElement, 1200);
+
+      const clearHighlightTimer = setTimeout(() => {
+        setHighlightedCardId(null);
+      }, 7000);
+
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+        clearTimeout(clearHighlightTimer);
+      };
+    }
+  }, [targetId, loading, cards, activeFilter]);
 
   if (loading) {
     return (
@@ -402,52 +493,8 @@ export function FlipLineFullScreen({
   }
 
   const safeCards = Array.isArray(cards) ? cards : [];
-  let displayCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
-
-  // Apply hashtag filter chips
-  if (activeFilter === 'general') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'general');
-  } else if (activeFilter === 'cricket') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'cricket');
-  } else if (activeFilter === 'football') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'football');
-  } else if (activeFilter === 'athletics') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === 'athletics');
-  } else if (activeFilter === 'analysts') {
-    const filtered = displayCards.filter(
-      (c) =>
-        c.type === 'expert' ||
-        c.type === 'analyst' ||
-        c.type === 'bot' ||
-        c.author?.toLowerCase().includes('analyst') ||
-        c.source?.toLowerCase().includes('analyst') ||
-        c.tags?.some((t) => t.toLowerCase().includes('analyst'))
-    );
-    if (filtered.length > 0) displayCards = filtered;
-  }
-  // else if (activeFilter === 'sf360-live') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.source?.toLowerCase().includes('live') ||
-  //       c.source?.toLowerCase().includes('roanuz') ||
-  //       c.type === 'bot' ||
-  //       c.isKey ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('live'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // } else if (activeFilter === 'fan-roar') {
-  //   const filtered = displayCards.filter(
-  //     (c) =>
-  //       c.type === 'fan' ||
-  //       c.ctaType === 'room' ||
-  //       c.source?.toLowerCase().includes('roar') ||
-  //       c.tags?.some((t) => t.toLowerCase().includes('roar'))
-  //   );
-  //   if (filtered.length > 0) displayCards = filtered;
-  // }
-  else if (selectedSport && selectedSport !== 'mixed') {
-    displayCards = displayCards.filter((c) => (c.sport || '').toLowerCase() === selectedSport.toLowerCase());
-  }
+  const baseCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
+  const displayCards = applyChannelFilter(baseCards, activeFilter, selectedSport);
 
   return (
     <div
@@ -508,49 +555,7 @@ export function FlipLineFullScreen({
               LIVE
             </span>
           </div>
-          {/* <div
-            style={{
-              fontSize: 9,
-              color: 'rgba(255,255,255,0.35)',
-              marginTop: 2,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <span>🏏 Cricket</span>
-            <span>⚽ Football</span>
-            <span>🏃 Athletics</span>
-          </div> */}
         </div>
-        {/* <div
-          style={{
-            display: 'flex',
-            borderRadius: 99,
-            padding: 2,
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.09)',
-          }}
-        >
-          {(['full', 'key'] as const).map((d) => (
-            <button
-              key={d}
-              onClick={() => setDensity(d)}
-              style={{
-                padding: '3px 11px',
-                borderRadius: 99,
-                fontSize: 9.5,
-                fontWeight: 800,
-                background: density === d ? 'rgba(168,85,247,0.85)' : 'transparent',
-                color: density === d ? 'white' : 'rgba(255,255,255,0.38)',
-                border: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {d === 'full' ? 'Full' : 'Key'}
-            </button>
-          ))}
-        </div> */}
       </div>
 
       {/* Multi-sport & Tag Filter Chips (Horizontally Scrollable) */}
@@ -558,16 +563,7 @@ export function FlipLineFullScreen({
         className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar border-b border-white/[0.06]"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {[
-          { id: 'all', label: '#all', emoji: '⚡' },
-          { id: 'general', label: '#general', emoji: '📢' },
-          { id: 'cricket', label: '#cricket', emoji: '🏏' },
-          { id: 'football', label: '#football', emoji: '⚽' },
-          { id: 'athletics', label: '#athletics', emoji: '🏃' },
-          { id: 'analysts', label: '#analysts', emoji: '🎙' },
-          // { id: 'sf360-live', label: '#sf360-live', emoji: '📡' },
-          // { id: 'fan-roar', label: '#fan-roar', emoji: '🔥' },
-        ].map((chip) => {
+        {FILTER_CHIPS.map((chip) => {
           const isActive = activeFilter === chip.id;
           return (
             <button
@@ -592,45 +588,6 @@ export function FlipLineFullScreen({
         })}
       </div>
 
-      {/* Legend strip */}
-      {/* <div
-        style={{
-          flexShrink: 0,
-          display: 'flex',
-          gap: 14,
-          padding: '8px 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-          alignItems: 'center',
-        }}
-      >
-        {(
-          [
-            { c: 'rgb(168,85,247)', l: 'Analyst' },
-            { c: 'rgb(233,30,140)', l: 'Fan ROAR' },
-            { c: 'rgb(255,107,53)', l: 'SF360 Drop' },
-          ] as const
-        ).map(({ c, l }) => (
-          <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: c,
-                boxShadow: `0 0 6px ${c}aa`,
-              }}
-            />
-            <span style={{ fontSize: 8.5, fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>
-              {l}
-            </span>
-          </div>
-        ))}
-        <div style={{ flex: 1 }} />
-        <span style={{ fontSize: 8, color: 'rgba(255,255,255,0.22)', fontWeight: 600 }}>
-          Newest first
-        </span>
-      </div> */}
-
       {/* Scrollable timeline */}
       <div style={{ flex: 1, overflowY: 'auto', paddingTop: 0, paddingBottom: 32 }}>
         <div className="max-w-[680px] w-full mx-auto px-2 sm:px-4">
@@ -639,6 +596,7 @@ export function FlipLineFullScreen({
             askOpen={askOpen}
             setAskOpen={setAskOpen}
             onCardUpdate={onCardUpdate}
+            highlightedCardId={highlightedCardId}
           />
           {/* Start-of-coverage marker */}
           <div style={{ paddingLeft: 14, paddingTop: 8, display: 'flex', alignItems: 'center' }}>
@@ -677,13 +635,13 @@ export function FlipLineFullScreen({
   );
 }
 
-/* ─── FlipTimeline detailed timeline view ───────────────────────────── */
 interface FlipTimelineProps {
   cards: FlipCard[];
   previewLimit?: number;
   askOpen: number | string | null;
   setAskOpen: (id: number | string | null) => void;
   onCardUpdate?: (updatedCard: FlipCard) => void;
+  highlightedCardId?: string | null;
 }
 
 const DolphinIcon = () => (
@@ -709,6 +667,7 @@ export function FlipCardItem({
   router,
   handleCtaClick,
   onCardUpdate,
+  isHighlighted = false,
 }: {
   card: FlipCard;
   index: number;
@@ -720,6 +679,7 @@ export function FlipCardItem({
   router: any;
   handleCtaClick: (ctaType: 'room' | 'watchalong' | 'drop' | string) => void;
   onCardUpdate?: (updatedCard: FlipCard) => void;
+  isHighlighted?: boolean;
 }) {
   const { user, getUserName, getUserDisplayName } = useAuth();
   const currentUserId =
@@ -1122,18 +1082,61 @@ export function FlipCardItem({
     }
   };
 
-  const handleShare = (c: FlipCard) => {
-    if (typeof window !== 'undefined' && navigator.share) {
-      navigator
-        .share({
-          title: `FlipLine from ${c.author}`,
-          text: c.content,
-          url: window.location.href,
-        })
-        .catch((err) => console.log(err));
-    } else if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText(`"${c.content}" - ${c.author} on Sportsfan360`);
-      alert('Link copied to clipboard!');
+  const [copiedState, setCopiedState] = useState(false);
+
+  const handleShare = async (c: FlipCard) => {
+    if (typeof window === 'undefined') return;
+
+    try {
+      trackAdvocacy("content_shared", { card_id: c.id, author: c.author, sport: c.sport });
+
+      posthog.capture("advocacy_action", {
+        action_type: "content_shared",
+        card_id: c.id,
+      });
+    } catch (err) {}
+
+    const cardIdParam = c.id !== undefined && c.id !== null ? String(c.id) : (c.sk || '');
+    const shareUrl = `${window.location.origin}/MainModules/FlipLine?cardId=${encodeURIComponent(cardIdParam)}`;
+    const shareTitle = `FlipLine from ${c.author || 'Fan'}`;
+    const cleanContent = c.content ? c.content.replace(/\n+/g, ' ').slice(0, 120) : '';
+    const shareText = `"${cleanContent}${c.content && c.content.length > 120 ? '...' : ''}" - ${c.author || 'Fan'} on Sportsfan360`;
+
+    // Try Web Share API first if available (especially on mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch (err: any) {
+        // If user explicitly dismissed/aborted native share dialog, don't force clipboard fallback
+        if (err?.name === 'AbortError') return;
+      }
+    }
+
+    // Fallback: Copy direct shareable URL to clipboard
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopiedState(true);
+      setTimeout(() => setCopiedState(false), 2500);
+    } catch (e) {
+      try {
+        const textarea = document.createElement('textarea');
+        textarea.value = shareUrl;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        setCopiedState(true);
+        setTimeout(() => setCopiedState(false), 2500);
+      } catch (err) {
+        console.error('Failed to copy link:', err);
+      }
     }
   };
 
@@ -1182,42 +1185,6 @@ export function FlipCardItem({
   };
 
   // ── 10. Open User Profile Navigation ─────────────────────────────────────────
-  // const handleOpenAuthorProfile = () => {
-  //   if (card.type === 'bot') {
-  //     const botName = card.author === 'Flip' ? 'Dolly' : card.author;
-  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botName)}`);
-  //     return;
-  //   }
-
-  //   const targetUser =
-  //     card.userId ||
-  //     card.email ||
-  //     (card.handle && card.handle !== '@fan' && card.handle !== '@you' ? card.handle.replace(/^@/, '') : null) ||
-  //     (card.author && card.author !== 'Fan' && card.author !== 'You' ? card.author : null) ||
-  //     (isCurrentUser ? (currentUserEmail || currentUserId) : null);
-
-  //   if (targetUser) {
-  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
-  //   } else {
-  //     router.push('/MainModules/ROAR');
-  //   }
-  // };
-
-  // const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
-  //   const targetUser =
-  //     targetUserId ||
-  //     (targetHandle && targetHandle !== '@fan' && targetHandle !== '@you' ? targetHandle.replace(/^@/, '') : null) ||
-  //     (targetName && targetName !== 'Fan' && targetName !== 'You' ? targetName : null) ||
-  //     (currentUserEmail || currentUserId);
-
-  //   if (targetUser) {
-  //     router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
-  //   } else {
-  //     router.push('/MainModules/ROAR');
-  //   }
-  // };
-
-
   const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
     const botCanon = getBotCanonicalName(targetName) || getBotCanonicalName(targetUserId);
     if (botCanon) {
@@ -1238,8 +1205,7 @@ export function FlipCardItem({
     }
   };
 
-
-  // ── 10. Open User Profile Navigation ─────────────────────────────────────────
+  // ── 11. Open Author Profile Navigation ───────────────────────────────────────
   const handleOpenAuthorProfile = () => {
     const botCanon = card.type === 'bot'
       ? (getBotCanonicalName(card.author) || 'Dolly')
@@ -1264,7 +1230,6 @@ export function FlipCardItem({
     }
   };
 
-
   // Total comment count = sum of comments + sum of replies
   const totalCommentsCount = commentsList.reduce(
     (acc, c) => acc + 1 + (Array.isArray(c.replies) ? c.replies.length : 0),
@@ -1276,7 +1241,11 @@ export function FlipCardItem({
   const themeLabel = typeLabelMap[card.type] || card.type;
 
   return (
-    <div className="flex w-full relative sm:mb-2 md:mb-4">
+    <div
+      id={`flipline-card-${card.id}`}
+      data-card-id={String(card.id)}
+      className="flex w-full relative sm:mb-2 md:mb-4 scroll-mt-24 transition-all duration-500"
+    >
       {/* Left timeline axis */}
       <div className="w-[50px] shrink-0 flex flex-col items-center pt-1 relative">
         {(() => {
@@ -1303,7 +1272,8 @@ export function FlipCardItem({
         <div
           className="w-3 h-3 rounded-full bg-white border border-white/20 relative z-10 mt-3"
           style={{
-            boxShadow: '0 0 8px rgba(255, 255, 255, 0.8)',
+            boxShadow: isHighlighted ? '0 0 12px rgba(244, 63, 94, 1)' : '0 0 8px rgba(255, 255, 255, 0.8)',
+            backgroundColor: isHighlighted ? 'rgb(244, 63, 94)' : '#ffffff',
           }}
         />
 
@@ -1323,7 +1293,19 @@ export function FlipCardItem({
 
       {/* Right card container */}
       <div className="flex-1 md:pr-4 pb-1 md:pb-2 min-w-0">
-        <div className="transition-all duration-300 relative flex flex-col gap-3.5 w-full bg-[#161b22]/50 border border-[#21262d] rounded-2xl p-4 shadow-md backdrop-blur-sm">
+        <div
+          className={`transition-all duration-500 relative flex flex-col gap-3.5 w-full rounded-2xl p-4 shadow-md backdrop-blur-sm ${
+            isHighlighted
+              ? 'border-2 border-pink-500 ring-4 ring-pink-500/30 shadow-[0_0_30px_rgba(233,30,140,0.4)] bg-[#1a1c29]/95 scale-[1.01]'
+              : 'bg-[#161b22]/50 border border-[#21262d]'
+          }`}
+        >
+          {isHighlighted && (
+            <div className="absolute -top-3 right-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-pink-500 to-amber-500 text-white font-black text-[10px] uppercase tracking-wider shadow-lg animate-bounce">
+              <Share2 size={11} className="shrink-0" />
+              <span>Shared Moment</span>
+            </div>
+          )}
           {/* Row 1: Author info */}
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -1602,36 +1584,6 @@ export function FlipCardItem({
             );
           })()}
 
-          {/* Row 4: FOMO Banner */}
-          {/* {card.fomoMsg && (
-            <div
-              className="flex items-center justify-between gap-3 rounded-2xl p-3 bg-[#0d0a14] border border-pink-500/15"
-              style={{
-                borderColor: `${themeColor}2a`,
-                background: `linear-gradient(135deg, rgba(7, 11, 20, 0.98), rgba(15, 10, 25, 0.6))`,
-              }}
-            >
-              <p className="text-[12px] font-semibold text-white/85 leading-snug">🔥 {card.fomoMsg}</p>
-              <button
-                onClick={() => handleCtaClick(card.ctaType || 'room')}
-                className="shrink-0 px-4 py-2 rounded-xl text-[12px] font-extrabold text-white transition-all active:scale-95 cursor-pointer"
-                style={{
-                  background:
-                    card.ctaType === 'room'
-                      ? 'linear-gradient(135deg, #E91E8C, #FF6B35)'
-                      : card.ctaType === 'watchalong'
-                        ? 'linear-gradient(135deg, #7c3aed, #E91E8C)'
-                        : 'linear-gradient(135deg, #06b6d4, #3b82f6)',
-                }}
-              >
-                {card.ctaType === 'room' && 'Join Room →'}
-                {card.ctaType === 'watchalong' && 'Watch Along →'}
-                {card.ctaType === 'drop' && 'Claim Drop →'}
-                {!['room', 'watchalong', 'drop'].includes(card.ctaType || '') && 'Explore →'}
-              </button>
-            </div>
-          )} */}
-
           {/* Row 5: Action buttons (Like, Comment, Share, Flip) */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -1666,14 +1618,32 @@ export function FlipCardItem({
               </button>
 
               {/* Share Button */}
-              <button
-                onClick={() => handleShare(card)}
-                className="flex items-center gap-2 text-white/40 hover:text-white transition-colors cursor-pointer"
-                title="Share"
-              >
-                <Share2 size={15} />
-                {/* <span className="text-[12.5px] font-extrabold leading-none">Share</span> */}
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => handleShare(card)}
+                  className={`flex items-center gap-1.5 transition-all cursor-pointer ${
+                    copiedState ? 'text-emerald-400 font-bold' : 'text-white/40 hover:text-white'
+                  }`}
+                  title={copiedState ? 'Link Copied!' : 'Share Post'}
+                >
+                  {copiedState ? <CheckCircle2 size={15} className="text-emerald-400" /> : <Share2 size={15} />}
+                  {copiedState && <span className="text-[11.5px] font-bold text-emerald-400">Copied!</span>}
+                </button>
+
+                {/* Floating Tooltip / Toast for Copy Confirmation */}
+                <AnimatePresence>
+                  {copiedState && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                      animate={{ opacity: 1, y: -6, scale: 1 }}
+                      exit={{ opacity: 0, y: 6, scale: 0.9 }}
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-orange-500 text-white font-extrabold text-[11px] whitespace-nowrap shadow-xl z-30 flex items-center gap-1.5 pointer-events-none"
+                    >
+                      <span>Link copied! 📋</span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* Report Button */}
               <button
@@ -1695,7 +1665,12 @@ export function FlipCardItem({
 
             {/* AI Dolphin button */}
             <button
-              onClick={() => setAskOpen(isExpanded ? null : card.id)}
+              onClick={() => {
+                  setAskOpen(isExpanded ? null : card.id);
+                  if (!isExpanded) {
+                    try { trackMeaningfulInteraction('flipline_card_flip', { card_id: card.id, room_name: 'FlipLine' }); } catch (e) {}
+                  }
+                }}
               className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-bold border transition-all duration-300 cursor-pointer"
               style={{
                 background: isExpanded ? `${themeColor}22` : 'rgba(255, 255, 255, 0.03)',
@@ -1704,7 +1679,6 @@ export function FlipCardItem({
                 boxShadow: isExpanded ? `0 0 10px ${themeColor}33` : 'none',
               }}
             >
-              {/* <DolphinIcon /> */}
               <img src="/images/dollyavatar.png" alt="dolphin" className="w-4 h-4" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
               <span>{isExpanded ? 'Flipped' : 'ASKFlip'}</span>
             </button>
@@ -2251,6 +2225,7 @@ export function FlipTimeline({
   askOpen,
   setAskOpen,
   onCardUpdate,
+  highlightedCardId,
 }: FlipTimelineProps) {
   const router = useRouter();
 
@@ -2332,6 +2307,13 @@ export function FlipTimeline({
                 router={router}
                 handleCtaClick={handleCtaClick}
                 onCardUpdate={onCardUpdate}
+                isHighlighted={
+                  Boolean(
+                    highlightedCardId &&
+                      (String(card.id) === String(highlightedCardId) ||
+                        (card.sk && String(card.sk) === String(highlightedCardId)))
+                  )
+                }
               />
             ))}
           </div>
@@ -2341,12 +2323,34 @@ export function FlipTimeline({
   );
 }
 
-export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: string }) {
+export default function FlipLine({
+  selectedSport = 'mixed',
+  targetCardId,
+}: {
+  selectedSport?: string;
+  targetCardId?: string | number | null;
+}) {
   const router = useRouter();
   const [dbCards, setDbCards] = useState<FlipCard[]>([]);
   const [liveCards, setLiveCards] = useState<FlipCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'flipline' | 'fliparena'>('flipline');
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlCardId = targetCardId || params.get('cardId') || params.get('postId') || params.get('id');
+      if (urlCardId) {
+        setHighlightedCardId(String(urlCardId));
+      }
+      const urlItemId = params.get('itemId') || params.get('engagementId') || params.get('quizId');
+      const urlTab = params.get('tab');
+      if (urlItemId || urlTab === 'fliparena') {
+        setActiveTab('fliparena');
+      }
+    }
+  }, [targetCardId]);
 
   const fetchLiveTickerUpdates = async (): Promise<FlipCard[]> => {
     try {
@@ -2561,6 +2565,7 @@ export default function FlipLine({ selectedSport = 'mixed' }: { selectedSport?: 
           cards={combinedCards}
           loading={loading}
           onCardUpdate={handleCardUpdate}
+          highlightedCardId={highlightedCardId}
         />
       )}
     </div>

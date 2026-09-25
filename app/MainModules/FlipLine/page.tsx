@@ -1,12 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { FlipLineFullScreen } from '@/src/components/NewHomeComponents/FlipLine';
 import { fliplineService, FlipCard } from '@/services/flipline.service';
 
-export default function FlipLinePage() {
+function FlipLineContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const targetCardId = searchParams.get('cardId') || searchParams.get('postId') || searchParams.get('id');
+
   const [dbCards, setDbCards] = useState<FlipCard[]>([]);
   const [liveCards, setLiveCards] = useState<FlipCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,6 +185,31 @@ export default function FlipLinePage() {
       cards={combinedCards}
       loading={loading}
       onCardUpdate={handleCardUpdate}
+      targetCardId={targetCardId}
     />
+  );
+}
+
+export default function FlipLinePage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            height: '100dvh',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            background: 'rgb(7,11,20)',
+          }}
+        >
+          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, fontWeight: 700 }}>
+            Loading moments... ⚡
+          </span>
+        </div>
+      }
+    >
+      <FlipLineContent />
+    </Suspense>
   );
 }

@@ -1005,7 +1005,40 @@ const ChatButton = memo(function ChatButton({
   );
 });
 
-// ── Avatar with loading skeleton ──────────────────────────────────────────────
+// ── Avatar URL validation & initial helper ───────────────────────────────────
+function isValidAvatarUrl(url?: string | null): url is string {
+  if (!url || typeof url !== "string") return false;
+  const trimmed = url.trim();
+  if (
+    !trimmed ||
+    trimmed === "undefined" ||
+    trimmed === "null" ||
+    trimmed === "[object Object]" ||
+    trimmed === "false" ||
+    trimmed.length < 5
+  ) {
+    return false;
+  }
+  if (trimmed.startsWith("data:")) {
+    return trimmed.startsWith("data:image/") && trimmed.includes(";base64,");
+  }
+  return (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("blob:")
+  );
+}
+
+function getAvatarInitial(name?: string): string {
+  if (!name || typeof name !== "string") return "U";
+  const trimmed = name.trim();
+  if (!trimmed) return "U";
+  const match = trimmed.match(/[a-zA-Z0-9]/);
+  return (match ? match[0] : trimmed.charAt(0)).toUpperCase() || "U";
+}
+
+// ── Avatar with pre-validated loading & graceful error fallback ──────────────
 const Avatar = memo(function Avatar({
   src,
   name,
@@ -1019,32 +1052,96 @@ const Avatar = memo(function Avatar({
   ring?: boolean;
   loading?: boolean;
 }) {
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  const validUrl = useMemo(() => (isValidAvatarUrl(src) ? src.trim() : null), [src]);
+
+  useEffect(() => {
+    setImageLoaded(false);
+    setHasError(false);
+
+    if (!validUrl) {
+      setHasError(true);
+      return;
+    }
+
+    let active = true;
+    const img = new window.Image();
+    img.src = validUrl;
+
+    if (img.complete) {
+      if (img.naturalWidth > 0) {
+        setImageLoaded(true);
+      } else {
+        setHasError(true);
+      }
+      return;
+    }
+
+    img.onload = () => {
+      if (active) {
+        if (img.naturalWidth > 0) {
+          setImageLoaded(true);
+        } else {
+          setHasError(true);
+        }
+      }
+    };
+
+    img.onerror = () => {
+      if (active) {
+        setHasError(true);
+      }
+    };
+
+    return () => {
+      active = false;
+      img.onload = null;
+      img.onerror = null;
+    };
+  }, [validUrl]);
+
   // Show skeleton while auth/profile is loading
   if (loading) {
     return (
       <div
         style={{ width: size, height: size }}
-        className={`rounded-full flex-shrink-0 bg-white/10 animate-pulse ${ring ? "ring-2 ring-pink-500/40" : ""
-          }`}
+        className={`rounded-full flex-shrink-0 bg-white/10 animate-pulse ${
+          ring ? "ring-2 ring-pink-500/40" : ""
+        }`}
       />
     );
   }
 
+  const initial = getAvatarInitial(name);
+  const showImage = Boolean(validUrl && imageLoaded && !hasError);
+
   return (
     <div
       style={{ width: size, height: size }}
-      className={`rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-pink-500 to-orange-500 ${ring ? "ring-2 ring-pink-500/40" : ""
-        }`}
+      className={`rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-pink-500 to-orange-500 flex items-center justify-center relative ${
+        ring ? "ring-2 ring-pink-500/40" : ""
+      }`}
     >
-      {src ? (
-        <img src={src} alt={name} className="w-full h-full object-cover" />
+      {showImage ? (
+        <img
+          src={validUrl!}
+          alt=""
+          aria-hidden="true"
+          onError={() => {
+            setHasError(true);
+            setImageLoaded(false);
+          }}
+          className="w-full h-full object-cover"
+        />
       ) : (
-        <div
-          className="w-full h-full flex items-center justify-center text-white font-bold"
-          style={{ fontSize: size * 0.4 }}
+        <span
+          className="text-white font-bold select-none uppercase leading-none"
+          style={{ fontSize: Math.max(10, Math.round(size * 0.44)) }}
         >
-          {name.charAt(0)}
-        </div>
+          {initial}
+        </span>
       )}
     </div>
   );
@@ -1111,7 +1208,7 @@ const PointsPill = memo(function PointsPill({
 
   if (small) {
     return (
-      <Link href="/MainModules/GlobalLeaderboard" title="View Points & Leaderboard" className="flex flex-col items-center group shrink-0">
+      <Link href="/MainModules/Profile" title="View Points & Leaderboard" className="flex flex-col items-center group shrink-0">
         <div className="w-8 h-8 flex flex-col items-center justify-center bg-[#111] border border-white/10 rounded-full group-hover:bg-white/5 group-hover:border-pink-500/40 transition-colors gap-0">
           <Star size={9} className="text-pink-500 fill-pink-500" />
           {loading ? (
@@ -1127,7 +1224,7 @@ const PointsPill = memo(function PointsPill({
   }
 
   return (
-    <Link href="/MainModules/GlobalLeaderboard" title="View Points & Leaderboard">
+    <Link href="/MainModules/Profile" title="View Points & Leaderboard">
       <div className="flex items-center gap-1.5 bg-[#111] border border-white/10 hover:border-pink-500/40 rounded-full px-2.5 py-1.5 transition-colors cursor-pointer group">
         <Star
           size={14}
@@ -1161,21 +1258,127 @@ export default function Header() {
   const { user, getUserDisplayName, loading: authLoading, authReady } = useAuth();
   const { chats } = useChats();
 
+  // ── FlipARENA Points (matches LeaderboardOverlayModal) ────────────────────────
+  const [arenaPoints, setArenaPoints] = useState<number | null>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("fliparena_user_points");
+      if (stored && !isNaN(Number(stored))) return Number(stored);
+    }
+    return null;
+  });
+  const [arenaLoading, setArenaLoading] = useState<boolean>(true);
+
+  const targetKeys = useMemo(() => {
+    const s = new Set<string>();
+    const add = (v: any) => {
+      const k = String(v ?? "").trim().toLowerCase();
+      if (k) {
+        s.add(k);
+        s.add(k.replace(/[@.]/g, "_"));
+      }
+    };
+    add(user?.userId);
+    add(user?.actualUserId);
+    add(user?.email);
+    add((user as any)?.id);
+    add((user as any)?.userName);
+    add((user as any)?.username);
+    add(user?.name);
+    return s;
+  }, [user]);
+
+  const isTarget = useCallback((e: any) => {
+    return [
+      e?.userId,
+      e?.actualUserId,
+      e?.id,
+      e?.userEmail,
+      e?.email,
+      e?.userName,
+      e?.username,
+      e?.name,
+    ].some((v) => {
+      const k = String(v ?? "").trim().toLowerCase();
+      return !!k && (targetKeys.has(k) || targetKeys.has(k.replace(/[@.]/g, "_")));
+    });
+  }, [targetKeys]);
+
+  const fetchArenaPoints = useCallback(async () => {
+    if (targetKeys.size === 0) {
+      setArenaLoading(false);
+      return;
+    }
+    try {
+      const res = await axios.get("/api/engagements/quiz/leaderboard");
+      const d = res?.data;
+      const raw: any[] = [d, d?.leaderboard, d?.data?.entries, d?.data?.leaderboard, d?.data, d?.entries].find(Array.isArray) || [];
+      const rows = raw
+        .map((e: any) => ({
+          raw: e,
+          points: Number(e.totalPoints ?? e.points ?? e.score ?? 0),
+        }))
+        .sort((a, b) => b.points - a.points);
+
+      const idx = rows.findIndex((r) => isTarget(r.raw));
+      const resolvedPoints = idx >= 0 ? rows[idx].points : 0;
+      setArenaPoints(resolvedPoints);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("fliparena_user_points", String(resolvedPoints));
+        } catch {}
+      }
+    } catch {
+      // Keep existing cached value if request fails
+    } finally {
+      setArenaLoading(false);
+    }
+  }, [targetKeys, isTarget]);
+
+  useEffect(() => {
+    fetchArenaPoints();
+  }, [fetchArenaPoints]);
+
+  // Listen to point update events from FlipArena
+  useEffect(() => {
+    const handlePointsUpdate = (e: any) => {
+      const added = Number(e?.detail?.points || 0);
+      if (added > 0) {
+        setArenaPoints((prev) => {
+          const next = (prev ?? 0) + added;
+          if (typeof window !== "undefined") {
+            try {
+              localStorage.setItem("fliparena_user_points", String(next));
+            } catch {}
+          }
+          return next;
+        });
+      }
+      setTimeout(() => {
+        fetchArenaPoints();
+      }, 1500);
+    };
+
+    window.addEventListener("sf360:points-updated", handlePointsUpdate);
+    window.addEventListener("roar-points-updated", handlePointsUpdate);
+    return () => {
+      window.removeEventListener("sf360:points-updated", handlePointsUpdate);
+      window.removeEventListener("roar-points-updated", handlePointsUpdate);
+    };
+  }, [fetchArenaPoints]);
+
   // ── Combined loading state ─────────────────────────────────────────────────
-  const isPointsReady = !pointsLoading && !authLoading;
+  const isPointsReady = !(arenaLoading && arenaPoints === null) && authReady;
   const isProfileReady = !profileLoading && !authLoading;
 
-  // ── Effective points with multi-tier resolution ───────────────────────────
+  // ── Effective points: display FlipARENA points as in LeaderboardOverlayModal ──
   const effectivePoints = useMemo(() => {
-    if (currentUserPoints != null && currentUserPoints > 0) return currentUserPoints;
-    if (userProfile?.totalPoints != null && userProfile.totalPoints > 0) return userProfile.totalPoints;
-    if (userProfile?.reputationScore != null && userProfile.reputationScore > 0) return userProfile.reputationScore;
+    if (arenaPoints != null) return arenaPoints;
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("user_points") || localStorage.getItem("roar_user_points");
-      if (stored && !isNaN(Number(stored)) && Number(stored) > 0) return Number(stored);
+      const stored = localStorage.getItem("fliparena_user_points");
+      if (stored && !isNaN(Number(stored))) return Number(stored);
     }
-    return currentUserPoints ?? userProfile?.totalPoints ?? 0;
-  }, [currentUserPoints, userProfile?.totalPoints, userProfile?.reputationScore]);
+    return 0;
+  }, [arenaPoints]);
 
   const [headerAvatar, setHeaderAvatar] = useState<string>("");
 
@@ -1200,12 +1403,14 @@ export default function Header() {
 
   // ── Avatar source ─────────────────────────────────────────────────────────
   const avatarSrc = useMemo(() => {
-    if (headerAvatar) return headerAvatar;
-    if (userProfile?.avatarUrl) return userProfile.avatarUrl;
-    if (userProfile?.avatar) return userProfile.avatar;
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("roar_avatar_url");
-      if (stored) return stored;
+    const candidates = [
+      headerAvatar,
+      userProfile?.avatarUrl,
+      userProfile?.avatar,
+      typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null,
+    ];
+    for (const c of candidates) {
+      if (isValidAvatarUrl(c)) return c.trim();
     }
     return "";
   }, [headerAvatar, userProfile?.avatarUrl, userProfile?.avatar]);
@@ -1395,7 +1600,10 @@ export default function Header() {
                       result.image ? (
                         <img
                           src={result.image}
-                          alt={result.name}
+                          alt=""
+                          onError={(e) => {
+                            (e.currentTarget as HTMLElement).style.display = "none";
+                          }}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -1411,7 +1619,10 @@ export default function Header() {
                     ) : result.logo ? (
                       <img
                         src={result.logo}
-                        alt={result.name}
+                        alt=""
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = "none";
+                        }}
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -1543,6 +1754,12 @@ export default function Header() {
             Logout
           </span>
         </LogoutButton>
+        <div className="h-px bg-white/5 mx-3.5" />
+        <div className="px-3.5 py-2 text-center select-none">
+          <p className="text-[10px] text-gray-500 font-medium tracking-wide">
+            This is beta program
+          </p>
+        </div>
       </div>
     ),
     []
@@ -1606,7 +1823,7 @@ export default function Header() {
             >
               <Avatar
                 src={avatarSrc}
-                name={displayName || "U"}
+                name={displayName || user?.name || user?.email || "U"}
                 size={30}
                 ring
                 loading={!isProfileReady}
@@ -1703,7 +1920,7 @@ export default function Header() {
           >
             <Avatar
               src={avatarSrc}
-              name={displayName || "U"}
+              name={displayName || user?.name || user?.email || "U"}
               size={30}
               ring
               loading={!isProfileReady}
@@ -1748,7 +1965,7 @@ export default function Header() {
               <button onClick={() => setShowProfileDropdown((v) => !v)}>
                 <Avatar
                   src={avatarSrc}
-                  name={displayName || "U"}
+                  name={displayName || user?.name || user?.email || "U"}
                   size={30}
                   ring
                   loading={!isProfileReady}

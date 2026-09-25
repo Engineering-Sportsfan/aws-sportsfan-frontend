@@ -1,5 +1,5 @@
-// types/engagements.ts — Type definitions for Fan Battles, Quizzes, Polls, and Predictions
-export type EngagementType = "fan_battle" | "quiz" | "poll" | "prediction";
+// types/engagements.ts — Type definitions for Fan Battles, Quizzes, Polls, Predictions, and Meme Arena
+export type EngagementType = "fan_battle" | "quiz" | "poll" | "prediction" | "meme";
 export type EngagementStatus = "active" | "inactive" | "expired" | "settled";
 
 // ─── 1. Fan Battle ─────────────────────────────────────────────────────────
@@ -15,6 +15,8 @@ export interface FanBattlePayload {
   leftCompetitor: Competitor;
   rightCompetitor: Competitor;
   totalVotes: number;
+  startTime?: number | string;
+  scheduledStartTime?: number | string;
 }
 
 // ─── 2. Quiz ───────────────────────────────────────────────────────────────
@@ -56,6 +58,13 @@ export interface PollPayload {
   question: string;
   options: PollChoice[];
   totalVotes: number;
+  answer?: string;
+  correctAnswer?: string;
+  durationMinutes?: number;
+  timerMinutes?: number;
+  expiresAt?: number;
+  startTime?: number | string;
+  scheduledStartTime?: number | string;
 }
 
 // ─── 4. Prediction ─────────────────────────────────────────────────────────
@@ -74,6 +83,39 @@ export interface PredictionPayload {
   totalVotes: number;
   status?: "open" | "locked" | "settled";
   winningChoiceId?: string | null; // "left" | "right" once settled
+  answer?: string;
+  correctAnswer?: string;
+  durationMinutes?: number;
+  timerMinutes?: number;
+  expiresAt?: number;
+  startTime?: number | string;
+  scheduledStartTime?: number | string;
+}
+
+// ─── 5. Meme Arena ─────────────────────────────────────────────────────────
+export type MemeReactionType = "mild" | "funny" | "hot" | "fire" | "nuclear";
+
+export interface MemeReactions {
+  mild: number;
+  funny: number;
+  hot: number;
+  fire: number;
+  nuclear: number;
+}
+
+export interface MemePayload {
+  imageUrl: string;
+  authorName?: string;
+  authorHandle?: string;
+  authorAvatar?: string;
+  heatPercentage?: number;
+  totalVotes?: number;
+  reactions?: MemeReactions;
+  commentsCount?: number;
+  sharesCount?: number;
+  userReaction?: MemeReactionType | null;
+  caption?: string;
+  createdAt?: number;
 }
 
 // ─── Universal Engagement Entity ──────────────────────────────────────────
@@ -85,12 +127,26 @@ export interface EngagementItem {
   tags?: string[]; // e.g. ["⚔️ FAN BATTLE", "🔥 TRENDING"] or ["💬 QUIZ", "⭐ 50 PTS"]
   sport?: string; // "cricket" | "football" | "athletics" | "general"
   status: EngagementStatus;
-  
+  startTime?: number | string;
+  scheduledStartTime?: number | string;
+  postingTime?: number | string;
+  postedAt?: number | string;
+  creatorId?: string;
+  creatorEmail?: string;
+  creatorName?: string;
+  creatorHandle?: string;
+  creatorAvatar?: string;
+  userId?: string;
+  userEmail?: string;
+  userName?: string;
+  userAvatar?: string;
+
   // Specific data payloads
   fanBattleData?: FanBattlePayload;
   quizData?: QuizPayload;
   pollData?: PollPayload;
   predictionData?: PredictionPayload;
+  memeData?: MemePayload;
 
   // Social / Engagement counters
   likes: number;
@@ -169,3 +225,17 @@ export interface ShareResponse {
   sharesCount: number;
   totalEngaged: number;
 }
+
+export interface CheckVoteStatusResponse {
+  hasVoted: boolean;
+  selectedOptionId: string | null;
+  vote?: any;
+  isExpired?: boolean;
+  isCorrect?: boolean | null;
+  accuracyBonusAwarded?: boolean;
+  wonBonusPoints?: number;
+  newlyAwarded?: boolean;
+  correctAnswer?: string | null;
+  winningChoiceId?: string | null;
+}
+

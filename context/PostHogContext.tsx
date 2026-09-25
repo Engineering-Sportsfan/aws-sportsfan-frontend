@@ -31,6 +31,33 @@ function PostHogPageView() {
       posthog.capture('$pageview', {
         $current_url: url,
       });
+
+      // L1 KPI: Routing - Track Reaching Recommended Features
+      // Temporarily disabled (KPI 04 is yet to be fully confirmed)
+      /*
+      const recommendedFeatures: Record<string, string> = {
+        '/MainModules/ROAR': 'ROAR',
+        '/MainModules/WatchAlong': 'WatchAlong',
+        '/MainModules/AtheletePlaybook': 'Playbook',
+        '/MainModules/Store': 'Store',
+        '/MainModules/Matchcenter': 'Matchcenter',
+        '/MainModules/FanBattle': 'FanBattle',
+        '/MainModules/FlipLine': 'FlipLine',
+        '/MainModules/FlipArena': 'FlipArena',
+      };
+
+      const lowerPath = pathname.toLowerCase();
+      for (const [route, featName] of Object.entries(recommendedFeatures)) {
+        if (lowerPath.startsWith(route.toLowerCase()) || lowerPath.startsWith(('/' + featName).toLowerCase())) {
+          posthog.capture('recommended_feature_visited', {
+            feature_name: featName,
+            route: pathname,
+            $current_url: url,
+          });
+          break;
+        }
+      }
+      */
     }
   }, [pathname, searchParams, posthog]);
 

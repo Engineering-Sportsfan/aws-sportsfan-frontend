@@ -1,7 +1,9 @@
+"use client";
 
 // 'use client';
 
 // import { useEffect, useState } from "react";
+
 // import { useRouter } from "next/navigation";
 // import { motion } from "framer-motion";
 // import axios from "axios";
@@ -191,6 +193,7 @@ import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import { trackFanDNACompleted, trackInterestFollowed } from "@/lib/analytics";
 
 type ConfigItem = {
   id: string;
@@ -443,6 +446,16 @@ export default function RoarPreferencesPage() {
     }
 
     setSaveState("saving");
+    try {
+      trackFanDNACompleted({
+        tags: sports,
+        sportStyle: "Active",
+        notificationsEnabled: true
+      });
+      if (sports && sports.length > 0) {
+        trackInterestFollowed("sports", sports.join(", "), sports.length);
+      }
+    } catch (e) {}
     try {
       const res = await axios.patch("/api/roar/onboarding", {
         sports,

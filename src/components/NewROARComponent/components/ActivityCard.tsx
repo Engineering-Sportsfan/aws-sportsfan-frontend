@@ -83,10 +83,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
 
 const cardRef = useRef<HTMLDivElement>(null);
   const handleShare = async () => {
-    posthog.capture("content_shared", {
-      activity_id: activity.id,
-      activity_type: activity.type
-    });
+
+    try {
+      trackAdvocacy("content_shared", { activity_id: activity.id, activity_type: activity.type });
+    } catch (e) {}
 
     const shareText = `🏏 I posted a ROAR ${config.label} on Sportsfan360.\n⭐ Earned ${activity.points} points.`;
 
