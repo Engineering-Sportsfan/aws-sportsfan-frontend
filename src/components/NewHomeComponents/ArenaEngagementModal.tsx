@@ -1222,7 +1222,7 @@ export default function ArenaEngagementModal({
 
   // Quiz Fields
   const [quizStartTime, setQuizStartTime] = useState("");
-  const [quizFrequencyMinutes, setQuizFrequencyMinutes] = useState(10);
+  const [quizFrequencyMinutes, setQuizFrequencyMinutes] = useState(0);
   const [quizQuestions, setQuizQuestions] = useState<UserQuizQuestion[]>([
     {
       id: "q_1",
@@ -1232,7 +1232,7 @@ export default function ArenaEngagementModal({
       optionC: "",
       optionD: "",
       correctOptionId: "A",
-      pointsReward: 50,
+      pointsReward: 10,
       explanation: "",
     },
   ]);
@@ -1288,7 +1288,11 @@ export default function ArenaEngagementModal({
             setQuizStartTime("");
           }
         }
-        setQuizFrequencyMinutes(editingItem.quizData.frequencyMinutes || 10);
+        setQuizFrequencyMinutes(
+          editingItem.quizData.frequencyMinutes !== undefined && editingItem.quizData.frequencyMinutes !== null
+            ? Number(editingItem.quizData.frequencyMinutes)
+            : 0
+        );
         if (editingItem.quizData.questions && editingItem.quizData.questions.length > 0) {
           setQuizQuestions(
             editingItem.quizData.questions.map((q, idx) => ({
@@ -1299,7 +1303,7 @@ export default function ArenaEngagementModal({
               optionC: q.options?.[2]?.text || "",
               optionD: q.options?.[3]?.text || "",
               correctOptionId: (q.correctOptionId as any) || "A",
-              pointsReward: q.pointsReward || 50,
+              pointsReward: 10,
               explanation: q.explanation || "",
             }))
           );
@@ -1313,7 +1317,7 @@ export default function ArenaEngagementModal({
               optionC: editingItem.quizData.options?.[2]?.text || "",
               optionD: editingItem.quizData.options?.[3]?.text || "",
               correctOptionId: (editingItem.quizData.correctOptionId as any) || "A",
-              pointsReward: editingItem.quizData.pointsReward || 50,
+              pointsReward: 10,
               explanation: editingItem.quizData.explanation || "",
             },
           ]);
@@ -1348,7 +1352,7 @@ export default function ArenaEngagementModal({
       setFbRightName("");
       setFbRightStat("");
       setQuizStartTime("");
-      setQuizFrequencyMinutes(10);
+      setQuizFrequencyMinutes(0);
       setQuizQuestions([
         {
           id: "q_1",
@@ -1358,7 +1362,7 @@ export default function ArenaEngagementModal({
           optionC: "",
           optionD: "",
           correctOptionId: "A",
-          pointsReward: 50,
+          pointsReward: 10,
           explanation: "",
         },
       ]);
@@ -1386,7 +1390,7 @@ export default function ArenaEngagementModal({
         optionC: "",
         optionD: "",
         correctOptionId: "A",
-        pointsReward: 50,
+        pointsReward: 10,
         explanation: "",
       },
     ]);
@@ -1497,26 +1501,28 @@ export default function ArenaEngagementModal({
             { id: "D", text: q.optionD.trim() || "Option D" },
           ],
           correctOptionId: q.correctOptionId || "A",
-          pointsReward: Number(q.pointsReward) || 50,
+          pointsReward: 10,
           explanation: q.explanation.trim(),
         }));
 
+        const freqMins = Number(quizFrequencyMinutes) >= 0 ? Number(quizFrequencyMinutes) : 0;
+
         payload.tags = [
           "🧠 QUIZ",
-          `⭐ ${formattedQuestions[0]?.pointsReward || 50} PTS/Q`,
-          `⏱️ ${quizFrequencyMinutes}m`,
+          "⭐ 10 PTS/Q",
+          freqMins === 0 ? "⚡ Instant" : `⏱️ ${freqMins}m`,
         ];
 
         payload.quizData = {
           startTime: startMs,
           scheduledStartTime: startMs,
           postingTime: startMs,
-          frequencyMinutes: Number(quizFrequencyMinutes) || 10,
+          frequencyMinutes: freqMins,
           questions: formattedQuestions,
           question: formattedQuestions[0]?.question || finalTitle,
           options: formattedQuestions[0]?.options || [],
           correctOptionId: formattedQuestions[0]?.correctOptionId || "A",
-          pointsReward: Number(formattedQuestions[0]?.pointsReward) || 50,
+          pointsReward: 10,
           explanation: formattedQuestions[0]?.explanation || "",
         };
       } else if (activeType === "poll") {
@@ -1842,7 +1848,8 @@ export default function ArenaEngagementModal({
                         onChange={(e) => setQuizFrequencyMinutes(Number(e.target.value))}
                         className={`${inputStyle} cursor-pointer`}
                       >
-                        <option value={5} className="bg-[#121622]">⚡ Every 5 mins</option>
+                        <option value={0} className="bg-[#121622]">⚡ Every 0 mins (Instant)</option>
+                        <option value={5} className="bg-[#121622]">⏱️ Every 5 mins</option>
                         <option value={10} className="bg-[#121622]">⏱️ Every 10 mins</option>
                         <option value={15} className="bg-[#121622]">🕐 Every 15 mins</option>
                         <option value={30} className="bg-[#121622]">⏳ Every 30 mins</option>
@@ -1939,11 +1946,11 @@ export default function ArenaEngagementModal({
                             </label>
                             <input
                               type="number"
-                              value={q.pointsReward}
-                              onChange={(e) => handleUpdateQuizQuestion(qIndex, "pointsReward", Number(e.target.value))}
-                              className={inputStyle}
-                              min={10}
-                              step={10}
+                              value={10}
+                              readOnly
+                              disabled
+                              className={`${inputStyle} opacity-70 cursor-not-allowed bg-white/[0.04] select-none text-amber-400 font-bold`}
+                              title="Quiz reward points are fixed at 10 PTS (+10 PTS Bonus for correct answer)"
                             />
                           </div>
 

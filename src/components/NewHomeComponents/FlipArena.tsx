@@ -3224,8 +3224,8 @@ function DynamicFanBattleCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
       className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative group transition-all duration-300 ${isHighlighted
-          ? "ring-2 ring-[#FF3D57] shadow-[0_0_35px_rgba(255,61,87,0.35)] scale-[1.01]"
-          : ""
+        ? "ring-2 ring-[#FF3D57] shadow-[0_0_35px_rgba(255,61,87,0.35)] scale-[1.01]"
+        : ""
         }`}
     >
       {isHighlighted && (
@@ -3240,8 +3240,8 @@ function DynamicFanBattleCard({
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
         <div className="flex items-center gap-1.5">
           <span className="text-[#FF3D57]">⚔️ FAN BATTLE</span>
-          <span>•</span>
-          <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 +2 PTS / VOTE</span>
+          {/* <span>•</span> */}
+          {/* <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 +2 PTS / VOTE</span> */}
           {isScheduled && (
             <>
               <span>•</span>
@@ -3270,15 +3270,14 @@ function DynamicFanBattleCard({
         <button
           onClick={() => handleVote("left")}
           disabled={loading || selectedSide !== null || isScheduled}
-          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${
-            isScheduled
+          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${isScheduled
               ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
               : selectedSide === "left"
-              ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
-              : selectedSide === "right"
-              ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-              : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
-          }`}
+                ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
+                : selectedSide === "right"
+                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
+            }`}
         >
           <span className="text-2xl font-black block">{left.code}</span>
           <span className="text-xs font-black block mt-2 text-white">{left.name}</span>
@@ -3305,15 +3304,14 @@ function DynamicFanBattleCard({
         <button
           onClick={() => handleVote("right")}
           disabled={loading || selectedSide !== null || isScheduled}
-          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${
-            isScheduled
+          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${isScheduled
               ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
               : selectedSide === "right"
-              ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
-              : selectedSide === "left"
-              ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-              : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
-          }`}
+                ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
+                : selectedSide === "left"
+                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
+            }`}
         >
           <span className="text-2xl font-black block">{right.code}</span>
           <span className="text-xs font-black block mt-2 text-white">{right.name}</span>
@@ -3341,9 +3339,8 @@ function DynamicFanBattleCard({
         <div className="flex gap-4">
           <button
             onClick={handleLike}
-            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-              liked ? "text-[#FF3D57]" : "hover:text-white"
-            }`}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
           >
             <Heart size={13} fill={liked ? "currentColor" : "none"} />
             <span>{likesCount.toLocaleString()}</span>
@@ -3360,6 +3357,23 @@ function DynamicFanBattleCard({
       </div>
     </motion.div>
   );
+}
+
+function LiveCountdown({
+  target,
+  render,
+}: {
+  target: number;
+  render: (msLeft: number) => React.ReactNode;
+}) {
+  const [msLeft, setMsLeft] = useState(() => Math.max(0, target - Date.now()));
+  useEffect(() => {
+    const id = setInterval(() => {
+      setMsLeft(Math.max(0, target - Date.now()));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [target]);
+  return <>{render(msLeft)}</>;
 }
 
 // ─── 2. Quiz Card Component (+2 PTS Participation, +10 PTS Correct) ────────
@@ -3382,19 +3396,19 @@ function DynamicQuizCard({
     item.quizData?.questions && item.quizData.questions.length > 0
       ? item.quizData.questions
       : [
-          {
-            id: "q_1",
-            question: item.quizData?.question || item.title || "Live Cricket Quiz",
-            options: item.quizData?.options || [
-              { id: "A", text: "Option A" },
-              { id: "B", text: "Option B" },
-              { id: "C", text: "Option C" },
-              { id: "D", text: "Option D" },
-            ],
-            correctOptionId: item.quizData?.correctOptionId || "A",
-            explanation: item.quizData?.explanation || "SportsFan360 Quiz",
-          },
-        ];
+        {
+          id: "q_1",
+          question: item.quizData?.question || item.title || "Live Cricket Quiz",
+          options: item.quizData?.options || [
+            { id: "A", text: "Option A" },
+            { id: "B", text: "Option B" },
+            { id: "C", text: "Option C" },
+            { id: "D", text: "Option D" },
+          ],
+          correctOptionId: item.quizData?.correctOptionId || "A",
+          explanation: item.quizData?.explanation || "SportsFan360 Quiz",
+        },
+      ];
 
   const totalQuestions = rawQuestions.length;
 
@@ -3404,8 +3418,12 @@ function DynamicQuizCard({
 
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const currentQ = rawQuestions[Math.min(currentQIndex, totalQuestions - 1)];
-  const correctOptionId = currentQ?.correctOptionId || "A";
-  const frequencyMinutes = Number(item.quizData?.frequencyMinutes || 10);
+  const correctOptionId = currentQ?.correctOptionId || (currentQ as any)?.answer || "A";
+  const frequencyMinutes = Number(
+    item.quizData?.frequencyMinutes !== undefined && item.quizData?.frequencyMinutes !== null
+      ? item.quizData.frequencyMinutes
+      : 0
+  );
   const frequencyMs = frequencyMinutes * 60 * 1000;
 
   // Key uniquely per question ID to avoid state leaks
@@ -3430,8 +3448,8 @@ function DynamicQuizCard({
     initialQ
       ? initialQ.isCorrect
       : item.userVoted && item.userVote
-      ? checkIsOptionCorrect(item.userVote, currentQ)
-      : null
+        ? checkIsOptionCorrect(item.userVote, currentQ)
+        : null
   );
 
   const isAnsweringRef = useRef(false);
@@ -3471,10 +3489,18 @@ function DynamicQuizCard({
   const elapsedSinceStart = Math.max(0, now - startTime);
   const unlockedQuestionCount = isScheduled
     ? 0
-    : Math.min(totalQuestions, Math.floor(elapsedSinceStart / frequencyMs) + 1);
-  const msToNextQuestionSlot = isScheduled ? 0 : Math.max(0, frequencyMs - (elapsedSinceStart % frequencyMs));
+    : frequencyMinutes <= 0
+      ? totalQuestions
+      : Math.min(totalQuestions, Math.floor(elapsedSinceStart / (frequencyMs || 1)) + 1);
+  const msToNextQuestionSlot =
+    isScheduled || frequencyMinutes <= 0
+      ? 0
+      : Math.max(0, frequencyMs - (elapsedSinceStart % frequencyMs));
   const isNextQuestionLocked =
-    answered && currentQIndex + 1 >= unlockedQuestionCount && currentQIndex + 1 < totalQuestions;
+    frequencyMinutes > 0 &&
+    answered &&
+    currentQIndex + 1 >= unlockedQuestionCount &&
+    currentQIndex + 1 < totalQuestions;
 
   useEffect(() => {
     if (item.userLiked) {
@@ -3512,9 +3538,14 @@ function DynamicQuizCard({
 
   const handleOptionSelect = async (optId: string) => {
     if (answered || isScheduled || isAnsweringRef.current) return;
+     isAnsweringRef.current = true;   
     const qKey = `quiz_q_${currentQ?.id || currentQIndex}`;
     const existing = getStoredVote(qKey, item.id, userId);
-    if (existing) return;
+    // if (existing) return;
+     if (existing) {
+    isAnsweringRef.current = false;       // ← reset if we're bailing out
+    return;
+  }
 
     isAnsweringRef.current = true;
     setSelectedId(optId);
@@ -3638,13 +3669,14 @@ function DynamicQuizCard({
 
   return (
     <motion.div
+    layout={false}
       id={`engagement-${item.id}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
       className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
-          ? "ring-2 ring-purple-500 shadow-[0_0_35px_rgba(168,85,247,0.35)] scale-[1.01]"
-          : ""
+        ? "ring-2 ring-purple-500 shadow-[0_0_35px_rgba(168,85,247,0.35)] scale-[1.01]"
+        : ""
         }`}
     >
       {isHighlighted && (
@@ -3703,10 +3735,21 @@ function DynamicQuizCard({
         <div className="p-5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center my-3 space-y-2">
           <Clock size={24} className="mx-auto text-purple-400 animate-pulse" />
           <h4 className="text-sm font-black text-white">Quiz Scheduled</h4>
-          <p className="text-xs text-white/70">
+          {/* <p className="text-xs text-white/70">
             Question #1 unlocks in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
-          </p>
-          <span className="text-[10px] text-white/40 block">Questions unlock every {frequencyMinutes} minutes</span>
+          </p> */}
+           <p className="text-xs text-white/70">
+      Question #1 unlocks in{" "}
+      <LiveCountdown
+        target={startTime}
+        render={(ms) => <strong className="text-amber-400 font-mono">{formatCountdown(ms)}</strong>}
+      />
+    </p>
+          <span className="text-[10px] text-white/40 block">
+            {frequencyMinutes > 0
+              ? `Questions unlock every ${frequencyMinutes} minutes`
+              : "Questions unlock immediately"}
+          </span>
         </div>
       ) : (
         <>
@@ -3750,19 +3793,13 @@ function DynamicQuizCard({
           {answered && (
             <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mb-3">
               <div
-                className={`text-[11px] font-black text-center p-2 rounded-xl border flex items-center justify-center gap-1.5 ${
-                  isCorrect
+                className={`text-[11px] font-black text-center p-2 rounded-xl border flex items-center justify-center gap-1.5 ${isCorrect
                     ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
                     : "bg-red-500/10 border-red-500/30 text-red-400"
-                }`}
+                  }`}
               >
                 <span>{isCorrect ? "🎉" : "💡"}</span>
-                {/* <span>
-                  {isCorrect
-                    ? `Correct! +${CORRECT_OPTION_BONUS} PTS Bonus${currentQIndex === 0 ? ` (+${PARTICIPATION_POINTS + CORRECT_OPTION_BONUS} PTS Total)` : ""}`
-                    : `${currentQIndex === 0 ? `+${PARTICIPATION_POINTS} PTS for participating · ` : ""}The correct answer is ${correctOptionId}`}
-                </span> */}
-                 <span>
+                <span>
                   {isCorrect
                     ? `Correct! +${CORRECT_OPTION_BONUS} PTS Bonus (+${PARTICIPATION_POINTS + CORRECT_OPTION_BONUS} PTS Total)`
                     : `+${PARTICIPATION_POINTS} PTS for participating · The correct answer is ${correctOptionId}`}
@@ -3800,9 +3837,8 @@ function DynamicQuizCard({
         <div className="flex gap-4">
           <button
             onClick={handleLike}
-            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-              liked ? "text-[#FF3D57]" : "hover:text-white"
-            }`}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
           >
             <Heart size={13} fill={liked ? "currentColor" : "none"} />
             <span>{likesCount.toLocaleString()}</span>
@@ -4095,8 +4131,8 @@ function DynamicPollCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
       className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
-          ? "ring-2 ring-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.35)] scale-[1.01]"
-          : ""
+        ? "ring-2 ring-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.35)] scale-[1.01]"
+        : ""
         }`}
     >
       {isHighlighted && (
@@ -4110,7 +4146,7 @@ function DynamicPollCard({
       )}
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
         <div className="flex items-center gap-1.5 uppercase">
-          <span className="text-blue-400 font-black">📊 POLL • +2 PTS / VOTE • +10 PTS WINNER</span>
+          <span className="text-blue-400 font-black">📊 POLL</span>
           {isScheduled ? (
             <>
               <span>•</span>
@@ -4181,7 +4217,7 @@ function DynamicPollCard({
               className="text-[11px] font-black text-center text-blue-400 bg-blue-500/10 border border-blue-500/20 p-2.5 rounded-xl mb-3 flex items-center justify-center gap-1.5"
             >
               <span>🔒</span>
-              <span>+2 PTS earned! · Closes in {formatCountdown(timeRemainingMs)} · Pick the winning answer to earn +10 PTS bonus!</span>
+              <span>+2 PTS earned!</span>
             </motion.div>
           )}
 
@@ -4199,24 +4235,22 @@ function DynamicPollCard({
                 key={opt.id}
                 onClick={() => handleVote(opt.id)}
                 disabled={voted || isExpired || loading}
-                className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${
-                  isWinner && isExpired
+                className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${isWinner && isExpired
                     ? "border-emerald-500/80 bg-emerald-500/[0.1] shadow-[0_0_12px_rgba(16,185,129,0.15)]"
                     : isSelected
-                    ? "border-blue-500/60 bg-blue-500/[0.07]"
-                    : isExpired
-                    ? "opacity-60 border-white/[0.05] bg-white/[0.01]"
-                    : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
-                }`}
+                      ? "border-blue-500/60 bg-blue-500/[0.07]"
+                      : isExpired
+                        ? "opacity-60 border-white/[0.05] bg-white/[0.01]"
+                        : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
+                  }`}
               >
                 {(voted || isExpired) && (
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${percentage}%` }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
-                    className={`absolute left-0 top-0 bottom-0 z-0 ${
-                      isWinner && isExpired ? "bg-emerald-500/20" : isSelected ? "bg-blue-500/20" : "bg-white/[0.04]"
-                    }`}
+                    className={`absolute left-0 top-0 bottom-0 z-0 ${isWinner && isExpired ? "bg-emerald-500/20" : isSelected ? "bg-blue-500/20" : "bg-white/[0.04]"
+                      }`}
                   />
                 )}
                 <span className="relative z-10 text-white/90 font-bold flex items-center gap-1.5">
@@ -4227,9 +4261,8 @@ function DynamicPollCard({
                 </span>
                 {(voted || isExpired) && (
                   <span
-                    className={`relative z-10 text-[11px] font-black ${
-                      isWinner && isExpired ? "text-emerald-400" : isSelected ? "text-blue-400" : "text-white/60"
-                    }`}
+                    className={`relative z-10 text-[11px] font-black ${isWinner && isExpired ? "text-emerald-400" : isSelected ? "text-blue-400" : "text-white/60"
+                      }`}
                   >
                     {percentage}% {isSelected && "✓"}
                   </span>
@@ -4244,9 +4277,8 @@ function DynamicPollCard({
         <div className="flex gap-4">
           <button
             onClick={handleLike}
-            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-              liked ? "text-[#FF3D57]" : "hover:text-white"
-            }`}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
           >
             <Heart size={13} fill={liked ? "currentColor" : "none"} />
             <span>{likesCount.toLocaleString()}</span>
@@ -4599,8 +4631,8 @@ function DynamicPredictionCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
       className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
-          ? "ring-2 ring-amber-500 shadow-[0_0_35px_rgba(245,158,11,0.35)] scale-[1.01]"
-          : ""
+        ? "ring-2 ring-amber-500 shadow-[0_0_35px_rgba(245,158,11,0.35)] scale-[1.01]"
+        : ""
         }`}
     >
       {isHighlighted && (
@@ -4615,8 +4647,6 @@ function DynamicPredictionCard({
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-amber-400">🎯 PREDICTION</span>
-          <span>•</span>
-          <span className="text-amber-300">⚡ +2 PTS / VOTE • +10 PTS WINNER</span>
           {isScheduled ? (
             <>
               <span>•</span>
@@ -4658,13 +4688,12 @@ function DynamicPredictionCard({
           <button
             onClick={() => handlePredict("left")}
             disabled={predicted || isExpired || loading}
-            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
-              selectedChoice === "left"
+            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "left"
                 ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
                 : predicted || isExpired
-                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-            }`}
+                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+              }`}
           >
             <span className="text-xs font-black">{pred.leftChoice.text}</span>
             <span className="text-[10px] font-black mt-1 text-white/50">
@@ -4675,13 +4704,12 @@ function DynamicPredictionCard({
           <button
             onClick={() => handlePredict("right")}
             disabled={predicted || isExpired || loading}
-            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${
-              selectedChoice === "right"
+            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "right"
                 ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
                 : predicted || isExpired
-                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-            }`}
+                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+              }`}
           >
             <span className="text-xs font-black">{pred.rightChoice.text}</span>
             <span className="text-[10px] font-black mt-1 text-white/50">
@@ -4716,7 +4744,7 @@ function DynamicPredictionCard({
           ) : (
             <div className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
               <span>🔒</span>
-              <span>+2 PTS earned! · Closes in {formatCountdown(timeRemainingMs)} · Pick the winning outcome to earn +10 PTS bonus!</span>
+              <span>+2 PTS earned!</span>
             </div>
           )}
         </motion.div>
@@ -4726,9 +4754,8 @@ function DynamicPredictionCard({
         <div className="flex gap-4">
           <button
             onClick={handleLike}
-            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-              liked ? "text-[#FF3D57]" : "hover:text-white"
-            }`}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
           >
             <Heart size={13} fill={liked ? "currentColor" : "none"} />
             <span>{likesCount.toLocaleString()}</span>
@@ -4980,42 +5007,42 @@ function DynamicMemeCard({
     bgSelected: string;
     borderSelected: string;
   }[] = [
-    {
-      id: "mild",
-      label: "Mild",
-      flameColor: "text-slate-400",
-      bgSelected: "bg-slate-500/20",
-      borderSelected: "border-slate-400",
-    },
-    {
-      id: "funny",
-      label: "Funny",
-      flameColor: "text-pink-400",
-      bgSelected: "bg-pink-500/25",
-      borderSelected: "border-pink-500",
-    },
-    {
-      id: "hot",
-      label: "Hot",
-      flameColor: "text-amber-400",
-      bgSelected: "bg-amber-500/25",
-      borderSelected: "border-amber-500",
-    },
-    {
-      id: "fire",
-      label: "Fire",
-      flameColor: "text-orange-500",
-      bgSelected: "bg-gradient-to-b from-orange-500/30 to-red-500/20",
-      borderSelected: "border-orange-500",
-    },
-    {
-      id: "nuclear",
-      label: "Nuclear",
-      flameColor: "text-fuchsia-400",
-      bgSelected: "bg-gradient-to-b from-fuchsia-500/35 to-pink-500/25",
-      borderSelected: "border-fuchsia-500",
-    },
-  ];
+      {
+        id: "mild",
+        label: "Mild",
+        flameColor: "text-slate-400",
+        bgSelected: "bg-slate-500/20",
+        borderSelected: "border-slate-400",
+      },
+      {
+        id: "funny",
+        label: "Funny",
+        flameColor: "text-pink-400",
+        bgSelected: "bg-pink-500/25",
+        borderSelected: "border-pink-500",
+      },
+      {
+        id: "hot",
+        label: "Hot",
+        flameColor: "text-amber-400",
+        bgSelected: "bg-amber-500/25",
+        borderSelected: "border-amber-500",
+      },
+      {
+        id: "fire",
+        label: "Fire",
+        flameColor: "text-orange-500",
+        bgSelected: "bg-gradient-to-b from-orange-500/30 to-red-500/20",
+        borderSelected: "border-orange-500",
+      },
+      {
+        id: "nuclear",
+        label: "Nuclear",
+        flameColor: "text-fuchsia-400",
+        bgSelected: "bg-gradient-to-b from-fuchsia-500/35 to-pink-500/25",
+        borderSelected: "border-fuchsia-500",
+      },
+    ];
 
   return (
     <motion.div
@@ -5024,8 +5051,8 @@ function DynamicMemeCard({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
       className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-3.5 sm:p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
-          ? "ring-2 ring-orange-500 shadow-[0_0_35px_rgba(249,115,22,0.35)] scale-[1.01]"
-          : ""
+        ? "ring-2 ring-orange-500 shadow-[0_0_35px_rgba(249,115,22,0.35)] scale-[1.01]"
+        : ""
         }`}
     >
       {isHighlighted && (
@@ -5155,16 +5182,15 @@ function DynamicMemeCard({
                   setSelectedRating(tier.id);
                 }}
                 className={`py-1.5 sm:py-2 px-0.5 sm:px-1 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all border min-w-0 w-full relative overflow-hidden ${voted ? "cursor-default" : "cursor-pointer hover:bg-white/[0.05]"
-                  } ${
-                  isSelected
-                  ? `${tier.bgSelected} ${tier.borderSelected} shadow-md scale-[1.02] sm:scale-[1.03]`
-                  : "bg-white/[0.02] border-transparent text-white/50"
-                }`}
+                  } ${isSelected
+                    ? `${tier.bgSelected} ${tier.borderSelected} shadow-md scale-[1.02] sm:scale-[1.03]`
+                    : "bg-white/[0.02] border-transparent text-white/50"
+                  }`}
               >
                 <Flame
                   size={16}
                   className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${tier.flameColor} transition-transform duration-200 ${isSelected ? "scale-110 sm:scale-125 animate-bounce" : "opacity-60"
-                  }`}
+                    }`}
                   fill={isSelected ? "currentColor" : "none"}
                 />
                 <span
@@ -5203,28 +5229,16 @@ function DynamicMemeCard({
         </div>
       </div>
 
-      {/* Heat Stats & Social Row */}
-      <div className="flex items-center justify-between text-[11px] font-bold text-white/60 mb-3 px-1">
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 text-orange-400 font-black">
-            <BarChart2 size={13} className="text-orange-400" />
-            <span>{heatPct}% Heat</span>
-          </span>
-          <span className="text-white/20">•</span>
-          <span className="text-white/50">{totalMemeVotes.toLocaleString()} votes</span>
-        </div>
-      </div>
 
       {/* Action Buttons Row */}
       <div className={voted ? "w-full" : "grid grid-cols-3 gap-2"}>
         <button
           onClick={() => handleRateMeme(selectedRating)}
           disabled={voted || loading}
-          className={`${voted ? "w-full" : "col-span-2"} py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95 ${
-            voted
+          className={`${voted ? "w-full" : "col-span-2"} py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95 ${voted
               ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400"
               : "bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] hover:opacity-95 text-white shadow-orange-500/20"
-          }`}
+            }`}
         >
           {voted ? (
             <>
@@ -5245,9 +5259,8 @@ function DynamicMemeCard({
         <div className="flex gap-4">
           <button
             onClick={handleLike}
-            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-              liked ? "text-[#FF3D57]" : "hover:text-white"
-            }`}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
           >
             <Heart size={13} fill={liked ? "currentColor" : "none"} />
             <span>{likesCount.toLocaleString()}</span>
@@ -5694,12 +5707,12 @@ export default function FlipArena({
                   filter === "all"
                     ? "quiz"
                     : filter === "battle"
-                    ? "fan_battle"
-                    : filter === "prediction"
-                    ? "prediction"
-                    : filter === "meme"
-                    ? "meme"
-                    : filter
+                      ? "fan_battle"
+                      : filter === "prediction"
+                        ? "prediction"
+                        : filter === "meme"
+                          ? "meme"
+                          : filter
                 )
               }
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"

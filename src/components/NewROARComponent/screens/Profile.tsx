@@ -4211,6 +4211,14 @@ export default function Profile({
                 onClick={async () => {
                   setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, university: editUniversity, institution: editUniversity, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
                   setEditOpen(false);
+                  try { trackProfileSignalCreated("profile_details"); } catch (e) {}
+                  const oldUser = profileMetadata?.user || {};
+                  if (editName && editName !== oldUser.username) {
+                    try { trackProfileSignalCreated("username"); } catch(e){}
+                  }
+                  if (editAbout && editAbout !== oldUser.about) {
+                    try { trackProfileSignalCreated("bio"); } catch(e){}
+                  }
                   try { trackProfileSignalCreated("profile_details"); } catch (e) { }
                   onToast("Profile updated successfully");
                   try { localStorage.setItem("roar_username", editName); } catch { }

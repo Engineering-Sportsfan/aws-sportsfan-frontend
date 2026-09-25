@@ -1,5 +1,7 @@
 // components/FifaPlayers-Component/FifaPlayerProfileActions/index.tsx
 "use client";
+import { trackInterestFollowed } from "@/lib/analytics";
+
 
 import { useState, useEffect } from "react";
 import { FifaPlayer } from "@/types/fifaPlayer";

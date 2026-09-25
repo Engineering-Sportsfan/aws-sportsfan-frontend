@@ -652,6 +652,7 @@ export default function LoginCard() {
                 </div>
                 <button
                     onClick={() => {
+                        try { sessionStorage.setItem("google_auth_intent", "login"); } catch (e) {}
                         const currentOrigin = window.location.origin;
                         signIn("google", {
                             callbackUrl: `${currentOrigin}/MainModules/HomePage`

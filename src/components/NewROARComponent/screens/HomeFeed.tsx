@@ -1,6 +1,7 @@
 // components/NewROARComponent/screens/HomeFeed.tsx
 
 import { usePostHog } from "posthog-js/react";
+import { trackAdvocacy } from '@/lib/analytics';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
@@ -421,7 +422,7 @@ export default function HomeFeed({
   const openShareDialog = (post: ShareableRoarPost) => {
     setSharePost(post);
     setCopied(false);
-    if (phog) { phog.capture("content_shared", { post_id: post.id }); }
+    try { trackAdvocacy("content_shared", { post_id: post.id }); } catch(e){}
   };
   const closeShareDialog = () => { setSharePost(null); setCopied(false); };
   const handleShareToWhatsApp = () => { if (!sharePost) return; window.open(`https://wa.me/?text=${encodeURIComponent(buildRoarPostShareText(sharePost))}`, "_blank"); };

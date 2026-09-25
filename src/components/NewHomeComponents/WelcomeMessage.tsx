@@ -322,69 +322,108 @@ export default function WelcomeMessage({
   }, [briefStories]);
 
   // Agenda Ask Flip AI logic
-  const handleAgendaAskSubmit = (queryToAsk?: string) => {
+  const handleAgendaAskSubmit = async (queryToAsk?: string) => {
     const q = (queryToAsk || agendaQuestion).trim();
-    if (!q) return;
+    if (!q || agendaLoading) return;
     setAgendaLoading(true);
     setAgendaAnswer(null);
 
-    setTimeout(() => {
-      const lower = q.toLowerCase();
-      const matchedEvent = agendaEvents.find(
+    // Build context from current agenda events
+    const agendaContext = agendaEvents
+      .map(
         (e) =>
-          lower.includes(e.sport.toLowerCase()) ||
-          lower.includes(e.subEvent.toLowerCase()) ||
-          (e.detail && lower.includes(e.detail.toLowerCase())) ||
-          (e.venue && lower.includes(e.venue.toLowerCase()))
-      );
+          `[${e.sport} - ${e.subEvent || e.sport}]: Status=${e.statusLabel || e.statusType}, Time=${e.time}, Details=${e.detail || ""}${e.venue ? `, Venue=${e.venue}` : ""}`
+      )
+      .join("; ");
 
-      let ans = "";
-      if (matchedEvent) {
-        ans = `📌 **${matchedEvent.sport} (${matchedEvent.subEvent}):** Scheduled at **${matchedEvent.time}**${matchedEvent.venue ? ` at ${matchedEvent.venue}` : ""}. Status: **${matchedEvent.statusLabel || matchedEvent.statusType.toUpperCase()}**. Match details: ${matchedEvent.detail}`;
-      } else if (lower.includes("alarm") || lower.includes("time") || lower.includes("when")) {
-        const upcomingList = agendaEvents.slice(0, 3).map(e => `• **${e.time}** - ${e.sport} (${e.subEvent})`).join("\n");
-        ans = `⏰ **Key upcoming times from your agenda:**\n${upcomingList || "Check the agenda timeline above for all scheduled timings."}`;
-      } else if (lower.includes("live") || lower.includes("attention") || lower.includes("now")) {
-        const liveEvents = agendaEvents.filter(e => e.statusType === "live");
-        if (liveEvents.length > 0) {
-          ans = `🔥 **Live Right Now:** ${liveEvents.map(e => `${e.sport} (${e.subEvent}) - ${e.detail}`).join(", ")}`;
-        } else {
-          ans = `⏳ There are no matches currently marked LIVE. Next up on your schedule is **${agendaEvents[0]?.sport || "upcoming events"}** at **${agendaEvents[0]?.time || "today"}**!`;
-        }
-      } else {
-        ans = `💡 **Flip Insight on "${q}":** Today's agenda includes ${agendaEvents.length} scheduled events across ${Array.from(new Set(agendaEvents.map(e => e.sport))).join(", ") || "multiple sports"}. Stay tuned for live updates and results!`;
+    try {
+      const aiResponse = await welcomeMessageService.askFlipAI(
+        q,
+        `Today's Sports Agenda Schedule: ${agendaContext}`
+      );
+      if (aiResponse && aiResponse.trim()) {
+        setAgendaAnswer(aiResponse);
+        setAgendaLoading(false);
+        return;
       }
-      setAgendaAnswer(ans);
-      setAgendaLoading(false);
-    }, 600);
+    } catch (err) {
+      console.warn("Agenda AI error, using fallback response:", err);
+    }
+
+    // Heuristic contextual fallback if AI service is offline or returns empty
+    const lower = q.toLowerCase();
+    const matchedEvent = agendaEvents.find(
+      (e) =>
+        lower.includes(e.sport.toLowerCase()) ||
+        lower.includes(e.subEvent.toLowerCase()) ||
+        (e.detail && lower.includes(e.detail.toLowerCase())) ||
+        (e.venue && lower.includes(e.venue.toLowerCase()))
+    );
+
+    let ans = "";
+    if (matchedEvent) {
+      ans = `📌 **${matchedEvent.sport} (${matchedEvent.subEvent}):** Scheduled at **${matchedEvent.time}**${matchedEvent.venue ? ` at ${matchedEvent.venue}` : ""}. Status: **${matchedEvent.statusLabel || matchedEvent.statusType.toUpperCase()}**. Match details: ${matchedEvent.detail}`;
+    } else if (lower.includes("alarm") || lower.includes("time") || lower.includes("when")) {
+      const upcomingList = agendaEvents.slice(0, 3).map(e => `• **${e.time}** - ${e.sport} (${e.subEvent})`).join("\n");
+      ans = `⏰ **Key upcoming times from your agenda:**\n${upcomingList || "Check the agenda timeline above for all scheduled timings."}`;
+    } else if (lower.includes("live") || lower.includes("attention") || lower.includes("now")) {
+      const liveEvents = agendaEvents.filter(e => e.statusType === "live");
+      if (liveEvents.length > 0) {
+        ans = `🔥 **Live Right Now:** ${liveEvents.map(e => `${e.sport} (${e.subEvent}) - ${e.detail}`).join(", ")}`;
+      } else {
+        ans = `⏳ There are no matches currently marked LIVE. Next up on your schedule is **${agendaEvents[0]?.sport || "upcoming events"}** at **${agendaEvents[0]?.time || "today"}**!`;
+      }
+    } else {
+      ans = `💡 **Flip Insight on "${q}":** Today's agenda includes ${agendaEvents.length} scheduled events across ${Array.from(new Set(agendaEvents.map(e => e.sport))).join(", ") || "multiple sports"}. Stay tuned for live updates and results!`;
+    }
+    setAgendaAnswer(ans);
+    setAgendaLoading(false);
   };
 
   // Brief Ask Flip AI logic
-  const handleBriefAskSubmit = (queryToAsk?: string) => {
+  const handleBriefAskSubmit = async (queryToAsk?: string) => {
     const q = (queryToAsk || briefQuestion).trim();
-    if (!q) return;
+    if (!q || briefLoading) return;
     setBriefLoading(true);
     setBriefAnswer(null);
 
-    setTimeout(() => {
-      const lower = q.toLowerCase();
-      const matchedStory = briefStories.find(
-        (s) =>
-          lower.includes(s.title.toLowerCase()) ||
-          lower.includes(s.sport.toLowerCase())
-      );
+    // Build context from today's brief stories
+    const briefContext = briefStories
+      .map((s, idx) => `Story #${idx + 1} [${s.sport} - ${s.title}]: ${s.description}`)
+      .join("; ");
 
-      let ans = "";
-      if (matchedStory) {
-        ans = `🥇 **${matchedStory.title} (${matchedStory.sport}):** ${matchedStory.description}`;
-      } else if (lower.includes("summary") || lower.includes("headline") || lower.includes("top")) {
-        ans = `📰 **Today's Top Brief Headlines:**\n${briefStories.slice(0, 3).map((s, idx) => `${idx + 1}. **${s.title}** - ${s.description}`).join("\n")}`;
-      } else {
-        ans = `💡 **Flip Story Insight on "${q}":** Today's brief covers ${briefStories.length} curated stories covering ${Array.from(new Set(briefStories.map(s => s.sport))).join(", ") || "major sports"}. Tap any story card above for quick highlights!`;
+    try {
+      const aiResponse = await welcomeMessageService.askFlipAI(
+        q,
+        `Today's Daily Huddle / Morning Brief Top Stories: ${briefContext}`
+      );
+      if (aiResponse && aiResponse.trim()) {
+        setBriefAnswer(aiResponse);
+        setBriefLoading(false);
+        return;
       }
-      setBriefAnswer(ans);
-      setBriefLoading(false);
-    }, 600);
+    } catch (err) {
+      console.warn("Brief AI error, using fallback response:", err);
+    }
+
+    // Heuristic contextual fallback if AI service is offline
+    const lower = q.toLowerCase();
+    const matchedStory = briefStories.find(
+      (s) =>
+        lower.includes(s.title.toLowerCase()) ||
+        lower.includes(s.sport.toLowerCase())
+    );
+
+    let ans = "";
+    if (matchedStory) {
+      ans = `🥇 **${matchedStory.title} (${matchedStory.sport}):** ${matchedStory.description}`;
+    } else if (lower.includes("summary") || lower.includes("headline") || lower.includes("top")) {
+      ans = `📰 **Today's Top Brief Headlines:**\n${briefStories.slice(0, 3).map((s, idx) => `${idx + 1}. **${s.title}** - ${s.description}`).join("\n")}`;
+    } else {
+      ans = `💡 **Flip Story Insight on "${q}":** Today's brief covers ${briefStories.length} curated stories covering ${Array.from(new Set(briefStories.map(s => s.sport))).join(", ") || "major sports"}. Tap any story card above for quick highlights!`;
+    }
+    setBriefAnswer(ans);
+    setBriefLoading(false);
   };
 
   // Helper for card theme styling
@@ -437,7 +476,7 @@ export default function WelcomeMessage({
     }
   };
 
-  const resolvedSubtitle = propActionSubtitle || welcomeConfig?.actionSubtitle || "Top action today · Asian Games";
+  const resolvedSubtitle = propActionSubtitle || welcomeConfig?.actionSubtitle || "Top action today";
 
   return (
     <div className="w-full flex flex-col gap-3 font-sans text-white select-none">
@@ -559,7 +598,7 @@ export default function WelcomeMessage({
                           isNotified ? "text-amber-400" : "text-gray-500 hover:text-gray-300"
                         }`}
                       >
-                        <Bell size={12} className={isNotified ? "fill-amber-400" : ""} />
+                        {/* <Bell size={12} className={isNotified ? "fill-amber-400" : ""} /> */}
                       </button>
                     )}
                   </div>
@@ -644,10 +683,10 @@ export default function WelcomeMessage({
 
             <div className="flex flex-col min-w-0">
               <h3 className="text-[14px] sm:text-[15px] font-black uppercase tracking-wider text-white leading-tight flex items-center gap-1.5">
-                Daily Huddle 
+                {welcomeConfig?.briefTitle || "Daily Huddle"}
               </h3>
               <p className="text-[12px] sm:text-[13px] font-medium text-[#D1A56A] leading-tight mt-0.5 truncate">
-                {welcomeConfig?.briefSubtitle || "Top 5 stories to know today"}
+                {welcomeConfig?.briefSubtitle || "Top stories to know today"}
               </p>
             </div>
           </div>
@@ -686,7 +725,7 @@ export default function WelcomeMessage({
               <div className="px-5 pt-2 pb-4 flex items-start justify-between border-b border-white/5">
                 <div className="flex flex-col">
                   <h2 className="text-[21px] sm:text-[23px] font-black uppercase tracking-tight text-white leading-tight">
-                    TODAY&apos;S AGENDA
+                    {resolvedSubtitle}
                   </h2>
                   <p className="text-[13px] font-medium text-gray-400 mt-0.5">
                     {welcomeConfig?.agendaDateTitle || "Today's Schedule"}
@@ -959,10 +998,12 @@ export default function WelcomeMessage({
                   </span>
                   <div className="flex flex-col">
                     <h2 className="text-[20px] sm:text-[22px] font-black uppercase tracking-tight text-white leading-tight">
-                      MORNING BRIEF
+                      {/* {welcomeConfig?.briefTitle ? welcomeConfig.briefTitle.toUpperCase() : "MORNING BRIEF"} */}
+                      {welcomeConfig?.briefTitle || "Daily Huddle"}
+
                     </h2>
                     <p className="text-[13px] font-medium text-gray-400 mt-0.5">
-                      {welcomeConfig?.briefSubtitle || "Top 5 stories to know today"}
+                      {welcomeConfig?.briefSubtitle || "Top  stories to know today"}
                     </p>
                   </div>
                 </div>
@@ -1261,7 +1302,7 @@ export default function WelcomeMessage({
 
               {/* Footer CTA */}
               <div className="p-3.5 sm:p-4 border-t border-white/10 bg-[#0d101a] flex items-center justify-between gap-2">
-                <button
+                {/* <button
                   type="button"
                   onClick={(e) => toggleBookmark(selectedCardDetail.id, e)}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold border transition-colors cursor-pointer ${
@@ -1272,7 +1313,7 @@ export default function WelcomeMessage({
                 >
                   <Bookmark size={14} />
                   <span>{bookmarkedCards.includes(selectedCardDetail.id) ? "Saved" : "Save"}</span>
-                </button>
+                </button> */}
 
                 <button
                   type="button"
