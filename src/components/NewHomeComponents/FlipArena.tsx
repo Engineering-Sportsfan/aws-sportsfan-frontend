@@ -3359,6 +3359,23 @@ function DynamicFanBattleCard({
   );
 }
 
+function LiveCountdown({
+  target,
+  render,
+}: {
+  target: number;
+  render: (msLeft: number) => React.ReactNode;
+}) {
+  const [msLeft, setMsLeft] = useState(() => Math.max(0, target - Date.now()));
+  useEffect(() => {
+    const id = setInterval(() => {
+      setMsLeft(Math.max(0, target - Date.now()));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [target]);
+  return <>{render(msLeft)}</>;
+}
+
 // ─── 2. Quiz Card Component (+2 PTS Participation, +10 PTS Correct) ────────
 function DynamicQuizCard({
   item,
@@ -3521,9 +3538,14 @@ function DynamicQuizCard({
 
   const handleOptionSelect = async (optId: string) => {
     if (answered || isScheduled || isAnsweringRef.current) return;
+     isAnsweringRef.current = true;   
     const qKey = `quiz_q_${currentQ?.id || currentQIndex}`;
     const existing = getStoredVote(qKey, item.id, userId);
-    if (existing) return;
+    // if (existing) return;
+     if (existing) {
+    isAnsweringRef.current = false;       // ← reset if we're bailing out
+    return;
+  }
 
     isAnsweringRef.current = true;
     setSelectedId(optId);
@@ -3647,6 +3669,7 @@ function DynamicQuizCard({
 
   return (
     <motion.div
+    layout={false}
       id={`engagement-${item.id}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
@@ -3712,9 +3735,16 @@ function DynamicQuizCard({
         <div className="p-5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center my-3 space-y-2">
           <Clock size={24} className="mx-auto text-purple-400 animate-pulse" />
           <h4 className="text-sm font-black text-white">Quiz Scheduled</h4>
-          <p className="text-xs text-white/70">
+          {/* <p className="text-xs text-white/70">
             Question #1 unlocks in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
-          </p>
+          </p> */}
+           <p className="text-xs text-white/70">
+      Question #1 unlocks in{" "}
+      <LiveCountdown
+        target={startTime}
+        render={(ms) => <strong className="text-amber-400 font-mono">{formatCountdown(ms)}</strong>}
+      />
+    </p>
           <span className="text-[10px] text-white/40 block">
             {frequencyMinutes > 0
               ? `Questions unlock every ${frequencyMinutes} minutes`
