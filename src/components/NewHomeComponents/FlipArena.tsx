@@ -4697,7 +4697,8 @@ function DynamicPredictionCard({
           >
             <span className="text-xs font-black">{pred.leftChoice.text}</span>
             <span className="text-[10px] font-black mt-1 text-white/50">
-              {result ? `${result.leftPercentage}%` : "2X multiplier"}
+              {/* {result ? `${result.leftPercentage}%` : "2X multiplier"} */}
+              {result ? `${result.leftPercentage}%` : null}
             </span>
           </button>
 
@@ -4713,7 +4714,8 @@ function DynamicPredictionCard({
           >
             <span className="text-xs font-black">{pred.rightChoice.text}</span>
             <span className="text-[10px] font-black mt-1 text-white/50">
-              {result ? `${result.rightPercentage}%` : "5X multiplier"}
+              {/* {result ? `${result.rightPercentage}%` : "5X multiplier"} */}
+              {result ? `${result.rightPercentage}%` : null}
             </span>
           </button>
         </div>
