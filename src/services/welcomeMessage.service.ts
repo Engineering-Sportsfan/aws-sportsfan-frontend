@@ -229,6 +229,46 @@ export interface WelcomeMessageDataResponse {
   radarCards: RadarCardItem[];
 }
 
+/**
+ * Cleans AI responses to ensure prompt templates, echoed questions, or headers are stripped
+ */
+export function cleanAiResponse(rawAnswer: string, question?: string): string {
+  if (!rawAnswer) return "";
+  let clean = rawAnswer.trim();
+
+  // Strip echoed prompt framing (Context / Question / Answer blocks)
+  clean = clean.replace(/^(?:Information Context|Context moment|Sports Data Context|Context|Sports Schedule)[:\s\S]*?(?:User Question|Question about this moment|Fan Question|Question)[:\s\S]*?(?:Direct Answer|Answer|Insight)[:\s-]*/i, "");
+  clean = clean.replace(/^(?:User Question|Fan Question|Question|Q)[:\s\S]*?(?:Direct Answer|Answer|A|Response)[:\s-]*/i, "");
+
+  // Strip leading question labels
+  clean = clean.replace(/^(?:\*{1,3})?(?:Question|Fan Question|Q)[:\s*#]+[^\n]+\n+/i, "");
+
+  // Strip leading headers like "Answer:", "Direct Answer:", "Response:", "Flip Insight:", etc.
+  clean = clean.replace(/^(?:\*{1,3})?(?:Direct Answer|Answer|Response|Flip Insight|AI Insight|Flip Story Insight|Flip Analysis|Summary)[:\s*#]+/i, "");
+
+  // Strip echoed question at the beginning of the answer if present
+  if (question) {
+    const trimmedQ = question.trim().replace(/[?!.,]+$/, "");
+    if (trimmedQ.length > 2) {
+      const escapedQ = trimmedQ.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const qRegex = new RegExp(`^(?:(?:Regarding|About|On|For|In response to)?\\s*["'“‘]?${escapedQ}[?!.,"'”’]*\\s*[-–—:]*\\s*)`, "i");
+      clean = clean.replace(qRegex, "");
+    }
+
+    // Strip generic "Flip Insight on "..." :" patterns
+    clean = clean.replace(/^💡?\s*\*{0,2}Flip (?:Story )?Insight (?:on|for) ["'“‘]?[^"'\n]+["'”’]?:?\*{0,2}\s*/i, "");
+  }
+
+  // Strip filler phrases like "Based on today's schedule," or "According to the sports brief,"
+  clean = clean.replace(/^(?:Based on (?:today's|the provided|the) (?:schedule|brief|data|stories|context),?\s*)/i, "");
+  clean = clean.replace(/^(?:According to (?:today's|the provided|the) (?:schedule|brief|data|stories|context),?\s*)/i, "");
+
+  // Final trim of leading punctuation / colons / dashes
+  clean = clean.replace(/^[:\-–—\s*]+/, "").trim();
+
+  return clean;
+}
+
 export const welcomeMessageService = {
   async getWelcomeData(): Promise<WelcomeMessageDataResponse | null> {
     try {
@@ -276,22 +316,23 @@ export const welcomeMessageService = {
    */
   async askFlipAI(question: string, context?: string): Promise<string> {
     try {
-      const fullPrompt = context
-        ? `Context: "${context}". Question about this: "${question}". Answer this question in a concise, insightful and engaging sports fan format.`
-        : question;
+      const cleanQ = question.trim();
+      const promptQuery = context
+        ? `Sports Data Context: ${context}\n\nFan Question: "${cleanQ}"\n\nProvide a direct, concise, insightful sports answer to this question without repeating the question or context in your response:`
+        : cleanQ;
 
       const res = await fetch("/api/ask-ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          query: fullPrompt,
+          query: promptQuery,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        if (data.answer) {
-          return data.answer;
+        if (data.answer && typeof data.answer === "string") {
+          return cleanAiResponse(data.answer, cleanQ);
         }
       }
       return "";
