@@ -187,7 +187,7 @@
 
 // MainModules/RoarPreference/page.tsx
 
-// "use client"; (moved to line 1)
+'use client';
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
