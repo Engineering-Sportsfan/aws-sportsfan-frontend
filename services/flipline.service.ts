@@ -76,6 +76,8 @@ export interface FlipCard {
   overLabel?: string;
   runSymbol?: string;
   createdAt?: number | string;
+  updatedAt?: number | string;
+  postingTime?: number | string;
   isScheduled?: boolean;
   scheduledAt?: number;
   scheduledTimeMs?: number;
