@@ -4201,7 +4201,8 @@ function DynamicPollCard({
               ) : correctAnswer ? (
                 <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
                   <span>
-                    Poll closed · Winning answer: <strong className="text-emerald-400">{correctAnswer}</strong>
+                    Poll closed
+                    {/* Winning answer: <strong className="text-emerald-400">{correctAnswer}</strong> */}
                   </span>
                   <span className="text-[10px] text-white/40 shrink-0">+2 PTS participation</span>
                 </div>
@@ -4737,8 +4738,8 @@ function DynamicPredictionCard({
             ) : (
               <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
                 <span>
-                  Prediction closed · Winning outcome:{" "}
-                  <strong className="text-amber-400">{winningTarget || "Ended"}</strong>
+                  Prediction closed 
+                  {/* <strong className="text-amber-400">{winningTarget || "Ended"}</strong> */}
                 </span>
                 <span className="text-[10px] text-white/40 shrink-0">+2 PTS participation</span>
               </div>
