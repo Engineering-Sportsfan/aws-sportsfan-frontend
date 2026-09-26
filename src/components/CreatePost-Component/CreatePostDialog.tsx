@@ -455,12 +455,16 @@ export default function CreatePostDialog({
         formData.append("day", schedDateStr);
         formData.append("time", schedTimeStr);
         formData.append("timeMs", String(scheduledTs));
+        formData.append("postingTime", String(scheduledTs));
+        formData.append("updatedAt", String(now));
         formData.append("createdAt", String(now));
       } else {
         formData.append("isScheduled", "false");
         formData.append("day", dateStr);
         formData.append("time", timeStr);
         formData.append("timeMs", String(now));
+        formData.append("postingTime", String(now));
+        formData.append("updatedAt", String(now));
         formData.append("createdAt", String(now));
       }
 
@@ -518,11 +522,19 @@ export default function CreatePostDialog({
         formData.append("sk", editingPost.sk);
         await fliplineService.updateScheduledPost(editingPost.sk, formData);
         await fetchUserScheduledPosts();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("flipline-post-created"));
+          window.dispatchEvent(new CustomEvent("flipline-post-updated"));
+        }
         handleClose();
       } else {
         // Creating a new post
         await onSubmit(formData, userId, userName, userEmail);
         await fetchUserScheduledPosts();
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("flipline-post-created"));
+          window.dispatchEvent(new CustomEvent("flipline-post-updated"));
+        }
         handleClose();
       }
     } catch (err: any) {
@@ -595,7 +607,7 @@ export default function CreatePostDialog({
                 <div className="flex items-center gap-2">
                   <Edit3 size={15} className="shrink-0 text-amber-400" />
                   <span>
-                    Editing scheduled post ({editingPost.sport || "general"})
+                    Editing scheduled post ({editingPost.sport || "cricket"})
                   </span>
                 </div>
                 <button
@@ -622,7 +634,6 @@ export default function CreatePostDialog({
               </div>
               <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
                 {[
-                  { id: "general", label: "General", emoji: "📢" },
                   { id: "cricket", label: "Cricket", emoji: "🏏" },
                   { id: "football", label: "Football", emoji: "⚽" },
                   { id: "athletics", label: "Athletics", emoji: "🏃" },

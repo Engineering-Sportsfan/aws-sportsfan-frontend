@@ -42,9 +42,9 @@
 //   dotColor: string;
 // }[] = [
 //     { id: "fliparena", label: "FlipARENA", icon: Brain, color: "text-amber-400", activeBg: "bg-amber-500", dotColor: "bg-amber-500" },
+//     { id: "campus", label: "Campus", icon: GraduationCap, color: "text-emerald-400", activeBg: "bg-emerald-500", dotColor: "bg-emerald-500" },
 //     { id: "global", label: "Global", icon: Sparkles, color: "text-rose-400", activeBg: "bg-rose-500", dotColor: "bg-rose-500" },
 //     { id: "roar", label: "RoAR", icon: Flame, color: "text-orange-400", activeBg: "bg-orange-500", dotColor: "bg-orange-500" },
-//     { id: "campus", label: "Campus", icon: GraduationCap, color: "text-emerald-400", activeBg: "bg-emerald-500", dotColor: "bg-emerald-500" },
 //   ];
 
 // // ─── Level Calculation ─────────────────────────────────────────────────────
@@ -1536,9 +1536,9 @@ export const TABS: {
   dotColor: string;
 }[] = [
     { id: "fliparena", label: "FlipARENA", icon: Brain, color: "text-amber-400", activeBg: "bg-amber-500", dotColor: "bg-amber-500" },
+    { id: "campus", label: "Campus", icon: GraduationCap, color: "text-emerald-400", activeBg: "bg-emerald-500", dotColor: "bg-emerald-500" },
     { id: "global", label: "Global", icon: Sparkles, color: "text-rose-400", activeBg: "bg-rose-500", dotColor: "bg-rose-500" },
     { id: "roar", label: "RoAR", icon: Flame, color: "text-orange-400", activeBg: "bg-orange-500", dotColor: "bg-orange-500" },
-    { id: "campus", label: "Campus", icon: GraduationCap, color: "text-emerald-400", activeBg: "bg-emerald-500", dotColor: "bg-emerald-500" },
   ];
 
 // ─── Level Calculation ─────────────────────────────────────────────────────
