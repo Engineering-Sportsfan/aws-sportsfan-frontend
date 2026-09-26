@@ -329,7 +329,7 @@ import { trackLoginSuccess, trackLoginFailed } from "@/lib/analytics";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import TermsModal from "./TermsModal";
 
 //  Create axios instance with relative URL (will use rewrites)
@@ -346,6 +346,8 @@ export default function LoginCard() {
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [isUnverified, setIsUnverified] = useState(false);
+    const [isNotFound, setIsNotFound] = useState(false);
     const [showTerms, setShowTerms] = useState(false);
 
     const [showChangePassword, setShowChangePassword] = useState(false);
@@ -356,6 +358,15 @@ export default function LoginCard() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const authError = searchParams.get("error");
+    const isRegisteredSuccess = searchParams.get("registered") === "true";
+
+    // Pre-fill email from query parameters if coming from register or verification
+    useEffect(() => {
+        const queryEmail = searchParams.get("email");
+        if (queryEmail && !email) {
+            setEmail(queryEmail);
+        }
+    }, [searchParams]);
 
     const getAuthError = (error: string | null) => {
         if (error === "AccessDenied") return "Your account has been disabled. Please contact support.";
@@ -375,6 +386,8 @@ export default function LoginCard() {
         try {
             setLoading(true);
             setError("");
+            setIsUnverified(false);
+            setIsNotFound(false);
 
             //  Use relative URL - will be proxied via rewrites
             const response = await api.post("/api/auth/login", {
@@ -453,14 +466,19 @@ export default function LoginCard() {
 
             if (axios.isAxiosError(err)) {
                 const status = err.response?.status;
-                const errorMessage = err.response?.data?.error;
+                const errorMessage = String(err.response?.data?.error || err.response?.data?.message || "");
 
-                if (status === 401) {
+                const isPendingOtp = status === 403 || /unverified|not verified|otp pending/i.test(errorMessage);
+                const isUserMissing = status === 404 || /not found|no user|doesn't exist/i.test(errorMessage);
+
+                if (isPendingOtp) {
+                    setIsUnverified(true);
+                    setError("Your account is not verified yet. Please verify the OTP sent to your email.");
+                } else if (isUserMissing) {
+                    setIsNotFound(true);
+                    setError("No account found with this email. Please check your spelling or sign up.");
+                } else if (status === 401) {
                     setError("Invalid email or password. Please try again.");
-                } else if (status === 403) {
-                    setError(errorMessage ?? "Access denied.");
-                } else if (status === 404) {
-                    setError("No account found with this email. Please sign up first.");
                 } else if (status === 400) {
                     setError("Please fill in all required fields.");
                 } else if (status === 429) {
@@ -606,13 +624,24 @@ export default function LoginCard() {
                 </p>
             </div>
             <div className="relative z-10 w-full max-w-sm px-5 py-5 sm:py-6 rounded-3xl bg-[#222222] backdrop-blur-md shadow-[0_20px_60px_rgba(0,0,0,0.8)]">
+                {isRegisteredSuccess && (
+                    <div className="mb-4 p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-400 text-xs text-center font-medium">
+                        ✓ Account verified successfully! You can now log in.
+                    </div>
+                )}
+
                 <div className="space-y-2.5 mb-3.5">
                     <input
                         type="email"
                         placeholder="Email Address"
                         className="w-full bg-black/40 text-white px-4 py-2.5 rounded-xl text-sm outline-none placeholder:text-gray-500"
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => {
+                            setEmail(e.target.value);
+                            if (isUnverified) setIsUnverified(false);
+                            if (isNotFound) setIsNotFound(false);
+                            if (error) setError("");
+                        }}
                         onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                     />
                     <div className="relative">
@@ -621,7 +650,10 @@ export default function LoginCard() {
                             placeholder="Password"
                             className="w-full bg-black/40 text-white px-4 py-2.5 rounded-xl text-sm outline-none placeholder:text-gray-500 pr-10"
                             value={password}
-                            onChange={(e) => setPassword(e.target.value)}
+                            onChange={(e) => {
+                                setPassword(e.target.value);
+                                if (error) setError("");
+                            }}
                             onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                         />
                         <button
@@ -639,7 +671,31 @@ export default function LoginCard() {
                     </Link>
                 </div>
                 {getAuthError(authError) && <p className="text-red-400 text-xs text-center mb-3">{getAuthError(authError)}</p>}
-                {error && <p className="text-red-400 text-xs text-center mb-3">{error}</p>}
+                {error && (
+                    <div className="mb-3">
+                        <p className="text-red-400 text-xs text-center">{error}</p>
+                        {isUnverified && (
+                            <div className="mt-2 flex justify-center">
+                                <Link
+                                    href={`/auth/register?email=${encodeURIComponent(email)}&step=otp`}
+                                    className="px-4 py-1.5 bg-orange-500/20 hover:bg-orange-500/30 border border-orange-500/50 text-orange-300 text-xs rounded-full font-medium transition cursor-pointer"
+                                >
+                                    Verify OTP Now →
+                                </Link>
+                            </div>
+                        )}
+                        {isNotFound && (
+                            <div className="mt-2 flex justify-center">
+                                <Link
+                                    href={`/auth/register?email=${encodeURIComponent(email)}`}
+                                    className="px-4 py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white text-xs rounded-full font-medium transition cursor-pointer"
+                                >
+                                    Create an Account →
+                                </Link>
+                            </div>
+                        )}
+                    </div>
+                )}
                 <button
                     onClick={handleLogin}
                     disabled={loading}

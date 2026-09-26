@@ -351,18 +351,19 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import axios from "axios";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { trackSignup } from "@/lib/analytics";
-
+import { trackSignup, trackLoginSuccess } from "@/lib/analytics";
 
 type Step = "register" | "otp" | "password";
 
-
 export default function RegisterPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [step, setStep] = useState<Step>("register");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -376,7 +377,18 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [resendMsg, setResendMsg] = useState("");
   const [redirecting, setRedirecting] = useState(false);
-   const router = useRouter();
+
+  // Read initial params (e.g. from unverified redirect)
+  useEffect(() => {
+    const urlEmail = searchParams?.get("email");
+    const urlStep = searchParams?.get("step");
+    if (urlEmail) {
+      setEmail(urlEmail);
+    }
+    if (urlStep === "otp") {
+      setStep("otp");
+    }
+  }, [searchParams]);
 
   // ── Password validation ───────────────────────
   const has8 = password.length >= 8;
@@ -404,35 +416,6 @@ export default function RegisterPage() {
     }
   }
 
-  // ── Step 1: Send OTP ─────────────────────────
-  // async function handleContinue() {
-  //   if (!firstName || !lastName || !email) return;
-  //   setLoading(true); setError("");
-  //   try {
-  //     await axios.post('/api/auth/send-otp', { email, firstName, lastName });
-  //     setStep("otp");
-  //   } catch (err: unknown) {
-  //     if (axios.isAxiosError(err)) {
-  //       if (err.response?.status === 409) {
-  //         setError("This email is already registered. Please log in instead.");
-  //       } else if (err.response?.status === 400) {
-  //         setError("Please fill in all required fields.");
-  //       } else if (err.response?.data?.error) {
-  //         setError(err.response.data.error);
-  //       } else {
-  //         setError("Failed to send OTP. Please check your connection and try again.");
-  //       }
-  //     } else {
-  //       setError("Unable to connect to the server. Please try again later.");
-  //     }
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }
-
-
-
-
   async function handleContinue() {
     if (!firstName || !lastName || !email) return;
     setLoading(true); setError("");
@@ -445,8 +428,8 @@ export default function RegisterPage() {
           setRedirecting(true);
           setError("This email is already registered. Redirecting to login page...");
           setTimeout(() => {
-           router.push("/auth/login");
-          }, 3000);
+           router.push(`/auth/login?email=${encodeURIComponent(email)}`);
+          }, 2000);
         } else if (err.response?.status === 400) {
           setError("Please fill in all required fields.");
         } else if (err.response?.data?.error) {
@@ -522,7 +505,43 @@ export default function RegisterPage() {
       } catch (trackErr) {
         console.warn("[Analytics] RegisterForm trackSignup error:", trackErr);
       }
-     router.push("/auth/login");
+
+      // Seamless auto-login with newly set credentials
+      try {
+        const loginRes = await axios.post('/api/auth/login', { email, password });
+        if (loginRes.data?.success) {
+          try {
+            localStorage.setItem("roar_v2_complete", "1");
+            if (loginRes.data.user) {
+              const u = loginRes.data.user;
+              const fullName =
+                u.name ||
+                [u.firstName, u.lastName].filter(Boolean).join(" ").trim() ||
+                "";
+              const normalised = {
+                email: u.email,
+                name: fullName,
+                role: u.role || "user",
+                userId: u.userId,
+                title: u.title || "",
+              };
+              localStorage.setItem("auth_user", JSON.stringify(normalised));
+              trackLoginSuccess(u.userId || u.email || email, {
+                email: u.email || email,
+                name: fullName,
+                role: u.role || "user",
+                method: "email_password",
+              });
+            }
+          } catch {}
+          window.location.href = "/MainModules/HomePage";
+          return;
+        }
+      } catch {
+        // Fall through to manual login page if auto-login returns requiresPasswordChange or fails
+      }
+
+      router.push(`/auth/login?registered=true&email=${encodeURIComponent(email)}`);
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         if (err.response?.status === 400) {
