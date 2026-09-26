@@ -3779,7 +3779,7 @@ function DynamicQuizCard({
                   disabled={answered}
                   className={`rounded-xl p-3 border font-bold text-xs text-left transition-all cursor-pointer flex items-center justify-between ${cardStyle}`}
                 >
-                  <span className="truncate pr-1">
+                  <span className="whitespace-normal pr-1">
                     <span className="text-white/40 mr-1.5 font-bold">{letter}.</span>
                     {opt.text}
                   </span>
