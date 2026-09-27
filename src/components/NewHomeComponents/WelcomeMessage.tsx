@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -110,6 +111,23 @@ export default function WelcomeMessage({
   const [selectedCardDetail, setSelectedCardDetail] = useState<RadarCardItem | null>(null);
   const [notifiedCards, setNotifiedCards] = useState<string[]>([]);
   const [bookmarkedCards, setBookmarkedCards] = useState<string[]>([]);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Lock body scroll when any modal is open on mobile / desktop
+  useEffect(() => {
+    if (!mounted || typeof document === "undefined") return;
+    if (isAgendaOpen || isBriefOpen || !!selectedCardDetail) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [mounted, isAgendaOpen, isBriefOpen, selectedCardDetail]);
 
   // Agenda Ask Flip state
   const [agendaQuestion, setAgendaQuestion] = useState("");
@@ -816,639 +834,633 @@ export default function WelcomeMessage({
       </motion.div>
 
       {/* ─── 6. TODAY'S AGENDA MODAL (Dynamic from DynamoDB) ─────────────── */}
-      <AnimatePresence>
-        {isAgendaOpen && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-md">
-            <div 
-              className="absolute inset-0"
-              onClick={() => setIsAgendaOpen(false)}
-            />
+      {mounted && typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {isAgendaOpen && (
+            <div className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-md p-0 sm:p-4">
+              <div 
+                className="absolute inset-0"
+                onClick={() => setIsAgendaOpen(false)}
+              />
 
-            <motion.div
-              initial={{ opacity: 0, y: "100%" }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: "100%" }}
-              transition={{ type: "spring", damping: 26, stiffness: 280 }}
-              className="relative w-full max-w-lg h-[92vh] sm:h-[88vh] rounded-t-[28px] sm:rounded-2xl bg-[#090C15] border border-white/10 overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.9)] flex flex-col z-10"
-            >
-              {/* Drag Handle Bar */}
-              <div className="w-full flex justify-center pt-2.5 pb-1">
-                <div className="w-10 h-1 bg-gray-600/70 rounded-full" />
-              </div>
-
-              {/* Modal Header */}
-              <div className="px-5 pt-2 pb-4 flex items-start justify-between border-b border-white/5">
-                <div className="flex flex-col">
-                  <h2 className="text-[21px] sm:text-[23px] font-black uppercase tracking-tight text-white leading-tight">
-                    {resolvedSubtitle}
-                  </h2>
-                  <p className="text-[13px] font-medium text-gray-400 mt-0.5">
-                    {welcomeConfig?.agendaDateTitle || "Today's Schedule"}
-                  </p>
+              <motion.div
+                initial={{ opacity: 0, y: "100%" }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="relative w-full max-w-lg h-[90dvh] sm:h-[86vh] max-h-[90dvh] sm:max-h-[850px] rounded-t-[28px] sm:rounded-2xl bg-[#090C15] border border-white/10 sm:border-white/15 overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.9)] flex flex-col z-10"
+              >
+                {/* Drag Handle Bar */}
+                <div className="w-full flex justify-center pt-3 pb-1.5 shrink-0 bg-[#090C15] select-none">
+                  <div className="w-12 h-1 bg-gray-600/70 rounded-full" />
                 </div>
 
-                <button
-                  type="button"
-                  aria-label="Close agenda"
-                  onClick={() => setIsAgendaOpen(false)}
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
+                {/* Modal Header */}
+                <div className="px-4 sm:px-6 pt-1 pb-3 sm:pb-4 flex items-center justify-between border-b border-white/10 bg-[#090C15] shrink-0 sticky top-0 z-20">
+                  <div className="flex flex-col min-w-0 pr-3">
+                    <h2 className="text-[17px] sm:text-[21px] font-black uppercase tracking-tight text-white leading-snug truncate">
+                      {resolvedSubtitle}
+                    </h2>
+                    <p className="text-[11.5px] sm:text-[13px] font-medium text-gray-400 mt-0.5 truncate">
+                      {welcomeConfig?.agendaDateTitle || "Today's Schedule"}
+                    </p>
+                  </div>
 
-              {/* Scrollable Content Container */}
+                  <button
+                    type="button"
+                    aria-label="Close agenda"
+                    onClick={() => setIsAgendaOpen(false)}
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-gray-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Scrollable Content Container */}
+                <div 
+                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 py-4 space-y-5 pb-[calc(env(safe-area-inset-bottom,20px)+24px)]"
+                  style={{
+                    scrollbarWidth: "thin",
+                    scrollbarColor: "rgba(255,255,255,0.15) transparent",
+                  }}
+                >
+                  {/* Timeline Events List */}
+                  <div className="relative pl-1">
+                    {isLoadingBackend ? (
+                      <div className="space-y-4">
+                        {[1, 2, 3, 4].map((n) => (
+                          <div key={n} className="flex items-start gap-4 animate-pulse">
+                            <div className="w-2.5 h-2.5 rounded-full bg-white/20 mt-1" />
+                            <div className="flex-1 space-y-2">
+                              <div className="w-20 h-3 rounded bg-white/10" />
+                              <div className="w-40 h-4 rounded bg-white/15" />
+                              <div className="w-56 h-3 rounded bg-white/10" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : dynamicAgendaEvents.length === 0 ? (
+                      <div className="py-8 text-center text-gray-400 text-[13px]">
+                        No agenda events scheduled for today.
+                      </div>
+                    ) : (
+                      dynamicAgendaEvents.map((evt, idx) => {
+                        const isLast = idx === dynamicAgendaEvents.length - 1;
+
+                        let nodeStyle = "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
+                        let badgeStyle = "bg-[#0b1c33] text-[#60A5FA] border border-[#1E40AF]/60";
+                        let badgeGlow = "";
+
+                        if (evt.statusType === "completed") {
+                          nodeStyle = "bg-gray-400 shadow-[0_0_6px_rgba(156,163,175,0.4)]";
+                          badgeStyle = "bg-[#1e293b] text-[#94a3b8] border border-[#475569]/50";
+                        } else if (evt.statusType === "live") {
+                          nodeStyle = "bg-emerald-400 shadow-[0_0_10px_#34D399]";
+                          badgeStyle = "bg-[#04281E] text-[#10B981] border border-[#10B981]/50";
+                          badgeGlow = "shadow-[0_0_10px_rgba(16,185,129,0.25)]";
+                        } else if (evt.statusType === "up_next") {
+                          nodeStyle = "bg-amber-400 shadow-[0_0_10px_#FBBF24]";
+                          badgeStyle = "bg-[#2E1F06] text-[#FBBF24] border border-[#D97706]/60";
+                          badgeGlow = "shadow-[0_0_10px_rgba(251,191,36,0.25)]";
+                        } else {
+                          nodeStyle = "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
+                          badgeStyle = "bg-[#0b1c33] text-[#60A5FA] border border-[#1E40AF]/60";
+                        }
+
+                        return (
+                          <div key={evt.id || idx} className="relative flex items-start gap-4 pb-5 group">
+                            {!isLast && (
+                              <div 
+                                className="absolute left-[5px] top-[14px] bottom-0 w-[1px] bg-slate-800"
+                              />
+                            )}
+
+                            <div className="relative z-10 pt-1">
+                              <div className={`w-2.5 h-2.5 rounded-full ${nodeStyle}`} />
+                            </div>
+
+                            <div className="flex-1 flex items-start justify-between min-w-0">
+                              <div className="flex flex-col min-w-0 pr-2">
+                                <span className="text-[11px] font-bold text-gray-400 tracking-wider">
+                                  {evt.time}
+                                </span>
+
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="text-[20px] leading-none shrink-0 drop-shadow-sm">
+                                    {evt.icon}
+                                  </span>
+                                  <h4 className="text-[14.5px] sm:text-[15px] font-extrabold text-white leading-tight truncate">
+                                    {evt.sport}
+                                  </h4>
+                                </div>
+
+                                <p className="text-[12px] font-medium text-gray-300 leading-tight mt-1 truncate">
+                                  {evt.subEvent}
+                                </p>
+
+                                <p className="text-[11px] font-normal text-gray-400 leading-tight mt-0.5 truncate">
+                                  {evt.detail}
+                                </p>
+                              </div>
+
+                              <div className="shrink-0 pt-0.5">
+                                <span
+                                  className={`inline-flex items-center gap-1 text-[9.5px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider ${badgeStyle} ${badgeGlow}`}
+                                >
+                                  {evt.statusType === "live" && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                  )}
+                                  {evt.statusType === "completed" && (
+                                    <span className="text-[10px]">✓</span>
+                                  )}
+                                  {evt.statusLabel ||
+                                    (evt.statusType === "completed"
+                                      ? "COMPLETED"
+                                      : evt.statusType === "live"
+                                      ? "LIVE"
+                                      : evt.statusType === "up_next"
+                                      ? "UP NEXT"
+                                      : "SCHEDULED")}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* FlipArena Engagement Banner */}
+                  {renderFlipArenaBanner()}
+
+                  {/* Agenda Bottom ASK FLIP Section */}
+                  <div 
+                    className="w-full rounded-2xl p-4 sm:p-5 border border-purple-500/25 relative overflow-hidden"
+                    style={{
+                      background: "linear-gradient(160deg, #130B24 0%, #0A0714 60%, #06050C 100%)",
+                      boxShadow: "0 4px 25px rgba(124, 58, 237, 0.15)",
+                    }}
+                  >
+                    <div
+                      className="absolute -top-12 -right-12 w-36 h-36 rounded-full pointer-events-none opacity-20"
+                      style={{
+                        background: "radial-gradient(circle, #A855F7 0%, transparent 70%)",
+                      }}
+                    />
+
+                    <div className="flex items-center gap-2.5 mb-3.5 relative z-10">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#7C3AED] via-[#C084FC] to-[#EC4899] p-[1.5px] shadow-[0_0_12px_rgba(168,85,247,0.4)]">
+                        <img src="/images/dollyavatar.png" alt="" className="w-full h-full object-cover" />
+
+                      </div>
+                      <div>
+                        <h3 className="text-[14px] sm:text-[15px] font-black text-white uppercase tracking-wide flex items-center gap-1">
+                          ASK FLIP <span className="text-[#38BDF8]">⚡</span>
+                        </h3>
+                        <p className="text-[11.5px] text-gray-400 font-medium leading-tight">
+                          Get insights on any event in your agenda
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mb-2 relative z-10">
+                      <span className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">
+                        TRY ASKING:
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 mb-3.5 relative z-10">
+                      {dynamicAgendaPrompts.map((prompt, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setAgendaQuestion(prompt);
+                            handleAgendaAskSubmit(prompt);
+                          }}
+                          className="w-full text-left px-3.5 py-2 rounded-xl text-[12px] font-medium text-gray-300 bg-white/[0.04] border border-white/5 hover:border-purple-500/40 hover:bg-white/[0.07] hover:text-white transition-all cursor-pointer truncate"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="relative z-10 mb-3">
+                      <textarea
+                        rows={2}
+                        value={agendaQuestion}
+                        onChange={(e) => setAgendaQuestion(e.target.value)}
+                        placeholder="Ask about any event, match or athlete on today's schedule..."
+                        className="w-full rounded-xl bg-[#090B12] border border-white/10 p-3 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/70 resize-none transition-colors"
+                      />
+                    </div>
+
+                    <AnimatePresence>
+                      {(agendaLoading || agendaAnswer) && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-500/30 mb-3 text-[12.5px] text-gray-200 leading-relaxed relative z-10"
+                        >
+                          {agendaLoading ? (
+                            <div className="flex items-center gap-2 text-purple-300 font-medium">
+                              <Loader2 size={14} className="animate-spin" />
+                              <span>Flip is analyzing the schedule...</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-purple-300 text-[11px] font-bold uppercase tracking-wider">
+                                <Sparkles size={12} />
+                                <span>Flip AI Analysis</span>
+                              </div>
+                              <div className="text-white/95">
+                                  {formatAiAnswerText(agendaAnswer)}
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    <button
+                      type="button"
+                      onClick={() => handleAgendaAskSubmit()}
+                      disabled={agendaLoading}
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-[#A855F7] via-[#EC4899] to-[#F43F5E] text-white font-extrabold text-[14px] flex items-center justify-center gap-2 shadow-[0_4px_18px_rgba(236,72,153,0.35)] hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer relative z-10 disabled:opacity-50"
+                    >
+                      {agendaLoading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <>
+                          <span>Ask Flip</span>
+                          <span className="text-[#38BDF8]">⚡</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+
+      {/* ─── 7. MORNING BRIEF MODAL (Dynamic from DynamoDB) ──────────────── */}
+      {mounted && typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {isBriefOpen && (
+            <div className="fixed inset-0 z-[99999] flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-md p-0 sm:p-4">
               <div 
-                className="flex-1 overflow-y-auto px-5 py-4 space-y-6"
-                style={{
-                  scrollbarWidth: "thin",
-                  scrollbarColor: "rgba(255,255,255,0.15) transparent",
-                }}
+                className="absolute inset-0"
+                onClick={() => setIsBriefOpen(false)}
+              />
+
+              <motion.div
+                initial={{ opacity: 0, y: "100%" }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: "100%" }}
+                transition={{ type: "spring", damping: 28, stiffness: 300 }}
+                className="relative w-full max-w-lg h-[90dvh] sm:h-[86vh] max-h-[90dvh] sm:max-h-[850px] rounded-t-[28px] sm:rounded-2xl bg-[#090C15] border border-white/10 sm:border-white/15 overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.9)] flex flex-col z-10"
               >
-                {/* Timeline Events List */}
-                <div className="relative pl-1">
+                {/* Drag Handle Bar */}
+                <div className="w-full flex justify-center pt-3 pb-1.5 shrink-0 bg-[#090C15] select-none">
+                  <div className="w-12 h-1 bg-gray-600/70 rounded-full" />
+                </div>
+
+                {/* Modal Header: Sun Icon + MORNING BRIEF + Close Button */}
+                <div className="px-4 sm:px-6 pt-1 pb-3 sm:pb-4 flex items-center justify-between border-b border-white/10 bg-[#090C15] shrink-0 sticky top-0 z-20">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-3">
+                    <span className="text-[22px] sm:text-[26px] leading-none select-none shrink-0">
+                      🌞
+                    </span>
+                    <div className="flex flex-col min-w-0">
+                      <h2 className="text-[17px] sm:text-[21px] font-black uppercase tracking-tight text-white leading-snug truncate">
+                        {welcomeConfig?.briefTitle || "Daily Huddle"}
+                      </h2>
+                      <p className="text-[11.5px] sm:text-[13px] font-medium text-gray-400 mt-0.5 truncate">
+                        {welcomeConfig?.briefSubtitle || "Top stories to know today"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    aria-label="Close brief"
+                    onClick={() => setIsBriefOpen(false)}
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-gray-300 hover:text-white flex items-center justify-center transition-all cursor-pointer shrink-0"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Scrollable Content Container */}
+                <div 
+                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-6 py-4 space-y-3.5 pb-[calc(env(safe-area-inset-bottom,20px)+24px)]"
+                  style={{
+                    scrollbarWidth: "thin",
+                    scrollbarColor: "rgba(255,255,255,0.15) transparent",
+                  }}
+                >
+                  {/* Stories Cards */}
                   {isLoadingBackend ? (
-                    <div className="space-y-4">
-                      {[1, 2, 3, 4].map((n) => (
-                        <div key={n} className="flex items-start gap-4 animate-pulse">
-                          <div className="w-2.5 h-2.5 rounded-full bg-white/20 mt-1" />
+                    <div className="space-y-3.5">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <div
+                          key={n}
+                          className="p-3.5 sm:p-4 rounded-2xl bg-[#0e1320]/70 border border-white/5 flex items-start gap-3.5 animate-pulse"
+                        >
+                          <div className="w-7 h-7 rounded-lg bg-white/10 shrink-0" />
                           <div className="flex-1 space-y-2">
-                            <div className="w-20 h-3 rounded bg-white/10" />
-                            <div className="w-40 h-4 rounded bg-white/15" />
-                            <div className="w-56 h-3 rounded bg-white/10" />
+                            <div className="w-1/2 h-4 rounded bg-white/15" />
+                            <div className="w-full h-3 rounded bg-white/10" />
+                            <div className="w-3/4 h-3 rounded bg-white/5" />
                           </div>
                         </div>
                       ))}
                     </div>
-                  ) : dynamicAgendaEvents.length === 0 ? (
+                  ) : briefStories.length === 0 ? (
                     <div className="py-8 text-center text-gray-400 text-[13px]">
-                      No agenda events scheduled for today.
+                      No morning brief stories available at the moment.
                     </div>
                   ) : (
-                    dynamicAgendaEvents.map((evt, idx) => {
-                      const isLast = idx === dynamicAgendaEvents.length - 1;
-
-                      let nodeStyle = "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
-                      let badgeStyle = "bg-[#0b1c33] text-[#60A5FA] border border-[#1E40AF]/60";
-                      let badgeGlow = "";
-
-                      if (evt.statusType === "completed") {
-                        nodeStyle = "bg-gray-400 shadow-[0_0_6px_rgba(156,163,175,0.4)]";
-                        badgeStyle = "bg-[#1e293b] text-[#94a3b8] border border-[#475569]/50";
-                      } else if (evt.statusType === "live") {
-                        nodeStyle = "bg-emerald-400 shadow-[0_0_10px_#34D399]";
-                        badgeStyle = "bg-[#04281E] text-[#10B981] border border-[#10B981]/50";
-                        badgeGlow = "shadow-[0_0_10px_rgba(16,185,129,0.25)]";
-                      } else if (evt.statusType === "up_next") {
-                        nodeStyle = "bg-amber-400 shadow-[0_0_10px_#FBBF24]";
-                        badgeStyle = "bg-[#2E1F06] text-[#FBBF24] border border-[#D97706]/60";
-                        badgeGlow = "shadow-[0_0_10px_rgba(251,191,36,0.25)]";
-                      } else {
-                        nodeStyle = "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
-                        badgeStyle = "bg-[#0b1c33] text-[#60A5FA] border border-[#1E40AF]/60";
-                      }
-
-                      return (
-                        <div key={evt.id || idx} className="relative flex items-start gap-4 pb-5 group">
-                          {!isLast && (
-                            <div 
-                              className="absolute left-[5px] top-[14px] bottom-0 w-[1px] bg-slate-800"
-                            />
-                          )}
-
-                          <div className="relative z-10 pt-1">
-                            <div className={`w-2.5 h-2.5 rounded-full ${nodeStyle}`} />
-                          </div>
-
-                          <div className="flex-1 flex items-start justify-between min-w-0">
-                            <div className="flex flex-col min-w-0 pr-2">
-                              <span className="text-[11px] font-bold text-gray-400 tracking-wider">
-                                {evt.time}
-                              </span>
-
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <span className="text-[20px] leading-none shrink-0 drop-shadow-sm">
-                                  {evt.icon}
-                                </span>
-                                <h4 className="text-[15px] font-extrabold text-white leading-tight truncate">
-                                  {evt.sport}
-                                </h4>
-                              </div>
-
-                              <p className="text-[12px] font-medium text-gray-300 leading-tight mt-1 truncate">
-                                {evt.subEvent}
-                              </p>
-
-                              <p className="text-[11px] font-normal text-gray-400 leading-tight mt-0.5 truncate">
-                                {evt.detail}
-                              </p>
-                            </div>
-
-                            <div className="shrink-0 pt-0.5">
-                              <span
-                                className={`inline-flex items-center gap-1 text-[9.5px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider ${badgeStyle} ${badgeGlow}`}
-                              >
-                                {evt.statusType === "live" && (
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                )}
-                                {evt.statusType === "completed" && (
-                                  <span className="text-[10px]">✓</span>
-                                )}
-                                {evt.statusLabel ||
-                                  (evt.statusType === "completed"
-                                    ? "COMPLETED"
-                                    : evt.statusType === "live"
-                                    ? "LIVE"
-                                    : evt.statusType === "up_next"
-                                    ? "UP NEXT"
-                                    : "SCHEDULED")}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-
-                {/* FlipArena Engagement Banner */}
-                {renderFlipArenaBanner()}
-
-                {/* Agenda Bottom ASK FLIP Section */}
-                <div 
-                  className="w-full rounded-2xl p-4 sm:p-5 border border-purple-500/25 relative overflow-hidden"
-                  style={{
-                    background: "linear-gradient(160deg, #130B24 0%, #0A0714 60%, #06050C 100%)",
-                    boxShadow: "0 4px 25px rgba(124, 58, 237, 0.15)",
-                  }}
-                >
-                  <div
-                    className="absolute -top-12 -right-12 w-36 h-36 rounded-full pointer-events-none opacity-20"
-                    style={{
-                      background: "radial-gradient(circle, #A855F7 0%, transparent 70%)",
-                    }}
-                  />
-
-                  <div className="flex items-center gap-2.5 mb-3.5 relative z-10">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#7C3AED] via-[#C084FC] to-[#EC4899] p-[1.5px] shadow-[0_0_12px_rgba(168,85,247,0.4)]">
-                      <img src="/images/dollyavatar.png" alt="" className="w-full h-full object-cover" />
-
-                    </div>
-                    <div>
-                      <h3 className="text-[14px] sm:text-[15px] font-black text-white uppercase tracking-wide flex items-center gap-1">
-                        ASK FLIP <span className="text-[#38BDF8]">⚡</span>
-                      </h3>
-                      <p className="text-[11.5px] text-gray-400 font-medium leading-tight">
-                        Get insights on any event in your agenda
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mb-2 relative z-10">
-                    <span className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">
-                      TRY ASKING:
-                    </span>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5 mb-3.5 relative z-10">
-                    {dynamicAgendaPrompts.map((prompt, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setAgendaQuestion(prompt);
-                          handleAgendaAskSubmit(prompt);
-                        }}
-                        className="w-full text-left px-3.5 py-2 rounded-xl text-[12px] font-medium text-gray-300 bg-white/[0.04] border border-white/5 hover:border-purple-500/40 hover:bg-white/[0.07] hover:text-white transition-all cursor-pointer truncate"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="relative z-10 mb-3">
-                    <textarea
-                      rows={2}
-                      value={agendaQuestion}
-                      onChange={(e) => setAgendaQuestion(e.target.value)}
-                      placeholder="Ask about any event, match or athlete on today's schedule..."
-                      className="w-full rounded-xl bg-[#090B12] border border-white/10 p-3 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/70 resize-none transition-colors"
-                    />
-                  </div>
-
-                  <AnimatePresence>
-                    {(agendaLoading || agendaAnswer) && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-500/30 mb-3 text-[12.5px] text-gray-200 leading-relaxed relative z-10"
-                      >
-                        {agendaLoading ? (
-                          <div className="flex items-center gap-2 text-purple-300 font-medium">
-                            <Loader2 size={14} className="animate-spin" />
-                            <span>Flip is analyzing the schedule...</span>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 text-purple-300 text-[11px] font-bold uppercase tracking-wider">
-                              <Sparkles size={12} />
-                              <span>Flip AI Analysis</span>
-                            </div>
-                            <div className="text-white/95">
-                                {formatAiAnswerText(agendaAnswer)}
-                            </div>
-                          </div>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <button
-                    type="button"
-                    onClick={() => handleAgendaAskSubmit()}
-                    disabled={agendaLoading}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-[#A855F7] via-[#EC4899] to-[#F43F5E] text-white font-extrabold text-[14px] flex items-center justify-center gap-2 shadow-[0_4px_18px_rgba(236,72,153,0.35)] hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer relative z-10 disabled:opacity-50"
-                  >
-                    {agendaLoading ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <>
-                        <span>Ask Flip</span>
-                        <span className="text-[#38BDF8]">⚡</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ─── 7. MORNING BRIEF MODAL (Dynamic from DynamoDB) ──────────────── */}
-      <AnimatePresence>
-        {isBriefOpen && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/85 backdrop-blur-md">
-            <div 
-              className="absolute inset-0"
-              onClick={() => setIsBriefOpen(false)}
-            />
-
-            <motion.div
-              initial={{ opacity: 0, y: "100%" }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: "100%" }}
-              transition={{ type: "spring", damping: 26, stiffness: 280 }}
-              className="relative w-full max-w-lg h-[92vh] sm:h-[88vh] rounded-t-[28px] sm:rounded-2xl bg-[#090C15] border border-white/10 overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.9)] flex flex-col z-10"
-            >
-              {/* Drag Handle Bar */}
-              <div className="w-full flex justify-center pt-2.5 pb-1">
-                <div className="w-10 h-1 bg-gray-600/70 rounded-full" />
-              </div>
-
-              {/* Modal Header: Sun Icon + MORNING BRIEF + Close Button */}
-              <div className="px-5 pt-2 pb-4 flex items-start justify-between border-b border-white/5">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-[24px] leading-none select-none">
-                    🌞
-                  </span>
-                  <div className="flex flex-col">
-                    <h2 className="text-[20px] sm:text-[22px] font-black uppercase tracking-tight text-white leading-tight">
-                      {/* {welcomeConfig?.briefTitle ? welcomeConfig.briefTitle.toUpperCase() : "MORNING BRIEF"} */}
-                      {welcomeConfig?.briefTitle || "Daily Huddle"}
-
-                    </h2>
-                    <p className="text-[13px] font-medium text-gray-400 mt-0.5">
-                      {welcomeConfig?.briefSubtitle || "Top  stories to know today"}
-                    </p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  aria-label="Close brief"
-                  onClick={() => setIsBriefOpen(false)}
-                  className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-gray-400 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {/* Scrollable Content Container */}
-              <div 
-                className="flex-1 overflow-y-auto px-5 py-4 space-y-3.5"
-                style={{
-                  scrollbarWidth: "thin",
-                  scrollbarColor: "rgba(255,255,255,0.15) transparent",
-                }}
-              >
-                {/* Stories Cards */}
-                {isLoadingBackend ? (
-                  <div className="space-y-3.5">
-                    {[1, 2, 3, 4, 5].map((n) => (
+                    briefStories.map((story, idx) => (
                       <div
-                        key={n}
-                        className="p-3.5 sm:p-4 rounded-2xl bg-[#0e1320]/70 border border-white/5 flex items-start gap-3.5 animate-pulse"
+                        key={story.id || idx}
+                        className="p-3.5 sm:p-4 rounded-2xl bg-[#0e1320]/90 border border-white/10 hover:border-amber-500/40 transition-all flex items-start gap-3.5 group"
+                        style={{
+                          boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
+                        }}
                       >
-                        <div className="w-7 h-7 rounded-lg bg-white/10 shrink-0" />
-                        <div className="flex-1 space-y-2">
-                          <div className="w-1/2 h-4 rounded bg-white/15" />
-                          <div className="w-full h-3 rounded bg-white/10" />
-                          <div className="w-3/4 h-3 rounded bg-white/5" />
+                        {/* Number Badge with Icon Below */}
+                        <div className="flex flex-col items-center gap-2 shrink-0 pt-0.5">
+                          <div className="w-7 h-7 rounded-lg bg-[#261A0C] border border-[#854D0E]/60 text-[#F59E0B] text-[13px] font-black flex items-center justify-center shadow-sm">
+                            {story.storyNumber || idx + 1}
+                          </div>
+                          <span className="text-[18px] leading-none drop-shadow-sm">
+                            {story.icon || "🏆"}
+                          </span>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : briefStories.length === 0 ? (
-                  <div className="py-8 text-center text-gray-400 text-[13px]">
-                    No morning brief stories available at the moment.
-                  </div>
-                ) : (
-                  briefStories.map((story, idx) => (
-                    <div
-                      key={story.id || idx}
-                      className="p-3.5 sm:p-4 rounded-2xl bg-[#0e1320]/90 border border-white/10 hover:border-amber-500/40 transition-all flex items-start gap-3.5 group"
-                      style={{
-                        boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
-                      }}
-                    >
-                      {/* Number Badge with Icon Below */}
-                      <div className="flex flex-col items-center gap-2 shrink-0 pt-0.5">
-                        <div className="w-7 h-7 rounded-lg bg-[#261A0C] border border-[#854D0E]/60 text-[#F59E0B] text-[13px] font-black flex items-center justify-center shadow-sm">
-                          {story.storyNumber || idx + 1}
-                        </div>
-                        <span className="text-[18px] leading-none drop-shadow-sm">
-                          {story.icon || "🏆"}
-                        </span>
-                      </div>
 
-                      {/* Story Content */}
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-[14.5px] sm:text-[15px] font-extrabold text-white leading-snug">
-                          {story.title}
-                        </h4>
-                        <p className="text-[12px] sm:text-[12.5px] font-normal text-gray-400 leading-relaxed mt-1">
-                          {story.description}
+                        {/* Story Content */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-[14.5px] sm:text-[15px] font-extrabold text-white leading-snug">
+                            {story.title}
+                          </h4>
+                          <p className="text-[12px] sm:text-[12.5px] font-normal text-gray-400 leading-relaxed mt-1">
+                            {story.description}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  {/* FlipArena Engagement Banner */}
+                  {renderFlipArenaBanner()}
+
+                  {/* Bottom ASK FLIP Section for Morning Brief */}
+                  <div 
+                    className="w-full rounded-2xl p-4 sm:p-5 border border-purple-500/25 relative overflow-hidden mt-4"
+                    style={{
+                      background: "linear-gradient(160deg, #130B24 0%, #0A0714 60%, #06050C 100%)",
+                      boxShadow: "0 4px 25px rgba(124, 58, 237, 0.15)",
+                    }}
+                  >
+                    <div
+                      className="absolute -top-12 -right-12 w-36 h-36 rounded-full pointer-events-none opacity-20"
+                      style={{
+                        background: "radial-gradient(circle, #A855F7 0%, transparent 70%)",
+                      }}
+                    />
+
+                    {/* Header: Mascot Avatar + Text */}
+                    <div className="flex items-center gap-2.5 mb-3.5 relative z-10">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#7C3AED] via-[#C084FC] to-[#EC4899] p-[1.5px] shadow-[0_0_12px_rgba(168,85,247,0.4)]">
+                        <img src="/images/dollyavatar.png" alt="" className="w-full h-full object-cover" />
+
+                      </div>
+                      <div>
+                        <h3 className="text-[14px] sm:text-[15px] font-black text-white uppercase tracking-wide flex items-center gap-1">
+                          ASK FLIP <span className="text-[#38BDF8]">⚡</span>
+                        </h3>
+                        <p className="text-[11.5px] text-gray-400 font-medium leading-tight">
+                          Dive deeper into any story from today&apos;s brief
                         </p>
                       </div>
                     </div>
-                  ))
-                )}
 
-                {/* FlipArena Engagement Banner */}
-                {renderFlipArenaBanner()}
-
-                {/* Bottom ASK FLIP Section for Morning Brief */}
-                <div 
-                  className="w-full rounded-2xl p-4 sm:p-5 border border-purple-500/25 relative overflow-hidden mt-4"
-                  style={{
-                    background: "linear-gradient(160deg, #130B24 0%, #0A0714 60%, #06050C 100%)",
-                    boxShadow: "0 4px 25px rgba(124, 58, 237, 0.15)",
-                  }}
-                >
-                  <div
-                    className="absolute -top-12 -right-12 w-36 h-36 rounded-full pointer-events-none opacity-20"
-                    style={{
-                      background: "radial-gradient(circle, #A855F7 0%, transparent 70%)",
-                    }}
-                  />
-
-                  {/* Header: Mascot Avatar + Text */}
-                  <div className="flex items-center gap-2.5 mb-3.5 relative z-10">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-[#7C3AED] via-[#C084FC] to-[#EC4899] p-[1.5px] shadow-[0_0_12px_rgba(168,85,247,0.4)]">
-                      <img src="/images/dollyavatar.png" alt="" className="w-full h-full object-cover" />
-
-                    </div>
-                    <div>
-                      <h3 className="text-[14px] sm:text-[15px] font-black text-white uppercase tracking-wide flex items-center gap-1">
-                        ASK FLIP <span className="text-[#38BDF8]">⚡</span>
-                      </h3>
-                      <p className="text-[11.5px] text-gray-400 font-medium leading-tight">
-                        Dive deeper into any story from today&apos;s brief
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* TRY ASKING Label */}
-                  <div className="mb-2 relative z-10">
-                    <span className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">
-                      TRY ASKING:
-                    </span>
-                  </div>
-
-                  {/* Suggested Question Pills */}
-                  <div className="flex flex-col gap-1.5 mb-3.5 relative z-10">
-                    {dynamicBriefPrompts.map((prompt, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => {
-                          setBriefQuestion(prompt);
-                          handleBriefAskSubmit(prompt);
-                        }}
-                        className="w-full text-left px-3.5 py-2 rounded-xl text-[12px] font-medium text-gray-300 bg-white/[0.04] border border-white/5 hover:border-purple-500/40 hover:bg-white/[0.07] hover:text-white transition-all cursor-pointer truncate"
-                      >
-                        {prompt}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Input Box */}
-                  <div className="relative z-10 mb-3">
-                    <textarea
-                      rows={2}
-                      value={briefQuestion}
-                      onChange={(e) => setBriefQuestion(e.target.value)}
-                      placeholder="Or type your own question about today's sports stories..."
-                      className="w-full rounded-xl bg-[#090B12] border border-white/10 p-3 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/70 resize-none transition-colors"
-                    />
-                  </div>
-
-                  {/* AI Response Display if available */}
-                  <AnimatePresence>
-                    {(briefLoading || briefAnswer) && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-500/30 mb-3 text-[12.5px] text-gray-200 leading-relaxed relative z-10"
-                      >
-                        {briefLoading ? (
-                          <div className="flex items-center gap-2 text-purple-300 font-medium">
-                            <Loader2 size={14} className="animate-spin" />
-                            <span>Flip is finding insights on today&apos;s brief...</span>
-                          </div>
-                        ) : (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5 text-purple-300 text-[11px] font-bold uppercase tracking-wider">
-                              <Sparkles size={12} />
-                              <span>Flip AI Analysis</span>
-                            </div>
-                            <div className="text-white/95">
-                                {formatAiAnswerText(briefAnswer)}
-                            </div>
-                          </div>
-                        )}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Gradient Ask Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleBriefAskSubmit()}
-                    disabled={briefLoading}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-[#A855F7] via-[#EC4899] to-[#F43F5E] text-white font-extrabold text-[14px] flex items-center justify-center gap-2 shadow-[0_4px_18px_rgba(236,72,153,0.35)] hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer relative z-10 disabled:opacity-50"
-                  >
-                    {briefLoading ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <>
-                        <span>Ask Flip</span>
-                        <span className="text-[#38BDF8]">⚡</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ─── 8. Card Detail Quick-View Modal ────────────────────────────── */}
-      <AnimatePresence>
-        {selectedCardDetail && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md">
-            <div 
-              className="absolute inset-0"
-              onClick={() => setSelectedCardDetail(null)}
-            />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              transition={{ duration: 0.2 }}
-              className="relative w-full max-w-md rounded-2xl bg-[#121622] border border-white/15 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.8)] flex flex-col z-10"
-            >
-              {/* Header */}
-              <div className="p-4 sm:p-5 border-b border-white/10 bg-[#171c2b] flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="text-[28px]">{selectedCardDetail.icon}</div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-[16px] font-black text-white">
-                        {selectedCardDetail.sport}
-                      </h3>
-                      <span
-                        className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${
-                          getThemeStyles(selectedCardDetail.themeColor, selectedCardDetail.isLive).badgeBg
-                        }`}
-                      >
-                        {selectedCardDetail.status}
+                    {/* TRY ASKING Label */}
+                    <div className="mb-2 relative z-10">
+                      <span className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400">
+                        TRY ASKING:
                       </span>
                     </div>
-                    <p className="text-[12px] text-gray-300 font-medium">
-                      {selectedCardDetail.event} · {selectedCardDetail.round}
-                    </p>
+
+                    {/* Suggested Question Pills */}
+                    <div className="flex flex-col gap-1.5 mb-3.5 relative z-10">
+                      {dynamicBriefPrompts.map((prompt, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setBriefQuestion(prompt);
+                            handleBriefAskSubmit(prompt);
+                          }}
+                          className="w-full text-left px-3.5 py-2 rounded-xl text-[12px] font-medium text-gray-300 bg-white/[0.04] border border-white/5 hover:border-purple-500/40 hover:bg-white/[0.07] hover:text-white transition-all cursor-pointer truncate"
+                        >
+                          {prompt}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Input Box */}
+                    <div className="relative z-10 mb-3">
+                      <textarea
+                        rows={2}
+                        value={briefQuestion}
+                        onChange={(e) => setBriefQuestion(e.target.value)}
+                        placeholder="Or type your own question about today's sports stories..."
+                        className="w-full rounded-xl bg-[#090B12] border border-white/10 p-3 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/70 resize-none transition-colors"
+                      />
+                    </div>
+
+                    {/* AI Response Display if available */}
+                    <AnimatePresence>
+                      {(briefLoading || briefAnswer) && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-500/30 mb-3 text-[12.5px] text-gray-200 leading-relaxed relative z-10"
+                        >
+                          {briefLoading ? (
+                            <div className="flex items-center gap-2 text-purple-300 font-medium">
+                              <Loader2 size={14} className="animate-spin" />
+                              <span>Flip is finding insights on today&apos;s brief...</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 text-purple-300 text-[11px] font-bold uppercase tracking-wider">
+                                <Sparkles size={12} />
+                                <span>Flip AI Analysis</span>
+                              </div>
+                              <div className="text-white/95">
+                                  {formatAiAnswerText(briefAnswer)}
+                              </div>
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Gradient Ask Button */}
+                    <button
+                      type="button"
+                      onClick={() => handleBriefAskSubmit()}
+                      disabled={briefLoading}
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-[#A855F7] via-[#EC4899] to-[#F43F5E] text-white font-extrabold text-[14px] flex items-center justify-center gap-2 shadow-[0_4px_18px_rgba(236,72,153,0.35)] hover:opacity-95 active:scale-[0.99] transition-all cursor-pointer relative z-10 disabled:opacity-50"
+                    >
+                      {briefLoading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <>
+                          <span>Ask Flip</span>
+                          <span className="text-[#38BDF8]">⚡</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  aria-label="Close card detail"
-                  onClick={() => setSelectedCardDetail(null)}
-                  className="p-1.5 rounded-full bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
-                >
-                  <X size={18} />
-                </button>
-              </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
 
-              {/* Match details content */}
-              <div className="p-4 sm:p-5 space-y-3">
-                {selectedCardDetail.venue && (
-                  <div className="flex items-center gap-2 text-[12px] text-gray-400">
-                    <MapPin size={14} className="text-cyan-400 shrink-0" />
-                    <span>{selectedCardDetail.venue}</span>
-                  </div>
-                )}
+      {/* ─── 8. Card Detail Quick-View Modal ────────────────────────────── */}
+      {mounted && typeof document !== "undefined" && createPortal(
+        <AnimatePresence>
+          {selectedCardDetail && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md">
+              <div 
+                className="absolute inset-0"
+                onClick={() => setSelectedCardDetail(null)}
+              />
 
-                {selectedCardDetail.time && (
-                  <div className="flex items-center gap-2 text-[12px] text-gray-400">
-                    <Clock size={14} className="text-amber-400 shrink-0" />
-                    <span>Scheduled: {selectedCardDetail.time}</span>
-                  </div>
-                )}
-
-                {selectedCardDetail.teams ? (
-                  <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col gap-2">
-                    <div className="flex items-center justify-between text-[13px] font-bold text-white">
-                      <span>{selectedCardDetail.teams.teamA}</span>
-                      {selectedCardDetail.teams.scoreA && (
-                        <span className="text-emerald-400">{selectedCardDetail.teams.scoreA}</span>
-                      )}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-md max-h-[90dvh] rounded-2xl bg-[#121622] border border-white/15 overflow-hidden shadow-[0_10px_40px_rgba(0,0,0,0.8)] flex flex-col z-10"
+              >
+                {/* Header */}
+                <div className="p-3.5 sm:p-4 border-b border-white/10 bg-[#171c2b] flex items-center justify-between shrink-0 sticky top-0 z-20">
+                  <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 pr-2">
+                    <div className="text-[24px] sm:text-[28px] shrink-0">{selectedCardDetail.icon}</div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-[15px] sm:text-[16px] font-black text-white truncate">
+                          {selectedCardDetail.sport}
+                        </h3>
+                        <span
+                          className={`text-[9px] sm:text-[9.5px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                            getThemeStyles(selectedCardDetail.themeColor, selectedCardDetail.isLive).badgeBg
+                          }`}
+                        >
+                          {selectedCardDetail.status}
+                        </span>
+                      </div>
+                      <p className="text-[11.5px] sm:text-[12px] text-gray-300 font-medium truncate">
+                        {selectedCardDetail.event} · {selectedCardDetail.round}
+                      </p>
                     </div>
-                    {selectedCardDetail.teams.teamB && (
-                      <div className="flex items-center justify-between text-[13px] font-bold text-gray-300">
-                        <span>{selectedCardDetail.teams.teamB}</span>
-                        {selectedCardDetail.teams.scoreB && (
-                          <span className="text-gray-400">{selectedCardDetail.teams.scoreB}</span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label="Close card detail"
+                    onClick={() => setSelectedCardDetail(null)}
+                    className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white/10 text-gray-300 hover:text-white hover:bg-white/20 active:scale-95 transition-all flex items-center justify-center cursor-pointer shrink-0"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+
+                {/* Match details content */}
+                <div className="p-4 sm:p-5 space-y-3 flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                  {selectedCardDetail.venue && (
+                    <div className="flex items-center gap-2 text-[12px] text-gray-400">
+                      <MapPin size={14} className="text-cyan-400 shrink-0" />
+                      <span>{selectedCardDetail.venue}</span>
+                    </div>
+                  )}
+
+                  {selectedCardDetail.time && (
+                    <div className="flex items-center gap-2 text-[12px] text-gray-400">
+                      <Clock size={14} className="text-amber-400 shrink-0" />
+                      <span>Scheduled: {selectedCardDetail.time}</span>
+                    </div>
+                  )}
+
+                  {selectedCardDetail.teams ? (
+                    <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col gap-2">
+                      <div className="flex items-center justify-between text-[13px] font-bold text-white">
+                        <span>{selectedCardDetail.teams.teamA}</span>
+                        {selectedCardDetail.teams.scoreA && (
+                          <span className="text-emerald-400">{selectedCardDetail.teams.scoreA}</span>
                         )}
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col gap-1">
-                    <div className="text-[13px] font-bold text-white flex items-center justify-between">
-                      <span>{selectedCardDetail.event}</span>
-                      <span className="text-emerald-400 text-[11px] font-bold">{selectedCardDetail.status}</span>
+                      {selectedCardDetail.teams.teamB && (
+                        <div className="flex items-center justify-between text-[13px] font-bold text-gray-300">
+                          <span>{selectedCardDetail.teams.teamB}</span>
+                          {selectedCardDetail.teams.scoreB && (
+                            <span className="text-gray-400">{selectedCardDetail.teams.scoreB}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    {selectedCardDetail.round && (
-                      <p className="text-[12px] text-gray-300">
-                        {selectedCardDetail.round}
-                      </p>
-                    )}
-                  </div>
-                )}
+                  ) : (
+                    <div className="p-3.5 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col gap-1">
+                      <div className="text-[13px] font-bold text-white flex items-center justify-between">
+                        <span>{selectedCardDetail.event}</span>
+                        <span className="text-emerald-400 text-[11px] font-bold">{selectedCardDetail.status}</span>
+                      </div>
+                      {selectedCardDetail.round && (
+                        <p className="text-[12px] text-gray-300">
+                          {selectedCardDetail.round}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                {selectedCardDetail.summary && (
-                  <p className="text-[12.5px] text-gray-300/90 leading-relaxed">
-                    {selectedCardDetail.summary}
-                  </p>
-                )}
-              </div>
+                  {selectedCardDetail.summary && (
+                    <p className="text-[12.5px] text-gray-300/90 leading-relaxed">
+                      {selectedCardDetail.summary}
+                    </p>
+                  )}
+                </div>
 
-              {/* Footer CTA */}
-              <div className="p-3.5 sm:p-4 border-t border-white/10 bg-[#0d101a] flex items-center justify-between gap-2">
-                {/* <button
-                  type="button"
-                  onClick={(e) => toggleBookmark(selectedCardDetail.id, e)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-bold border transition-colors cursor-pointer ${
-                    bookmarkedCards.includes(selectedCardDetail.id)
-                      ? "bg-amber-500/20 text-amber-400 border-amber-500/40"
-                      : "bg-white/5 text-gray-300 border-white/10 hover:bg-white/10"
-                  }`}
-                >
-                  <Bookmark size={14} />
-                  <span>{bookmarkedCards.includes(selectedCardDetail.id) ? "Saved" : "Save"}</span>
-                </button> */}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedCardDetail(null);
-                    setIsAgendaOpen(true);
-                  }}
-                  className="flex-1 py-2 rounded-xl bg-gradient-to-r from-[#E91E8C] to-[#FF6B35] text-white font-extrabold text-[13px] hover:opacity-95 transition-opacity text-center cursor-pointer"
-                >
-                  View Full Agenda
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+                {/* Footer CTA */}
+                <div className="p-3.5 sm:p-4 border-t border-white/10 bg-[#0d101a] flex items-center justify-between gap-2 shrink-0 pb-[calc(env(safe-area-inset-bottom,0px)+14px)]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCardDetail(null);
+                      setIsAgendaOpen(true);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#E91E8C] to-[#FF6B35] text-white font-extrabold text-[13px] hover:opacity-95 transition-opacity text-center cursor-pointer"
+                  >
+                    View Full Agenda
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
