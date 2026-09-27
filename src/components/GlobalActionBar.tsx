@@ -100,7 +100,7 @@ export default function GlobalActionBar() {
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#FF3D57] via-[#FF7B02] to-[#8957e5]">
                 <Trophy size={16} className="text-white" />
               </span>
-              FlipArena
+              FlipARENA
             </button>
 
             <button
@@ -110,7 +110,7 @@ export default function GlobalActionBar() {
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04]">
                 <Newspaper size={16} className="text-white" />
               </span>
-              FlipLine
+              FlipLINE
             </button>
 
             <button

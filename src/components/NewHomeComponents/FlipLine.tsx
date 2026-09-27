@@ -97,10 +97,31 @@ function formatCardDate(day?: string, timeMs?: number, createdAt?: number | stri
 }
 
 function getCardTime(card: FlipCard): string {
+  const explicitTs =
+    Number((card as any).postingTime) ||
+    Number(card.timeMs) ||
+    Number(card.scheduledTimeMs) ||
+    Number(card.scheduledAt) ||
+    (typeof (card as any).updatedAt === 'number' && !isNaN((card as any).updatedAt) && (card as any).updatedAt > 0
+      ? (card as any).updatedAt
+      : typeof (card as any).updatedAt === 'string'
+        ? Number((card as any).updatedAt) || Date.parse((card as any).updatedAt)
+        : undefined);
+
+  if (explicitTs && !isNaN(explicitTs) && explicitTs > 0) {
+    const d = new Date(explicitTs);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    }
+  }
+
   let timeStr = (card.time || '').trim();
   if (!timeStr || timeStr.toLowerCase().includes('just now') || timeStr.toLowerCase() === 'live') {
     const ts =
-      Number(card.timeMs) ||
       (typeof card.createdAt === 'number' && !isNaN(card.createdAt) && card.createdAt > 0
         ? card.createdAt
         : undefined) ||
@@ -2251,8 +2272,22 @@ export function FlipTimeline({
   });
 
   const displayList = [...visibleCards].sort((a, b) => {
-    const timeA = Number(a.timeMs) || Number(a.createdAt) || 0;
-    const timeB = Number(b.timeMs) || Number(b.createdAt) || 0;
+    const timeA =
+      Number((a as any).postingTime) ||
+      Number(a.timeMs) ||
+      Number(a.scheduledTimeMs) ||
+      Number(a.scheduledAt) ||
+      Number((a as any).updatedAt) ||
+      Number(a.createdAt) ||
+      0;
+    const timeB =
+      Number((b as any).postingTime) ||
+      Number(b.timeMs) ||
+      Number(b.scheduledTimeMs) ||
+      Number(b.scheduledAt) ||
+      Number((b as any).updatedAt) ||
+      Number(b.createdAt) ||
+      0;
     return timeB - timeA;
   });
   const finalCards = previewLimit ? displayList.slice(0, previewLimit) : displayList;
@@ -2490,12 +2525,14 @@ export default function FlipLine({
 
     if (typeof window !== 'undefined') {
       window.addEventListener('flipline-post-created', handleNewPost);
+      window.addEventListener('flipline-post-updated', handleNewPost);
     }
 
     return () => {
       clearInterval(interval);
       if (typeof window !== 'undefined') {
         window.removeEventListener('flipline-post-created', handleNewPost);
+        window.removeEventListener('flipline-post-updated', handleNewPost);
       }
     };
   }, []);
@@ -2505,11 +2542,31 @@ export default function FlipLine({
     const safeLive = Array.isArray(liveCards) ? liveCards : [];
     const safeDb = Array.isArray(dbCards) ? dbCards : [];
     const all = [...safeLive, ...safeDb];
-    return all.filter((c) => {
-      if (!c || seenIds.has(c.id)) return false;
-      seenIds.add(c.id);
-      return true;
-    });
+    return all
+      .filter((c) => {
+        if (!c || seenIds.has(c.id)) return false;
+        seenIds.add(c.id);
+        return true;
+      })
+      .sort((a, b) => {
+        const timeA =
+          Number((a as any).postingTime) ||
+          Number(a.timeMs) ||
+          Number(a.scheduledTimeMs) ||
+          Number(a.scheduledAt) ||
+          Number((a as any).updatedAt) ||
+          Number(a.createdAt) ||
+          0;
+        const timeB =
+          Number((b as any).postingTime) ||
+          Number(b.timeMs) ||
+          Number(b.scheduledTimeMs) ||
+          Number(b.scheduledAt) ||
+          Number((b as any).updatedAt) ||
+          Number(b.createdAt) ||
+          0;
+        return timeB - timeA;
+      });
   }, [dbCards, liveCards]);
 
   return (

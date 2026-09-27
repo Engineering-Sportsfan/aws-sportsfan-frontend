@@ -150,12 +150,14 @@ function FlipLineContent() {
 
     if (typeof window !== "undefined") {
       window.addEventListener("flipline-post-created", handleNewPost);
+      window.addEventListener("flipline-post-updated", handleNewPost);
     }
 
     return () => {
       clearInterval(interval);
       if (typeof window !== "undefined") {
         window.removeEventListener("flipline-post-created", handleNewPost);
+        window.removeEventListener("flipline-post-updated", handleNewPost);
       }
     };
   }, []);
