@@ -5080,13 +5080,13 @@ function DynamicMemeCard({
           />
           <div className="min-w-0">
             <h4 className="text-xs font-black text-white truncate flex items-center gap-1.5">
-              <span>Meme by {authorName}</span>
-              <span className="text-white/40 text-[10px] font-semibold font-mono truncate">{authorHandle}</span>
+              <span>Meme</span>
+              {/* <span className="text-white/40 text-[10px] font-semibold font-mono truncate">{authorHandle}</span> */}
             </h4>
             <div className="flex items-center gap-1.5 text-[9px] font-bold text-white/40">
               <span>{getTimeAgo(getEngagementPostingTime(item))}</span>
-              <span>•</span>
-              <span className="text-orange-400 font-extrabold uppercase">🔥 MEME ARENA</span>
+              {/* <span>•</span> */}
+              {/* <span className="text-orange-400 font-extrabold uppercase">🔥 MEME ARENA</span> */}
             </div>
           </div>
         </div>
