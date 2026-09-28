@@ -3183,11 +3183,11 @@ export default function LeaderboardOverlayModal({
                                                   >
                                                     #{p.rank}
                                                   </span>
-                                                  {renderUserAvatar({ userId: p.userId, userName: p.userName, userEmail: p.userEmail, avatar: p.avatar }, 26, () => handleOpenUserProfile(p.userId, undefined, p.userName))}
+                                                  {renderUserAvatar({ userId: p.userId, userName: p.userName, userEmail: p.userEmail, avatar: p.avatar }, 26, () => handleOpenUserProfile(p.userId || p.userEmail, undefined, p.userName))}
                                                   <div className="min-w-0 flex-1">
                                                     <div className="flex items-center gap-1.5 flex-wrap">
                                                       <span
-                                                        onClick={() => handleOpenUserProfile(p.userId, undefined, p.userName)}
+                                                        onClick={() => handleOpenUserProfile(p.userId || p.userEmail, undefined, p.userName)}
                                                         className="text-xs font-black text-white break-words cursor-pointer hover:text-amber-300 hover:underline transition-colors"
                                                       >
                                                         {p.userName}
