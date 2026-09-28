@@ -25,7 +25,7 @@ import {
   Loader2,
   Bot
 } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import Greetings from "./Greetings";
 import { 
   welcomeMessageService, 
   RadarCardItem, 
@@ -91,7 +91,6 @@ export default function WelcomeMessage({
   onReadBriefClick,
 }: WelcomeMessageProps) {
   const router = useRouter();
-  const { user, getUserDisplayName, loading: authLoading, authReady } = useAuth();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // ─── Dynamic State from DynamoDB (homeDatabase) ─────────────────────────
@@ -141,9 +140,6 @@ export default function WelcomeMessage({
   const [briefAnswer, setBriefAnswer] = useState<string | null>(null);
   const [briefLoading, setBriefLoading] = useState(false);
 
-  // Dynamic greeting based on time of day & authenticated user
-  const [greeting, setGreeting] = useState("Good morning");
-  const [resolvedName, setResolvedName] = useState("");
 
   // ─── Fetch Dynamic Data from backend DynamoDB (homeDatabase) ───────────
   useEffect(() => {
@@ -180,45 +176,6 @@ export default function WelcomeMessage({
     };
   }, []);
 
-  // Time-based greeting & user profile name resolution
-  useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour >= 4 && hour < 12) {
-      setGreeting("Good morning");
-    } else if (hour >= 12 && hour < 17) {
-      setGreeting("Good afternoon");
-    } else {
-      setGreeting("Good evening");
-    }
-
-    if (propUserName && propUserName.trim()) {
-      setResolvedName(propUserName.trim());
-      return;
-    }
-
-    // While authentication is loading, do NOT flash any dummy name
-    if (authLoading || (authReady === false)) {
-      return;
-    }
-
-    if (user?.name) {
-      setResolvedName(user.name.split(" ")[0]);
-    } else if (typeof getUserDisplayName === "function") {
-      const displayName = getUserDisplayName();
-      if (
-        displayName &&
-        !displayName.toLowerCase().startsWith("fan_") &&
-        !displayName.toLowerCase().startsWith("guest") &&
-        displayName.toLowerCase() !== "fan"
-      ) {
-        setResolvedName(displayName.split(" ")[0]);
-      } else {
-        setResolvedName("");
-      }
-    } else {
-      setResolvedName("");
-    }
-  }, [propUserName, user, getUserDisplayName, authLoading, authReady]);
 
   // Live 15-second clock ticker to automatically transition event statuses in real time
   const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
@@ -727,22 +684,6 @@ export default function WelcomeMessage({
   return (
     <div className="w-full flex flex-col gap-3 font-sans text-white select-none">
       {/* ─── 1. Header Greeting Section ─────────────────────────────────── */}
-      <div className="flex items-start justify-between w-full pt-1">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
-            <h1 className="text-[20px] sm:text-[23px] font-black tracking-tight text-white leading-tight">
-              {greeting}{resolvedName ? `, ${resolvedName}` : ""}
-            </h1>
-            <span className="text-[20px] sm:text-[22px] inline-block hover:scale-125 transition-transform cursor-default">
-              👋
-            </span>
-          </div>
-
-        </div>
-
-        {/* See all Link */}
-
-      </div>
 
       {/* ─── 2. Section Subtitle ────────────────────────────────────────── */}
       <div className="mt-1">
