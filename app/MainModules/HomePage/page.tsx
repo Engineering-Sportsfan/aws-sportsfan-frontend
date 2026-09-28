@@ -384,6 +384,7 @@ import FlipLine from "@/src/components/NewHomeComponents/FlipLine";
 import WelcomeMessage from "@/src/components/NewHomeComponents/WelcomeMessage";
 import Onboarding from "@/src/components/NewROARComponent/screens/Onboarding";
 import { useAuth } from "@/context/AuthContext";
+import Greetings from "@/src/components/NewHomeComponents/Greetings";
 
 function HomePageInner() {
   const router = useRouter();
@@ -808,7 +809,7 @@ function HomePageInner() {
 
   return (
     <div className="flex flex-col w-full min-h-screen">
-      <div className="flex flex-col gap-2 md:gap-6 px-1 md:px-4 mb-20 lg:px-6 py-4 w-full">
+      <div className="flex flex-col gap-2 md:gap-6 px-1 md:px-4 mb-20 lg:px-6 pt-0 pb-4 w-full">
         {/* <HomeBanners />
         <IPLSpotlight />
         <WomensT20Section/>
@@ -834,7 +835,7 @@ function HomePageInner() {
           onSeeAll={() => router.push("/MainModules/ROAR")}
           onEnter={(room) => router.push(`/MainModules/ROAR?room=${room.roomId}`)}
         /> */}
-
+        <Greetings />
         <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
         <WelcomeMessage />
         <FlipLine selectedSport={selectedSport} />

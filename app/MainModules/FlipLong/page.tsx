@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { handleGoBack } from "@/utils/backButton";
+import { trackMeaningfulInteraction, trackAdvocacy } from "@/lib/analytics";
 
 interface FlipLongVideoItem {
   id: string;
@@ -382,7 +383,8 @@ export default function FlipLongPage() {
         return next;
       });
       setLikeCounts((prev) => ({ ...prev, [drop.id]: newCount }));
-      showToast("Liked! ❤️");
+      showToast("Liked! ?");
+      try { trackMeaningfulInteraction('fliplong_like', { drop_id: drop.id, title: drop.title, type: drop.type, room_name: 'FlipLong' }); } catch (e) {}
 
       window.dispatchEvent(
         new CustomEvent("fliplong-video-liked", {
@@ -441,7 +443,8 @@ export default function FlipLongPage() {
 
     if (navigator.share) {
       try {
-        await navigator.share({
+          trackAdvocacy("content_shared", { drop_id: drop.id, type: "fliplong_share" });
+          await navigator.share({
           title: drop.title,
           text: `Check out this FlipLONG drop on SportsFan 360!`,
           url: shareUrl,
@@ -451,6 +454,7 @@ export default function FlipLongPage() {
     }
 
     try {
+      trackAdvocacy("content_shared", { drop_id: drop.id, type: "fliplong_share" });
       await navigator.clipboard.writeText(shareUrl);
       showToast("Link copied to clipboard!");
     } catch {
