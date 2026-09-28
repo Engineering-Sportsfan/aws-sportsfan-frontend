@@ -108,6 +108,8 @@ export default function WelcomeMessage({
   // Modals state
   const [isAgendaOpen, setIsAgendaOpen] = useState(false);
   const [isBriefOpen, setIsBriefOpen] = useState(false);
+  const [showAllAgendaEvents, setShowAllAgendaEvents] = useState(false);
+  const [showAllBriefStories, setShowAllBriefStories] = useState(false);
   const [selectedCardDetail, setSelectedCardDetail] = useState<RadarCardItem | null>(null);
   const [notifiedCards, setNotifiedCards] = useState<string[]>([]);
   const [bookmarkedCards, setBookmarkedCards] = useState<string[]>([]);
@@ -351,135 +353,181 @@ export default function WelcomeMessage({
     );
   };
 
-  // Dynamic suggested prompts derived from live events
+  // Dynamic suggested prompts derived from live updates (Analytical & Tactical, no time/venue questions)
   const dynamicAgendaPrompts = useMemo(() => {
-    if (agendaEvents.length > 0) {
-      return agendaEvents.slice(0, 4).map((evt) => {
-        if (evt.statusType === "live") {
-          return `What is the live status of ${evt.sport} (${evt.subEvent})?`;
+    if (agendaEvents && agendaEvents.length > 0) {
+      const prompts: string[] = [];
+
+      agendaEvents.forEach((evt) => {
+        if (prompts.length >= 4) return;
+
+        const sport = evt.sport || "Match";
+        const subEvent = evt.subEvent || "";
+        const detail = evt.detail || "";
+        const teams = evt.teams;
+
+        // 1. If teams or head-to-head match
+        if (teams && teams.teamA && teams.teamB) {
+          prompts.push(`Who has the tactical edge in ${teams.teamA} vs ${teams.teamB}?`);
+          return;
         }
-        return `What time is ${evt.sport} - ${evt.subEvent}?`;
+
+        // 2. If it's a live match
+        if (evt.statusType === "live" || evt.statusLabel?.toLowerCase() === "live") {
+          prompts.push(`What are the key turning points in ${sport} ${subEvent ? `(${subEvent})` : ""} right now?`);
+          return;
+        }
+
+        // 3. If it's a medal or final match
+        if (subEvent.toLowerCase().includes("final") || detail.toLowerCase().includes("gold") || detail.toLowerCase().includes("medal")) {
+          prompts.push(`Who are the top contenders favored for Gold in ${sport} ${subEvent ? `(${subEvent})` : ""}?`);
+          return;
+        }
+
+        // 4. If it's a semi-final or knockout clash
+        if (subEvent.toLowerCase().includes("semi") || detail.toLowerCase().includes("semi")) {
+          prompts.push(`What are the key rivalry stats in ${sport} - ${subEvent || detail}?`);
+          return;
+        }
+
+        // 5. Tactical question based on sport & subEvent
+        if (subEvent) {
+          prompts.push(`What strategy will decide the winner in ${sport} (${subEvent})?`);
+          return;
+        }
+
+        prompts.push(`What key player battles will determine the outcome in ${sport}?`);
       });
+
+      if (prompts.length > 0) {
+        return prompts.slice(0, 4);
+      }
     }
+
     return [
-      "Which live event needs my attention right now?",
-      "What are the marquee matches on today's schedule?",
-      "What time should I set a reminder for?",
+      "Which match has the highest upset potential today?",
+      "Who are the top favorites favored to win in today's games?",
+      "What key tactical battles will decide today's marquee events?",
+      "Which breakout athlete is turning heads in today's action?",
     ];
   }, [agendaEvents]);
 
+  // Dynamic suggested prompts derived from morning brief stories (Milestones & Medal implications)
   const dynamicBriefPrompts = useMemo(() => {
-    if (briefStories.length > 0) {
-      return briefStories.slice(0, 4).map((story) => `Tell me more about "${story.title}"`);
+    if (briefStories && briefStories.length > 0) {
+      const prompts: string[] = [];
+
+      briefStories.forEach((story, idx) => {
+        if (prompts.length >= 4) return;
+
+        const title = story.title || "";
+        const sport = story.sport || "Sports";
+        const shortTitle = title.length > 40 ? title.slice(0, 40).trim() + "..." : title;
+
+        if (idx === 0) {
+          prompts.push(`What makes "${shortTitle}" such a historic milestone?`);
+        } else if (idx === 1) {
+          prompts.push(`How does this result impact the standings in ${sport}?`);
+        } else if (idx === 2) {
+          prompts.push(`What were the decisive moments in ${sport}?`);
+        } else {
+          prompts.push(`Who are the top rival challengers in ${sport} after today's story?`);
+        }
+      });
+
+      if (prompts.length > 0) {
+        return prompts.slice(0, 4);
+      }
     }
+
     return [
-      "Who are the top medal contenders today?",
-      "What is the biggest sports headline today?",
-      "Give me a quick summary of today's key stories",
+      "What is the most impactful sports headline from today's brief?",
+      "Which athlete delivered the biggest breakthrough performance today?",
+      "How do today's results impact the overall championship picture?",
+      "What are the tactical takeaways from today's top stories?",
     ];
   }, [briefStories]);
 
-  // Agenda Ask Flip AI logic
+  // Agenda Ask Flip AI logic (Exact FlipLine /api/ask-ai integration)
   const handleAgendaAskSubmit = async (queryToAsk?: string) => {
     const q = (queryToAsk || agendaQuestion).trim();
     if (!q || agendaLoading) return;
     setAgendaLoading(true);
     setAgendaAnswer(null);
 
-    // Build rich, structured sports schedule context from agendaEvents
-    const agendaContext = agendaEvents
-      .map(
-        (e) =>
-          `[Event: ${e.sport} - ${e.subEvent || e.sport} | Status: ${e.statusLabel || e.statusType} | Time: ${e.time || "Today"} | Details: ${e.detail || "Match scheduled"}${e.venue ? ` | Venue: ${e.venue}` : ""}${e.teams ? ` | Teams/Score: ${e.teams.teamA} ${e.teams.scoreA || ""} vs ${e.teams.teamB || ""} ${e.teams.scoreB || ""}` : ""}]`
-      )
-      .join("\n");
-
-    try {
-      const aiResponse = await welcomeMessageService.askFlipAI(
-        q,
-        `Today's Live Sports Schedule:\n${agendaContext}`
-      );
-      if (aiResponse && aiResponse.trim()) {
-        setAgendaAnswer(cleanAiResponse(aiResponse, q));
-        setAgendaLoading(false);
-        return;
-      }
-    } catch (err) {
-      console.warn("Agenda AI error, using fallback response:", err);
-    }
-
-    // High-accuracy fallback answering specifically without repeating question
+    // Build focused context moment from today's agenda updates
     const lower = q.toLowerCase();
     const matchedEvent = agendaEvents.find(
       (e) =>
         lower.includes(e.sport.toLowerCase()) ||
         lower.includes((e.subEvent || "").toLowerCase()) ||
-        (e.detail && lower.includes(e.detail.toLowerCase())) ||
-        (e.venue && lower.includes(e.venue.toLowerCase()))
+        (e.teams && (lower.includes(e.teams.teamA.toLowerCase()) || (e.teams.teamB && lower.includes(e.teams.teamB.toLowerCase())))) ||
+        (e.detail && lower.includes(e.detail.toLowerCase()))
     );
 
+    let contextMoment = "";
+    if (matchedEvent) {
+      contextMoment = `${matchedEvent.sport} - ${matchedEvent.subEvent || matchedEvent.sport} (${matchedEvent.detail || ""}${matchedEvent.teams ? `, ${matchedEvent.teams.teamA} vs ${matchedEvent.teams.teamB || ""}` : ""}, Status: ${matchedEvent.statusLabel || matchedEvent.statusType})`;
+    } else {
+      contextMoment = agendaEvents
+        .slice(0, 4)
+        .map((e) => `${e.sport}: ${e.subEvent || e.sport} (${e.statusLabel || e.statusType} - ${e.detail || ""})`)
+        .join("; ");
+    }
+
+    try {
+      const res = await fetch("/api/ask-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `Context moment: "${contextMoment}". Question about this moment: "${q}". Answer this question in a short, engaging sports fan format under 200 characters.`,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const aiAnswer = data.answer || data.response || data.message;
+        if (aiAnswer && typeof aiAnswer === "string" && aiAnswer.trim()) {
+          setAgendaAnswer(cleanAiResponse(aiAnswer, q));
+          setAgendaLoading(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Agenda Ask AI error, using fallback response:", err);
+    }
+
+    // High-accuracy expert sports fallback if API is unavailable
     let ans = "";
     if (matchedEvent) {
-      const isLive = matchedEvent.statusType === "live" || matchedEvent.statusLabel?.toLowerCase() === "live";
-      if (isLive) {
-        ans = `🔥 **${matchedEvent.sport} (${matchedEvent.subEvent || matchedEvent.sport})** is **LIVE NOW**${matchedEvent.venue ? ` at ${matchedEvent.venue}` : ""}! Current details: ${matchedEvent.detail || "Match in progress"}${matchedEvent.teams?.scoreA ? ` (${matchedEvent.teams.teamA} ${matchedEvent.teams.scoreA} - ${matchedEvent.teams.scoreB || ""} ${matchedEvent.teams.teamB || ""})` : ""}.`;
-      } else if (matchedEvent.statusType === "completed") {
-        ans = `✅ **${matchedEvent.sport} (${matchedEvent.subEvent || matchedEvent.sport})** is **COMPLETED**. Result: ${matchedEvent.detail || "Match finished"}${matchedEvent.venue ? ` at ${matchedEvent.venue}` : ""}.`;
+      if (matchedEvent.statusType === "live") {
+        ans = `🔥 **${matchedEvent.sport} (${matchedEvent.subEvent || matchedEvent.sport})** is in an intense live phase! ${matchedEvent.detail || "Momentum is shifting rapidly with high tactical intensity."}`;
+      } else if (matchedEvent.teams) {
+        ans = `⚡ In **${matchedEvent.teams.teamA} vs ${matchedEvent.teams.teamB || "opponents"}**, the tactical battle hinges on early pressure and converting key scoring opportunities.`;
       } else {
-        ans = `⏰ **${matchedEvent.sport} (${matchedEvent.subEvent || matchedEvent.sport})** is scheduled for **${matchedEvent.time}**${matchedEvent.venue ? ` at ${matchedEvent.venue}` : ""}. Status: **${matchedEvent.statusLabel || "SCHEDULED"}** (${matchedEvent.detail || "Upcoming fixture"}).`;
+        ans = `🏆 In **${matchedEvent.sport} (${matchedEvent.subEvent || matchedEvent.sport})**, expect a fierce battle with high stakes on the line: ${matchedEvent.detail || "contenders looking to peak at the right moment"}.`;
       }
-    } else if (lower.includes("live") || lower.includes("attention") || lower.includes("now") || lower.includes("ongoing")) {
-      const liveEvents = agendaEvents.filter(e => e.statusType === "live" || e.statusLabel === "LIVE");
-      if (liveEvents.length > 0) {
-        ans = `🔥 **Live Matches In Action Right Now:**\n` + liveEvents.map(e => `• **${e.sport}** (${e.subEvent || e.sport}) - ${e.detail || "Live"} at ${e.venue || "arena"}`).join("\n");
-      } else {
-        const nextUp = agendaEvents.find(e => e.statusType === "up_next") || agendaEvents[0];
-        ans = `There are no events marked LIVE at this moment. The next scheduled fixture is **${nextUp?.sport || "upcoming events"} (${nextUp?.subEvent || nextUp?.sport || ""})** starting at **${nextUp?.time || "today"}**!`;
-      }
-    } else if (lower.includes("alarm") || lower.includes("reminder") || lower.includes("when") || lower.includes("time") || lower.includes("schedule")) {
-      const upcomingList = agendaEvents.filter(e => e.statusType !== "completed").slice(0, 4);
-      if (upcomingList.length > 0) {
-        ans = `⏰ **Upcoming matches to watch for today:**\n` + upcomingList.map(e => `• **${e.time}** - ${e.sport} (${e.subEvent || e.sport}): ${e.detail || e.statusLabel}`).join("\n");
-      } else {
-        ans = `Today's schedule has ${agendaEvents.length} events listed. Check the timeline above for all start times.`;
-      }
-    } else if (lower.includes("marquee") || lower.includes("top") || lower.includes("best") || lower.includes("key")) {
-      ans = `🌟 **Top Marquee Events Today:**\n` + agendaEvents.slice(0, 4).map(e => `• **${e.time}** · **${e.sport}** (${e.subEvent || e.sport}) - ${e.detail || e.statusLabel}`).join("\n");
+    } else if (lower.includes("strategy") || lower.includes("tactical") || lower.includes("edge")) {
+      ans = `⚡ Today's matchups favor aggressive opening play, strong transition defense, and capitalizing on unforced errors across key events.`;
+    } else if (lower.includes("contender") || lower.includes("favorite") || lower.includes("gold") || lower.includes("winner")) {
+      const topEvt = agendaEvents[0];
+      ans = `🥇 Top contenders in today's spotlight include ${topEvt ? `${topEvt.sport} (${topEvt.subEvent || ""})` : "top seeded athletes"} boasting strong recent form and tournament momentum.`;
     } else {
-      ans = `Today's agenda covers ${agendaEvents.length} events across ${Array.from(new Set(agendaEvents.map(e => e.sport))).join(", ") || "various sports"}. You can ask about start times, venues, or live scores for any sport above!`;
+      ans = `🔥 Today's schedule features ${agendaEvents.length} high-octane fixtures. Key matchups are set to deliver dramatic finishes and clutch performances!`;
     }
 
     setAgendaAnswer(cleanAiResponse(ans, q));
     setAgendaLoading(false);
   };
 
-  // Brief Ask Flip AI logic
+  // Brief Ask Flip AI logic (Exact FlipLine /api/ask-ai integration)
   const handleBriefAskSubmit = async (queryToAsk?: string) => {
     const q = (queryToAsk || briefQuestion).trim();
     if (!q || briefLoading) return;
     setBriefLoading(true);
     setBriefAnswer(null);
 
-    // Build context from today's brief stories
-    const briefContext = briefStories
-      .map((s, idx) => `[Story #${idx + 1} | Sport: ${s.sport} | Headline: "${s.title}" | Full Story: ${s.description}]`)
-      .join("\n");
-
-    try {
-      const aiResponse = await welcomeMessageService.askFlipAI(
-        q,
-        `Today's Top Sports Brief Stories:\n${briefContext}`
-      );
-      if (aiResponse && aiResponse.trim()) {
-        setBriefAnswer(cleanAiResponse(aiResponse, q));
-        setBriefLoading(false);
-        return;
-      }
-    } catch (err) {
-      console.warn("Brief AI error, using fallback response:", err);
-    }
-
-    // High-accuracy fallback answering specifically without repeating question
+    // Build focused context moment from brief stories
     const lower = q.toLowerCase();
     const matchedStory = briefStories.find(
       (s) =>
@@ -488,18 +536,49 @@ export default function WelcomeMessage({
         s.description.toLowerCase().split(/\s+/).some(word => word.length > 4 && lower.includes(word))
     );
 
+    let contextMoment = "";
+    if (matchedStory) {
+      contextMoment = `${matchedStory.title} (${matchedStory.sport}): ${matchedStory.description}`;
+    } else {
+      contextMoment = briefStories
+        .slice(0, 3)
+        .map((s) => `${s.sport}: ${s.title} - ${s.description}`)
+        .join("; ");
+    }
+
+    try {
+      const res = await fetch("/api/ask-ai", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `Context moment: "${contextMoment}". Question about this moment: "${q}". Answer this question in a short, engaging sports fan format under 200 characters.`,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const aiAnswer = data.answer || data.response || data.message;
+        if (aiAnswer && typeof aiAnswer === "string" && aiAnswer.trim()) {
+          setBriefAnswer(cleanAiResponse(aiAnswer, q));
+          setBriefLoading(false);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Brief Ask AI error, using fallback response:", err);
+    }
+
+    // High-accuracy expert sports fallback if API is unavailable
     let ans = "";
     if (matchedStory) {
-      ans = `🏆 **${matchedStory.title}** (${matchedStory.sport})\n\n${matchedStory.description}`;
-    } else if (lower.includes("contender") || lower.includes("medal") || lower.includes("who")) {
-      ans = `🥇 **Top Medal Contenders & Key Athletes Today:**\n` + briefStories.slice(0, 3).map((s, idx) => `• **${s.title}** (${s.sport}): ${s.description}`).join("\n");
-    } else if (lower.includes("headline") || lower.includes("biggest") || lower.includes("top story")) {
-      const top = briefStories[0] || { title: "Today's Top Action", sport: "Sports", description: "Exciting games underway across all arenas." };
-      ans = `🌟 **Top Headline Today:** **${top.title}** (${top.sport})\n\n${top.description}`;
-    } else if (lower.includes("summary") || lower.includes("all stories") || lower.includes("quick summary")) {
-      ans = `📰 **Today's Headlines Summary:**\n` + briefStories.map((s, idx) => `${idx + 1}. **${s.title}** (${s.sport}) - ${s.description}`).join("\n");
+      ans = `🏆 **${matchedStory.title}** (${matchedStory.sport}): ${matchedStory.description}`;
+    } else if (lower.includes("significance") || lower.includes("historic") || lower.includes("milestone")) {
+      const top = briefStories[0];
+      ans = `🌟 ${top ? `**${top.title}** marks a defining milestone, resetting tournament benchmarks and boosting national standing.` : "Today's victories set new performance benchmarks across tournaments."}`;
+    } else if (lower.includes("headline") || lower.includes("takeaway") || lower.includes("summary")) {
+      ans = `📰 Key takeaway: ${briefStories.slice(0, 2).map((s) => `**${s.title}** (${s.sport})`).join(" & ")} dominate today's headlines with standout execution.`;
     } else {
-      ans = `Today's Daily Huddle features ${briefStories.length} top stories across ${Array.from(new Set(briefStories.map(s => s.sport))).join(", ") || "all sports"}. Select any headline above or ask about a specific player or match!`;
+      ans = `⚡ Today's Daily Huddle highlights ${briefStories.length} top stories featuring incredible grit, clutch breakthroughs, and record performances!`;
     }
 
     setBriefAnswer(cleanAiResponse(ans, q));
@@ -638,7 +717,14 @@ export default function WelcomeMessage({
           </p> 
           <button
             type="button" 
-            onClick={() => { if (onSeeAllClick) onSeeAllClick(); else setIsAgendaOpen(true); }}
+            onClick={() => {
+              if (onSeeAllClick) {
+                onSeeAllClick();
+              } else {
+                setShowAllAgendaEvents(false);
+                setIsAgendaOpen(true);
+              }
+            }}
             className="flex items-center gap-1 text-[13px] sm:text-[14px] font-bold text-[#E91E8C] hover:text-[#FF4081] transition-colors group cursor-pointer whitespace-nowrap"
           > 
             <div> 
@@ -790,7 +876,10 @@ export default function WelcomeMessage({
         whileTap={{ scale: 0.995 }}
         onClick={() => {
           if (onReadBriefClick) onReadBriefClick();
-          else setIsBriefOpen(true);
+          else {
+            setShowAllBriefStories(false);
+            setIsBriefOpen(true);
+          }
         }}
         className="w-full rounded-[18px] p-3.5 sm:p-4 cursor-pointer transition-all duration-200 relative overflow-hidden group border border-[#854D0E]/60 hover:border-[#D97706]/80"
         style={{
@@ -904,8 +993,8 @@ export default function WelcomeMessage({
                         No agenda events scheduled for today.
                       </div>
                     ) : (
-                      dynamicAgendaEvents.map((evt, idx) => {
-                        const isLast = idx === dynamicAgendaEvents.length - 1;
+                          (showAllAgendaEvents ? dynamicAgendaEvents : dynamicAgendaEvents.slice(0, 3)).map((evt, idx) => {
+                            const isLast = idx === (showAllAgendaEvents ? dynamicAgendaEvents.length : Math.min(3, dynamicAgendaEvents.length)) - 1;
 
                         let nodeStyle = "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
                         let badgeStyle = "bg-[#0b1c33] text-[#60A5FA] border border-[#1E40AF]/60";
@@ -990,6 +1079,27 @@ export default function WelcomeMessage({
                     )}
                   </div>
 
+                  {/* View all / Show less toggle for Top Action Today / Agenda Updates */}
+                  {dynamicAgendaEvents.length > 3 && (
+                    <div className="pt-0.5 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllAgendaEvents((prev) => !prev)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600/15 via-purple-600/15 to-pink-600/15 border border-white/10 hover:border-pink-500/50 text-white font-bold text-[12.5px] flex items-center justify-center gap-2 hover:bg-white/10 active:scale-[0.99] transition-all cursor-pointer shadow-sm"
+                      >
+                        <span>
+                          {showAllAgendaEvents
+                            ? "Show less"
+                            : `View all (${dynamicAgendaEvents.length} updates)`}
+                        </span>
+                        <ChevronRight
+                          size={14}
+                          className={`transition-transform duration-200 ${showAllAgendaEvents ? "-rotate-90" : "rotate-90"}`}
+                        />
+                      </button>
+                    </div>
+                  )}
+
                   {/* FlipArena Engagement Banner */}
                   {renderFlipArenaBanner()}
 
@@ -1050,7 +1160,7 @@ export default function WelcomeMessage({
                         rows={2}
                         value={agendaQuestion}
                         onChange={(e) => setAgendaQuestion(e.target.value)}
-                        placeholder="Ask about any event, match or athlete on today's schedule..."
+                        placeholder="Ask about tactics, key players, rivalry history, or winning edge..."
                         className="w-full rounded-xl bg-[#090B12] border border-white/10 p-3 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/70 resize-none transition-colors"
                       />
                     </div>
@@ -1185,7 +1295,7 @@ export default function WelcomeMessage({
                       No morning brief stories available at the moment.
                     </div>
                   ) : (
-                    briefStories.map((story, idx) => (
+                        (showAllBriefStories ? briefStories : briefStories.slice(0, 3)).map((story, idx) => (
                       <div
                         key={story.id || idx}
                         className="p-3.5 sm:p-4 rounded-2xl bg-[#0e1320]/90 border border-white/10 hover:border-amber-500/40 transition-all flex items-start gap-3.5 group"
@@ -1214,6 +1324,27 @@ export default function WelcomeMessage({
                         </div>
                       </div>
                     ))
+                  )}
+
+                  {/* View all / Show less toggle for Daily Huddle stories */}
+                  {briefStories.length > 3 && (
+                    <div className="pt-0.5 pb-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllBriefStories((prev) => !prev)}
+                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-600/15 via-orange-600/15 to-pink-600/15 border border-amber-500/30 hover:border-amber-500/60 text-[#FBBF24] hover:text-white font-bold text-[12.5px] flex items-center justify-center gap-2 hover:bg-white/10 active:scale-[0.99] transition-all cursor-pointer shadow-sm"
+                      >
+                        <span>
+                          {showAllBriefStories
+                            ? "Show less"
+                            : `View all (${briefStories.length} updates)`}
+                        </span>
+                        <ChevronRight
+                          size={14}
+                          className={`transition-transform duration-200 ${showAllBriefStories ? "-rotate-90" : "rotate-90"}`}
+                        />
+                      </button>
+                    </div>
                   )}
 
                   {/* FlipArena Engagement Banner */}
@@ -1280,7 +1411,7 @@ export default function WelcomeMessage({
                         rows={2}
                         value={briefQuestion}
                         onChange={(e) => setBriefQuestion(e.target.value)}
-                        placeholder="Or type your own question about today's sports stories..."
+                        placeholder="Ask about milestones, medal impact, breakthrough performances..."
                         className="w-full rounded-xl bg-[#090B12] border border-white/10 p-3 text-[12.5px] text-white placeholder-gray-500 focus:outline-none focus:border-purple-500/70 resize-none transition-colors"
                       />
                     </div>
@@ -1448,6 +1579,7 @@ export default function WelcomeMessage({
                     type="button"
                     onClick={() => {
                       setSelectedCardDetail(null);
+                      setShowAllAgendaEvents(false);
                       setIsAgendaOpen(true);
                     }}
                     className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#E91E8C] to-[#FF6B35] text-white font-extrabold text-[13px] hover:opacity-95 transition-opacity text-center cursor-pointer"

@@ -318,8 +318,8 @@ export const welcomeMessageService = {
     try {
       const cleanQ = question.trim();
       const promptQuery = context
-        ? `Sports Data Context: ${context}\n\nFan Question: "${cleanQ}"\n\nProvide a direct, concise, insightful sports answer to this question without repeating the question or context in your response:`
-        : cleanQ;
+        ? `Context moment: "${context}". Question about this moment: "${cleanQ}". Answer this question in a short, engaging sports fan format under 200 characters.`
+        : `Question: "${cleanQ}". Answer this question in a short, engaging sports fan format under 200 characters.`;
 
       const res = await fetch("/api/ask-ai", {
         method: "POST",
@@ -331,8 +331,9 @@ export const welcomeMessageService = {
 
       if (res.ok) {
         const data = await res.json();
-        if (data.answer && typeof data.answer === "string") {
-          return cleanAiResponse(data.answer, cleanQ);
+        const ans = data.answer || data.response || data.message;
+        if (ans && typeof ans === "string") {
+          return cleanAiResponse(ans, cleanQ);
         }
       }
       return "";

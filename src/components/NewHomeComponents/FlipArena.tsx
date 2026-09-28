@@ -5645,7 +5645,7 @@ export default function FlipArena({
                   color: filter === tab ? "#fff" : "rgba(255,255,255,0.45)",
                 }}
               >
-                {tab === "all" ? "All" : tab === "meme" ? "🔥 Meme" : tab}
+                {tab === "all" ? "All" : tab === "meme" ? "Meme" : tab}
               </button>
             ))}
           </div>
