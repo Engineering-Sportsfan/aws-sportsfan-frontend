@@ -3278,7 +3278,7 @@ import BackButton from "../../ReusableComponent/BackButton";
 import { useActivity } from "@/context/ActivityContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   BOT_TAGS,
   BOT_USERNAMES,
@@ -3653,19 +3653,15 @@ function resolveUsername(userObj: any, fallbackName?: string): string {
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function Profile({
   userBadge, setUserBadge, onCompose, onToast, setOnboarded, onNavigateTab,
-  viewingProfile, onClose,
-  isViewingOther, fanData, onBack,
+  viewingProfile: propViewingProfile, onClose,
+  isViewingOther: propIsViewingOther, fanData, onBack,
 }: Props) {
 
   const router = useRouter();
-  const isOtherProfile = !!(viewingProfile || isViewingOther);
-  const handleBack = onBack ?? onClose;
+  const searchParams = useSearchParams();
+  const queryUserId = searchParams?.get("userId") || searchParams?.get("profile") || (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("userId") || new URLSearchParams(window.location.search).get("profile") : null);
 
-  const [activeExpertTab, setActiveExpertTab] = useState<"videos" | "posts">("videos");
-  const [expertFlipCards, setExpertFlipCards] = useState<any[]>([]);
-  const [expertFlipLoading, setExpertFlipLoading] = useState(false);
-  const [expertVideos, setExpertVideos] = useState<any[]>([]);
-  const [expertVideosLoading, setExpertVideosLoading] = useState(false);
+  const viewingProfile = propViewingProfile || queryUserId || null;
 
   const { activities, loading: activityLoading, refreshActivities, profileStats } = useActivity();
   const { user: authUser, getUserDisplayName, loading: authLoading } = useAuth();
@@ -3698,6 +3694,36 @@ export default function Profile({
     }
     return null;
   }, [authUser]);
+
+  const isOtherProfile = useMemo(() => {
+    if (propIsViewingOther) return true;
+    if (!viewingProfile) return false;
+    const cleanViewing = String(viewingProfile).trim().toLowerCase();
+    const cleanLoggedIn = String(loggedInUserId || "").trim().toLowerCase();
+    const cleanAuthUid = String(authUser?.userId || "").trim().toLowerCase();
+    const cleanAuthActualUid = String(authUser?.actualUserId || "").trim().toLowerCase();
+    const cleanAuthEmail = String(authUser?.email || "").trim().toLowerCase();
+
+    if (
+      cleanViewing === cleanLoggedIn ||
+      cleanViewing === cleanAuthUid ||
+      cleanViewing === cleanAuthActualUid ||
+      cleanViewing === cleanAuthEmail ||
+      cleanViewing === cleanAuthEmail.replace(/[@.]/g, "_")
+    ) {
+      return false;
+    }
+    return true;
+  }, [propIsViewingOther, viewingProfile, loggedInUserId, authUser]);
+
+  const handleBack = onBack ?? onClose;
+
+
+  const [activeExpertTab, setActiveExpertTab] = useState<"videos" | "posts">("videos");
+  const [expertFlipCards, setExpertFlipCards] = useState<any[]>([]);
+  const [expertFlipLoading, setExpertFlipLoading] = useState(false);
+  const [expertVideos, setExpertVideos] = useState<any[]>([]);
+  const [expertVideosLoading, setExpertVideosLoading] = useState(false);
 
   const headerDisplayName = useMemo(() => {
     if (authUser?.name) return authUser.name;
@@ -4304,7 +4330,7 @@ export default function Profile({
     };
 
     fetchProfileData();
-  }, [viewingProfile, isViewingOther, fanData, isOtherProfile, loggedInUserId]);
+  }, [viewingProfile, propIsViewingOther, fanData, isOtherProfile, loggedInUserId]);
 
   const user = profileMetadata?.user ?? CURRENT_USER;
 
@@ -4812,14 +4838,23 @@ export default function Profile({
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         position: "sticky", top: 0, zIndex: 50,
       }}>
-        <Link href="/MainModules/HomePage" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "white" }}>
-          <button style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
-          <h3 style={{ color: "white", margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>Profile</h3>
-        </Link>
+        <button
+          onClick={() => {
+            if (handleBack) handleBack();
+            else if (isOtherProfile) router.back();
+            else router.push("/MainModules/HomePage");
+          }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <h3 style={{ color: "white", margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>
+          {/* {isOtherProfile && effectiveUsername ? `${effectiveUsername}'s Profile` : "Profile"} */}
+          Profile
+          
+        </h3>
       </div>
 
       {/* ── Cover photo banner ── */}
