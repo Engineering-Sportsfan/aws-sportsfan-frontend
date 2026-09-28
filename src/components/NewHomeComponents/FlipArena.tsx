@@ -3801,7 +3801,7 @@ function DynamicQuizCard({
                 <span>{isCorrect ? "🎉" : "💡"}</span>
                 <span>
                   {isCorrect
-                    ? `Correct! +${CORRECT_OPTION_BONUS} SXPs Bonus (+${PARTICIPATION_POINTS + CORRECT_OPTION_BONUS} PTS Total)`
+                    ? `Correct! +${CORRECT_OPTION_BONUS} SXPs Bonus (+${PARTICIPATION_POINTS + CORRECT_OPTION_BONUS} SXP Total)`
                     : `+${PARTICIPATION_POINTS} SXPs for participating · The correct answer is ${correctOptionId}`}
                 </span>
               </div>
