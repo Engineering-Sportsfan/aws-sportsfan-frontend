@@ -2899,7 +2899,7 @@ export default function LeaderboardOverlayModal({
                             {formatAccuracy(filteredQuiz[1]?.accuracy)} acc
                           </span>
                           <span className="text-xs font-black text-slate-200 mt-0.5 shrink-0">
-                            {filteredQuiz[1]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">PTS</span>
+                            {filteredQuiz[1]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">SXP</span>
                           </span>
                         </div>
 
@@ -2921,7 +2921,7 @@ export default function LeaderboardOverlayModal({
                             {formatAccuracy(filteredQuiz[0]?.accuracy)} acc
                           </span>
                           <span className="text-xs font-black text-amber-400 mt-0.5 shrink-0">
-                            {filteredQuiz[0]?.points?.toLocaleString()} <span className="text-[9px] text-amber-500">PTS</span>
+                            {filteredQuiz[0]?.points?.toLocaleString()} <span className="text-[9px] text-amber-500">SXP</span>
                           </span>
                         </div>
 
@@ -2940,7 +2940,7 @@ export default function LeaderboardOverlayModal({
                             {formatAccuracy(filteredQuiz[2]?.accuracy)} acc
                           </span>
                           <span className="text-xs font-black text-amber-300/80 mt-0.5 shrink-0">
-                            {filteredQuiz[2]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">PTS</span>
+                            {filteredQuiz[2]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">SXP</span>
                           </span>
                         </div>
                       </div>
@@ -3014,7 +3014,7 @@ export default function LeaderboardOverlayModal({
 
                               <div className="text-right shrink-0">
                                 <span className="text-xs font-black text-amber-400">
-                                  {quizzer.points?.toLocaleString()} PTS
+                                  {quizzer.points?.toLocaleString()} SXP
                                 </span>
                                 <div className="text-[10px] font-bold text-emerald-400">
                                   {formatAccuracy(quizzer.accuracy)} acc
@@ -3096,7 +3096,7 @@ export default function LeaderboardOverlayModal({
                                   <span className="text-xs sm:text-sm font-black text-emerald-400">
                                     {campus.points.toLocaleString()}
                                   </span>
-                                  <span className="text-[9px] font-bold text-white/40 ml-1">PTS</span>
+                                  <span className="text-[9px] font-bold text-white/40 ml-1">SXP</span>
                                 </div>
                               </div>
 
@@ -3142,7 +3142,7 @@ export default function LeaderboardOverlayModal({
                                     <div className="bg-[#080d1a] p-3 rounded-xl border border-amber-500/25 space-y-2.5 shadow-inner">
                                       <div className="flex items-center justify-between text-[11px] pb-2 border-b border-white/[0.06]">
                                         <div className="text-[10px] font-bold text-emerald-400">
-                                          {symbiosisTotalPoints.toLocaleString()} Total Symbiosis PTS
+                                        Total Symbiosis SXPs - {symbiosisTotalPoints.toLocaleString()} 
                                         </div>
                                       </div>
 
@@ -3206,7 +3206,7 @@ export default function LeaderboardOverlayModal({
                                                   <span className="text-xs font-black text-emerald-400 whitespace-nowrap">
                                                     {p.points.toLocaleString()}
                                                   </span>
-                                                  <span className="text-[9px] font-bold text-white/40 ml-1">PTS</span>
+                                                  <span className="text-[9px] font-bold text-white/40 ml-1">SXP</span>
                                                 </div>
                                               </div>
                                             );
