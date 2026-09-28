@@ -291,7 +291,19 @@ export default function WelcomeMessage({
         };
       });
     }
-    return radarCards;
+
+    if (radarCards.length > 0) {
+      return radarCards.map((rc, idx) => {
+        const isLive = rc.statusType === "live" || rc.status?.toLowerCase() === "live" || Boolean(rc.isLive);
+        return {
+          ...rc,
+          isLive,
+          status: rc.status || (isLive ? "LIVE" : rc.statusType === "completed" ? "COMPLETED" : rc.time || "SCHEDULED"),
+        };
+      });
+    }
+
+    return [];
   }, [dynamicAgendaEvents, radarCards]);
 
   // Dynamically sync dot count with radar cards length
@@ -634,52 +646,78 @@ export default function WelcomeMessage({
     </motion.div>
   );
 
-  // Helper for card theme styling
-  const getThemeStyles = (theme?: RadarCardItem["themeColor"], isLive?: boolean, isSelected?: boolean) => {
-    if (isLive || isSelected) {
+  // Helper for card theme styling based on status and theme
+  const getThemeStyles = (
+    statusType?: string,
+    theme?: RadarCardItem["themeColor"],
+    isLive?: boolean,
+    isSelected?: boolean
+  ) => {
+    const isCompleted = statusType === "completed";
+    const isUpNext = statusType === "up_next";
+
+    if (isLive) {
       return {
-        cardBorder: "border-[#10B981] shadow-[0_0_15px_rgba(16,185,129,0.18)]",
-        badgeBg: "bg-[#062d22] text-[#10B981] border-[#10B981]/50",
+        cardBorder: isSelected
+          ? "border-[#10B981] ring-1 ring-[#10B981] shadow-[0_0_18px_rgba(16,185,129,0.3)]"
+          : "border-[#10B981]/70 shadow-[0_0_12px_rgba(16,185,129,0.18)]",
+        badgeBg: "bg-[#062d22] text-[#10B981] border-[#10B981]/60",
         badgeDot: "bg-[#10B981] shadow-[0_0_8px_#10B981]",
         accentColor: "#10B981",
       };
     }
+
+    if (isCompleted) {
+      return {
+        cardBorder: isSelected
+          ? "border-[#38BDF8]/60 ring-1 ring-[#38BDF8]/40 shadow-[0_0_12px_rgba(56,189,248,0.15)]"
+          : "border-[#1e293b] hover:border-[#475569]/80",
+        badgeBg: "bg-[#1e293b] text-[#94a3b8] border-[#475569]/60",
+        badgeDot: "bg-[#94a3b8]",
+        accentColor: "#94a3b8",
+      };
+    }
+
+    if (isUpNext) {
+      return {
+        cardBorder: isSelected
+          ? "border-[#FBBF24] ring-1 ring-[#FBBF24] shadow-[0_0_14px_rgba(251,191,36,0.25)]"
+          : "border-[#4e3814] hover:border-[#856417]",
+        badgeBg: "bg-[#33230c] text-[#FBBF24] border-[#856417]/60",
+        badgeDot: "bg-[#FBBF24]",
+        accentColor: "#FBBF24",
+      };
+    }
+
     switch (theme) {
       case "emerald":
         return {
-          cardBorder: "border-[#10B981]/40 hover:border-[#10B981]/70",
+          cardBorder: isSelected ? "border-[#10B981] ring-1 ring-[#10B981]" : "border-[#10B981]/40 hover:border-[#10B981]/70",
           badgeBg: "bg-[#062d22] text-[#10B981] border-[#10B981]/40",
           badgeDot: "bg-[#10B981]",
           accentColor: "#10B981",
         };
-      case "purple":
-        return {
-          cardBorder: "border-[#2d2254] hover:border-[#583C87]",
-          badgeBg: "bg-[#251846] text-[#B794F4] border-[#583C87]/60",
-          badgeDot: "bg-[#B794F4]",
-          accentColor: "#B794F4",
-        };
       case "amber":
         return {
-          cardBorder: "border-[#4e3814] hover:border-[#856417]",
+          cardBorder: isSelected ? "border-[#FBBF24] ring-1 ring-[#FBBF24]" : "border-[#4e3814] hover:border-[#856417]",
           badgeBg: "bg-[#33230c] text-[#FBBF24] border-[#856417]/60",
           badgeDot: "bg-[#FBBF24]",
           accentColor: "#FBBF24",
         };
       case "cyan":
         return {
-          cardBorder: "border-[#143c52] hover:border-[#0284c7]",
+          cardBorder: isSelected ? "border-[#38BDF8] ring-1 ring-[#38BDF8]" : "border-[#143c52] hover:border-[#0284c7]",
           badgeBg: "bg-[#0c2637] text-[#38BDF8] border-[#0284c7]/50",
           badgeDot: "bg-[#38BDF8]",
           accentColor: "#38BDF8",
         };
-      case "rose":
+      case "purple":
       default:
         return {
-          cardBorder: "border-[#4c1d29] hover:border-[#be123c]",
-          badgeBg: "bg-[#38131d] text-[#FB7185] border-[#be123c]/50",
-          badgeDot: "bg-[#FB7185]",
-          accentColor: "#FB7185",
+          cardBorder: isSelected ? "border-[#A855F7] ring-1 ring-[#A855F7]" : "border-[#2d2254] hover:border-[#583C87]",
+          badgeBg: "bg-[#251846] text-[#B794F4] border-[#583C87]/60",
+          badgeDot: "bg-[#B794F4]",
+          accentColor: "#B794F4",
         };
     }
   };
@@ -770,7 +808,7 @@ export default function WelcomeMessage({
           >
             {displayedRadarCards.map((card, index) => {
               const isSelected = activeCardIndex === index;
-              const theme = getThemeStyles(card.themeColor, card.isLive, isSelected);
+              const theme = getThemeStyles(card.statusType, card.themeColor, card.isLive, isSelected);
               const isNotified = notifiedCards.includes(card.id);
 
               return (
@@ -784,27 +822,34 @@ export default function WelcomeMessage({
                     else setSelectedCardDetail(card);
                   }}
                   className={`shrink-0 w-[142px] sm:w-[155px] rounded-[18px] p-3 flex flex-col justify-between transition-all duration-200 snap-start relative overflow-hidden cursor-pointer ${
-                    isSelected || card.isLive
+                    card.isLive
                       ? "bg-[#0b101d] border-2 " + theme.cardBorder
+                    : isSelected
+                      ? "bg-[#0c101d] border-2 " + theme.cardBorder
                       : "bg-[#0c101d] border " + theme.cardBorder
                   }`}
                   style={{
                     minHeight: "136px",
                     boxShadow:
-                      isSelected || card.isLive
-                        ? "0 4px 20px rgba(0, 0, 0, 0.45), 0 0 16px rgba(16, 185, 129, 0.12)"
+                      card.isLive
+                        ? "0 4px 20px rgba(0, 0, 0, 0.45), 0 0 16px rgba(16, 185, 129, 0.15)"
+                        : isSelected
+                          ? "0 4px 18px rgba(0, 0, 0, 0.45)"
                         : "0 4px 15px rgba(0, 0, 0, 0.35)",
                   }}
                 >
                   {/* Top Row: Badge & Status */}
                   <div className="flex items-center justify-between w-full">
                     <span
-                      className={`inline-flex items-center gap-1 text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${theme.badgeBg}`}
+                      className={`inline-flex items-center gap-1 text-[9.5px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider ${theme.badgeBg}`}
                     >
                       {card.isLive && (
                         <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
                       )}
-                      {card.status}
+                      {card.statusType === "completed" && (
+                        <span className="text-[9px] font-black">✓</span>
+                      )}
+                      <span>{card.status}</span>
                     </span>
 
                     {/* Notify indicator */}
@@ -914,7 +959,7 @@ export default function WelcomeMessage({
           </div>
 
           <div className="flex items-center gap-1 text-[13px] sm:text-[14px] font-bold text-[#F59E0B] group-hover:text-[#FBBF24] transition-colors shrink-0 pl-2">
-            <span>Read Briefing</span>
+            <span>Read</span>
             <span className="text-[15px] font-extrabold group-hover:translate-x-1 transition-transform">
               →
             </span>
@@ -1497,11 +1542,20 @@ export default function WelcomeMessage({
                           {selectedCardDetail.sport}
                         </h3>
                         <span
-                          className={`text-[9px] sm:text-[9.5px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                            getThemeStyles(selectedCardDetail.themeColor, selectedCardDetail.isLive).badgeBg
+                          className={`inline-flex items-center gap-1 text-[9px] sm:text-[9.5px] font-extrabold px-2 py-0.5 rounded-full border uppercase tracking-wider shrink-0 ${getThemeStyles(
+                            selectedCardDetail.statusType,
+                            selectedCardDetail.themeColor,
+                            selectedCardDetail.isLive
+                          ).badgeBg
                           }`}
                         >
-                          {selectedCardDetail.status}
+                          {selectedCardDetail.isLive && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+                          )}
+                          {selectedCardDetail.statusType === "completed" && (
+                            <span className="text-[9px] font-black">✓</span>
+                          )}
+                          <span>{selectedCardDetail.status}</span>
                         </span>
                       </div>
                       <p className="text-[11.5px] sm:text-[12px] text-gray-300 font-medium truncate">
