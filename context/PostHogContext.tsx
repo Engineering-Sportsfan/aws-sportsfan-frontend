@@ -34,7 +34,6 @@ function PostHogPageView() {
 
       // L1 KPI: Routing - Track Reaching Recommended Features
       // Temporarily disabled (KPI 04 is yet to be fully confirmed)
-      /*
       const recommendedFeatures: Record<string, string> = {
         '/MainModules/ROAR': 'ROAR',
         '/MainModules/WatchAlong': 'WatchAlong',
@@ -44,6 +43,7 @@ function PostHogPageView() {
         '/MainModules/FanBattle': 'FanBattle',
         '/MainModules/FlipLine': 'FlipLine',
         '/MainModules/FlipArena': 'FlipArena',
+          '/MainModules/FlipLong': 'FlipLong',
       };
 
       const lowerPath = pathname.toLowerCase();
@@ -57,7 +57,6 @@ function PostHogPageView() {
           break;
         }
       }
-      */
     }
   }, [pathname, searchParams, posthog]);
 
