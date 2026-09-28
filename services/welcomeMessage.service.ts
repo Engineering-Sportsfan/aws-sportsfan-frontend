@@ -14,7 +14,9 @@ export interface RadarCardItem {
   time?: string;
   subEvent?: string;
   detail?: string;
-  statusType?: "completed" | "live" | "up_next" | "scheduled" | "afternoon" | "evening" | string;
+  statusType?: "auto" | "completed" | "live" | "up_next" | "scheduled" | "afternoon" | "evening" | string;
+  statusMode?: "auto" | "manual";
+  isManual?: boolean;
   statusLabel?: string;
   nodeColor?: "gray" | "emerald" | "amber" | "blue" | string;
   teams?: {
@@ -34,7 +36,9 @@ export interface AgendaEventItem {
   sport: string;
   subEvent: string;
   detail: string;
-  statusType: "completed" | "live" | "up_next" | "scheduled" | "afternoon" | "evening" | string;
+  statusType: "auto" | "completed" | "live" | "up_next" | "scheduled" | "afternoon" | "evening" | string;
+  statusMode?: "auto" | "manual";
+  isManual?: boolean;
   statusLabel: string;
   icon: string;
   nodeColor?: "gray" | "emerald" | "amber" | "blue" | string;
@@ -86,112 +90,200 @@ export function parseTimeToMinutes(timeStr?: string): number {
 }
 
 /**
- * Dynamically resolves agenda event statuses based on current clock time:
- * - If an event's start time is past and another event has started after it, it becomes "completed".
- * - The current ongoing event (start time <= current time and next has not started) becomes "live".
- * - The very next upcoming event (start time > current time) becomes "up_next".
- * - Subsequent events become "scheduled".
+ * Dynamically resolves agenda event statuses based on current clock time and admin overrides:
+ * - Manual mode / Explicit overrides:
+ *   - If admin set "completed": strictly remains COMPLETED (never overwritten by clock auto-update).
+ *   - If admin set "live": strictly remains LIVE.
+ *   - If admin set "up_next": strictly remains UP NEXT.
+ *   - If admin set "scheduled": strictly remains SCHEDULED.
+ * - Auto mode (time-based):
+ *   - Before event start time: UP NEXT (for first upcoming) or SCHEDULED.
+ *   - At start time (time <= now): automatically transitions to LIVE.
+ *   - When next event starts: previous event automatically transitions to COMPLETED.
  */
 export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new Date()): AgendaEventItem[] {
   if (!events || events.length === 0) return [];
 
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
-  // Attach parsed time for chronological evaluation
-  const eventsWithTime = events.map((evt, idx) => ({
-    evt,
-    idx,
-    minutes: parseTimeToMinutes(evt.time),
-  }));
+  // Attach parsed time and explicit admin status flags
+  const parsedEvents = events.map((evt, idx) => {
+    const rawStatus = (evt.statusType || "").toLowerCase().trim();
+    const rawLabel = (evt.statusLabel || "").toUpperCase().trim();
+    const isAutoMode = rawStatus === "auto" || evt.statusMode === "auto" || rawLabel === "AUTO";
+    const isExplicitCompleted = rawStatus === "completed" || rawLabel === "COMPLETED";
+    const isExplicitLive = rawStatus === "live" || rawLabel === "LIVE";
+    const isExplicitUpNext = rawStatus === "up_next" || rawLabel === "UP NEXT";
+    const isExplicitScheduled = rawStatus === "scheduled" || rawLabel === "SCHEDULED";
+    
+    // Explicit manual override if marked manual OR if explicit status is set without being auto mode
+    const isManual = evt.isManual === true || evt.statusMode === "manual" || (!isAutoMode && (isExplicitCompleted || isExplicitLive || isExplicitUpNext));
 
-  const validTimes = eventsWithTime.filter((e) => e.minutes >= 0);
-  if (validTimes.length === 0) {
-    return events.map((evt) => {
-      const raw = (evt.statusType || "").toLowerCase();
-      const norm =
-        raw === "afternoon" || raw === "evening"
-          ? "scheduled"
-          : (raw as "completed" | "live" | "up_next" | "scheduled") || "live";
-      return {
-        ...evt,
-        statusType: norm,
-        statusLabel:
-          evt.statusLabel && evt.statusLabel !== "AFTERNOON"
-            ? evt.statusLabel
-            : norm === "completed"
-            ? "COMPLETED"
-            : norm === "up_next"
-            ? "UP NEXT"
-            : norm === "scheduled"
-            ? "SCHEDULED"
-            : "LIVE",
-        nodeColor:
-          evt.nodeColor ||
-          (norm === "completed"
-            ? "gray"
-            : norm === "live"
-            ? "emerald"
-            : norm === "up_next"
-            ? "amber"
-            : "blue"),
-      };
-    });
-  }
-
-  // Sort chronologically by time
-  eventsWithTime.sort((a, b) => {
-    if (a.minutes >= 0 && b.minutes >= 0) return a.minutes - b.minutes;
-    return (a.evt.order ?? a.idx) - (b.evt.order ?? b.idx);
+    return {
+      evt,
+      idx,
+      minutes: parseTimeToMinutes(evt.time),
+      order: evt.order ?? idx,
+      isAutoMode,
+      isExplicitCompleted,
+      isExplicitLive,
+      isExplicitUpNext,
+      isExplicitScheduled,
+      isManual,
+    };
   });
 
-  // Find index of the latest event that has already started (minutes <= currentMinutes)
-  let liveIndex = -1;
-  for (let i = 0; i < eventsWithTime.length; i++) {
-    const item = eventsWithTime[i];
-    if (item.minutes >= 0 && item.minutes <= currentMinutes) {
-      liveIndex = i;
-    } else if (item.minutes > currentMinutes) {
+  // Preserve order or chronological time sort
+  parsedEvents.sort((a, b) => {
+    if (a.order !== undefined && b.order !== undefined && a.order !== b.order) {
+      return a.order - b.order;
+    }
+    if (a.minutes >= 0 && b.minutes >= 0 && a.minutes !== b.minutes) {
+      return a.minutes - b.minutes;
+    }
+    return a.idx - b.idx;
+  });
+
+  // Step 1: Check if there's an explicit manual LIVE event set by admin
+  let manualLiveIndex = -1;
+  for (let i = 0; i < parsedEvents.length; i++) {
+    if (parsedEvents[i].isExplicitLive && parsedEvents[i].isManual) {
+      manualLiveIndex = i;
       break;
     }
   }
 
-  return eventsWithTime.map((item, index) => {
+  // Step 2: Find the latest chronological event whose scheduled start time has arrived (minutes <= currentMinutes)
+  let lastPastIndex = -1;
+  for (let i = 0; i < parsedEvents.length; i++) {
+    const item = parsedEvents[i];
+    if (item.minutes >= 0 && item.minutes <= currentMinutes) {
+      lastPastIndex = i;
+    }
+  }
+
+  // Step 3: Determine the active live index and upcoming index
+  let activeLiveIndex = -1;
+  let activeUpcomingIndex = -1;
+
+  if (manualLiveIndex !== -1) {
+    // Admin manually forced an event to LIVE
+    activeLiveIndex = manualLiveIndex;
+    activeUpcomingIndex = manualLiveIndex + 1 < parsedEvents.length ? manualLiveIndex + 1 : -1;
+  } else if (lastPastIndex !== -1) {
+    // There are events that have reached or passed their start time
+    const latestPastItem = parsedEvents[lastPastIndex];
+    if (latestPastItem.isExplicitCompleted && latestPastItem.isManual) {
+      // The latest past event was manually marked COMPLETED by admin.
+      // So no event is currently live from past events.
+      activeLiveIndex = -1;
+      activeUpcomingIndex = lastPastIndex + 1 < parsedEvents.length ? lastPastIndex + 1 : -1;
+    } else {
+      // Latest past event is live (auto progression or manual live)
+      activeLiveIndex = lastPastIndex;
+      activeUpcomingIndex = lastPastIndex + 1 < parsedEvents.length ? lastPastIndex + 1 : -1;
+    }
+  } else {
+    // Current time is BEFORE the first event of the day
+    activeLiveIndex = -1;
+    activeUpcomingIndex = 0; // First event is UP NEXT
+  }
+
+  return parsedEvents.map((item, index) => {
     const orig = item.evt;
+
+    // 1. Explicit admin "completed" status strictly takes precedence (never overwritten by auto)
+    if (item.isExplicitCompleted && item.isManual) {
+      return {
+        ...orig,
+        statusType: "completed",
+        statusMode: "manual",
+        isManual: true,
+        statusLabel: orig.statusLabel && orig.statusLabel.toUpperCase() === "COMPLETED" ? orig.statusLabel : "COMPLETED",
+        nodeColor: "gray",
+      };
+    }
+
+    // 2. Explicit admin "live" status strictly takes precedence
+    if (item.isExplicitLive && item.isManual) {
+      return {
+        ...orig,
+        statusType: "live",
+        statusMode: "manual",
+        isManual: true,
+        statusLabel: "LIVE",
+        nodeColor: "emerald",
+      };
+    }
+
+    // 3. Explicit admin "up_next" status takes precedence
+    if (item.isExplicitUpNext && item.isManual) {
+      return {
+        ...orig,
+        statusType: "up_next",
+        statusMode: "manual",
+        isManual: true,
+        statusLabel: "UP NEXT",
+        nodeColor: "amber",
+      };
+    }
+
+    // 4. Explicit admin "scheduled" status in manual mode
+    if (item.isExplicitScheduled && item.isManual && !item.isAutoMode) {
+      return {
+        ...orig,
+        statusType: "scheduled",
+        statusMode: "manual",
+        isManual: true,
+        statusLabel: orig.statusLabel || orig.time || "SCHEDULED",
+        nodeColor: "blue",
+      };
+    }
+
+    // 5. Dynamic Auto Time Resolution:
     let computedStatusType: "completed" | "live" | "up_next" | "scheduled" = "scheduled";
     let computedLabel = "SCHEDULED";
     let computedNodeColor: "gray" | "emerald" | "amber" | "blue" = "blue";
 
-    if (liveIndex === -1) {
-      // All events are in the future today
-      if (index === 0) {
+    if (activeLiveIndex !== -1) {
+      // There is an ongoing live event
+      if (index < activeLiveIndex) {
+        computedStatusType = "completed";
+        computedLabel = "COMPLETED";
+        computedNodeColor = "gray";
+      } else if (index === activeLiveIndex) {
+        computedStatusType = "live";
+        computedLabel = "LIVE";
+        computedNodeColor = "emerald";
+      } else if (index === activeUpcomingIndex) {
         computedStatusType = "up_next";
         computedLabel = "UP NEXT";
         computedNodeColor = "amber";
       } else {
         computedStatusType = "scheduled";
-        computedLabel = "SCHEDULED";
+        computedLabel = orig.time || "SCHEDULED";
         computedNodeColor = "blue";
       }
-    } else if (index < liveIndex) {
-      // An earlier event whose next event has started -> COMPLETED
-      computedStatusType = "completed";
-      computedLabel = "COMPLETED";
-      computedNodeColor = "gray";
-    } else if (index === liveIndex) {
-      // Current active event -> LIVE
-      computedStatusType = "live";
-      computedLabel = "LIVE";
-      computedNodeColor = "emerald";
-    } else if (index === liveIndex + 1) {
-      // Very next event -> UP NEXT
-      computedStatusType = "up_next";
-      computedLabel = "UP NEXT";
-      computedNodeColor = "amber";
     } else {
-      // Subsequent events -> SCHEDULED
-      computedStatusType = "scheduled";
-      computedLabel = "SCHEDULED";
-      computedNodeColor = "blue";
+      // No event is currently LIVE
+      if (activeUpcomingIndex !== -1 && index === activeUpcomingIndex) {
+        computedStatusType = "up_next";
+        computedLabel = "UP NEXT";
+        computedNodeColor = "amber";
+      } else if (activeUpcomingIndex !== -1 && index < activeUpcomingIndex) {
+        computedStatusType = "completed";
+        computedLabel = "COMPLETED";
+        computedNodeColor = "gray";
+      } else if (activeUpcomingIndex === -1) {
+        // All events have passed and are completed
+        computedStatusType = "completed";
+        computedLabel = "COMPLETED";
+        computedNodeColor = "gray";
+      } else {
+        computedStatusType = "scheduled";
+        computedLabel = orig.time || "SCHEDULED";
+        computedNodeColor = "blue";
+      }
     }
 
     return {
@@ -199,6 +291,8 @@ export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new 
       statusType: computedStatusType,
       statusLabel: computedLabel,
       nodeColor: computedNodeColor,
+      isManual: false,
+      statusMode: item.isAutoMode ? "auto" : undefined,
     };
   });
 }
@@ -318,8 +412,8 @@ export const welcomeMessageService = {
     try {
       const cleanQ = question.trim();
       const promptQuery = context
-        ? `Sports Data Context: ${context}\n\nFan Question: "${cleanQ}"\n\nProvide a direct, concise, insightful sports answer to this question without repeating the question or context in your response:`
-        : cleanQ;
+        ? `Context moment: "${context}". Question about this moment: "${cleanQ}". Answer this question in a short, engaging sports fan format under 200 characters.`
+        : `Question: "${cleanQ}". Answer this question in a short, engaging sports fan format under 200 characters.`;
 
       const res = await fetch("/api/ask-ai", {
         method: "POST",
@@ -331,8 +425,9 @@ export const welcomeMessageService = {
 
       if (res.ok) {
         const data = await res.json();
-        if (data.answer && typeof data.answer === "string") {
-          return cleanAiResponse(data.answer, cleanQ);
+        const ans = data.answer || data.response || data.message;
+        if (ans && typeof ans === "string") {
+          return cleanAiResponse(ans, cleanQ);
         }
       }
       return "";
