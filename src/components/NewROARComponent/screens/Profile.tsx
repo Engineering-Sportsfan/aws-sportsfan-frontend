@@ -1848,6 +1848,7 @@ export default function Profile({
   });
   const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [activeActivityTab, setActiveActivityTab] = useState<"all" | "posts" | "predictions" | "debates">("all");
 
   // NEW: top-level section tabs shown after the Roar Journey section
@@ -2733,6 +2734,50 @@ export default function Profile({
     try { await axios.patch("/api/roar/profile", { avatarUrl: src }); } catch { }
   };
 
+  // Profile avatar upload (free-form custom photo from device)
+  const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4MB
+  const handleAvatarUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      onToast("Please choose an image file.");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      onToast("Image is too large — please pick one under 4MB.");
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Could not read file"));
+        reader.readAsDataURL(file);
+      });
+      setSelectedAvatar(dataUrl);
+      setProfileMetadata((prev: any) => ({
+        ...prev,
+        user: {
+          ...(prev?.user ?? {}),
+          avatarUrl: dataUrl,
+          avatar: dataUrl,
+          photoURL: dataUrl,
+        },
+      }));
+      setAvatarPickerOpen(false);
+      try { localStorage.setItem("roar_avatar_url", dataUrl); } catch { }
+      window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: dataUrl } }));
+      try {
+        trackProfileSignalCreated("avatar", { avatar_url: dataUrl });
+      } catch (e) { }
+      onToast("Profile photo updated!");
+      try { await axios.patch("/api/roar/profile", { avatarUrl: dataUrl }); } catch { }
+    } catch {
+      onToast("Could not load that image.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   // Cover photo is a free-form upload (unlike the fixed avatar gallery), so
   // it's handled as a file input read into a data URL, matching the format
   // the backend already accepts for avatarUrl. Optional field — clearing it
@@ -3484,7 +3529,7 @@ export default function Profile({
                   <>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
                       {[
-                        { label: "Arena PTS", value: (arenaStats?.points ?? 0).toLocaleString() },
+                        { label: "SXPs", value: (arenaStats?.points ?? 0).toLocaleString() },
                         { label: "Rank", value: arenaStats ? `#${arenaStats.rank}` : "—" },
                         { label: "Accuracy", value: arenaStats?.accuracy ?? "0%" },
                       ].map(({ label, value }) => (
@@ -4054,7 +4099,53 @@ export default function Profile({
                 <h3 className="font-display" style={{ fontSize: 18, letterSpacing: "0.05em", color: "#fff", margin: 0 }}>CHOOSE YOUR AVATAR</h3>
                 <button onClick={() => setAvatarPickerOpen(false)} style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "rgba(255,255,255,0.7)", width: 28, height: 28, borderRadius: "50%", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
               </div>
-              <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", marginBottom: 18 }}>Tap an avatar to set it as your profile picture</p>
+
+              {/* Upload custom photo option */}
+              <div style={{ marginBottom: 16 }}>
+                <label
+                  style={{
+                    width: "100%",
+                    boxSizing: "border-box",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 8,
+                    padding: "11px 16px",
+                    borderRadius: 14,
+                    background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
+                    border: "1px solid rgba(233,30,140,0.45)",
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    cursor: uploadingAvatar ? "default" : "pointer",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  {uploadingAvatar ? "Uploading photo..." : "Upload from device"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingAvatar}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleAvatarUpload(file);
+                      e.target.value = "";
+                    }}
+                    style={{ display: "none" }}
+                  />
+                </label>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.1)" }} />
+                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Or choose an avatar</span>
+                <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.1)" }} />
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, padding: "0 2px" }}>
                 {AVATAR_OPTIONS.map((src, idx) => {
                   const sel = selectedAvatar === src;
@@ -4114,6 +4205,61 @@ export default function Profile({
                   ✕
                 </button>
               </div>
+
+              {/* Profile Photo Upload in Edit Profile Modal */}
+              <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 8 }}>Profile photo</label>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)" }}>
+                <div style={{ position: "relative", width: 56, height: 56, borderRadius: "50%", overflow: "hidden", background: "#1a1a2e", border: "2px solid rgba(255,255,255,0.15)", flexShrink: 0 }}>
+                  {displayAvatar ? (
+                    <img src={displayAvatar} alt="Profile preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="md" />
+                    </div>
+                  )}
+                  {uploadingAvatar && (
+                    <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff" }}>
+                      Uploading...
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8, flex: 1 }}>
+                  <label style={{
+                    flex: 1, textAlign: "center", padding: "8px 0", borderRadius: 12,
+                    background: "linear-gradient(135deg, rgba(233,30,140,0.2), rgba(255,107,53,0.2))",
+                    border: "1px solid rgba(233,30,140,0.4)",
+                    color: "#fff", fontSize: 12, fontWeight: 600, cursor: uploadingAvatar ? "default" : "pointer",
+                  }}>
+                    {displayAvatar ? "Upload photo" : "Upload photo"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingAvatar}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleAvatarUpload(file);
+                        e.target.value = "";
+                      }}
+                      style={{ display: "none" }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditOpen(false);
+                      setAvatarPickerOpen(true);
+                    }}
+                    style={{
+                      padding: "8px 12px", borderRadius: 12,
+                      background: "none", border: "1px solid rgba(255,255,255,0.15)",
+                      color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    Avatars
+                  </button>
+                </div>
+              </div>
+
               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Cover photo (optional)</label>
               <div style={{
                 position: "relative",
@@ -4209,7 +4355,7 @@ export default function Profile({
               ))}
               <motion.button whileTap={{ scale: 0.97 }} className="btn-gradient"
                 onClick={async () => {
-                  setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, university: editUniversity, institution: editUniversity, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
+                  setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, university: editUniversity, institution: editUniversity, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, avatarUrl: selectedAvatar || prev?.user?.avatarUrl } }));
                   setEditOpen(false);
                   try { trackProfileSignalCreated("profile_details"); } catch (e) {}
                   const oldUser = profileMetadata?.user || {};
@@ -4232,6 +4378,7 @@ export default function Profile({
                       showPredHistory: editShowPredHistory,
                       showActivity: editShowActivity,
                       coverPhotoUrl: coverPhoto ?? "",
+                      ...(selectedAvatar ? { avatarUrl: selectedAvatar } : {}),
                     });
                   } catch { }
                 }}
