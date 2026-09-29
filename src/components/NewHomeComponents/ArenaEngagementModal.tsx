@@ -1191,9 +1191,49 @@ export default function ArenaEngagementModal({
   onToast,
 }: ArenaEngagementModalProps) {
   const { user } = useAuth();
-  const activeUserId = user?.userId || (user as any)?.actualUserId || user?.email;
-  const userEmail = user?.email || (user as any)?.userEmail || "";
-  const userName = user?.name || (user as any)?.userName || "";
+
+  // Dynamically resolve authenticated user ID, email, name, and avatar without any hardcoded values
+  const resolveCurrentUser = () => {
+    let u: any = user;
+    if (!u && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user");
+        if (stored) u = JSON.parse(stored);
+      } catch {}
+    }
+    const resolvedId =
+      u?.userId ||
+      u?.actualUserId ||
+      u?.uid ||
+      u?.id ||
+      u?.email ||
+      "";
+    const resolvedEmail = u?.email || u?.userEmail || "";
+    const resolvedName =
+      u?.name ||
+      u?.displayName ||
+      u?.userName ||
+      (resolvedEmail ? resolvedEmail.split("@")[0] : "SportsFan");
+    const resolvedAvatar =
+      u?.avatar ||
+      u?.photoURL ||
+      u?.picture ||
+      u?.image ||
+      "";
+
+    return {
+      userId: resolvedId,
+      userEmail: resolvedEmail,
+      userName: resolvedName,
+      userAvatar: resolvedAvatar,
+    };
+  };
+
+  const currentUser = resolveCurrentUser();
+  const activeUserId = currentUser.userId;
+  const userEmail = currentUser.userEmail;
+  const userName = currentUser.userName;
+  const userAvatar = currentUser.userAvatar;
 
   const [mounted, setMounted] = useState(false);
   const [activeType, setActiveType] = useState<EngagementType>(initialType);
@@ -1438,6 +1478,11 @@ export default function ArenaEngagementModal({
       }
 
       const now = Date.now();
+      const freshUser = resolveCurrentUser();
+      const creatorUid = freshUser.userId || activeUserId;
+      const creatorEmail = freshUser.userEmail || userEmail;
+      const creatorName = freshUser.userName || userName;
+      const creatorAvatar = freshUser.userAvatar || userAvatar;
 
       let payload: any = {
         type: activeType,
@@ -1445,12 +1490,14 @@ export default function ArenaEngagementModal({
         subtitle: subtitle.trim(),
         sport: sport.toLowerCase(),
         status: "active",
-        userId: activeUserId,
-        userEmail: userEmail,
-        userName: userName,
-        creatorId: activeUserId,
-        creatorEmail: userEmail,
-        creatorName: userName,
+        userId: creatorUid,
+        userEmail: creatorEmail,
+        userName: creatorName,
+        userAvatar: creatorAvatar,
+        creatorId: creatorUid,
+        creatorEmail: creatorEmail,
+        creatorName: creatorName,
+        creatorAvatar: creatorAvatar,
         postingTime: now,
         startTime: now,
         scheduledStartTime: now,
@@ -1615,18 +1662,16 @@ export default function ArenaEngagementModal({
           return;
         }
         const resolvedAuthorName =
-          userName ||
-          (user as any)?.displayName ||
-          (userEmail ? userEmail.split("@")[0] : "") ||
-          "SportsFan";
+          creatorName ||
+          (creatorEmail ? creatorEmail.split("@")[0] : "SportsFan");
         const resolvedAuthorAvatar =
+          creatorAvatar ||
           user?.avatar ||
           (user as any)?.photoURL ||
           (user as any)?.picture ||
-          (user as any)?.profilePic ||
-          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
-        const resolvedAuthorHandle = userEmail
-          ? `@${userEmail.split("@")[0]}`
+          `https://api.dicebear.com/7.x/bottts/svg?seed=${creatorUid || "sportsfan"}`;
+        const resolvedAuthorHandle = creatorEmail
+          ? `@${creatorEmail.split("@")[0]}`
           : `@${resolvedAuthorName.toLowerCase().replace(/\s+/g, "")}`;
 
         payload.tags = ["🔥 MEME ARENA", "😂 VIRAL"];

@@ -149,10 +149,10 @@ export const engagementService = {
   /**
    * Toggle like / unlike on an engagement
    */
-  toggleLikeEngagement: async (id: string, userId?: string): Promise<LikeResponse> => {
+  toggleLikeEngagement: async (id: string, userId?: string, meta?: Record<string, any>): Promise<LikeResponse> => {
     const res = await axios.post<LikeResponse>(
       `/api/engagements/${encodeURIComponent(id)}/like`,
-      { userId }
+      { userId, ...(meta || {}) }
     );
     cachedEngagements.clear();
     return res.data;

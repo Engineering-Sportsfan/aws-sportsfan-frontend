@@ -192,72 +192,101 @@ export default function WelcomeMessage({
   }, [agendaEvents, currentTime]);
 
   // ─── Derive Radar Cards from TODAY'S AGENDA data ────────────────────────
-  // Ensures the exact same data from TODAY'S AGENDA is displayed in TODAY ON YOUR RADAR
+  // Ensures active data from TODAY'S AGENDA is displayed in TODAY ON YOUR RADAR (excluding completed events)
   const displayedRadarCards = useMemo<RadarCardItem[]>(() => {
     if (dynamicAgendaEvents.length > 0) {
-      return dynamicAgendaEvents.map((evt, index) => {
-        const isLive = evt.statusType === "live" || evt.statusLabel?.toLowerCase() === "live";
+      return dynamicAgendaEvents
+        .filter((evt) => {
+          const statusType = (evt.statusType || "").toLowerCase().trim();
+          const statusLabel = (evt.statusLabel || "").toLowerCase().trim();
+          const isCompleted =
+            statusType === "completed" ||
+            statusLabel === "completed" ||
+            statusType === "finished" ||
+            statusLabel === "finished" ||
+            statusType === "ended" ||
+            statusLabel === "ended" ||
+            statusType === "done" ||
+            statusLabel === "done" ||
+            evt.nodeColor === "gray";
+          return !isCompleted;
+        })
+        .map((evt, index) => {
+          const isLive = evt.statusType === "live" || evt.statusLabel?.toLowerCase() === "live";
 
-        let themeColor: RadarCardItem["themeColor"] = "purple";
-        if (evt.themeColor) {
-          themeColor = evt.themeColor;
-        } else if (isLive || evt.nodeColor === "emerald") {
-          themeColor = "emerald";
-        } else if (evt.statusType === "up_next" || evt.nodeColor === "amber") {
-          themeColor = "amber";
-        } else if (evt.statusType === "completed" || evt.nodeColor === "gray") {
-          themeColor = "cyan";
-        } else if (evt.nodeColor === "blue" || evt.statusType === "scheduled" || evt.statusType === "afternoon") {
-          themeColor = "purple";
-        } else {
-          const colors: RadarCardItem["themeColor"][] = ["purple", "cyan", "rose", "emerald", "amber"];
-          themeColor = colors[index % colors.length];
-        }
+          let themeColor: RadarCardItem["themeColor"] = "purple";
+          if (evt.themeColor) {
+            themeColor = evt.themeColor;
+          } else if (isLive || evt.nodeColor === "emerald") {
+            themeColor = "emerald";
+          } else if (evt.statusType === "up_next" || evt.nodeColor === "amber") {
+            themeColor = "amber";
+          } else if (evt.statusType === "completed" || evt.nodeColor === "gray") {
+            themeColor = "cyan";
+          } else if (evt.nodeColor === "blue" || evt.statusType === "scheduled" || evt.statusType === "afternoon") {
+            themeColor = "purple";
+          } else {
+            const colors: RadarCardItem["themeColor"][] = ["purple", "cyan", "rose", "emerald", "amber"];
+            themeColor = colors[index % colors.length];
+          }
 
-        const displayStatus = isLive
-          ? "LIVE"
-          : evt.statusType === "completed"
-          ? "COMPLETED"
-          : evt.statusType === "up_next"
-          ? "UP NEXT"
-          : evt.time || evt.statusLabel || "SCHEDULED";
+          const displayStatus = isLive
+            ? "LIVE"
+            : evt.statusType === "up_next"
+            ? "UP NEXT"
+            : evt.time || evt.statusLabel || "SCHEDULED";
 
-        return {
-          id: evt.id || `agenda_${index}`,
-          sport: evt.sport,
-          event: evt.subEvent || evt.sport,
-          round: evt.detail || evt.time,
-          subEvent: evt.subEvent,
-          detail: evt.detail,
-          time: evt.time,
-          status: displayStatus,
-          statusType: evt.statusType,
-          statusLabel: evt.statusLabel,
-          isLive,
-          icon: evt.icon || "🏆",
-          themeColor,
-          venue: evt.venue,
-          teams: evt.teams,
-          summary:
-            evt.summary ||
-            `${evt.sport} (${evt.subEvent || ""}) - ${evt.detail || ""}${
-              evt.venue ? ` at ${evt.venue}` : ""
-            }. Scheduled time: ${evt.time || "Today"}.`,
-          order: evt.order ?? index + 1,
-          active: evt.active,
-        };
-      });
+          return {
+            id: evt.id || `agenda_${index}`,
+            sport: evt.sport,
+            event: evt.subEvent || evt.sport,
+            round: evt.detail || evt.time,
+            subEvent: evt.subEvent,
+            detail: evt.detail,
+            time: evt.time,
+            status: displayStatus,
+            statusType: evt.statusType,
+            statusLabel: evt.statusLabel,
+            isLive,
+            icon: evt.icon || "🏆",
+            themeColor,
+            venue: evt.venue,
+            teams: evt.teams,
+            summary:
+              evt.summary ||
+              `${evt.sport} (${evt.subEvent || ""}) - ${evt.detail || ""}${
+                evt.venue ? ` at ${evt.venue}` : ""
+              }. Scheduled time: ${evt.time || "Today"}.`,
+            order: evt.order ?? index + 1,
+            active: evt.active,
+          };
+        });
     }
 
     if (radarCards.length > 0) {
-      return radarCards.map((rc, idx) => {
-        const isLive = rc.statusType === "live" || rc.status?.toLowerCase() === "live" || Boolean(rc.isLive);
-        return {
-          ...rc,
-          isLive,
-          status: rc.status || (isLive ? "LIVE" : rc.statusType === "completed" ? "COMPLETED" : rc.time || "SCHEDULED"),
-        };
-      });
+      return radarCards
+        .filter((rc) => {
+          const statusType = (rc.statusType || "").toLowerCase().trim();
+          const status = (rc.status || "").toLowerCase().trim();
+          const isCompleted =
+            statusType === "completed" ||
+            status === "completed" ||
+            statusType === "finished" ||
+            status === "finished" ||
+            statusType === "ended" ||
+            status === "ended" ||
+            statusType === "done" ||
+            status === "done";
+          return !isCompleted;
+        })
+        .map((rc, idx) => {
+          const isLive = rc.statusType === "live" || rc.status?.toLowerCase() === "live" || Boolean(rc.isLive);
+          return {
+            ...rc,
+            isLive,
+            status: rc.status || (isLive ? "LIVE" : rc.time || "SCHEDULED"),
+          };
+        });
     }
 
     return [];
