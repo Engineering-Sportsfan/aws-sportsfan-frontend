@@ -1191,9 +1191,49 @@ export default function ArenaEngagementModal({
   onToast,
 }: ArenaEngagementModalProps) {
   const { user } = useAuth();
-  const activeUserId = user?.userId || (user as any)?.actualUserId || user?.email;
-  const userEmail = user?.email || (user as any)?.userEmail || "";
-  const userName = user?.name || (user as any)?.userName || "";
+
+  // Dynamically resolve authenticated user ID, email, name, and avatar without any hardcoded values
+  const resolveCurrentUser = () => {
+    let u: any = user;
+    if (!u && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user");
+        if (stored) u = JSON.parse(stored);
+      } catch {}
+    }
+    const resolvedId =
+      u?.userId ||
+      u?.actualUserId ||
+      u?.uid ||
+      u?.id ||
+      u?.email ||
+      "";
+    const resolvedEmail = u?.email || u?.userEmail || "";
+    const resolvedName =
+      u?.name ||
+      u?.displayName ||
+      u?.userName ||
+      (resolvedEmail ? resolvedEmail.split("@")[0] : "SportsFan");
+    const resolvedAvatar =
+      u?.avatar ||
+      u?.photoURL ||
+      u?.picture ||
+      u?.image ||
+      "";
+
+    return {
+      userId: resolvedId,
+      userEmail: resolvedEmail,
+      userName: resolvedName,
+      userAvatar: resolvedAvatar,
+    };
+  };
+
+  const currentUser = resolveCurrentUser();
+  const activeUserId = currentUser.userId;
+  const userEmail = currentUser.userEmail;
+  const userName = currentUser.userName;
+  const userAvatar = currentUser.userAvatar;
 
   const [mounted, setMounted] = useState(false);
   const [activeType, setActiveType] = useState<EngagementType>(initialType);
@@ -1438,6 +1478,11 @@ export default function ArenaEngagementModal({
       }
 
       const now = Date.now();
+      const freshUser = resolveCurrentUser();
+      const creatorUid = freshUser.userId || activeUserId;
+      const creatorEmail = freshUser.userEmail || userEmail;
+      const creatorName = freshUser.userName || userName;
+      const creatorAvatar = freshUser.userAvatar || userAvatar;
 
       let payload: any = {
         type: activeType,
@@ -1445,12 +1490,14 @@ export default function ArenaEngagementModal({
         subtitle: subtitle.trim(),
         sport: sport.toLowerCase(),
         status: "active",
-        userId: activeUserId,
-        userEmail: userEmail,
-        userName: userName,
-        creatorId: activeUserId,
-        creatorEmail: userEmail,
-        creatorName: userName,
+        userId: creatorUid,
+        userEmail: creatorEmail,
+        userName: creatorName,
+        userAvatar: creatorAvatar,
+        creatorId: creatorUid,
+        creatorEmail: creatorEmail,
+        creatorName: creatorName,
+        creatorAvatar: creatorAvatar,
         postingTime: now,
         startTime: now,
         scheduledStartTime: now,
@@ -1615,18 +1662,16 @@ export default function ArenaEngagementModal({
           return;
         }
         const resolvedAuthorName =
-          userName ||
-          (user as any)?.displayName ||
-          (userEmail ? userEmail.split("@")[0] : "") ||
-          "SportsFan";
+          creatorName ||
+          (creatorEmail ? creatorEmail.split("@")[0] : "SportsFan");
         const resolvedAuthorAvatar =
+          creatorAvatar ||
           user?.avatar ||
           (user as any)?.photoURL ||
           (user as any)?.picture ||
-          (user as any)?.profilePic ||
-          "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
-        const resolvedAuthorHandle = userEmail
-          ? `@${userEmail.split("@")[0]}`
+          `https://api.dicebear.com/7.x/bottts/svg?seed=${creatorUid || "sportsfan"}`;
+        const resolvedAuthorHandle = creatorEmail
+          ? `@${creatorEmail.split("@")[0]}`
           : `@${resolvedAuthorName.toLowerCase().replace(/\s+/g, "")}`;
 
         payload.tags = ["🔥 MEME ARENA", "😂 VIRAL"];
@@ -2040,7 +2085,7 @@ export default function ArenaEngagementModal({
                         />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="col-span-1">
+                        {/* <div className="col-span-1">
                           <label className="text-[9px] font-bold text-white/50 block mb-1">Code</label>
                           <input
                             type="text"
@@ -2050,7 +2095,7 @@ export default function ArenaEngagementModal({
                             className={inputStyle}
                             maxLength={5}
                           />
-                        </div>
+                        </div> */}
                         <div className="col-span-2">
                           <label className="text-[9px] font-bold text-white/50 block mb-1">Key Stat</label>
                           <input
@@ -2080,7 +2125,7 @@ export default function ArenaEngagementModal({
                         />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="col-span-1">
+                        {/* <div className="col-span-1">
                           <label className="text-[9px] font-bold text-white/50 block mb-1">Code</label>
                           <input
                             type="text"
@@ -2090,7 +2135,7 @@ export default function ArenaEngagementModal({
                             className={inputStyle}
                             maxLength={5}
                           />
-                        </div>
+                        </div> */}
                         <div className="col-span-2">
                           <label className="text-[9px] font-bold text-white/50 block mb-1">Key Stat</label>
                           <input
@@ -2296,14 +2341,14 @@ export default function ArenaEngagementModal({
                         className={inputStyle}
                         required
                       />
-                      <input
+                      {/* <input
                         type="text"
                         value={predLeftCode}
                         onChange={(e) => setPredLeftCode(e.target.value.toUpperCase())}
                         placeholder="Code (e.g. IN)"
                         className={inputStyle}
                         maxLength={5}
-                      />
+                      /> */}
                     </div>
 
                     <div
@@ -2344,21 +2389,21 @@ export default function ArenaEngagementModal({
                         className={inputStyle}
                         required
                       />
-                      <input
+                      {/* <input
                         type="text"
                         value={predRightCode}
                         onChange={(e) => setPredRightCode(e.target.value.toUpperCase())}
                         placeholder="Code (e.g. LK)"
                         className={inputStyle}
                         maxLength={5}
-                      />
+                      /> */}
                     </div>
                   </div>
 
-                  <div>
-                    <label className={labelStyle}>Coin Stake</label>
+                  {/* <div>
+                    <label className={labelStyle}>SXP</label>
                     <div className="flex gap-2">
-                      {[10, 25].map((stake) => (
+                      {[10].map((stake) => (
                         <button
                           key={stake}
                           type="button"
@@ -2372,7 +2417,7 @@ export default function ArenaEngagementModal({
                         </button>
                       ))}
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               )}
 

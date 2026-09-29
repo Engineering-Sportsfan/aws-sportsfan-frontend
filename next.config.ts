@@ -84,6 +84,18 @@ const nextConfig = {
           destination: `${apiTarget}/api/flipline/:path*`,
         },
 
+        // Medal Tally
+
+        {
+          source: "/api/medal-tally",
+          destination: `${apiTarget}/api/medal-tally`,
+        },
+        {
+          source: "/api/medal-tally/:path*",
+          destination: `${apiTarget}/api/medal-tally/:path*`,
+        },
+
+
         // ── Cricket Articles Rewrites ──
         {
           source: "/api/cricket-articles",

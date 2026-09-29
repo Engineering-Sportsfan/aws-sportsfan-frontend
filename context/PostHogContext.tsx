@@ -11,7 +11,7 @@ if (typeof window !== 'undefined') {
     api_host: '/ingest',
     ui_host: 'https://us.posthog.com',
     person_profiles: 'identified_only',
-    capture_pageview: true, // Let's enable this as a fallback for the initial load!
+    capture_pageview: false, // Let's enable this as a fallback for the initial load!
   });
 }
 
