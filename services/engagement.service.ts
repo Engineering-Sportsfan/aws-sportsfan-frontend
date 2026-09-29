@@ -138,6 +138,8 @@ export const engagementService = {
         newlyAwarded: Boolean(res.data?.newlyAwarded),
         correctAnswer: res.data?.correctAnswer || null,
         winningChoiceId: res.data?.winningChoiceId || null,
+        leftPercentage: res.data?.leftPercentage !== undefined ? Number(res.data.leftPercentage) : undefined,
+        rightPercentage: res.data?.rightPercentage !== undefined ? Number(res.data.rightPercentage) : undefined,
       };
     } catch {
       return { hasVoted: false, selectedOptionId: null };
@@ -147,10 +149,10 @@ export const engagementService = {
   /**
    * Toggle like / unlike on an engagement
    */
-  toggleLikeEngagement: async (id: string, userId?: string): Promise<LikeResponse> => {
+  toggleLikeEngagement: async (id: string, userId?: string, meta?: Record<string, any>): Promise<LikeResponse> => {
     const res = await axios.post<LikeResponse>(
       `/api/engagements/${encodeURIComponent(id)}/like`,
-      { userId }
+      { userId, ...(meta || {}) }
     );
     cachedEngagements.clear();
     return res.data;

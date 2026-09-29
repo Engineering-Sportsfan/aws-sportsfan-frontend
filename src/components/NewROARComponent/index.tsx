@@ -58,7 +58,7 @@ export default function ROARApp() {
     return true;
   });
   const [onboarded, setOnboarded] = useState(false);
-  const [userBadge, setUserBadge] = useState("RISING_FAN");
+  const [userBadge, setUserBadge] = useState("ROOKIE_FAN");
   const [userSports, setUserSports] = useState<string[]>([]);
   const [currentUsername, setCurrentUsername] = useState("RoarUser");
   const [currentUserId, setCurrentUserId] = useState<string | undefined>();
@@ -88,7 +88,7 @@ useEffect(() => {
         const res = await axios.get(url);
         if (res.data?.success) {
           const u = res.data.user;
-          setUserBadge(u.badge || "RISING_FAN");
+          setUserBadge(u.badge || "ROOKIE_FAN");
           setUserSports(u.sports ?? []);
           setCurrentUsername(u.username || "RoarUser");
           setCurrentUserId(u.actualUserId);
@@ -114,7 +114,7 @@ useEffect(() => {
           // Onboarding disabled for Dew collaboration - allow all users into ROAR
           try {
             localStorage.setItem("roar_v2_complete", "1");
-            localStorage.setItem("roar_badge", u?.badge || "RISING_FAN");
+            localStorage.setItem("roar_badge", u?.badge || "ROOKIE_FAN");
             localStorage.setItem("roar_username", u?.username || "RoarUser");
             if (u?.avatarUrl) localStorage.setItem("roar_avatar_url", u.avatarUrl);
           } catch { }
@@ -126,10 +126,10 @@ useEffect(() => {
         }
       } catch (err: any) {
         const status = err.response?.status;
-        let hasLocal = false; let badge = "RISING_FAN";
+        let hasLocal = false; let badge = "ROOKIE_FAN";
         try {
           hasLocal = !!localStorage.getItem("roar_v2_complete");
-          badge = localStorage.getItem("roar_badge") || "RISING_FAN";
+          badge = localStorage.getItem("roar_badge") || "ROOKIE_FAN";
         } catch { }
 
         setOnboarded(true);
@@ -325,7 +325,7 @@ const openRecapForRoom = useCallback(async (room: Room) => {
         const res = await axios.get("/api/roar/profile", { withCredentials: true });
         if (res.data?.success) {
           setUserSports(res.data.user.sports ?? []);
-          setUserBadge(res.data.user.badge || "RISING_FAN");
+          setUserBadge(res.data.user.badge || "ROOKIE_FAN");
           setCurrentAvatarUrl(res.data.user.avatarUrl || undefined);
           try { if (res.data.user.avatarUrl) localStorage.setItem("roar_avatar_url", res.data.user.avatarUrl); } catch { }
         }
@@ -720,7 +720,7 @@ const openRecapForRoom = useCallback(async (room: Room) => {
 
   const completeOnboarding = useCallback(async (prefs: any) => {
     const username = prefs.username || "RoarUser";
-    const badge = prefs.badge || "RISING_FAN";
+    const badge = prefs.badge || "ROOKIE_FAN";
     setUserSports(prefs.sports ?? []); setUserBadge(badge); setCurrentUsername(username); setOnboarded(true);
     try { localStorage.setItem("roar_v2_complete", "1"); localStorage.setItem("roar_badge", badge); localStorage.setItem("roar_username", username); } catch { }
   }, []);

@@ -237,5 +237,7 @@ export interface CheckVoteStatusResponse {
   newlyAwarded?: boolean;
   correctAnswer?: string | null;
   winningChoiceId?: string | null;
+  leftPercentage?: number;
+  rightPercentage?: number;
 }
 
