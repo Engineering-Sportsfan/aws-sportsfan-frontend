@@ -139,12 +139,16 @@ function ProfileContent() {
   }
 
   return (
-    <div className="roar-root roar-profile-page">
+    <div className="roar-root roar-profile-page" style={{ height: "100vh", maxHeight: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", overscrollBehavior: "none" }}>
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
       <style dangerouslySetInnerHTML={{
         __html: `
           .roar-profile-page .screen-scroll {
             padding-top: 0 !important;
+            overscroll-behavior: none !important;
+          }
+          .roar-profile-page {
+            overscroll-behavior: none !important;
           }
         `
       }} />

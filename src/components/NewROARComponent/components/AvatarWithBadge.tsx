@@ -150,9 +150,18 @@ export default function AvatarWithBadge({ username, badge = "RISING_FAN", size =
           justifyContent: "center",
           fontSize: s.icon <= 16 ? 8 : s.icon <= 20 ? 10 : 12,
           zIndex: 10,
+          overflow: "hidden",
         }}
       >
-        {cfg.icon}
+        {cfg.iconSrc ? (
+          <img
+            src={cfg.iconSrc}
+            alt={cfg.name || "badge"}
+            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+          />
+        ) : (
+          cfg.icon
+        )}
       </div>
     </div>
   );
