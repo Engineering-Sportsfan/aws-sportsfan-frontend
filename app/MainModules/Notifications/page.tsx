@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { Check, Circle, AlertCircle, Info, Star } from "lucide-react";
+import { Check, Circle, AlertCircle, Info, Star, Swords, MessageSquare, Flame, Trophy, Sparkles, RefreshCw } from "lucide-react";
 
 const TOKENS = {
   bg: "#0b0b0f",
@@ -20,6 +20,8 @@ const TOKENS = {
 };
 
 const FEATURE_META: Record<string, { icon: any; label: string }> = {
+  fliparena: { icon: Swords, label: "Flip Arena" },
+  flipline: { icon: MessageSquare, label: "FlipLINE" },
   store: { icon: Info, label: "Store" },
   reward: { icon: Star, label: "Rewards" },
   general: { icon: AlertCircle, label: "General" }
@@ -31,10 +33,10 @@ const PRIORITY_COLOR: Record<string, string> = {
   LOW: "#71717a"
 };
 
-function timeAgo(dateString?: string) {
+function timeAgo(dateString?: string | number) {
   if (!dateString) return "";
   const now = new Date();
-  const past = new Date(dateString);
+  const past = new Date(typeof dateString === "number" ? dateString : dateString);
   const diffMs = now.getTime() - past.getTime();
   const diffMins = Math.floor(diffMs / 60000);
   if (diffMins < 1) return "Just now";
@@ -45,11 +47,39 @@ function timeAgo(dateString?: string) {
   return `${diffDays}d ago`;
 }
 
+function getClientDedupeKey(n: any): string {
+  if (!n) return "";
+  let baseId = (n.id || n.notification_id || "").trim();
+  if (!baseId && n.SK && typeof n.SK === "string" && n.SK.startsWith("NOTIF#")) {
+    baseId = n.SK.split("#").pop() || "";
+  }
+  if (baseId) {
+    const stripped = baseId
+      .replace(/_[^_@]+@[^.]+.*$/, "")
+      .replace(/_u_[^_]+$/, "")
+      .replace(/_anon_[^_]+$/, "")
+      .trim();
+    if (stripped.startsWith("ntf_") || stripped.length > 8) {
+      return `ID#${stripped}`;
+    }
+  }
+  if (n.aggregation_key) {
+    return `AGGR#${n.aggregation_key}`;
+  }
+  if (baseId) {
+    return `ID#${baseId}`;
+  }
+  const type = (n.notification_type || n.type || "unknown").toLowerCase();
+  const entity = n.entity_id || n.entityId || n.title || "";
+  const body = n.body || n.message || "";
+  return `SIG#${type}###${entity}###${body}`;
+}
+
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="text-xs font-semibold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap"
+      className="text-xs font-semibold px-3 py-1.5 rounded-full transition-colors whitespace-nowrap cursor-pointer"
       style={{
         background: active ? "linear-gradient(135deg,#c9115f,#cd620e)" : "rgba(255,255,255,0.05)",
         color: active ? "#ffffff" : "#a0a0ab",
@@ -63,57 +93,154 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
 
 export default function NotificationCenter() {
   const { user, loading: authLoading } = useAuth();
-  const email = user?.email || user?.userId;
-  const uid = user?.userId;
+
+  // Local storage cached user fallback for instant hydration
+  const [cachedUser, setCachedUser] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("auth_user");
+        if (stored) setCachedUser(JSON.parse(stored));
+      } catch {}
+    }
+  }, []);
+
+  const effectiveEmail = user?.email || cachedUser?.email || "";
+  const effectiveUid =
+    user?.userId || user?.actualUserId || user?.uid || cachedUser?.userId || cachedUser?.actualUserId || "";
+  const effectiveActualUserId =
+    user?.actualUserId || user?.userId || cachedUser?.actualUserId || cachedUser?.userId || "";
 
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [filter, setFilter] = useState("all");
 
-  const fetchNotifications = async () => {
-    if (authLoading) return;
-    setLoading(true);
-    if (!email && !uid) {
+  const fetchNotifications = useCallback(async (isManualRefresh = false) => {
+    if (isManualRefresh) setIsRefreshing(true);
+    else setLoading(true);
+
+    const emailParam = effectiveEmail;
+    const uidParam = effectiveUid;
+    const actualIdParam = effectiveActualUserId;
+
+    if (!emailParam && !uidParam && !actualIdParam) {
       setLoading(false);
+      setIsRefreshing(false);
       return;
     }
+
     try {
       const q = new URLSearchParams();
-      if (email) q.append("email", email);
-      if (uid) q.append("uid", uid);
-      const res = await fetch(`/api/notifications?${q.toString()}`);
+      if (emailParam) q.append("email", emailParam);
+      if (uidParam) q.append("uid", uidParam);
+      if (actualIdParam && actualIdParam !== uidParam) q.append("actualUserId", actualIdParam);
+
+      const res = await fetch(`/api/notifications?${q.toString()}`, {
+        cache: "no-store",
+        headers: { "Pragma": "no-cache" }
+      });
       const data = await res.json();
-      if (data.success && data.notifications) {
-        setItems(data.notifications);
+      if (data.success && Array.isArray(data.notifications)) {
+        const dedupeMap = new Map<string, any>();
+        for (const notif of data.notifications) {
+          const key = getClientDedupeKey(notif);
+          if (!dedupeMap.has(key)) {
+            dedupeMap.set(key, notif);
+          } else {
+            const existing = dedupeMap.get(key);
+            const isExistingRead = existing.isRead !== undefined ? existing.isRead : existing.read;
+            const isCurrentRead = notif.isRead !== undefined ? notif.isRead : notif.read;
+            if (isExistingRead && !isCurrentRead) {
+              dedupeMap.set(key, { ...existing, ...notif, read: false, isRead: false });
+            }
+          }
+        }
+        setItems(Array.from(dedupeMap.values()));
       }
     } catch (err) {
       console.error("Failed to fetch notifications:", err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
-  };
+  }, [effectiveEmail, effectiveUid, effectiveActualUserId]);
 
   useEffect(() => {
-    fetchNotifications();
-  }, [email, uid, authLoading]);
+    if (!authLoading) {
+      fetchNotifications();
+    }
+  }, [authLoading, effectiveEmail, effectiveUid, effectiveActualUserId, fetchNotifications]);
 
-  const unreadCount = items.filter((n) => !n.isRead).length;
-  // Normalize feature area mapping
-  const itemsWithFeature = items.map((n) => ({
-    ...n,
-    feature_area: n.category || (n.notification_type && n.notification_type.startsWith("store.") ? "store" : n.type || "general")
-  }));
-  const featuresPresent = [...new Set(itemsWithFeature.map((n) => n.feature_area))];
+  // Auto-refresh when window receives focus
+  useEffect(() => {
+    const onFocus = () => fetchNotifications(false);
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [fetchNotifications]);
+
+  const unreadCount = items.filter((n) => !(n.isRead !== undefined ? n.isRead : n.read)).length;
+
+  // Normalize feature area mapping & client-side deduplication guarantee
+  const dedupeClientMap = new Map<string, any>();
+  for (const n of items) {
+    const key = getClientDedupeKey(n);
+    if (!dedupeClientMap.has(key)) {
+      dedupeClientMap.set(key, n);
+    }
+  }
+
+  const itemsWithFeature = Array.from(dedupeClientMap.values()).map((n) => {
+    let feature_area = "general";
+    const nType = (n.notification_type || n.type || "").toLowerCase();
+
+    if (
+      nType.startsWith("fliparena") ||
+      nType.includes("arena") ||
+      nType.includes("quiz") ||
+      nType.includes("poll") ||
+      nType.includes("prediction") ||
+      nType.includes("battle") ||
+      nType.includes("meme")
+    ) {
+      feature_area = "fliparena";
+    } else if (nType.startsWith("flipline") || nType.includes("flipline")) {
+      feature_area = "flipline";
+    } else if (nType.startsWith("store") || n.category === "store") {
+      feature_area = "store";
+    } else if (
+      nType.startsWith("reward") ||
+      nType.includes("bonus") ||
+      nType.includes("points") ||
+      n.category === "reward"
+    ) {
+      feature_area = "reward";
+    } else if (n.category) {
+      feature_area = n.category;
+    }
+
+    const isRead =
+      n.isRead !== undefined ? Boolean(n.isRead) : n.read !== undefined ? Boolean(n.read) : false;
+
+    return {
+      ...n,
+      feature_area,
+      isRead,
+    };
+  });
+
+  const featuresPresent = Array.from(new Set(itemsWithFeature.map((n) => n.feature_area)));
   const visible = itemsWithFeature.filter(
     (n) => filter === "all" || n.feature_area === filter
   );
 
   async function markRead(notification: any, ctaClicked = false) {
-    const id = notification.id || notification.notification_id;
+    const notifId = notification.id || notification.notification_id;
     // Optimistic update — mark as read and optionally cta_clicked
     setItems((prev) =>
       prev.map((n) =>
-        (n.id === id || n.notification_id === id)
+        (n.id === notifId || n.notification_id === notifId)
           ? { ...n, isRead: true, ...(ctaClicked && { cta_clicked: true }) }
           : n
       )
@@ -124,12 +251,9 @@ export default function NotificationCenter() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "markRead",
-          id,
-          email,
-          // Send the exact PK and SK from the DynamoDB item so the backend
-          // can update directly without having to derive or look up the key.
-          // PK may use underscores (e.g. USER#rahul_yadav_sportsfan360_com)
-          // which never matches a derived USER#email format.
+          id: notifId,
+          email: effectiveEmail,
+          userId: effectiveUid,
           pk: notification.PK || notification.pk,
           sk: notification.SK || notification.sk || notification._sk,
           ctaClicked,
@@ -148,8 +272,8 @@ export default function NotificationCenter() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "markAllRead",
-          email,
-          uid  // also send uid so backend can query USER#uid PK variant
+          email: effectiveEmail,
+          userId: effectiveUid,
         })
       });
     } catch (err) {
@@ -158,10 +282,10 @@ export default function NotificationCenter() {
   }
 
   function handleCta(n: any) {
-    // Mark as read AND set cta_clicked=true in a single PATCH call
     markRead(n, true);
-    if (n.cta_target || n.ctaTarget) {
-      window.location.href = n.cta_target || n.ctaTarget;
+    const target = n.cta_target || n.ctaTarget;
+    if (target) {
+      window.location.href = target;
     }
   }
 
@@ -202,12 +326,21 @@ export default function NotificationCenter() {
             >
               {String(unreadCount).padStart(2, "0")} NEW
             </span>
+
+            <button
+              onClick={() => fetchNotifications(true)}
+              disabled={isRefreshing}
+              title="Refresh Notifications"
+              className="p-1 rounded-full text-zinc-400 hover:text-white transition-colors cursor-pointer"
+            >
+              <RefreshCw size={13} className={isRefreshing ? "animate-spin text-amber-400" : ""} />
+            </button>
           </div>
 
           {unreadCount > 0 && (
             <button
               onClick={markAllRead}
-              className="flex items-center gap-1 text-xs font-semibold transition-colors"
+              className="flex items-center gap-1 text-xs font-semibold transition-colors cursor-pointer"
               style={{ color: TOKENS.textMuted }}
               onMouseEnter={(e) =>
                 (e.currentTarget.style.color = TOKENS.textPrimary)
@@ -247,7 +380,7 @@ export default function NotificationCenter() {
 
         {/* Notifications */}
         <div className="max-h-[calc(100vh-180px)] overflow-y-auto">
-          {authLoading ? (
+          {authLoading && !effectiveEmail && !effectiveUid ? (
             <div className="py-10 flex flex-col items-center gap-2">
               <div
                 className="w-5 h-5 rounded-full border-2 animate-spin"
@@ -263,7 +396,7 @@ export default function NotificationCenter() {
                 Verifying session...
               </span>
             </div>
-          ) : (!email && !uid) ? (
+          ) : (!effectiveEmail && !effectiveUid) ? (
             <div className="py-12 flex flex-col items-center gap-2 px-6 text-center">
               <AlertCircle
                 size={22}
@@ -283,7 +416,7 @@ export default function NotificationCenter() {
                 Please log in to view your notification feed.
               </span>
             </div>
-          ) : loading ? (
+          ) : loading && items.length === 0 ? (
             <div className="py-10 flex flex-col items-center gap-2">
               <div
                 className="w-5 h-5 rounded-full border-2 animate-spin"
@@ -308,33 +441,33 @@ export default function NotificationCenter() {
                 strokeWidth={1.5}
               />
 
-                <span
-                  className="text-sm font-semibold"
-                  style={{ color: TOKENS.textPrimary }}
-                >
-                  All caught up
-                </span>
+              <span
+                className="text-sm font-semibold"
+                style={{ color: TOKENS.textPrimary }}
+              >
+                All caught up
+              </span>
 
-                <span
-                  className="text-xs"
-                  style={{ color: TOKENS.textFaint }}
-                >
-                  Nothing here yet — check back during the next match.
-                </span>
-              </div>
-            ) : (
-              visible.map((n) => {
-                const meta =
-                  FEATURE_META[n.feature_area] ?? {
-                    icon: Circle,
-                    label: n.feature_area,
-                  };
+              <span
+                className="text-xs"
+                style={{ color: TOKENS.textFaint }}
+              >
+                Nothing here yet — create or participate in FlipArena cards to trigger notifications!
+              </span>
+            </div>
+          ) : (
+            visible.map((n) => {
+              const meta =
+                FEATURE_META[n.feature_area] ?? {
+                  icon: Circle,
+                  label: n.feature_area,
+                };
 
-                const Icon = meta.icon;
+              const Icon = meta.icon;
 
-                return (
+              return (
                 <div
-                  key={n.notification_id || n.id}
+                  key={getClientDedupeKey(n) || n.notification_id || n.id || n.SK}
                   onClick={() =>
                     !n.isRead && markRead(n)
                   }
@@ -346,13 +479,12 @@ export default function NotificationCenter() {
                       : TOKENS.panelRow,
                   }}
                   onMouseEnter={(e) =>
-                  (e.currentTarget.style.background =
-                    TOKENS.rowHover)
+                    (e.currentTarget.style.background = TOKENS.rowHover)
                   }
                   onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = n.isRead
-                    ? "transparent"
-                    : TOKENS.panelRow)
+                    (e.currentTarget.style.background = n.isRead
+                      ? "transparent"
+                      : TOKENS.panelRow)
                   }
                 >
                   <div
@@ -364,14 +496,25 @@ export default function NotificationCenter() {
                   />
 
                   <div
-                    className="relative flex items-center justify-center w-8 h-8 rounded-lg shrink-0 mt-0.5"
+                    className="relative flex items-center justify-center w-8 h-8 rounded-lg shrink-0 mt-0.5 overflow-hidden"
                     style={{ background: TOKENS.borderSoft }}
                   >
-                    <Icon
-                      size={14}
-                      color={TOKENS.textMuted}
-                      strokeWidth={2}
-                    />
+                    {n.actor_avatar ? (
+                      <img
+                        src={n.actor_avatar}
+                        alt={n.actor_name || "User"}
+                        className="w-full h-full object-cover rounded-lg"
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <Icon
+                        size={14}
+                        color={TOKENS.textMuted}
+                        strokeWidth={2}
+                      />
+                    )}
 
                     {n.live && (
                       <span
@@ -387,14 +530,14 @@ export default function NotificationCenter() {
                         className="text-sm font-bold leading-snug"
                         style={{ color: TOKENS.textPrimary }}
                       >
-                        {n.title}
+                        {n.title || "Notification"}
                       </span>
 
                       <span
                         className="font-mono text-[10px] shrink-0 mt-0.5"
                         style={{ color: TOKENS.textFaint }}
                       >
-                        {timeAgo(n.sent_at)}
+                        {timeAgo(n.sent_at || n.createdAt)}
                       </span>
                     </div>
 
@@ -402,22 +545,24 @@ export default function NotificationCenter() {
                       className="text-xs leading-relaxed mt-0.5 pr-2"
                       style={{ color: TOKENS.textMuted }}
                     >
-                      {n.body}
+                      {n.body || n.message}
                     </p>
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleCta(n);
-                      }}
-                      className="mt-2 text-xs font-bold px-3 py-1.5 rounded-full transition-transform active:scale-95"
-                      style={{
-                        background: TOKENS.gold,
-                        color: TOKENS.bg,
-                      }}
-                    >
-                      {n.cta_label}
-                    </button>
+                    {(n.cta_label || n.ctaLabel || n.cta_target || n.ctaTarget) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCta(n);
+                        }}
+                        className="mt-2 text-xs font-bold px-3 py-1.5 rounded-full transition-transform active:scale-95 cursor-pointer"
+                        style={{
+                          background: TOKENS.gold,
+                          color: TOKENS.bg,
+                        }}
+                      >
+                        {n.cta_label || n.ctaLabel || "View"}
+                      </button>
+                    )}
                   </div>
 
                   {!n.isRead && (
@@ -427,11 +572,11 @@ export default function NotificationCenter() {
                     />
                   )}
                 </div>
-                );
-              })
+              );
+            })
           )}
         </div>
       </div>
     </div>
   );
-}
+}
