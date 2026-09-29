@@ -690,7 +690,7 @@ export function RoarJourneySection({
                     <div
                         style={{
                             background:
-                                "linear-gradient(135deg, #E91E8C 0%, #FF6B35 100%)",
+                                "linear-gradient(135deg, #E91E8C 0%, #2e1b15ff 100%)",
                             borderRadius: 8,
                             padding: "3px 10px",
                         }}

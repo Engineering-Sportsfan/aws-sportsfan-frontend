@@ -2635,7 +2635,7 @@
 //       <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2 gap-2 flex-wrap">
 //         <div>
 //           <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
-//           <p className="text-[10px] text-white/35 mt-0.5">Official SF360 events · Earn +2 PTS participation · +10 PTS for correct answers</p>
+//           <p className="text-[10px] text-white/35 mt-0.5">Official SF360 events · Earn +2 SXPs participation · +10 SXPs for correct answers</p>
 //         </div>
 
 //         <div className="flex items-center gap-2 flex-wrap">
@@ -2665,7 +2665,7 @@
 
 //           <button
 //             onClick={() => handleOpenCreate("meme")}
-//             title="Add Sports Meme (+2 PTS)"
+//             title="Add Sports Meme (+2 SXPs)"
 //             className="px-2.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-500/20 via-pink-500/20 to-purple-500/20 hover:from-orange-500/30 hover:to-purple-500/30 border border-orange-500/40 text-orange-300 flex items-center gap-1.5 font-extrabold text-[10.5px] transition-all active:scale-95 cursor-pointer shadow-sm shrink-0"
 //           >
 //             <Flame size={13} className="text-orange-400 animate-pulse" />
@@ -2674,7 +2674,7 @@
 
 //           <button
 //             onClick={() => handleOpenCreate("quiz")}
-//             title="Create Quiz, Battle or Poll (+2 PTS)"
+//             title="Create Quiz, Battle or Poll (+2 SXPs)"
 //             className="p-2 rounded-xl bg-gradient-to-r from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30 border border-pink-500/30 text-pink-300 flex items-center gap-1 font-extrabold text-[11px] transition-all active:scale-95 cursor-pointer shadow-sm shrink-0"
 //           >
 //             <Plus size={13} strokeWidth={2.8} />
@@ -2733,7 +2733,7 @@
 //               }
 //               className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"
 //             >
-//               <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 PTS)
+//               <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 SXPs)
 //             </button>
 //           </div>
 //         ) : (
@@ -2906,8 +2906,8 @@ import LeaderboardOverlayModal from "@/src/components/NewHomeComponents/Leaderbo
 import ArenaEngagementModal from "./ArenaEngagementModal";
 
 // ─── Standard Points Constants ──────────────────────────────────────────────
-const PARTICIPATION_POINTS = 2; // Every section awards strictly +2 PTS for participation
-const CORRECT_OPTION_BONUS = 10; // Quiz, Poll, Prediction correct answer awards +10 PTS bonus
+const PARTICIPATION_POINTS = 2; // Every section awards strictly +2 SXPs for participation
+const CORRECT_OPTION_BONUS = 10; // Quiz, Poll, Prediction correct answer awards +10 SXPs bonus
 
 interface FlipArenaProps {
   selectedSport: string;
@@ -3023,7 +3023,7 @@ function getEngagementShareUrl(item: EngagementItem): string {
   return `${origin}/MainModules/FlipArena?itemId=${encodeURIComponent(item.id)}&type=${encodeURIComponent(itemType)}`;
 }
 
-// ─── 1. Fan Battle Card Component (+2 PTS Participation) ────────────────────
+// ─── 1. Fan Battle Card Component (+2 SXPs Participation) ────────────────────
 function DynamicFanBattleCard({
   item,
   userId,
@@ -3162,7 +3162,7 @@ function DynamicFanBattleCard({
         totalVotes: res?.totalVotes ?? (left.votes + right.votes + 1),
       };
       setResult(calculatedResult);
-      onToast(`+${PARTICIPATION_POINTS} PTS earned for voting in Fan Battle! ⚔️`);
+      onToast(`+${PARTICIPATION_POINTS} SXPs earned for voting in Fan Battle! ⚔️`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
@@ -3241,7 +3241,7 @@ function DynamicFanBattleCard({
         <div className="flex items-center gap-1.5">
           <span className="text-[#FF3D57]">⚔️ FAN BATTLE</span>
           {/* <span>•</span> */}
-          {/* <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 +2 PTS / VOTE</span> */}
+          {/* <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 +2 SXPs / VOTE</span> */}
           {isScheduled && (
             <>
               <span>•</span>
@@ -3376,7 +3376,7 @@ function LiveCountdown({
   return <>{render(msLeft)}</>;
 }
 
-// ─── 2. Quiz Card Component (+2 PTS Participation, +10 PTS Correct) ────────
+// ─── 2. Quiz Card Component (+2 SXPs Participation, +10 SXPs Correct) ────────
 function DynamicQuizCard({
   item,
   userId,
@@ -3597,8 +3597,8 @@ function DynamicQuizCard({
       }
       onToast(
         isRight
-          ? `🎉 Correct! +${earned} PTS (+${PARTICIPATION_POINTS} played, +${CORRECT_OPTION_BONUS} bonus)`
-          : `💡 +${earned} PTS for participating!`
+          ? `🎉 Correct! +${earned} SXPs (+${PARTICIPATION_POINTS} played, +${CORRECT_OPTION_BONUS} bonus)`
+          : `💡 +${earned} SXPs for participating!`
       );
     } catch (err: any) {
       const prevOpt = err?.response?.data?.selectedOptionId || optId;
@@ -3692,7 +3692,7 @@ function DynamicQuizCard({
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-purple-400">🧠 QUIZ</span>
           {/* <span>•</span> */}
-          {/* <span className="text-amber-400">⭐ +2 PTS / PLAY • +10 PTS CORRECT</span> */}
+          {/* <span className="text-amber-400">⭐ +2 SXPs / PLAY • +10 SXPs CORRECT</span> */}
           {/* {frequencyMinutes && (
             <>
               <span>•</span>
@@ -3801,8 +3801,8 @@ function DynamicQuizCard({
                 <span>{isCorrect ? "🎉" : "💡"}</span>
                 <span>
                   {isCorrect
-                    ? `Correct! +${CORRECT_OPTION_BONUS} PTS Bonus (+${PARTICIPATION_POINTS + CORRECT_OPTION_BONUS} PTS Total)`
-                    : `+${PARTICIPATION_POINTS} PTS for participating · The correct answer is ${correctOptionId}`}
+                    ? `Correct! +${CORRECT_OPTION_BONUS} SXPs Bonus (+${PARTICIPATION_POINTS + CORRECT_OPTION_BONUS} SXP Total)`
+                    : `+${PARTICIPATION_POINTS} SXPs for participating · The correct answer is ${correctOptionId}`}
                 </span>
               </div>
 
@@ -3857,7 +3857,7 @@ function DynamicQuizCard({
   );
 }
 
-// ─── 3. Poll Card Component (+2 PTS Participation, +10 PTS Correct Option) ──
+// ─── 3. Poll Card Component (+2 SXPs Participation, +10 SXPs Correct Option) ──
 function DynamicPollCard({
   item,
   userId,
@@ -3973,7 +3973,7 @@ function DynamicPollCard({
           }
           // Only dispatch points if newly awarded right now by the server
           if (res.newlyAwarded === true) {
-            onToast(`🏆 Correct Answer! +${CORRECT_OPTION_BONUS} PTS Accuracy Bonus Awarded! 🎉`);
+            onToast(`🏆 Correct Answer! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🎉`);
             if (typeof window !== "undefined") {
               window.dispatchEvent(
                 new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
@@ -4004,7 +4004,7 @@ function DynamicPollCard({
             setServerIsCorrect(true);
             localStorage.setItem(bonusClaimKey, "true");
             if (res?.newlyAwarded === true) {
-              onToast(`🏆 Correct Answer! +${CORRECT_OPTION_BONUS} PTS Accuracy Bonus Awarded! 🎉`);
+              onToast(`🏆 Correct Answer! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🎉`);
               if (typeof window !== "undefined") {
                 window.dispatchEvent(
                   new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
@@ -4028,7 +4028,7 @@ function DynamicPollCard({
                   setServerIsCorrect(true);
                   localStorage.setItem(bonusClaimKey, "true");
                   if (claimRes?.newlyAwarded === true) {
-                    onToast(`🏆 Correct Answer! +${CORRECT_OPTION_BONUS} PTS Accuracy Bonus Awarded! 🎉`);
+                    onToast(`🏆 Correct Answer! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🎉`);
                     if (typeof window !== "undefined") {
                       window.dispatchEvent(
                         new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
@@ -4074,7 +4074,7 @@ function DynamicPollCard({
           prev.map((o) => (o.id === optId ? { ...o, votes: (o.votes || 0) + 1 } : o))
         );
       }
-      onToast(`+${PARTICIPATION_POINTS} PTS earned for voting! 📊`);
+      onToast(`+${PARTICIPATION_POINTS} SXPs earned for voting! 📊`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
@@ -4192,10 +4192,10 @@ function DynamicPollCard({
                 <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
                   <span className="flex items-center gap-1.5">
                     <span>🎉</span>
-                    <span>Correct Answer! You earned +10 PTS Bonus (+12 PTS Total)</span>
+                    <span>Correct Answer! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
                   </span>
                   <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                    +10 PTS
+                    +10 SXPs
                   </span>
                 </div>
               ) : correctAnswer ? (
@@ -4204,7 +4204,7 @@ function DynamicPollCard({
                     Poll closed
                     {/* Winning answer: <strong className="text-emerald-400">{correctAnswer}</strong> */}
                   </span>
-                  <span className="text-[10px] text-white/40 shrink-0">+2 PTS participation</span>
+                  <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
                 </div>
               ) : null}
             </motion.div>
@@ -4218,7 +4218,7 @@ function DynamicPollCard({
               className="text-[11px] font-black text-center text-blue-400 bg-blue-500/10 border border-blue-500/20 p-2.5 rounded-xl mb-3 flex items-center justify-center gap-1.5"
             >
               <span>🔒</span>
-              <span>+2 PTS earned!</span>
+              <span>+2 SXPs earned!</span>
             </motion.div>
           )}
 
@@ -4298,7 +4298,7 @@ function DynamicPollCard({
   );
 }
 
-// ─── 4. Prediction Card Component (+2 PTS Participation, +10 PTS Correct) ───
+// ─── 4. Prediction Card Component (+2 SXPs Participation, +10 SXPs Correct) ───
 function DynamicPredictionCard({
   item,
   userId,
@@ -4473,7 +4473,7 @@ function DynamicPredictionCard({
           }
           // Only dispatch points if newly awarded right now by the server
           if (res.newlyAwarded === true) {
-            onToast(`🎯 Prediction Won! +${CORRECT_OPTION_BONUS} PTS Accuracy Bonus Awarded! 🏆`);
+            onToast(`🎯 Prediction Won! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🏆`);
             if (typeof window !== "undefined") {
               window.dispatchEvent(
                 new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
@@ -4504,7 +4504,7 @@ function DynamicPredictionCard({
             setServerIsCorrect(true);
             localStorage.setItem(bonusClaimKey, "true");
             if (res?.newlyAwarded === true) {
-              onToast(`🎯 Prediction Won! +${CORRECT_OPTION_BONUS} PTS Accuracy Bonus Awarded! 🏆`);
+              onToast(`🎯 Prediction Won! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🏆`);
               if (typeof window !== "undefined") {
                 window.dispatchEvent(
                   new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
@@ -4528,7 +4528,7 @@ function DynamicPredictionCard({
                   setServerIsCorrect(true);
                   localStorage.setItem(bonusClaimKey, "true");
                   if (claimRes?.newlyAwarded === true) {
-                    onToast(`🎯 Prediction Won! +${CORRECT_OPTION_BONUS} PTS Accuracy Bonus Awarded! 🏆`);
+                    onToast(`🎯 Prediction Won! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🏆`);
                     if (typeof window !== "undefined") {
                       window.dispatchEvent(
                         new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
@@ -4573,7 +4573,7 @@ function DynamicPredictionCard({
         coinsLocked: res?.coinsLocked || pred.coinStake || 25,
       };
       setResult(computedResult);
-      onToast(`+${PARTICIPATION_POINTS} PTS earned for prediction! 🎯`);
+      onToast(`+${PARTICIPATION_POINTS} SXPs earned for prediction! 🎯`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
@@ -4729,10 +4729,10 @@ function DynamicPredictionCard({
               <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
                 <span className="flex items-center gap-1.5">
                   <span>🎉</span>
-                  <span>Prediction Won! You earned +10 PTS Bonus (+12 PTS Total)</span>
+                  <span>Prediction Won! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
                 </span>
                 <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                  +10 PTS
+                  +10 SXPs
                 </span>
               </div>
             ) : (
@@ -4741,13 +4741,13 @@ function DynamicPredictionCard({
                   Prediction closed 
                   {/* <strong className="text-amber-400">{winningTarget || "Ended"}</strong> */}
                 </span>
-                <span className="text-[10px] text-white/40 shrink-0">+2 PTS participation</span>
+                <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
               </div>
             )
           ) : (
             <div className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
               <span>🔒</span>
-              <span>+2 PTS earned!</span>
+              <span>+2 SXPs earned!</span>
             </div>
           )}
         </motion.div>
@@ -4777,7 +4777,7 @@ function DynamicPredictionCard({
   );
 }
 
-// ─── 5. Meme Card Component (5 Heat Rating Tiers +2 PTS Participation) ───────
+// ─── 5. Meme Card Component (5 Heat Rating Tiers +2 SXPs Participation) ───────
 function DynamicMemeCard({
   item,
   userId,
@@ -4958,7 +4958,7 @@ function DynamicMemeCard({
       if (res?.totalVotes !== undefined) setTotalMemeVotes(res.totalVotes);
       if (res?.reactions) setReactions(res.reactions);
 
-      onToast(`🔥 Voted ${finalRating.toUpperCase()}! +${PARTICIPATION_POINTS} PTS earned!`);
+      onToast(`🔥 Voted ${finalRating.toUpperCase()}! +${PARTICIPATION_POINTS} SXPs earned!`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
@@ -5080,13 +5080,13 @@ function DynamicMemeCard({
           />
           <div className="min-w-0">
             <h4 className="text-xs font-black text-white truncate flex items-center gap-1.5">
-              <span>Meme by {authorName}</span>
-              <span className="text-white/40 text-[10px] font-semibold font-mono truncate">{authorHandle}</span>
+              <span>Meme</span>
+              {/* <span className="text-white/40 text-[10px] font-semibold font-mono truncate">{authorHandle}</span> */}
             </h4>
             <div className="flex items-center gap-1.5 text-[9px] font-bold text-white/40">
               <span>{getTimeAgo(getEngagementPostingTime(item))}</span>
-              <span>•</span>
-              <span className="text-orange-400 font-extrabold uppercase">🔥 MEME ARENA</span>
+              {/* <span>•</span> */}
+              {/* <span className="text-orange-400 font-extrabold uppercase">🔥 MEME ARENA</span> */}
             </div>
           </div>
         </div>
@@ -5246,7 +5246,7 @@ function DynamicMemeCard({
           {voted ? (
             <>
               <Check size={14} className="text-emerald-400" />
-              <span>Voted {selectedRating.toUpperCase()} (+2 PTS)</span>
+              <span>Voted {selectedRating.toUpperCase()} (+2 SXPs)</span>
             </>
           ) : (
             <>
@@ -5425,8 +5425,8 @@ export default function FlipArena({
     if (!isEdit) {
       showToast(
         savedItem.type === "meme"
-          ? `Meme dropped into the Arena! 🔥 +${PARTICIPATION_POINTS} PTS earned`
-          : `Event published! +${PARTICIPATION_POINTS} PTS earned 🚀`
+          ? `Meme dropped into the Arena! 🔥 +${PARTICIPATION_POINTS} SXPs earned`
+          : `Event published! +${PARTICIPATION_POINTS} SXPs earned 🚀`
       );
     } else {
       showToast("Event updated successfully!");
@@ -5577,7 +5577,7 @@ export default function FlipArena({
             </button>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-base font-black tracking-tight">Flip Arena 🏟️</h1>
+                <h1 className="text-base font-black tracking-tight">FlipARENA 🏟️</h1>
                 <span className="text-[9px] font-black bg-gradient-to-r from-pink-500 to-orange-500 text-white px-2 py-0.5 rounded-full tracking-wider animate-pulse">
                   LIVE
                 </span>
@@ -5603,7 +5603,7 @@ export default function FlipArena({
                 color: "rgba(255,255,255,0.4)",
               }}
             >
-              <span className="text-sm">⚡</span> FlipLine
+              <span className="text-sm">⚡</span> FlipLINE
             </button>
             <button
               className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer border-none"
@@ -5613,7 +5613,7 @@ export default function FlipArena({
                 boxShadow: "0 4px 15px rgba(255, 61, 87, 0.25)",
               }}
             >
-              <span className="text-sm">🏟️</span> Flip Arena
+              <span className="text-sm">🏟️</span> FlipARENA
             </button>
           </div>
         </div>
@@ -5622,7 +5622,7 @@ export default function FlipArena({
       <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2 gap-2 flex-wrap">
         <div>
           <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
-          <p className="text-[10px] text-white/35 mt-0.5">Official SF360 events · Earn +2 PTS participation · +10 PTS for correct answers</p>
+          <p className="text-[10px] text-white/35 mt-0.5">Earn +2 SXPs participation · +10 SXPs for correct answers</p>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
@@ -5645,7 +5645,7 @@ export default function FlipArena({
                   color: filter === tab ? "#fff" : "rgba(255,255,255,0.45)",
                 }}
               >
-                {tab === "all" ? "All" : tab === "meme" ? "🔥 Meme" : tab}
+                {tab === "all" ? "All" : tab === "meme" ? "Meme" : tab}
               </button>
             ))}
           </div>
@@ -5704,7 +5704,7 @@ export default function FlipArena({
               }
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"
             >
-              <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 PTS)
+              <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 SXPs)
             </button>
           </div>
         ) : (

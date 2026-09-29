@@ -1465,14 +1465,14 @@ export function FlipCardItem({
 
           {/* Inline Image or Video/Audio media */}
           {(card.image || card.videoUrl || card.mediaType === 'audio') && (
-            <div className="relative group rounded-xl overflow-hidden mt-2 bg-[#050608] border border-white/10 flex items-center justify-center w-full max-h-[380px] sm:max-h-[420px]">
+            <div className="relative group rounded-2xl overflow-hidden mt-2 bg-[#050608] border border-white/10 flex items-center justify-center w-full max-h-[500px] sm:max-h-[560px]">
               {card.mediaType === 'video' && card.videoUrl ? (
-                <div className="relative w-full aspect-video max-h-[380px] sm:max-h-[420px] bg-black flex items-center justify-center">
+                <div className="relative w-full aspect-video max-h-[500px] sm:max-h-[560px] bg-black flex items-center justify-center">
                   <video
                     src={card.videoUrl}
                     controls
                     preload="metadata"
-                    className="w-full h-full max-h-[380px] sm:max-h-[420px] object-contain mx-auto bg-black"
+                    className="w-full h-full max-h-[500px] sm:max-h-[560px] object-contain mx-auto bg-black"
                   />
                   <button
                     onClick={(e) => {
@@ -1520,10 +1520,10 @@ export function FlipCardItem({
                 </div>
               ) : (
                 <div
-                  className="relative w-full max-h-[380px] sm:max-h-[420px] flex items-center justify-center overflow-hidden cursor-pointer"
+                  className="relative w-full max-h-[500px] sm:max-h-[560px] flex items-center justify-center overflow-hidden cursor-pointer bg-black/40"
                   onClick={() => setIsFullscreen(true)}
                 >
-                  {/* Ambient background blur (Facebook desktop style for letterboxed aspect ratios) */}
+                  {/* Ambient background blur (modern dynamic feed style for all aspect ratios) */}
                   {card.image && (
                     <img
                       src={typeof card.image === 'object' ? card.image.src : card.image}
@@ -1533,12 +1533,12 @@ export function FlipCardItem({
                     />
                   )}
 
-                  {/* Sharp centered foreground image */}
+                  {/* Dynamic responsive sharp foreground image */}
                   {card.image && (
                     <img
                       src={typeof card.image === 'object' ? card.image.src : card.image}
                       alt="Moment media"
-                      className="relative z-10 w-auto max-w-full h-auto max-h-[380px] sm:max-h-[420px] object-contain mx-auto block cursor-zoom-in rounded-lg"
+                      className="relative z-10 w-auto max-w-full h-auto max-h-[500px] sm:max-h-[560px] object-contain mx-auto block cursor-zoom-in rounded-xl transition-all duration-300"
                     />
                   )}
 

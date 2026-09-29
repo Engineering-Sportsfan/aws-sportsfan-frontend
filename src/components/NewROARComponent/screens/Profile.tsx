@@ -1,25 +1,82 @@
-"use client";
+
+
+
+// // src\components\NewROARComponent\screens\Profile.tsx
 
 // "use client";
-// import { useState, useEffect } from "react";
+// import { trackProfileSignalCreated } from "@/lib/analytics";
+// import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 // import { motion, AnimatePresence } from "framer-motion";
 // import axios from "axios";
 // import Image from "next/image";
-// import AvatarWithBadge from "../components/AvatarWithBadge";
+// import AvatarWithBadge, { sanitizeAvatarUrl } from "../components/AvatarWithBadge";
 // import ActivityFeed from "../components/ActivityFeed";
 // import { BADGE_CONFIG, BADGE_DETAIL, BADGE_LABELS, BADGES_LIST, RIVAL, CURRENT_USER } from "../constants";
 // import { fmt } from "../utils";
 // import BackButton from "../../ReusableComponent/BackButton";
 // import { useActivity } from "@/context/ActivityContext";
+// import { useAuth } from "@/context/AuthContext";
 // import Link from "next/link";
+// import { useRouter } from "next/navigation";
+// import {
+//   BOT_TAGS,
+//   BOT_USERNAMES,
+//   BOT_BIOS,
+//   BOT_AVATARS,
+//   BOT_ROLES,
+//   BOT_SAMPLE_POSTS,
+//   getBotCanonicalName,
+//   isBotName,
+// } from "@/src/constants/bots";
+// import { EXPERT_TAGS, getExpertCanonicalName, EXPERT_BIOS, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 // import { RoarJourneySection } from "../components/RoarJourneySection";
+// import { useLeaderboard } from "@/context/LeaderboardContext";
 
+// const EXPERT_STYLE_PRESETS = [
+//   {
+//     gradient: "linear-gradient(to bottom, #2b0b2e 0%, #0d0614 100%)",
+//     glowColor: "rgba(233, 30, 140, 0.4)",
+//     badgeBg: "rgba(233, 30, 140, 0.2)",
+//     badgeTextColor: "#FF52B5",
+//   },
+//   {
+//     gradient: "linear-gradient(to bottom, #3b1c0b 0%, #120805 100%)",
+//     glowColor: "rgba(249, 115, 22, 0.4)",
+//     badgeBg: "rgba(249, 115, 22, 0.2)",
+//     badgeTextColor: "#FFA07A",
+//   },
+//   {
+//     gradient: "linear-gradient(to bottom, #0b1f3b 0%, #030814 100%)",
+//     glowColor: "rgba(6, 182, 212, 0.4)",
+//     badgeBg: "rgba(6, 182, 212, 0.2)",
+//     badgeTextColor: "#00E5FF",
+//   },
+// ];
+
+// function formatVideoTimestamp(isoDate?: string | number): string {
+//   if (!isoDate) return "";
+//   const date = typeof isoDate === "number" ? new Date(isoDate) : new Date(isoDate);
+//   if (isNaN(date.getTime())) return "";
+
+//   const diffMs = Date.now() - date.getTime();
+//   const diffMins = Math.floor(diffMs / 60000);
+//   const diffHours = Math.floor(diffMins / 60);
+//   const diffDays = Math.floor(diffHours / 24);
+
+//   if (diffMins < 1) return "Just now";
+//   if (diffMins < 60) return `${diffMins}m ago`;
+//   if (diffHours < 24) return `${diffHours}h ago`;
+//   if (diffDays < 7) return `${diffDays}d ago`;
+//   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+// }
 
 // const FIRST_ROAR_BADGE_SRC = "/images/badges/postl1.png";
 // const toBadgeImageSrc = (imageUrl: string) => {
 //   if (/^(https?:)?\/\//.test(imageUrl) || imageUrl.startsWith("/")) return imageUrl;
 //   return `/images/badges/${imageUrl}`;
 // };
+
+
 
 // // ─── Avatar images (base64) 
 // const avatar1 = "data:image/png;base64,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";
@@ -64,6 +121,13 @@
 //   accuracy?: number;
 // }
 
+// function calculateLevelData(totalXp: number) {
+//   let level = 1, need = 1000, acc = 0;
+//   while (totalXp >= acc + need) { acc += need; level++; need = level * 1000; }
+//   const cur = totalXp - acc;
+//   return { level, xpRemaining: need - cur, pct: Math.min(100, Math.round((cur / need) * 100)) };
+// }
+
 // // ─── Helpers ─────────────────────────────────────────────────────────────────
 // function AccuracyRing({ percent }: { percent: number }) {
 //   const p = isNaN(percent) ? 0 : percent;
@@ -104,9 +168,92 @@
 //   );
 // }
 
+
+// function IdentityCard({
+//   avatarSrc, name, subtitle, tags, bio, editable, onEditClick,
+// }: {
+//   avatarSrc?: string | null;
+//   name: string;
+//   subtitle: string;
+//   tags: string[];
+//   bio: string;
+//   editable?: boolean;
+//   onEditClick?: () => void;
+// }) {
+//   return (
+//     <div style={{
+//       margin: "-48px 14px 24px",
+//       padding: "0 4px 18px",
+//       position: "relative",
+//     }}>
+//       {editable && (
+//         <button onClick={onEditClick} aria-label="Edit"
+//           style={{
+//             position: "absolute", top: 0, right: 4,
+//             width: 30, height: 30, borderRadius: "50%",
+//             background: "var(--accent-magenta)", border: "none",
+//             display: "flex", alignItems: "center", justifyContent: "center",
+//             cursor: "pointer", zIndex: 2,
+//           }}>
+//           <PencilIcon />
+//         </button>
+//       )}
+
+//       <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 14 }}>
+//         <div style={{
+//           width: 92, height: 92, borderRadius: "50%", overflow: "hidden",
+//           flexShrink: 0, background: "#1a1a2e",
+//           border: "3px solid rgba(10,10,16,0.97)",
+//         }}>
+//           {avatarSrc ? (
+//             <img src={avatarSrc} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+//           ) : null}
+//         </div>
+
+//         {/* name / role / tags all in this one column, stacked as 3 rows */}
+//         <div style={{ minWidth: 0, paddingRight: 36, paddingTop: 22, display: "flex", flexDirection: "column", gap: 6 }}>
+//           <h2 className="font-display" style={{ fontSize: 17, fontWeight: 900, color: "#fff", margin: 0, letterSpacing: "0.02em" }}>
+//             {name.toUpperCase()}
+//           </h2>
+//           <p style={{ fontSize: 12.5, color: "rgba(255,255,255,0.65)", lineHeight: 1.5, margin: 0 }}>
+//             {subtitle}
+//           </p>
+//           {tags.length > 0 && (
+//             <div style={{
+//               display: "flex",
+//               flexWrap: "nowrap",
+//               gap: 4,
+//               marginTop: 2,
+//               overflowX: "auto",
+//               maxWidth: "100%",
+//             }}>
+//               {tags.map((t) => (
+//                 <span key={t} style={{
+//                   fontSize: 10.5, fontWeight: 700, color: "#f472b6",
+//                   background: "rgba(233,30,140,0.15)", border: "1px solid rgba(233,30,140,0.3)",
+//                   padding: "4px 8px", borderRadius: 20,
+//                   whiteSpace: "nowrap",
+//                   flexShrink: 0,
+//                 }}>
+//                   {t}
+//                 </span>
+//               ))}
+//             </div>
+//           )}
+//         </div>
+//       </div>
+
+//       {/* bio starts clearly below the avatar + name/role/tags block */}
+//       <p style={{ fontSize: 13, color: "rgba(255,255,255,0.8)", lineHeight: 1.65, margin: 0 }}>
+//         {bio}
+//       </p>
+//     </div>
+//   );
+// }
+
 // const buildShareUrl = (user: RoarShareUser) => {
 //   if (typeof window === "undefined") return "";
-//   const url = new URL(`${window.location.origin}/MainModules/ROAR`);
+//   const url = new URL(`${window.location.origin}/MainModules/HomePage`);
 //   const key = user?.handle || user?.username || user?.id || user?.userId;
 //   if (key) url.searchParams.set("profile", String(key).replace(/^@/, ""));
 //   return url.toString();
@@ -119,6 +266,21 @@
 //     `${label} with ${fmt(user?.reputationScore || 0)} rep and ${user?.accuracy || 0}% prediction accuracy.`,
 //     `View profile: ${buildShareUrl(user)}`,
 //   ].join("\n");
+// };
+
+// const truncateText = (text: string, max = 90) => {
+//   if (!text) return "";
+//   return text.length > max ? text.slice(0, max).trimEnd() + "…" : text;
+// };
+
+// const formatActivityTimestamp = (ts?: number) => {
+//   if (!ts) return "Just now";
+//   return new Date(ts).toLocaleString(undefined, {
+//     month: "short",
+//     day: "numeric",
+//     hour: "numeric",
+//     minute: "2-digit",
+//   });
 // };
 
 // const copyToClipboard = async (text: string) => {
@@ -140,8 +302,6 @@
 // };
 
 // // ─── Native share-with-image helpers ──────────────────────────────────────────
-// // Checks whether the browser can actually share a file (not just text/url).
-// // This is the correct feature-detect for "will WhatsApp get the image" on mobile Chrome.
 // const supportsFileShare = (file: File): boolean => {
 //   return (
 //     typeof navigator !== "undefined" &&
@@ -150,8 +310,6 @@
 //   );
 // };
 
-// // Draws the profile share card: profilecard.png background + stat numbers overlaid.
-// // Mirrors the approach already used in RoarJourneySection.generateShareCard.
 // function generateProfileShareCard(stats: {
 //   predictions: number;
 //   debates: number;
@@ -166,8 +324,6 @@
 //     if (!ctx) return resolve(null);
 
 //     const bg = new window.Image();
-//     // profilecard.png lives in /public/images, so it's same-origin — crossOrigin is
-//     // defensive only and won't block anything as long as it stays same-origin.
 //     bg.crossOrigin = "anonymous";
 //     bg.src = "/images/profilecard.png";
 
@@ -201,17 +357,111 @@
 //   });
 // }
 
-// // ─── Component 
+// function resolveUsername(userObj: any, fallbackName?: string): string {
+//   if (fallbackName && !fallbackName.startsWith("Fan_") && !fallbackName.startsWith("Guest_") && fallbackName !== "Fan" && fallbackName !== "RoarUser") {
+//     return fallbackName;
+//   }
+//   const raw = userObj?.username || userObj?.displayName || userObj?.name;
+//   if (raw && !["Fan", "RoarUser", "ROARFAN", "ROAR fan", "ROAR Fan"].includes(raw)) {
+//     return raw;
+//   }
+//   const email = userObj?.email;
+//   if (email && typeof email === "string" && email.includes("@")) {
+//     const localPart = email.split("@")[0];
+//     const cleaned = localPart
+//       .replace(/[._-]+/g, " ")
+//       .trim()
+//       .split(" ")
+//       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+//       .join(" ");
+//     if (cleaned) return cleaned;
+//   }
+//   const uid = userObj?.actualUserId || userObj?.userId;
+//   if (uid && typeof uid === "string") {
+//     const cleaned = uid
+//       .replace(/^USER#/i, "")
+//       .replace(/_com$|_org$|_net$/i, "")
+//       .replace(/[._-]+/g, " ")
+//       .trim()
+//       .split(" ")
+//       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+//       .join(" ");
+//     if (cleaned) return cleaned;
+//   }
+//   return fallbackName || "Fan";
+// }
+
+// // ─── Component
 // export default function Profile({
 //   userBadge, setUserBadge, onCompose, onToast, setOnboarded, onNavigateTab,
 //   viewingProfile, onClose,
 //   isViewingOther, fanData, onBack,
 // }: Props) {
 
+//   const router = useRouter();
 //   const isOtherProfile = !!(viewingProfile || isViewingOther);
 //   const handleBack = onBack ?? onClose;
 
+//   const [activeExpertTab, setActiveExpertTab] = useState<"videos" | "posts">("videos");
+//   const [expertFlipCards, setExpertFlipCards] = useState<any[]>([]);
+//   const [expertFlipLoading, setExpertFlipLoading] = useState(false);
+//   const [expertVideos, setExpertVideos] = useState<any[]>([]);
+//   const [expertVideosLoading, setExpertVideosLoading] = useState(false);
+
 //   const { activities, loading: activityLoading, refreshActivities, profileStats } = useActivity();
+//   const { user: authUser, getUserDisplayName, loading: authLoading } = useAuth();
+
+//   const loggedInUserId = useMemo(() => {
+//     const sanitize = (id: string | null | undefined): string | null => {
+//       if (!id) return null;
+//       const s = String(id).trim();
+//       if (!s || s === "undefined" || s === "null") return null;
+//       return s.includes("@") || s.includes(".") ? s.replace(/[@.]/g, "_") : s;
+//     };
+
+//     if (authUser?.actualUserId) return sanitize(authUser.actualUserId);
+//     if (authUser?.userId) return sanitize(authUser.userId);
+//     if (authUser?.email) return sanitize(authUser.email);
+//     if (typeof window !== "undefined") {
+//       try {
+//         const stored = localStorage.getItem("auth_user");
+//         if (stored) {
+//           const p = JSON.parse(stored);
+//           if (p.actualUserId) return sanitize(p.actualUserId);
+//           if (p.userId) return sanitize(p.userId);
+//           if (p.email) return sanitize(p.email);
+//         }
+//       } catch { }
+//       const uid = localStorage.getItem("userId");
+//       if (uid) return sanitize(uid);
+//       const roarUser = localStorage.getItem("roar_username");
+//       if (roarUser && !["Fan", "RoarUser", "ROARFAN", "ROAR fan"].includes(roarUser)) return roarUser;
+//     }
+//     return null;
+//   }, [authUser]);
+
+//   const headerDisplayName = useMemo(() => {
+//     if (authUser?.name) return authUser.name;
+//     if (typeof getUserDisplayName === "function") {
+//       const dn = getUserDisplayName();
+//       if (dn && !dn.startsWith("Fan_") && !dn.startsWith("Guest_")) return dn;
+//     }
+//     if (typeof window !== "undefined") {
+//       try {
+//         const stored = localStorage.getItem("auth_user");
+//         if (stored) {
+//           const parsed = JSON.parse(stored);
+//           if (parsed?.name) return parsed.name;
+//         }
+//       } catch { }
+//       const roarUser = localStorage.getItem("roar_username");
+//       if (roarUser) return roarUser;
+//     }
+//     if (!authLoading && typeof getUserDisplayName === "function") {
+//       return getUserDisplayName();
+//     }
+//     return "";
+//   }, [authLoading, authUser?.name, getUserDisplayName]);
 
 //   const [profileMetadata, setProfileMetadata] = useState<any>(null);
 //   const [loading, setLoading] = useState(true);
@@ -219,6 +469,56 @@
 
 //   const [fetchedActivities, setFetchedActivities] = useState<any[]>([]);
 //   const [fetchedActivitiesLoading, setFetchedActivitiesLoading] = useState(false);
+//   const [activityCounts, setActivityCounts] = useState<Record<string, number>>({});
+
+//   // Activity pagination: fetch in rolling 7-day windows instead of everything at once
+//   const ACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+//   const [activityWindowStart, setActivityWindowStart] = useState<number>(Date.now() - ACTIVITY_WINDOW_MS);
+//   const [activityHasMore, setActivityHasMore] = useState(true);
+//   const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
+//   const [activityUserId, setActivityUserId] = useState<string | null>(null);
+//   const activityIdsRef = useRef<Set<string>>(new Set());
+
+//   // const BOT_USERNAMES = ["Dolly", "Radha", "Krishna"];
+//   // const BOT_BIOS: Record<string, string> = {
+//   //   Dolly: "SportsFan360's AI companion — answers your questions and keeps the room buzzing.",
+//   //   Radha: "SportsFan360 bot bringing hot takes, banter, and match-day energy to every room.",
+//   //   Krishna: "SportsFan360 bot here to spark debates and keep the predictions coming.",
+//   // };
+//   // const BOT_AVATARS: Record<string, string> = {
+//   //  Dolly: "/images/dolly.png",
+//   // Room name lookup: roomId -> { name, icon } (from /api/roar/rooms), used to label
+//   // activity cards with the actual room name instead of falling back to "General Room".
+
+
+//   const [roomsById, setRoomsById] = useState<Record<string, { name: string; icon?: string }>>({});
+//   const EXTENDED_BOT_PROFILE_NAMES = ["Arjun Mehta", "Neha Iyer", "Riya Kapoor", "Kabir Sharma"];
+
+//   const toExtendedBotUserId = (canonicalName: string) =>
+//     `bot_${canonicalName.trim().toLowerCase().replace(/\s+/g, "_")}`;
+
+//   useEffect(() => {
+//     const fetchRooms = async () => {
+//       try {
+//         const res = await axios.get("/api/roar/rooms");
+//         if (res.data?.success) {
+//           const map: Record<string, { name: string; icon?: string }> = {};
+//           (res.data.rooms || []).forEach((r: any) => {
+//             if (r.roomId) map[r.roomId] = { name: r.name, icon: r.icon };
+//           });
+//           setRoomsById(map);
+//         }
+//       } catch {
+//         // non-critical — activity cards will fall back to metadata/"General Room"
+//       }
+//     };
+//     fetchRooms();
+//   }, []);
+
+
+
+//   const getRoomName = (roomId?: string, fallback?: string) =>
+//     (roomId && roomsById[roomId]?.name) || fallback || "General Room";
 
 //   const [badgeModal, setBadgeModal] = useState<any>(null);
 //   const [editOpen, setEditOpen] = useState(false);
@@ -228,49 +528,434 @@
 //   const [fanMatchOpen, setFanMatchOpen] = useState(false);
 
 //   const [editName, setEditName] = useState("");
+//   const [editUniversity, setEditUniversity] = useState("");
 //   const [editFavPlayer, setEditFavPlayer] = useState("");
 //   const [editAbout, setEditAbout] = useState("");
 //   const [editShowPredHistory, setEditShowPredHistory] = useState(true);
 //   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
-//   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(null);
-//   const [activeActivityTab, setActiveActivityTab] = useState<"posts" | "predictions" | "debates">("posts");
+//   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(() => {
+//     if (typeof window !== "undefined") {
+//       return localStorage.getItem("roar_avatar_url");
+//     }
+//     return null;
+//   });
+//   const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
+//   const [uploadingCover, setUploadingCover] = useState(false);
+//   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+//   const [activeActivityTab, setActiveActivityTab] = useState<"all" | "posts" | "predictions" | "debates">("all");
+
+//   // NEW: top-level section tabs shown after the Roar Journey section
+//   const [activeMainTab, setActiveMainTab] = useState<"overview" | "badges" | "activity">("overview");
 
 //   const [globalTier, setGlobalTier] = useState<any>(null);
 //   const [globalTierProgress, setGlobalTierProgress] = useState(0);
 //   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
 //   const [specialBadges, setSpecialBadges] = useState<any[]>([]);
 
-//   const fetchActivities = async (actualUserId: string) => {
+//   // Refetch on return-to-screen, since posting happens elsewhere (ComposeModal's
+//   // parent room screen) with no direct link back to this component — the only
+//   // reliable signal that "something may have changed" is the user navigating
+//   // back here.
+//   useEffect(() => {
+//     const reload = () => {
+//       if (document.visibilityState !== "visible") return;
+//       refreshActivities(); // clears ActivityContext's 30s cache
+
+//       if (!isOtherProfile) {
+//         const profileQuery = loggedInUserId ? `?userId=${encodeURIComponent(loggedInUserId)}` : "";
+//         axios.get(`/api/roar/profile${profileQuery}`, { withCredentials: true })
+//           .then((res) => {
+//             if (!res.data?.success) return;
+//             const apiUser = res.data.user || {};
+//             const resolved = resolveUsername(apiUser);
+//             const rawBackendAvatar =
+//               apiUser.avatarUrl ||
+//               apiUser.avatar ||
+//               apiUser.photoURL ||
+//               apiUser.image ||
+//               apiUser.profilePicture ||
+//               authUser?.avatar ||
+//               authUser?.photoURL;
+//             const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
+
+//             setProfileMetadata((prev: any) => {
+//               return {
+//                 ...prev,
+//                 user: {
+//                   ...apiUser,
+//                   avatarUrl: backendAvatar || apiUser.avatarUrl || prev?.user?.avatarUrl,
+//                   username: resolved || apiUser.username,
+//                   university: apiUser.university || apiUser.institution || prev?.user?.university || prev?.user?.institution || "",
+//                 },
+//                 predictions: res.data.predictions ?? apiUser.predictions ?? prev?.predictions ?? [],
+//                 hotTakes: res.data.hotTakes ?? apiUser.hotTakes ?? prev?.hotTakes ?? [],
+//                 debates: res.data.debates ?? apiUser.debates ?? prev?.debates ?? [],
+//                 posts: res.data.posts ?? apiUser.posts ?? prev?.posts ?? [],
+//               };
+//             });
+//             if (apiUser.university || apiUser.institution) {
+//               setEditUniversity(apiUser.university || apiUser.institution);
+//             }
+//             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
+//             if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
+//             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
+//             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
+//             if (backendAvatar) {
+//               setSelectedAvatar(backendAvatar);
+//               try { localStorage.setItem("roar_avatar_url", backendAvatar); } catch { }
+//             }
+
+//             const actualUid = res.data.user?.actualUserId || res.data.user?.userId || loggedInUserId;
+//             if (actualUid) fetchActivities(actualUid);
+//           })
+//           .catch(() => { });
+//       }
+//     };
+
+//     document.addEventListener("visibilitychange", reload);
+//     window.addEventListener("focus", reload);
+//     return () => {
+//       document.removeEventListener("visibilitychange", reload);
+//       window.removeEventListener("focus", reload);
+//     };
+//   }, [isOtherProfile, loggedInUserId, authUser]);
+
+//   const fetchActivities = async (
+//     actualUserId: string,
+//     opts?: { before?: number; append?: boolean }
+//   ) => {
 //     if (!actualUserId) return;
-//     setFetchedActivitiesLoading(true);
+//     const endDate = opts?.before ?? Date.now();
+//     const startDate = endDate - ACTIVITY_WINDOW_MS;
+//     const isAppend = !!opts?.append;
+//     const isInitial = !isAppend && !opts?.before;
+//     const setLoadingFlag = isAppend ? setLoadingMoreActivities : setFetchedActivitiesLoading;
+
+//     setLoadingFlag(true);
+//     if (!isAppend) activityIdsRef.current = new Set();
 //     try {
-//       const actRes = await axios.get(
-//         `/api/user-activity?userId=${encodeURIComponent(actualUserId)}&limit=200`
-//       );
+//       const url = isInitial
+//         ? `/api/user-activity?userId=${encodeURIComponent(actualUserId)}&limit=200`
+//         : `/api/user-activity?userId=${encodeURIComponent(actualUserId)}&limit=200&startDate=${startDate}&endDate=${endDate}`;
+//       const actRes = await axios.get(url);
 //       if (actRes.data?.success) {
-//         setFetchedActivities(actRes.data.activities || []);
+//         if (actRes.data.counts) {
+//           setActivityCounts((prev) => ({ ...prev, ...actRes.data.counts }));
+//         }
+//         const rawItems: any[] = actRes.data.activities || [];
+
+//         // Client-side safety net: enforce the requested window regardless of
+//         // what the API actually returned when paging older items.
+//         const newItems = isInitial
+//           ? rawItems
+//           : rawItems.filter((a: any) => {
+//             const ts = a?.createdAt;
+//             if (!ts) return true;
+//             return ts >= startDate && ts <= endDate;
+//           });
+
+//         const deduped = newItems.filter((a: any) => a?.id != null && !activityIdsRef.current.has(a.id));
+//         deduped.forEach((a: any) => activityIdsRef.current.add(a.id));
+
+//         setFetchedActivities((prev) => (isAppend ? [...prev, ...deduped] : deduped));
+//         setActivityHasMore(rawItems.length > 0);
+//         setActivityWindowStart(startDate);
+//         setActivityUserId(actualUserId);
+//       } else if (!isAppend) {
+//         setFetchedActivities([]);
 //       }
 //     } catch {
-//       setFetchedActivities([]);
+//       // non-critical — activity list will remain empty or previously loaded state
 //     } finally {
-//       setFetchedActivitiesLoading(false);
+//       setLoadingFlag(false);
 //     }
+//   };
+
+//   // Loads the next-older 7-day window and appends it to what's already shown.
+//   const handleLoadMoreActivities = async () => {
+//     if (!activityUserId || loadingMoreActivities || !activityHasMore) return;
+//     await fetchActivities(activityUserId, { before: activityWindowStart, append: true });
 //   };
 
 //   useEffect(() => {
 //     const fetchProfileData = async () => {
 //       setLoading(true);
 //       setFetchedActivities([]);
+//       setActivityWindowStart(Date.now() - ACTIVITY_WINDOW_MS);
+//       setActivityHasMore(true);
+//       setActivityUserId(null);
+//       activityIdsRef.current = new Set();
+//       setCoverPhoto(null);
 //       try {
+//         // ── 0. Check if viewing a bot profile ───────────────────────────
+//         // const botName =
+//         //   getBotCanonicalName(viewingProfile) ||
+//         //   getBotCanonicalName(fanData?.username) ||
+//         //   getBotCanonicalName(fanData?.displayName) ||
+//         //   (fanData?.isBot ? fanData.username : null);
+
+//         const botName =
+//           getBotCanonicalName(viewingProfile) ||
+//           getBotCanonicalName(fanData?.username) ||
+//           getBotCanonicalName(fanData?.displayName) ||
+//           getBotCanonicalName(fanData?.userId) ||
+//           (fanData?.isBot ? fanData.username : null);
+
+//         if (botName) {
+//           let botAvatar = BOT_AVATARS[botName] || "/images/dolly.png";
+//           let botBio = BOT_BIOS[botName] || "SportsFan360 bot — automated fan companion.";
+//           let botRole = BOT_ROLES[botName] || "AI Match Companion";
+//           const samplePosts = BOT_SAMPLE_POSTS[botName] || [];
+
+//           // Arjun Mehta / Neha Iyer / Riya Kapoor / Kabir Sharma have no row in
+//           // /api/roar/profile — fetch their real data from /api/profile instead.
+//           if (EXTENDED_BOT_PROFILE_NAMES.includes(botName)) {
+//             try {
+//               const extRes = await axios.get(
+//                 `/api/profile?userId=${encodeURIComponent(toExtendedBotUserId(botName))}`
+//               );
+//               if (extRes.data && !extRes.data.error) {
+//                 botAvatar = extRes.data.avatarUrl || botAvatar;
+//                 botBio = extRes.data.description || botBio;
+//                 botRole = extRes.data.subtitle || extRes.data.role || botRole;
+//               }
+//             } catch {
+//               // fall back silently to local BOT_AVATARS/BOT_BIOS/BOT_ROLES above
+//             }
+//           }
+
+//           const initialActivities = samplePosts.map((sp) => ({
+//             id: sp.id,
+//             type: "ROAR_POST",
+//             label: sp.text,
+//             createdAt: Date.now() - 3600000,
+//             metadata: {
+//               statement: sp.text,
+//               roomName: "FlipLine Updates",
+//             },
+//             likes: sp.likes,
+//             commentsCount: sp.commentsCount,
+//           }));
+
+//           setProfileMetadata({
+//             user: {
+//               username: botName,
+//               displayName: botName,
+//               avatarUrl: botAvatar,
+//               avatar: botAvatar,
+//               about: botBio,
+//               badge: "BOT",
+//               isBot: true,
+//               favPlayer: "All Stars",
+//               role: botRole,
+//               predictions: [],
+//               hotTakes: [],
+//               debates: [],
+//               posts: samplePosts.map((sp) => ({
+//                 id: sp.id,
+//                 content: sp.text,
+//                 createdAt: Date.now() - 3600000,
+//                 type: "post",
+//                 likes: sp.likes,
+//               })),
+//               activityCounts: {
+//                 ROAR_POST: samplePosts.length,
+//               },
+//             },
+//             rival: null,
+//             predictions: [],
+//             hotTakes: [],
+//             debates: [],
+//             posts: samplePosts.map((sp) => ({
+//               id: sp.id,
+//               content: sp.text,
+//               createdAt: Date.now() - 3600000,
+//               type: "post",
+//               likes: sp.likes,
+//             })),
+//           });
+//           setUserBadge?.("BOT");
+//           setSelectedAvatar(botAvatar);
+//           setFetchedActivities(initialActivities);
+//           setActivityCounts({ ROAR_POST: samplePosts.length });
+//           setLoading(false);
+
+//           // Asynchronously query flipline to see if there are any live/db cards by this bot
+//           try {
+//             const actRes = await axios.get("/api/flipline");
+//             const allCards = Array.isArray(actRes.data?.data) ? actRes.data.data : [];
+//             const matchedCards = allCards.filter((c: any) => {
+//               const auth = (c.author || "").trim().toLowerCase();
+//               const bLow = botName.toLowerCase();
+//               if (auth === bLow) return true;
+//               if (bLow === "dolly" && (auth === "flip" || c.type === "bot")) return true;
+//               return false;
+//             });
+
+//             if (matchedCards.length > 0) {
+//               const mappedCardActivities = matchedCards.map((c: any, i: number) => ({
+//                 id: c.id || `flipline_card_${i}`,
+//                 type: "ROAR_POST",
+//                 label: c.content,
+//                 createdAt: c.timeMs || (c.createdAt ? Number(c.createdAt) || Date.parse(c.createdAt) : Date.now()),
+//                 metadata: {
+//                   statement: c.content,
+//                   roomName: c.source || "FlipLine",
+//                 },
+//                 likes: c.likes || 0,
+//                 commentsCount: c.commentsCount || (c.comments ? c.comments.length : 0),
+//               }));
+
+//               const combined = [...mappedCardActivities, ...initialActivities];
+//               setFetchedActivities(combined);
+//               setActivityCounts({ ROAR_POST: combined.length });
+//               setProfileMetadata((prev: any) => ({
+//                 ...prev,
+//                 posts: combined.map((a: any) => ({
+//                   id: a.id,
+//                   content: a.label || a.metadata?.statement,
+//                   createdAt: a.createdAt,
+//                   type: "post",
+//                   likes: a.likes,
+//                 })),
+//               }));
+//             }
+//           } catch {
+//             // Keep sample posts if flipline fetch fails
+//           }
+
+//           return;
+//         }
+
+//         // ── 0.1 Check if viewing an expert profile ───────────────────────
+//         const expertName =
+//           getExpertCanonicalName(viewingProfile) ||
+//           getExpertCanonicalName(fanData?.username) ||
+//           getExpertCanonicalName(fanData?.displayName) ||
+//           getExpertCanonicalName(fanData?.userId) ||
+//           (fanData?.isExpert ? fanData.username : null);
+
+//         if (expertName) {
+//           const expertAvatar = EXPERT_AVATARS[expertName] || "/images/dolly.png";
+//           const expertBio = EXPERT_BIOS[expertName] || "SportsFan360 Expert Commentator & Analyst";
+//           const expertRole = EXPERT_ROLES[expertName] || "Expert";
+
+//           setProfileMetadata({
+//             user: {
+//               username: expertName,
+//               displayName: expertName,
+//               avatarUrl: expertAvatar,
+//               avatar: expertAvatar,
+//               about: expertBio,
+//               badge: expertRole,
+//               isExpert: true,
+//               role: expertRole,
+//               favPlayer: "All Stars",
+//               predictions: [],
+//               hotTakes: [],
+//               debates: [],
+//               posts: [],
+//               activityCounts: { ROAR_POST: 0 },
+//             },
+//             rival: null,
+//             predictions: [],
+//             hotTakes: [],
+//             debates: [],
+//             posts: [],
+//           });
+//           setUserBadge?.(expertRole);
+//           setSelectedAvatar(expertAvatar);
+//           setLoading(false);
+
+//           // Asynchronously query flipline to get cards for this expert
+//           try {
+//             setExpertFlipLoading(true);
+//             const actRes = await axios.get("/api/flipline");
+//             const allCards = Array.isArray(actRes.data?.data) ? actRes.data.data : [];
+//             const matchedCards = allCards.filter((c: any) => {
+//               const authorCanon = getExpertCanonicalName(c.author) || getExpertCanonicalName(c.source);
+//               return authorCanon === expertName;
+//             });
+
+//             setExpertFlipCards(matchedCards);
+
+//             if (matchedCards.length > 0) {
+//               const mappedCardActivities = matchedCards.map((c: any, i: number) => ({
+//                 id: c.id || `flipline_card_${i}`,
+//                 type: "ROAR_POST",
+//                 label: c.content,
+//                 createdAt: c.timeMs || (c.createdAt ? Number(c.createdAt) || Date.parse(c.createdAt) : Date.now()),
+//                 metadata: {
+//                   statement: c.content,
+//                   roomName: c.source || "FlipLine",
+//                 },
+//                 likes: c.likes || 0,
+//                 commentsCount: c.commentsCount || (c.comments ? c.comments.length : 0),
+//               }));
+
+//               setFetchedActivities(mappedCardActivities);
+//               setActivityCounts({ ROAR_POST: mappedCardActivities.length });
+//               setProfileMetadata((prev: any) => ({
+//                 ...prev,
+//                 posts: mappedCardActivities.map((a: any) => ({
+//                   id: a.id,
+//                   content: a.label || a.metadata?.statement,
+//                   createdAt: a.createdAt,
+//                   type: "post",
+//                   likes: a.likes,
+//                 })),
+//                 user: {
+//                   ...prev?.user,
+//                   activityCounts: { ROAR_POST: mappedCardActivities.length },
+//                 },
+//               }));
+//             }
+//           } catch {
+//             // Silently keep empty if flipline fails
+//           } finally {
+//             setExpertFlipLoading(false);
+//           }
+
+//           return;
+//         }
+
 //         if (!isOtherProfile) {
-//           const res = await axios.get("/api/roar/profile", { withCredentials: true });
+//           const profileQuery = loggedInUserId ? `?userId=${encodeURIComponent(loggedInUserId)}` : "";
+//           const res = await axios.get(`/api/roar/profile${profileQuery}`, { withCredentials: true });
 //           if (res.data?.success) {
+//             const apiUser = res.data.user || {};
+//             const initialName =
+//               headerDisplayName ||
+//               (typeof window !== "undefined" ? localStorage.getItem("roar_username") : null) ||
+//               resolveUsername(apiUser) ||
+//               apiUser.username ||
+//               "";
+
+//             const rawBackendAvatar =
+//               apiUser.avatarUrl ||
+//               apiUser.avatar ||
+//               apiUser.photoURL ||
+//               apiUser.image ||
+//               apiUser.profilePicture ||
+//               authUser?.avatar ||
+//               authUser?.photoURL;
+//             const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
+
 //             setProfileMetadata({
-//               user: res.data.user || {},
+//               user: {
+//                 ...apiUser,
+//                 avatarUrl: backendAvatar || apiUser.avatarUrl,
+//                 username: initialName || apiUser.username || "",
+//               },
 //               rival: res.data.rival || null,
+//               predictions: res.data.predictions || apiUser.predictions || [],
+//               hotTakes: res.data.hotTakes || apiUser.hotTakes || [],
+//               debates: res.data.debates || apiUser.debates || [],
+//               posts: res.data.posts || apiUser.posts || [],
 //             });
 //             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
-//             if (res.data.user?.username) setEditName(res.data.user.username);
+//             if (initialName) setEditName(initialName);
+//             setEditUniversity(res.data.user?.university ?? res.data.user?.institution ?? "");
 //             setEditFavPlayer(res.data.user?.favPlayer ?? "");
 //             setEditAbout(res.data.user?.about ?? "");
 //             setEditShowPredHistory(res.data.user?.showPredHistory !== false);
@@ -279,12 +964,15 @@
 //             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
 //             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
 //             if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
-//             if (res.data.user?.avatarUrl) {
-//               setSelectedAvatar(res.data.user.avatarUrl);
-//               try { localStorage.setItem("roar_avatar_url", res.data.user.avatarUrl); } catch { }
+//             if (backendAvatar) {
+//               setSelectedAvatar(backendAvatar);
+//               try { localStorage.setItem("roar_avatar_url", backendAvatar); } catch { }
+//             }
+//             if (res.data.user?.coverPhotoUrl) {
+//               setCoverPhoto(res.data.user.coverPhotoUrl);
 //             }
 
-//             const actualUid = res.data.user?.actualUserId;
+//             const actualUid = res.data.user?.actualUserId || res.data.user?.userId || loggedInUserId;
 //             if (actualUid) {
 //               await fetchActivities(actualUid);
 //             }
@@ -294,12 +982,31 @@
 //         }
 
 //         if (fanData) {
+//           const resolvedName = resolveUsername(fanData);
+//           const rawBackendAvatar =
+//             fanData.avatarUrl ||
+//             fanData.avatar ||
+//             fanData.photoURL ||
+//             fanData.image ||
+//             fanData.profilePicture;
+//           const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
+
 //           setProfileMetadata({
-//             user: fanData || {},
+//             user: {
+//               ...(fanData || {}),
+//               avatarUrl: backendAvatar || fanData.avatarUrl,
+//               username: resolvedName,
+//             },
 //             rival: fanData.rival || null,
+//             predictions: fanData.predictions || [],
+//             hotTakes: fanData.hotTakes || [],
+//             debates: fanData.debates || [],
+//             posts: fanData.posts || [],
 //           });
 //           if (fanData.badge) setUserBadge(fanData.badge);
-//           if (fanData.avatarUrl) setSelectedAvatar(fanData.avatarUrl);
+//           if (backendAvatar) setSelectedAvatar(backendAvatar);
+//           if (fanData.coverPhotoUrl) setCoverPhoto(fanData.coverPhotoUrl);
+//           setEditUniversity(fanData.university ?? fanData.institution ?? "");
 
 //           const uid = fanData.actualUserId || fanData.userId;
 //           if (uid) await fetchActivities(uid);
@@ -313,12 +1020,36 @@
 //             `/api/roar/profile?userId=${encodeURIComponent(viewingProfile)}`
 //           );
 //           if (res.data?.success) {
+//             const apiUser = res.data.user || {};
+//             const resolvedName = resolveUsername(apiUser);
+//             const rawBackendAvatar =
+//               apiUser.avatarUrl ||
+//               apiUser.avatar ||
+//               apiUser.photoURL ||
+//               apiUser.image ||
+//               apiUser.profilePicture;
+//             const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
+
 //             setProfileMetadata({
-//               user: res.data.user || {},
+//               user: {
+//                 ...apiUser,
+//                 avatarUrl: backendAvatar || apiUser.avatarUrl,
+//                 username: resolvedName,
+//               },
 //               rival: res.data.rival || null,
+//               predictions: res.data.predictions || apiUser.predictions || [],
+//               hotTakes: res.data.hotTakes || apiUser.hotTakes || [],
+//               debates: res.data.debates || apiUser.debates || [],
+//               posts: res.data.posts || apiUser.posts || [],
 //             });
 //             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
-//             if (res.data.user?.avatarUrl) setSelectedAvatar(res.data.user.avatarUrl);
+//             if (backendAvatar) setSelectedAvatar(backendAvatar);
+//             if (res.data.user?.coverPhotoUrl) setCoverPhoto(res.data.user.coverPhotoUrl);
+//             setEditUniversity(res.data.user?.university ?? res.data.user?.institution ?? "");
+//             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
+//             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
+//             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
+//             if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
 
 //             const uid = res.data.user?.actualUserId || res.data.user?.userId || viewingProfile;
 //             await fetchActivities(uid);
@@ -340,7 +1071,196 @@
 //     };
 
 //     fetchProfileData();
-//   }, [viewingProfile, isViewingOther, fanData, isOtherProfile]);
+//   }, [viewingProfile, isViewingOther, fanData, isOtherProfile, loggedInUserId]);
+
+//   const user = profileMetadata?.user ?? CURRENT_USER;
+
+//   const effectiveUsername = useMemo(() => {
+//     if (isOtherProfile) {
+//       return resolveUsername(user, user?.username);
+//     }
+//     // For logged-in user: strictly match the exact username next to the avatar in Header!
+//     if (headerDisplayName) return headerDisplayName;
+//     return resolveUsername(user, authUser?.name || (typeof getUserDisplayName === "function" ? getUserDisplayName() : undefined));
+//   }, [isOtherProfile, headerDisplayName, user, authUser?.name, getUserDisplayName]);
+
+//   useEffect(() => {
+//     if (!isOtherProfile && headerDisplayName) {
+//       setProfileMetadata((prev: any) => {
+//         if (!prev) return prev;
+//         return {
+//           ...prev,
+//           user: {
+//             ...(prev.user || {}),
+//             username: headerDisplayName,
+//           },
+//         };
+//       });
+//       setEditName((prev) => (prev && prev !== "RoarUser" && prev !== "ROAR fan" && prev !== "ROARFAN") ? prev : headerDisplayName);
+//     }
+//   }, [isOtherProfile, headerDisplayName]);
+
+//   useEffect(() => {
+//     const canon = getExpertCanonicalName(profileMetadata?.user?.username);
+//     if (!canon) return;
+//     let cancelled = false;
+//     setExpertFlipLoading(true);
+//     setExpertVideosLoading(true);
+
+//     // Fetch FlipLine posts for this expert
+//     axios.get("/api/flipline")
+//       .then((res) => {
+//         if (cancelled) return;
+//         const allCards = Array.isArray(res.data?.data) ? res.data.data : [];
+//         const matched = allCards.filter((c: any) => {
+//           const authorCanon = getExpertCanonicalName(c.author) || getExpertCanonicalName(c.source);
+//           return authorCanon === canon;
+//         });
+//         setExpertFlipCards(matched);
+//       })
+//       .catch(() => setExpertFlipCards([]))
+//       .finally(() => { if (!cancelled) setExpertFlipLoading(false); });
+
+//     // Fetch videos from flipLong and cloudinary cricket-media (like PlaybookDrops.tsx)
+//     Promise.allSettled([
+//       axios.get("/api/flipLong").then((r) => r.data),
+//       axios.get("/api/cloudinary/cricket-media").then((r) => r.data),
+//     ])
+//       .then(([flipLongRes, cloudinaryRes]) => {
+//         if (cancelled) return;
+//         const allVideos: any[] = [];
+//         const seenUrls = new Set<string>();
+
+//         if (flipLongRes.status === "fulfilled" && flipLongRes.value?.success && Array.isArray(flipLongRes.value.videos)) {
+//           flipLongRes.value.videos.forEach((v: any, idx: number) => {
+//             const mediaUrl = v.videoUrl || v.url || v.mediaUrl || "";
+//             if (mediaUrl && !seenUrls.has(mediaUrl)) {
+//               seenUrls.add(mediaUrl);
+//               allVideos.push({
+//                 id: v.id || v.videoId || `fliplong-${idx}`,
+//                 title: (v.title || "Untitled Video").replace(/\s[a-z0-9]{5,8}$/i, ""),
+//                 duration: v.duration || "0:00",
+//                 mediaUrl,
+//                 thumbnailUrl: v.thumbnailUrl || "",
+//                 author: v.author || "",
+//                 createdAt: v.createdAt || v.createdAtMs,
+//                 type: "VIDEO",
+//               });
+//             }
+//           });
+//         }
+
+//         if (cloudinaryRes.status === "fulfilled" && cloudinaryRes.value?.success && Array.isArray(cloudinaryRes.value.mediaFiles)) {
+//           cloudinaryRes.value.mediaFiles.forEach((item: any) => {
+//             if (item.url && !seenUrls.has(item.url)) {
+//               seenUrls.add(item.url);
+//               allVideos.push({
+//                 id: item.id,
+//                 title: (item.title || "Untitled Video").replace(/\s[a-z0-9]{5,8}$/i, ""),
+//                 duration: item.duration || "0:00",
+//                 mediaUrl: item.url,
+//                 thumbnailUrl: item.thumbnailUrl || "",
+//                 author: item.author || "",
+//                 createdAt: item.createdAt,
+//                 type: item.resourceType === "video" ? "VIDEO" : "AUDIO",
+//               });
+//             }
+//           });
+//         }
+
+//         // Match videos for this expert by name tokens in title or author
+//         const target = canon.toLowerCase();
+//         const tokens = target.split(/\s+/).filter((t: string) => t.length >= 3 && t !== "the");
+
+//         const matched = allVideos.filter((v: any) => {
+//           const title = (v.title || "").toLowerCase();
+//           const author = (v.author || "").toLowerCase();
+//           if (title.includes(target) || author.includes(target)) return true;
+//           return tokens.some((tok: string) => title.includes(tok) || author.includes(tok));
+//         });
+
+//         setExpertVideos(matched);
+//       })
+//       .catch(() => setExpertVideos([]))
+//       .finally(() => { if (!cancelled) setExpertVideosLoading(false); });
+
+//     return () => { cancelled = true; };
+//   }, [profileMetadata?.user?.username]);
+
+//   const { leaderboard: globalLeaderboard, currentUserPoints, currentUserRank } = useLeaderboard();
+
+//   const [pointsTab, setPointsTab] = useState<"fliparena" | "global">("fliparena");
+//   const [arenaStats, setArenaStats] = useState<{ points: number; rank: number; accuracy: string; correct: number; total: number } | null>(null);
+//   const [arenaLoading, setArenaLoading] = useState(false);
+
+//   const targetKeys = useMemo(() => {
+//     const s = new Set<string>();
+//     const add = (v: any) => {
+//       const k = String(v ?? "").trim().toLowerCase();
+//       if (k) { s.add(k); s.add(k.replace(/[@.]/g, "_")); }
+//     };
+//     const pu = profileMetadata?.user;
+//     if (!isOtherProfile) { add(authUser?.userId); add(authUser?.actualUserId); add(authUser?.email); add(loggedInUserId); }
+//     add(pu?.actualUserId); add(pu?.userId); add(pu?.email); add(viewingProfile); add(fanData?.userId);
+//     return s;
+//   }, [isOtherProfile, authUser, loggedInUserId, profileMetadata?.user, viewingProfile, fanData?.userId]);
+
+//   const isTarget = useCallback((e: any) =>
+//     [e?.userId, e?.actualUserId, e?.id, e?.userEmail, e?.email].some((v) => {
+//       const k = String(v ?? "").trim().toLowerCase();
+//       return !!k && (targetKeys.has(k) || targetKeys.has(k.replace(/[@.]/g, "_")));
+//     }), [targetKeys]);
+
+//   const fetchArena = useCallback(async () => {
+//     if (targetKeys.size === 0) return;
+//     setArenaLoading(true);
+//     try {
+//       const res = await axios.get("/api/engagements/quiz/leaderboard");
+//       const d = res?.data;
+//       const raw: any[] = [d, d?.leaderboard, d?.data?.entries, d?.data?.leaderboard, d?.data, d?.entries].find(Array.isArray) || [];
+//       const rows = raw
+//         .map((e: any) => {
+//           const correct = Number(e.correctCount ?? e.correctAnswers ?? 0);
+//           const total = Number(e.totalAnswered ?? e.totalQuestions ?? 0);
+//           const acc = e.accuracy ?? (total > 0 ? Math.round((correct / total) * 100) : 0);
+//           return {
+//             raw: e, points: Number(e.totalPoints ?? e.points ?? e.score ?? 0), correct, total,
+//             accuracy: String(acc).endsWith("%") ? String(acc) : `${acc}%`
+//           };
+//         })
+//         .sort((a, b) => b.points - a.points);
+//       const idx = rows.findIndex((r) => isTarget(r.raw));
+//       setArenaStats(idx >= 0
+//         ? { points: rows[idx].points, rank: idx + 1, accuracy: rows[idx].accuracy, correct: rows[idx].correct, total: rows[idx].total }
+//         : null);
+//     } catch {
+//       setArenaStats(null);
+//     } finally {
+//       setArenaLoading(false);
+//     }
+//   }, [targetKeys, isTarget]);
+
+//   useEffect(() => {
+//     fetchArena();
+//     window.addEventListener("sf360:points-updated", fetchArena);
+//     window.addEventListener("arena-engagement-created", fetchArena);
+//     return () => {
+//       window.removeEventListener("sf360:points-updated", fetchArena);
+//       window.removeEventListener("arena-engagement-created", fetchArena);
+//     };
+//   }, [fetchArena]);
+
+//   const globalStats = useMemo(() => {
+//     const list = Array.isArray(globalLeaderboard) ? globalLeaderboard : [];
+//     const idx = list.findIndex(isTarget);
+//     const entry: any = idx >= 0 ? list[idx] : null;
+//     if (!isOtherProfile) {
+//       return { points: currentUserPoints ?? entry?.totalPoints ?? 0, rank: currentUserRank || entry?.rank || (idx >= 0 ? idx + 1 : 0) };
+//     }
+//     return { points: entry?.totalPoints ?? profileMetadata?.user?.totalPoints ?? 0, rank: entry?.rank ?? (idx >= 0 ? idx + 1 : 0) };
+//   }, [globalLeaderboard, isTarget, isOtherProfile, currentUserPoints, currentUserRank, profileMetadata?.user?.totalPoints]);
+
+//   const levelInfo = useMemo(() => calculateLevelData(globalStats.points), [globalStats.points]);
 
 //   if (loading || !profileMetadata) {
 //     return (
@@ -350,28 +1270,99 @@
 //     );
 //   }
 
-//   const user = profileMetadata.user ?? CURRENT_USER;
+//   const botCanonicalName = getBotCanonicalName(user?.username);
+//   const isBotProfile = isBotName(user?.username) || !!botCanonicalName || user?.isBot === true;
+//   const expertCanonicalName = getExpertCanonicalName(user?.username);
+//   const isExpertProfile = !!expertCanonicalName;
+//   const rawAvatar =
+//     (isBotProfile && botCanonicalName ? BOT_AVATARS[botCanonicalName] : null) ||
+//     (isBotProfile && user?.username && BOT_AVATARS[user.username] ? BOT_AVATARS[user.username] : null) ||
+//     (isExpertProfile && expertCanonicalName ? EXPERT_AVATARS[expertCanonicalName] : null) ||
+//     user?.avatarUrl ||
+//     user?.avatar ||
+//     user?.photoURL ||
+//     user?.image ||
+//     user?.profilePicture ||
+//     selectedAvatar ||
+//     authUser?.avatar ||
+//     authUser?.photoURL ||
+//     (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null);
+
+//   const displayAvatar = sanitizeAvatarUrl(rawAvatar);
+
 //   const rival = profileMetadata.rival ?? RIVAL;
 
 //   const badgesToDisplay = user?.badges?.length ? user.badges : BADGES_LIST;
 //   const ownedBadges = badgesToDisplay.filter((b: any) => b.unlocked);
 
 //   const actCounts = user?.activityCounts ?? {};
-//   const derivedCreatedPosts =
+
+//   const apiPredictions = profileMetadata?.predictions || user?.predictions || [];
+//   const apiHotTakes = profileMetadata?.hotTakes || user?.hotTakes || [];
+//   const apiDebates = profileMetadata?.debates || user?.debates || [];
+//   const apiPosts = profileMetadata?.posts || user?.posts || [];
+
+//   // sourceActivities reflects fetchedActivities (the windowed/fetched list).
+//   const sourceActivities = fetchedActivities;
+//   const isLoadingActivities = fetchedActivitiesLoading;
+
+//   const predictionActivities = sourceActivities.filter((a: any) =>
+//     a.type === "ROAR_PREDICTION_PARTICIPATE" || a.type === "ROAR_PREDICTION"
+//   );
+
+//   const debateActivities = sourceActivities.filter((a: any) =>
+//     a.type === "ROAR_DEBATE_PARTICIPATE" || a.type === "ROAR_DEBATE"
+//   );
+
+//   const postActivities = sourceActivities.filter((a: any) =>
+//     ["ROAR_POST", "ROAR_HOT_TAKE", "ROAR_DEBATE", "ROAR_PREDICTION", "ROAR_RAW_REACTIONS", "ROAR_MEMORY", "ROAR_QUIZ"].includes(a.type)
+//   );
+
+//   const statPosts = Math.max(
 //     (actCounts.ROAR_POST ?? 0) +
 //     (actCounts.ROAR_DEBATE ?? 0) +
-//     (actCounts.ROAR_PREDICTION ?? 0);
-//   const derivedDebates = fetchedActivities.filter((a: any) => a.type === "ROAR_DEBATE_PARTICIPATE").length;
-//   const derivedPredictions = fetchedActivities.filter((a: any) => a.type === "ROAR_PREDICTION_PARTICIPATE").length;
+//     (actCounts.ROAR_PREDICTION ?? 0) +
+//     (actCounts.ROAR_HOT_TAKE ?? 0),
+//     (activityCounts.ROAR_POST ?? 0) +
+//     (activityCounts.ROAR_DEBATE ?? 0) +
+//     (activityCounts.ROAR_PREDICTION ?? 0) +
+//     (activityCounts.ROAR_HOT_TAKE ?? 0),
+//     user?.postsCount ?? user?.postCount ?? 0,
+//     apiHotTakes.length + apiPosts.length,
+//     apiHotTakes.length,
+//     apiPosts.length,
+//     postActivities.length,
+//     profileStats?.posts ?? 0
+//   );
 
-//   const statPosts = derivedCreatedPosts > 0
-//     ? derivedCreatedPosts
-//     : fetchedActivities.filter((a: any) =>
-//       ["ROAR_POST", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
-//     ).length;
+//   // Debates = debates you participated in (voted on) or created
+//   const statDebates = Math.max(
+//     (actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (actCounts.ROAR_DEBATE ?? 0),
+//     (activityCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (activityCounts.ROAR_DEBATE ?? 0),
+//     actCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
+//     actCounts.ROAR_DEBATE ?? 0,
+//     activityCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
+//     activityCounts.ROAR_DEBATE ?? 0,
+//     user?.debatesCount ?? user?.debateCount ?? 0,
+//     apiDebates.length,
+//     debateActivities.length,
+//     profileStats?.debates ?? 0
+//   );
 
-//   const statDebates = (actCounts.ROAR_DEBATE_PARTICIPATE && actCounts.ROAR_DEBATE_PARTICIPATE > 0) ? actCounts.ROAR_DEBATE_PARTICIPATE : derivedDebates;
-//   const statPredictions = (actCounts.ROAR_PREDICTION_PARTICIPATE && actCounts.ROAR_PREDICTION_PARTICIPATE > 0) ? actCounts.ROAR_PREDICTION_PARTICIPATE : derivedPredictions;
+//   // Predictions = predictions you participated in (voted on) or created
+//   const statPredictions = Math.max(
+//     (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (actCounts.ROAR_PREDICTION ?? 0),
+//     (activityCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (activityCounts.ROAR_PREDICTION ?? 0),
+//     actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
+//     actCounts.ROAR_PREDICTION ?? 0,
+//     activityCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
+//     activityCounts.ROAR_PREDICTION ?? 0,
+//     user?.predictionCount ?? 0,
+//     user?.predictionStats?.total ?? user?.predictionStats?.totalPredictions ?? user?.predictionStats?.count ?? 0,
+//     apiPredictions.length,
+//     predictionActivities.length,
+//     profileStats?.predictions ?? 0
+//   );
 
 //   const statAccuracy = user?.accuracy != null ? `${user.accuracy}%` : "N/A";
 
@@ -379,46 +1370,142 @@
 //   const repMax = Math.max(repScore, 500);
 //   const repPct = Math.round((repScore / repMax) * 100);
 
-//   const sourceActivities = fetchedActivities.length > 0
-//     ? fetchedActivities
-//     : (!isOtherProfile ? activities : []);
-//   const isLoadingActivities = fetchedActivitiesLoading ||
-//     (!isOtherProfile && fetchedActivities.length === 0 && activityLoading);
-
-//   const predictionActivities = sourceActivities.filter((a: any) =>
-//     a.type === "ROAR_PREDICTION_PARTICIPATE"
-//   );
-
-//   const displayPredictions = predictionActivities.map((a: any) => ({
-//     id: a.id,
-//     postId: a.metadata?.postId,
-//     label: a.label,
-//     text: (a.metadata?.statement || a.label || "").trim() || `Prediction: ${a.label}`,
-//     status: a.metadata?.status || "PENDING",
-//     createdAt: a.createdAt,
-//   }));
+//   const displayPredictions = predictionActivities.length > 0
+//     ? predictionActivities.map((a: any) => ({
+//       id: a.id,
+//       postId: a.metadata?.postId,
+//       label: a.label,
+//       text: (a.metadata?.statement || a.label || "").trim() || `Prediction: ${a.label}`,
+//       status: a.metadata?.status || "PENDING",
+//       createdAt: a.createdAt,
+//       roomId: a.roomId,
+//       roomName: a.metadata?.roomName || a.roomName,
+//       matchId: a.matchId,
+//     }))
+//     : apiPredictions.map((p: any) => ({
+//       id: p.postId || p.id,
+//       postId: p.postId || p.id,
+//       label: p.text,
+//       text: p.text,
+//       status: p.status === "active" ? "PENDING" : p.status || "PENDING",
+//       createdAt: p.createdAt,
+//       roomId: p.matchId || "general",
+//       roomName: p.sport || "General",
+//       matchId: p.matchId,
+//     }));
 
 //   const filteredPreds = (displayPredictions || [])
 //     .slice()
 //     .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
 
-//   const debateActivities = sourceActivities.filter((a: any) =>
-//     a.type === "ROAR_DEBATE_PARTICIPATE"
-//   );
+//   const displayDebates = debateActivities.length > 0
+//     ? debateActivities.slice().sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+//     : apiDebates.map((d: any) => ({
+//       id: d.id || d.postId,
+//       type: "ROAR_DEBATE",
+//       createdAt: d.createdAt,
+//       roomId: d.roomId || d.matchId || "general",
+//       roomName: d.roomName || d.sport || "General",
+//       text: d.text || d.statement || "Debate",
+//       metadata: {
+//         statement: d.text || d.statement || "Debate",
+//         sideA: d.sideA,
+//         sideB: d.sideB,
+//         roomName: d.roomName || d.sport,
+//       },
+//     }));
 
 //   const handleAvatarSelect = async (src: string) => {
 //     setSelectedAvatar(src);
 //     setAvatarPickerOpen(false);
 //     try { localStorage.setItem("roar_avatar_url", src); } catch { }
 //     window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: src } }));
+//     try {
+//       trackProfileSignalCreated("avatar", { avatar_url: src });
+//     } catch (e) { }
 //     onToast("Avatar updated!");
 //     try { await axios.patch("/api/roar/profile", { avatarUrl: src }); } catch { }
 //   };
 
-//   // ── WhatsApp / native image share ───────────────────────────────────────────
-//   // IMPORTANT: this must be called directly from the tap handler with minimal
-//   // async work beforehand, or Chrome on Android will treat navigator.share()
-//   // as no longer being "in response to a user gesture" and silently reject it.
+//   // Profile avatar upload (free-form custom photo from device)
+//   const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4MB
+//   const handleAvatarUpload = async (file: File) => {
+//     if (!file.type.startsWith("image/")) {
+//       onToast("Please choose an image file.");
+//       return;
+//     }
+//     if (file.size > MAX_AVATAR_BYTES) {
+//       onToast("Image is too large — please pick one under 4MB.");
+//       return;
+//     }
+//     setUploadingAvatar(true);
+//     try {
+//       const dataUrl: string = await new Promise((resolve, reject) => {
+//         const reader = new FileReader();
+//         reader.onload = () => resolve(reader.result as string);
+//         reader.onerror = () => reject(new Error("Could not read file"));
+//         reader.readAsDataURL(file);
+//       });
+//       setSelectedAvatar(dataUrl);
+//       setProfileMetadata((prev: any) => ({
+//         ...prev,
+//         user: {
+//           ...(prev?.user ?? {}),
+//           avatarUrl: dataUrl,
+//           avatar: dataUrl,
+//           photoURL: dataUrl,
+//         },
+//       }));
+//       setAvatarPickerOpen(false);
+//       try { localStorage.setItem("roar_avatar_url", dataUrl); } catch { }
+//       window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: dataUrl } }));
+//       try {
+//         trackProfileSignalCreated("avatar", { avatar_url: dataUrl });
+//       } catch (e) { }
+//       onToast("Profile photo updated!");
+//       try { await axios.patch("/api/roar/profile", { avatarUrl: dataUrl }); } catch { }
+//     } catch {
+//       onToast("Could not load that image.");
+//     } finally {
+//       setUploadingAvatar(false);
+//     }
+//   };
+
+//   // Cover photo is a free-form upload (unlike the fixed avatar gallery), so
+//   // it's handled as a file input read into a data URL, matching the format
+//   // the backend already accepts for avatarUrl. Optional field — clearing it
+//   // is also supported.
+//   const MAX_COVER_BYTES = 4 * 1024 * 1024; // 4MB, keep the profile doc small
+//   const handleCoverPhotoFile = async (file: File) => {
+//     if (!file.type.startsWith("image/")) {
+//       onToast("Please choose an image file.");
+//       return;
+//     }
+//     if (file.size > MAX_COVER_BYTES) {
+//       onToast("Image is too large — please pick one under 4MB.");
+//       return;
+//     }
+//     setUploadingCover(true);
+//     try {
+//       const dataUrl: string = await new Promise((resolve, reject) => {
+//         const reader = new FileReader();
+//         reader.onload = () => resolve(reader.result as string);
+//         reader.onerror = () => reject(new Error("Could not read file"));
+//         reader.readAsDataURL(file);
+//       });
+//       setCoverPhoto(dataUrl);
+//     } catch {
+//       onToast("Could not load that image.");
+//     } finally {
+//       setUploadingCover(false);
+//     }
+//   };
+
+//   const handleRemoveCoverPhoto = () => {
+//     setCoverPhoto(null);
+//   };
+
+//   // ── WhatsApp / native image share 
 //   const handleWhatsAppShare = async () => {
 //     if (sharingImage) return;
 //     setSharingImage(true);
@@ -437,10 +1524,6 @@
 
 //       const file = new File([blob], "my-roar-profile.png", { type: "image/png" });
 
-//       // Mobile Chrome (Android) supports this — it opens the native OS share
-//       // sheet with the image attached, and WhatsApp shows up as one of the
-//       // share targets. The person taps WhatsApp and the image lands in the
-//       // chat composer already attached.
 //       if (supportsFileShare(file)) {
 //         try {
 //           await navigator.share({
@@ -450,16 +1533,11 @@
 //           });
 //           return;
 //         } catch (err: any) {
-//           // User backing out of the share sheet is not an error.
 //           if (err?.name === "AbortError") return;
 //           console.error("navigator.share failed", err);
-//           // fall through to download fallback below
 //         }
 //       }
 
-//       // Desktop / unsupported browsers: no API exists to push a file straight
-//       // into WhatsApp Web, so the best we can do is save the image so the
-//       // person can attach it manually.
 //       const url = URL.createObjectURL(blob);
 //       const a = document.createElement("a");
 //       a.href = url;
@@ -474,7 +1552,7 @@
 //     }
 //   };
 
-//   // ── Share 
+//   // ── Share
 //   const shareActions = [
 //     { alt: "WhatsApp", src: "/images/share_whatsapp.png", handler: handleWhatsAppShare },
 //     { alt: "Threads", src: "/images/share_thread.png", handler: () => window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(buildShareText(user, userBadge))}`, "_blank") },
@@ -501,9 +1579,21 @@
 //     padding: "0 14px", color: "white", fontSize: 15, marginBottom: 16,
 //   };
 
-//   // ── Render 
+//   // ── Render
 //   return (
 //     <div className="screen-scroll">
+//       <style>{`
+//   .profile-avatar-fill, .profile-avatar-fill > * {
+//     width: 100% !important;
+//     height: 100% !important;
+//   }
+//   .profile-avatar-fill img, .profile-avatar-fill svg {
+//     width: 100% !important;
+//     height: 100% !important;
+//     object-fit: cover !important;
+//     border-radius: 50%;
+//   }
+// `}</style>
 
 //       {/* ── Top header bar ── */}
 //       <div style={{
@@ -513,7 +1603,7 @@
 //         borderBottom: "1px solid rgba(255,255,255,0.06)",
 //         position: "sticky", top: 0, zIndex: 50,
 //       }}>
-//         <Link href="/MainModules/ROAR" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "white" }}>
+//         <Link href="/MainModules/HomePage" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "white" }}>
 //           <button style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}>
 //             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
 //               <path d="M15 18l-6-6 6-6" />
@@ -523,453 +1613,1169 @@
 //         </Link>
 //       </div>
 
-
-
+//       {/* ── Cover photo banner ── */}
+//       <div style={{
+//         position: "relative",
+//         width: "100%",
+//         height: 120,
+//         background: coverPhoto
+//           ? undefined
+//           : "linear-gradient(135deg, rgba(233,30,140,0.35), rgba(255,107,53,0.35))",
+//         overflow: "hidden",
+//       }}>
+//         {coverPhoto && (
+//           <img
+//             src={coverPhoto}
+//             alt="Cover"
+//             style={{ width: "100%", height: "100%", objectFit: "cover" }}
+//           />
+//         )}
+//         <div style={{
+//           position: "absolute", inset: 0,
+//           background: "linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(10,10,16,0.85) 100%)",
+//         }} />
+//         {!isOtherProfile && (
+//           <button
+//             onClick={() => setEditOpen(true)}
+//             aria-label="Edit cover photo"
+//             style={{
+//               position: "absolute", top: 12, right: 12, zIndex: 5,
+//               width: 32, height: 32, borderRadius: "50%",
+//               background: "rgba(0,0,0,0.5)", backdropFilter: "blur(6px)",
+//               border: "1px solid rgba(255,255,255,0.25)",
+//               display: "flex", alignItems: "center", justifyContent: "center",
+//               cursor: "pointer", padding: 0,
+//             }}
+//           >
+//             <PencilIcon />
+//           </button>
+//         )}
+//       </div>
 
 //       {/* ── Hero ── */}
-//       <div style={{ padding: "24px 20px 0", display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 20 }}>
+//       {!isBotProfile && !isExpertProfile && (
+//         <div style={{ padding: "24px 20px 0", display: "flex", flexDirection: "row", alignItems: "flex-start", gap: 20 }}>
 
-//         {/* Avatar — left column, smaller, with Edit Profile button below it */}
-//         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
-//           <div style={{ position: "relative", width: 84, height: 84 }}>
-//             <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
-//             <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
-//             <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
+//           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, marginTop: -48 }}>
+//             <div style={{ position: "relative", width: 84, height: 84 }}>
+//               <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
+//               <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
+//               {/* <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
 //               {selectedAvatar ? (
 //                 <img src={selectedAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
 //               ) : (
 //                 <AvatarWithBadge username={user.username ?? CURRENT_USER.username} badge={userBadge} size="lg" />
 //               )}
+//             </div> */}
+//               <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
+//                 {displayAvatar ? (
+//                   <img
+//                     src={displayAvatar}
+//                     alt="avatar"
+//                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
+//                     onError={(e) => {
+//                       (e.currentTarget as HTMLElement).style.display = "none";
+//                       const parent = e.currentTarget.parentElement;
+//                       const fallback = parent?.querySelector(".avatar-fallback-wrapper") as HTMLElement;
+//                       if (fallback) fallback.style.display = "flex";
+//                     }}
+//                   />
+//                 ) : null}
+//                 <div
+//                   className="avatar-fallback-wrapper"
+//                   style={{
+//                     display: displayAvatar ? "none" : "flex",
+//                     width: "100%",
+//                     height: "100%",
+//                     alignItems: "center",
+//                     justifyContent: "center",
+//                   }}
+//                 >
+//                   <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="lg" />
+//                 </div>
+//               </div>
+//               {!isOtherProfile && (
+//                 <button onClick={() => setAvatarPickerOpen(true)} aria-label="Change avatar"
+//                   style={{ position: "absolute", bottom: 0, right: 0, zIndex: 10, width: 22, height: 22, borderRadius: "50%", background: "var(--accent-magenta)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid rgba(10,10,16,0.97)", cursor: "pointer", padding: 0, boxShadow: "0 2px 8px rgba(233,30,140,0.7)" }}>
+//                   <PencilIcon />
+//                 </button>
+//               )}
 //             </div>
+
 //             {!isOtherProfile && (
-//               <button onClick={() => setAvatarPickerOpen(true)} aria-label="Change avatar"
-//                 style={{ position: "absolute", bottom: 0, right: 0, zIndex: 10, width: 22, height: 22, borderRadius: "50%", background: "var(--accent-magenta)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid rgba(10,10,16,0.97)", cursor: "pointer", padding: 0, boxShadow: "0 2px 8px rgba(233,30,140,0.7)" }}>
-//                 <PencilIcon />
+//               <button onClick={() => setEditOpen(true)}
+//                 style={{ marginTop: 12, padding: "4px 8px", background: "none", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 22, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+//                 Edit Profile
 //               </button>
 //             )}
 //           </div>
 
-//           {!isOtherProfile && (
-//             <button onClick={() => setEditOpen(true)}
-//               style={{ marginTop: 12, padding: "4px 8px", background: "none", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 22, color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-//               Edit Profile
-//             </button>
-//           )}
-//         </div>
-
-//         {/* Right column — username, tagline, bio */}
-//         <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
-//           <h1 className="font-display" style={{ fontSize: 20, fontWeight: 900, letterSpacing: "0.03em", color: "#fff", margin: "0 0 4px" }}>
-//             {(user.username ?? "ROARFAN").toUpperCase()}
-//           </h1>
-//           <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>
-//             {BADGE_LABELS[userBadge] ?? "Fan"}
-//           </p>
-
-//           {(user.favPlayer || editFavPlayer) && (
-//             <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
-//               Favourite player: <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
+//           <div style={{ flex: 1, textAlign: "left", minWidth: 0 }}>
+//             <h1 className="font-display" style={{ fontSize: 20, fontWeight: 900, letterSpacing: "0.03em", color: "#fff", margin: "0 0 4px" }}>
+//               {effectiveUsername}
+//             </h1>
+//             <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>
+//               {isBotProfile
+//                 ? (BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Official AI Bot")
+//                 : (globalTier?.label || BADGE_LABELS[userBadge] || "Chant I")}
 //             </p>
-//           )}
-//           {(user.about || editAbout) && (
-//             <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.5 }}>
-//               {user.about || editAbout}
-//             </p>
-//           )}
-//         </div>
-//       </div>
 
-//       {/* ── Stats row ── */}
-//       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, padding: "22px 14px 0" }}>
-//         {[
-//           { value: statPosts, label: "Posts", accent: true },
-//           { value: statDebates, label: "Debates", accent: true },
-//           { value: statPredictions, label: "Predictions", accent: true },
-//           { value: user.accuracy !== undefined && user.accuracy !== null ? `${user.accuracy}%` : "N/A", label: "Accuracy", accent: true },
-//         ].map(({ value, label, accent }) => (
-//           <div
-//             key={label}
-//             className="glass-card"
-//             style={{
-//               display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-//               padding: "10px 4px", minHeight: 66, textAlign: "center",
-//               background: "rgba(18,18,26,0.7)",
-//               border: "1px solid rgba(255,255,255,0.06)",
-//               borderRadius: 14,
-//               position: "relative", overflow: "visible",
-//             }}
-//           >
-//             {accent && (() => {
-//               const tooltipText =
-//                 label === "Posts"
-//                   ? "Count of all debates, predictions, and posts you've created."
-//                   : label === "Predictions"
-//                     ? "Count all predictions you've participated in."
-//                     : label === "Debates"
-//                       ? "Count all debates you've participated in."
-//                       : "Your accuracy rate across resolved predictions and debates.";
-
-//               const isLeftmost = label === "Posts";
-
-//               return (
-//                 <div
-//                   style={{ position: "absolute", top: 6, right: 6 }}
-//                   onMouseEnter={(e) => {
-//                     const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
-//                     if (tip) tip.style.display = "block";
-//                   }}
-//                   onMouseLeave={(e) => {
-//                     const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
-//                     if (tip) tip.style.display = "none";
-//                   }}
-//                   onTouchStart={(e) => {
-//                     const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
-//                     if (tip) tip.style.display = tip.style.display === "block" ? "none" : "block";
-//                   }}
-//                 >
-//                   <div style={{
-//                     width: 18, height: 18, borderRadius: "50%",
-//                     background: "var(--accent-magenta)",
-//                     display: "flex", alignItems: "center", justifyContent: "center",
-//                     fontSize: 10, fontWeight: 900, color: "#fff",
-//                     cursor: "pointer",
-//                   }}>i</div>
-
-//                   <div className="stat-tip" style={{
-//                     display: "none",
-//                     position: "absolute",
-//                     bottom: 24,
-//                     left: isLeftmost ? 0 : "auto",
-//                     right: isLeftmost ? "auto" : 0,
-//                     width: 170,
-//                     maxWidth: "calc(100vw - 32px)",
-//                     background: "rgba(20,20,30,0.97)",
-//                     border: "1px solid rgba(255,255,255,0.12)",
-//                     borderRadius: 10,
-//                     padding: "8px 10px",
-//                     fontSize: 11,
-//                     color: "rgba(255,255,255,0.82)",
-//                     lineHeight: 1.5,
-//                     zIndex: 9999,
-//                     pointerEvents: "none",
-//                     whiteSpace: "normal",
-//                     boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-//                   }}>{tooltipText}</div>
-//                 </div>
-//               );
-//             })()}
-//             <span className="font-display" style={{ fontSize: 22, color: "#fff", lineHeight: 1, fontWeight: 800 }}>{value}</span>
-//             <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 5 }}>{label}</span>
-//           </div>
-//         ))}
-//       </div>
-
-//       {/* ── ROAR Points bar ── */}
-//       <div style={{ padding: "18px 14px 0" }}>
-//         <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-//           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-//             <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Roar Points</span>
-//             <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{repScore} points</span>
-//           </div>
-//           <div style={{ height: 10, background: "rgba(255,255,255,0.08)", borderRadius: 5, overflow: "hidden" }}>
-//             <div style={{ height: "100%", width: `${repPct}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 5, transition: "width 1s ease" }} />
-//           </div>
-//         </div>
-//       </div>
-
-
-
-
-//       {/* ── Global Reputation ── */}
-//       {globalTier && (
-//         <div style={{ padding: "18px 14px 8px" }}>
-//           <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-//             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-//               <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
-//                 {globalTier.label} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>· Tier {globalTier.tierLevel}/7</span>
-//               </span>
-//               {globalTier.tier !== "GOAT" && (
-//                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{globalTierProgress}% to next</span>
-//               )}
-//             </div>
-//             <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
-//               <div style={{ height: "100%", width: `${globalTierProgress}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 4, transition: "width 1s ease" }} />
-//             </div>
+//             {(user.university || user.institution || editUniversity) && (
+//               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
+//                 University / Institution: <strong style={{ color: "#fff" }}>{user.university || user.institution || editUniversity}</strong>
+//               </p>
+//             )}
+//             {(user.favPlayer || editFavPlayer) && (
+//               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
+//                 Favourite player: <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
+//               </p>
+//             )}
+//             {(user.about || editAbout) && (
+//               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.5)", marginTop: 6, lineHeight: 1.5 }}>
+//                 {user.about || editAbout}
+//               </p>
+//             )}
 //           </div>
 //         </div>
 //       )}
 
-//       {/* ── Roar Journey ── */}
-//       <RoarJourneySection
-//         predictions={actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0}
-//         debates={actCounts.ROAR_DEBATE_PARTICIPATE ?? 0}
-//         posts={statPosts}
-//         // posts={
-//         //   (actCounts.total ?? 0) -
-//         //   (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) -
-//         //   (actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) - (actCounts.ROAR_PREDICTION_CORRECT ?? 0)
-//         // }
-//         badgeSrcs={[
-//           FIRST_ROAR_BADGE_SRC,
-//           ...(user.badges ?? [])
-//             .filter((b: any) => b.unlocked && b.imageUrl)
-//             .slice(0, 3)
-//             .map((b: any) => toBadgeImageSrc(b.imageUrl)),
-//         ]}
-//         onToast={onToast}
-//       />
-
-//       {/* ── Feature Mastery Badges (rows = categories, 5 badges per row) ── */}
-//       <div style={{ padding: "18px 0 0" }}>
-//         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 14 }}>
-//           <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-//             {isOtherProfile ? "Badges" : "Your Badges"}
-//           </span>
-//         </div>
-
-//         <div style={{ display: "flex", flexDirection: "column", gap: 18, padding: "0 14px" }}>
-//           {featureBadges.map((fb) => (
-//             <div key={fb.feature}>
-//               {/* Category label + current level */}
-//               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
-//                 <span style={{ fontSize: 12, fontWeight: 700, color: fb.level > 0 ? "#fff" : "rgba(255,255,255,0.45)", textTransform: "capitalize" }}>
-//                   {fb.feature.replace(/([A-Z])/g, " $1")}
-//                 </span>
-//                 <span style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700 }}>
-//                   {fb.level > 0 ? `${fb.label} · L${fb.level}/5` : "Locked"}
-//                 </span>
-//               </div>
-
-//               {/* 5 badges in a row, no scroll — flex with equal columns */}
-//               <div style={{ display: "flex", gap: 6 }}>
-//                 {[1, 2, 3, 4, 5].map((lvl) => {
-//                   const achieved = lvl <= fb.level;
-//                   const isCurrentTarget = lvl === fb.level + 1;
-//                   return (
-//                     <button
-//                       key={lvl}
-//                       onClick={() => setBadgeModal({
-//                         id: fb.feature,
-//                         badgeId: fb.feature,
-//                         unlocked: fb.level > 0,
-//                         progress: fb.progress,
-//                         _feature: fb,
-//                       })}
-//                       style={{
-//                         flex: "1 1 0",
-//                         minWidth: 0,
-//                         background: "none",
-//                         border: "none",
-//                         padding: 0,
-//                         cursor: "pointer",
-//                         display: "flex",
-//                         flexDirection: "column",
-//                         alignItems: "center",
-//                       }}
-//                     >
-//                       <div style={{
-//                         width: "100%",
-//                         aspectRatio: "1 / 1",
-//                         maxWidth: 56,
-//                         borderRadius: "50%",
-//                         display: "flex", alignItems: "center", justifyContent: "center",
-//                         overflow: "hidden",
-//                         fontSize: 20,
-//                         background: achieved
-//                           ? "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))"
-//                           : "rgba(255,255,255,0.05)",
-//                         border: achieved
-//                           ? "2px solid rgba(233,30,140,0.5)"
-//                           : isCurrentTarget
-//                             ? "2px dashed rgba(255,255,255,0.25)"
-//                             : "2px solid rgba(255,255,255,0.08)",
-//                         filter: achieved ? "none" : "grayscale(1) opacity(0.5)",
-//                       }}>
-//                         {fb.icons?.[lvl - 1] ? (
-//                           <img
-//                             src={fb.icons[lvl - 1]}
-//                             alt={`${fb.feature} L${lvl}`}
-//                             style={{ width: "70%", height: "70%", objectFit: "contain" }}
-//                             onError={(e) => {
-//                               const target = e.currentTarget;
-//                               target.style.display = "none";
-//                               const parent = target.parentElement;
-//                               if (parent && !parent.querySelector(".pip-fallback")) {
-//                                 const span = document.createElement("span");
-//                                 span.className = "pip-fallback";
-//                                 span.textContent = achieved || isCurrentTarget ? "🏅" : "🔒";
-//                                 parent.appendChild(span);
-//                               }
-//                             }}
-//                           />
-//                         ) : (
-//                           <span>{achieved || isCurrentTarget ? "🏅" : "🔒"}</span>
-//                         )}
-//                       </div>
-//                       <span style={{ fontSize: 8, color: achieved ? "#fff" : "rgba(255,255,255,0.35)", marginTop: 3 }}>
-//                         L{lvl}
-//                       </span>
-//                     </button>
-//                   );
-//                 })}
-//               </div>
+//       {isBotProfile ? (
+//         <div style={{ padding: "16px 14px 40px" }}>
+//           {/* Bot Info Banner */}
+//           {/* <div
+//             style={{
+//               background: "linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(233, 30, 140, 0.12) 100%)",
+//               border: "1px solid rgba(59, 130, 246, 0.3)",
+//               borderRadius: 16,
+//               padding: "16px 18px",
+//               marginBottom: 16,
+//             }}
+//            >
+//             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+//               <span style={{ fontSize: 16 }}>🤖</span>
+//               <span style={{ fontSize: 13, fontWeight: 800, color: "#60a5fa", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+//                 Official AI Sports Bot · {BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Analyst"}
+//               </span>
 //             </div>
-//           ))}
-//         </div>
-//       </div>
+//             <p style={{
+//               fontSize: 13,
+//               color: "rgba(255,255,255,0.85)",
+//               lineHeight: 1.6,
+//               margin: 0,
+//             }}>
+//               {BOT_BIOS[user.username] ?? BOT_BIOS[botCanonicalName || ""] ?? "SportsFan360 bot — automated fan companion."}
+//             </p>
+//             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
+//               <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 12, background: "rgba(59,130,246,0.2)", color: "#93c5fd" }}>
+//                 ⚡ Match Insights
+//               </span>
+//               <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 12, background: "rgba(233,30,140,0.2)", color: "#f472b6" }}>
+//                 🏏 Cricket Analyst
+//               </span>
+//               <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 12, background: "rgba(16,185,129,0.2)", color: "#6ee7b7" }}>
+//                 💬 Live FlipLine Drops
+//               </span>
+//             </div>
+//           </div> */}
 
-//       {/* ── Special / Achievement Badges (only show unlocked ones) ── */}
-//       {specialBadges.filter((b) => b.unlocked).length > 0 && (
-//         <div style={{ padding: "18px 0 0" }}>
-//           <div style={{ padding: "0 14px", marginBottom: 12 }}>
-//             <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Special Achievements</span>
-//           </div>
-//           <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
-//             {specialBadges.filter((b) => b.unlocked).map((b) => (
-//               <div key={b.id} style={{
-//                 flexShrink: 0, padding: "8px 14px", borderRadius: 20,
-//                 background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
-//                 border: "1px solid rgba(255,215,0,0.35)",
-//                 fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
-//               }}>
-//                 🏆 {b.name}
+//           {/* Bot Info Card */}
+//           <IdentityCard
+//             avatarSrc={displayAvatar}
+//             name={user.username ?? botCanonicalName ?? "Bot"}
+//             subtitle={BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Official AI Bot"}
+//             tags={BOT_TAGS[user.username] || BOT_TAGS[botCanonicalName || ""] || []}
+//             bio={BOT_BIOS[user.username] ?? BOT_BIOS[botCanonicalName || ""] ?? "SportsFan360 bot — automated fan companion."}
+//           />
+
+//           {/* Bot Stats */}
+//           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 20 }}>
+//             {[
+//               { label: "Drops & Takes", value: Math.max(statPosts, sourceActivities.length, (BOT_SAMPLE_POSTS[user.username] || BOT_SAMPLE_POSTS[botCanonicalName || ""] || []).length) },
+//               { label: "Specialty", value: (BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Analysis").split(" ")[0] },
+//               { label: "Status", value: "Active 🟢" },
+//             ].map(({ label, value }) => (
+//               <div
+//                 key={label}
+//                 className="glass-card"
+//                 style={{
+//                   display: "flex",
+//                   flexDirection: "column",
+//                   alignItems: "center",
+//                   justifyContent: "center",
+//                   padding: "12px 6px",
+//                   textAlign: "center",
+//                   background: "rgba(18,18,26,0.7)",
+//                   border: "1px solid rgba(255,255,255,0.06)",
+//                   borderRadius: 14,
+//                 }}
+//               >
+//                 <span className="font-display" style={{ fontSize: 18, color: "#fff", lineHeight: 1, fontWeight: 800 }}>{value}</span>
+//                 <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>{label}</span>
 //               </div>
 //             ))}
 //           </div>
+
+//           {/* Bot Activity Feed / Drops */}
+//           <div>
+//             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+//               <span style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>
+//                 Recent Drops & Match Takes
+//               </span>
+//               <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+//                 {sourceActivities.length} updates
+//               </span>
+//             </div>
+
+//             {sourceActivities.length === 0 ? (
+//               <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+//                 <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>
+//                   No recent activity found.
+//                 </p>
+//               </div>
+//             ) : (
+//               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+//                 {sourceActivities.map((a: any) => {
+//                   const roomName = getRoomName(a.roomId, a.metadata?.roomName || a.roomName || "FlipLine Updates");
+//                   const text = (a.metadata?.statement || a.label || "Take").trim();
+//                   return (
+//                     <div
+//                       key={a.id ?? `${a.type}-${a.createdAt}`}
+//                       style={{
+//                         background: "rgba(18,18,26,0.7)",
+//                         border: "1px solid rgba(255,255,255,0.06)",
+//                         borderRadius: 14,
+//                         padding: "14px 16px",
+//                       }}
+//                     >
+//                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+//                         <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+//                           {roomName.toUpperCase()}
+//                         </span>
+//                         <span style={{ fontSize: 10, fontWeight: 800, color: "#60a5fa", background: "rgba(59,130,246,0.15)", padding: "2px 7px", borderRadius: 4 }}>
+//                           BOT DROP
+//                         </span>
+//                       </div>
+//                       <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>
+//                         {text}
+//                       </p>
+//                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+//                         <span>{formatActivityTimestamp(a.createdAt)}</span>
+//                         {a.likes !== undefined && (
+//                           <span>❤️ {a.likes} likes</span>
+//                         )}
+//                       </div>
+//                     </div>
+//                   );
+//                 })}
+//               </div>
+//             )}
+//           </div>
 //         </div>
+//       ) : !isExpertProfile ? (
+//         <>
+//           {/* ── Stats row ── */}
+//           {false && (
+//           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, padding: "22px 14px 0" }}>
+//             {[
+//               { value: statPosts, label: "Posts", accent: true },
+//               { value: statDebates, label: "Debates", accent: true },
+//               { value: statPredictions, label: "Predictions", accent: true },
+//               { value: user.accuracy !== undefined && user.accuracy !== null ? `${user.accuracy}%` : "N/A", label: "Accuracy", accent: true },
+//             ].map(({ value, label, accent }) => (
+//               <div
+//                 key={label}
+//                 className="glass-card"
+//                 style={{
+//                   display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+//                   padding: "10px 4px", minHeight: 66, textAlign: "center",
+//                   background: "rgba(18,18,26,0.7)",
+//                   border: "1px solid rgba(255,255,255,0.06)",
+//                   borderRadius: 14,
+//                   position: "relative", overflow: "visible",
+//                 }}
+//               >
+//                 {accent && (() => {
+//                   const tooltipText =
+//                     label === "Posts"
+//                       ? "Count of all debates, predictions, and posts you've created."
+//                       : label === "Predictions"
+//                         ? "Count all predictions you've participated in."
+//                         : label === "Debates"
+//                           ? "Count all debates you've participated in."
+//                           : "Your accuracy rate across resolved predictions and debates.";
+
+//                   const isLeftmost = label === "Posts";
+
+//                   return (
+//                     <div
+//                       style={{ position: "absolute", top: 6, right: 6 }}
+//                       onMouseEnter={(e) => {
+//                         const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
+//                         if (tip) tip.style.display = "block";
+//                       }}
+//                       onMouseLeave={(e) => {
+//                         const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
+//                         if (tip) tip.style.display = "none";
+//                       }}
+//                       onTouchStart={(e) => {
+//                         const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
+//                         if (tip) tip.style.display = tip.style.display === "block" ? "none" : "block";
+//                       }}
+//                     >
+//                       <div style={{
+//                         width: 18, height: 18, borderRadius: "50%",
+//                         background: "var(--accent-magenta)",
+//                         display: "flex", alignItems: "center", justifyContent: "center",
+//                         fontSize: 10, fontWeight: 900, color: "#fff",
+//                         cursor: "pointer",
+//                       }}>i</div>
+
+//                       <div className="stat-tip" style={{
+//                         display: "none",
+//                         position: "absolute",
+//                         bottom: 24,
+//                         left: isLeftmost ? 0 : "auto",
+//                         right: isLeftmost ? "auto" : 0,
+//                         width: 170,
+//                         maxWidth: "calc(100vw - 32px)",
+//                         background: "rgba(20,20,30,0.97)",
+//                         border: "1px solid rgba(255,255,255,0.12)",
+//                         borderRadius: 10,
+//                         padding: "8px 10px",
+//                         fontSize: 11,
+//                         color: "rgba(255,255,255,0.82)",
+//                         lineHeight: 1.5,
+//                         zIndex: 9999,
+//                         pointerEvents: "none",
+//                         whiteSpace: "normal",
+//                         boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
+//                       }}>{tooltipText}</div>
+//                     </div>
+//                   );
+//                 })()}
+//                 <span className="font-display" style={{ fontSize: 22, color: "#fff", lineHeight: 1, fontWeight: 800 }}>{value}</span>
+//                 <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 5 }}>{label}</span>
+//               </div>
+//             ))}
+//           </div>
+//           )}
+//         </>
+//       ) : null}
+
+//       {isExpertProfile && (
+//         <IdentityCard
+//           avatarSrc={displayAvatar}
+//           name={effectiveUsername}
+//           subtitle={EXPERT_ROLES[expertCanonicalName!] || "Sports Journalist"}
+//           tags={EXPERT_TAGS[expertCanonicalName!] || []}
+//           bio={EXPERT_BIOS[expertCanonicalName!] || "Verified sports journalist on SportsFan360."}
+//         />
 //       )}
 
-
-
-//       {/* ── Activity (tabbed) ── */}
-//       {/* {!isOtherProfile && ( */}
-//       {(!isOtherProfile || user.showActivity !== false) && (
-//         <div style={{ padding: "18px 14px 0" }}>
-//           <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-//             {isOtherProfile ? "Activity" : "Your Activity"}
-//           </span>
-
-//           <div style={{ display: "flex", gap: 8, marginTop: 12, marginBottom: 14 }}>
-//             {(["posts", "predictions", "debates"] as const).map((tab) => (
-//               <button key={tab} onClick={() => setActiveActivityTab(tab)}
-//                 style={{ padding: "7px 16px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: activeActivityTab === tab ? "#fff" : "rgba(255,255,255,0.08)", color: activeActivityTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)", transition: "all 0.18s" }}>
-//                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
+//       {isExpertProfile && (
+//         <div style={{ padding: "0 14px 40px" }}>
+//           <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+//             {(["videos", "posts"] as const).map((tab) => (
+//               <button
+//                 key={tab}
+//                 onClick={() => setActiveExpertTab(tab)}
+//                 style={{
+//                   flex: 1, padding: "9px 0", borderRadius: 20, border: "none", cursor: "pointer",
+//                   fontSize: 13, fontWeight: 700,
+//                   background: activeExpertTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
+//                   color: activeExpertTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
+//                   transition: "all 0.18s",
+//                 }}
+//               >
+//                 {tab === "videos" ? "Videos" : "Posts"}
 //               </button>
 //             ))}
 //           </div>
 
+//           {activeExpertTab === "videos" ? (
+//             expertVideosLoading ? (
+//               <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading videos...</p>
+//             ) : expertVideos.length === 0 ? (
+//               <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+//                 <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No videos yet.</p>
+//               </div>
+//             ) : (
+//               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+//                 {expertVideos.map((video, idx) => {
+//                   const preset = EXPERT_STYLE_PRESETS[idx % EXPERT_STYLE_PRESETS.length];
+//                   return (
+//                     <motion.div
+//                       key={video.id || idx}
+//                       onClick={() => {
+//                         const isAudio = video.type === "AUDIO";
+//                         const route = isAudio ? "/MainModules/AudioDrop" : "/MainModules/VideoDrop";
+//                         router.push(
+//                           `${route}?url=${encodeURIComponent(video.mediaUrl)}&title=${encodeURIComponent(video.title)}`
+//                         );
+//                       }}
+//                       whileHover={{ scale: 1.02, y: -3 }}
+//                       whileTap={{ scale: 0.98 }}
+//                       style={{
+//                         borderRadius: 18,
+//                         overflow: "hidden",
+//                         display: "flex",
+//                         flexDirection: "column",
+//                         cursor: "pointer",
+//                         border: "1px solid rgba(255, 255, 255, 0.08)",
+//                         boxShadow: "0 8px 20px -4px rgba(0, 0, 0, 0.5)",
+//                         background: "#121622",
+//                       }}
+//                     >
+//                       <div
+//                         style={{
+//                           width: "100%",
+//                           height: 130,
+//                           position: "relative",
+//                           display: "flex",
+//                           alignItems: "center",
+//                           justifyContent: "center",
+//                           overflow: "hidden",
+//                           background: preset.gradient,
+//                         }}
+//                       >
+//                         {video.thumbnailUrl && (
+//                           <img
+//                             src={video.thumbnailUrl}
+//                             alt={video.title}
+//                             style={{
+//                               position: "absolute",
+//                               inset: 0,
+//                               width: "100%",
+//                               height: "100%",
+//                               objectFit: "cover",
+//                               opacity: 0.75,
+//                             }}
+//                           />
+//                         )}
 
-//           {/* ── Posts tab ── */}
-//           {activeActivityTab === "posts" && (() => {
-//             const postActivities = sourceActivities.filter((a: any) =>
-//               ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
-//             );
-//             if (isLoadingActivities) {
-//               return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
-//             }
-//             if (postActivities.length === 0) {
-//               return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No posts yet.</p>;
-//             }
-//             return (
-//               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-//                 {postActivities
-//                   .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
-//                   .map((p: any) => (
-//                     <div key={p.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-//                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-//                         <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-//                           {p.metadata?.sport?.toUpperCase() ?? "GENERAL"}
+//                         <span
+//                           style={{
+//                             position: "absolute",
+//                             top: 10,
+//                             left: 10,
+//                             zIndex: 10,
+//                             fontSize: 8.5,
+//                             fontWeight: 800,
+//                             padding: "2px 8px",
+//                             borderRadius: 999,
+//                             textTransform: "uppercase",
+//                             letterSpacing: "0.06em",
+//                             background: preset.badgeBg,
+//                             color: preset.badgeTextColor,
+//                           }}
+//                         >
+//                           {video.type}
 //                         </span>
-//                         <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
-//                           {p.type === "ROAR_PREDICTION" ? "PREDICTION" : p.type === "ROAR_DEBATE" ? "DEBATE" : "POST"}
+
+//                         <div
+//                           style={{
+//                             position: "absolute",
+//                             inset: 0,
+//                             display: "flex",
+//                             alignItems: "center",
+//                             justifyContent: "center",
+//                             background: "rgba(0, 0, 0, 0.25)",
+//                           }}
+//                         >
+//                           <div
+//                             style={{
+//                               width: 36,
+//                               height: 36,
+//                               borderRadius: "50%",
+//                               border: "1px solid rgba(255, 255, 255, 0.2)",
+//                               display: "flex",
+//                               alignItems: "center",
+//                               justifyContent: "center",
+//                               backgroundColor: "rgba(255, 255, 255, 0.15)",
+//                               backdropFilter: "blur(2px)",
+//                               WebkitBackdropFilter: "blur(2px)",
+//                             }}
+//                           >
+//                             <svg width="12" height="14" viewBox="0 0 14 16" fill="none" style={{ marginLeft: 2 }}>
+//                               <path d="M13 8L1 15V1L13 8Z" fill="#fff" />
+//                             </svg>
+//                           </div>
+//                         </div>
+
+//                         {video.duration && (
+//                           <span
+//                             style={{
+//                               position: "absolute",
+//                               bottom: 8,
+//                               right: 8,
+//                               zIndex: 10,
+//                               fontSize: 9,
+//                               fontWeight: 700,
+//                               color: "#fff",
+//                               padding: "2px 6px",
+//                               borderRadius: 4,
+//                               background: "rgba(0, 0, 0, 0.7)",
+//                               lineHeight: 1,
+//                             }}
+//                           >
+//                             {video.duration}
+//                           </span>
+//                         )}
+//                       </div>
+
+//                       <div style={{ width: "100%", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+//                         <h4
+//                           style={{
+//                             fontSize: 11,
+//                             fontWeight: 700,
+//                             color: "#fff",
+//                             lineHeight: 1.35,
+//                             textAlign: "left",
+//                             margin: 0,
+//                             display: "-webkit-box",
+//                             WebkitLineClamp: 2,
+//                             WebkitBoxOrient: "vertical",
+//                             overflow: "hidden",
+//                           }}
+//                         >
+//                           {video.title}
+//                         </h4>
+
+//                         {video.createdAt && (
+//                           <span style={{ fontSize: 9.5, fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", marginTop: "auto", paddingTop: 4 }}>
+//                             {formatVideoTimestamp(video.createdAt)}
+//                           </span>
+//                         )}
+//                       </div>
+//                     </motion.div>
+//                   );
+//                 })}
+//               </div>
+//             )
+//           ) : (
+//             expertFlipLoading ? (
+//               <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading posts...</p>
+//             ) : expertFlipCards.length === 0 ? (
+//               <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+//                 <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No posts yet.</p>
+//               </div>
+//             ) : (
+//               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+//                 {expertFlipCards
+//                   .slice()
+//                   .sort((a: any, b: any) => (b.timeMs || 0) - (a.timeMs || 0))
+//                   .map((c: any, i: number) => (
+//                     <div key={c.id ?? `expert-post-${i}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+//                         <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+//                           {(c.source || "FlipLine").toUpperCase()}
 //                         </span>
 //                       </div>
-//                       <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-//                         {p.metadata?.statement || p.label || "Post"}
-//                       </p>
-//                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-//                         {p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
-//                       </span>
+//                       <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>{c.content}</p>
+//                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+//                         <span>{c.time || ""}</span>
+//                         {c.likes !== undefined && <span>❤️ {c.likes} likes</span>}
+//                       </div>
 //                     </div>
 //                   ))}
 //               </div>
-//             );
-//           })()}
-
-//           {/* ── Predictions tab ── */}
-//           {activeActivityTab === "predictions" && (
-//             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-//               {isLoadingActivities ? (
-//                 <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading predictions...</p>
-//               ) : filteredPreds.length === 0 ? (
-//                 <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No predictions yet.</p>
-//               ) : filteredPreds.map((p: any) => {
-//                 const isCorrect = p.status === "CORRECT" || p.status === "settled_correct";
-//                 const isWrong = p.status === "WRONG" || p.status === "settled_wrong";
-//                 const status = isCorrect ? "CORRECT" : isWrong ? "WRONG" : "PENDING";
-//                 const statusColor = isCorrect ? "#22C55E" : isWrong ? "#EF4444" : "#F59E0B";
-//                 return (
-//                   <div key={p.id ?? p.postId} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-//                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-//                       <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>{p.matchId ?? "GENERAL"}</span>
-//                       <span style={{ fontSize: 10, fontWeight: 800, color: statusColor, background: `${statusColor}18`, padding: "2px 7px", borderRadius: 4 }}>{status}</span>
-//                     </div>
-//                     <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>{p.text ?? p.label}</p>
-//                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-//                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-//                         {p.createdAt ? new Date(p.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
-//                       </span>
-//                       {!isOtherProfile && (
-//                         <button onClick={() => onToast("Shared call!")}
-//                           style={{ background: "none", border: "none", color: "rgba(255,255,255,0.35)", fontSize: 11, cursor: "pointer", textDecoration: "underline" }}>
-//                           Share
-//                         </button>
-//                       )}
-//                     </div>
-//                   </div>
-//                 );
-//               })}
-//             </div>
-//           )}
-
-//           {/* ── Debates tab ── */}
-//           {activeActivityTab === "debates" && (
-//             <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 80 }}>
-//               {isLoadingActivities ? (
-//                 <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading debates...</p>
-//               ) : debateActivities.length === 0 ? (
-//                 <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No debates yet.</p>
-//               ) : debateActivities
-//                 .slice()
-//                 .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
-//                 .map((debate: any) => (
-//                   <div key={debate.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-//                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-//                       <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-//                         {(debate.metadata?.sport ?? debate.sport ?? "GENERAL").toUpperCase()}
-//                       </span>
-//                       <span style={{ fontSize: 10, fontWeight: 800, color: "#A78BFA", background: "rgba(167,139,250,0.12)", padding: "2px 7px", borderRadius: 4 }}>DEBATE</span>
-//                     </div>
-//                     <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-//                       {(debate.metadata?.statement || debate.text || debate.label || "Debate").trim()}
-//                     </p>
-//                     {(debate.metadata?.sideA || debate.sideA) && (debate.metadata?.sideB || debate.sideB) && (
-//                       <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
-//                         <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideA ?? debate.sideA}</strong>
-//                         {" vs "}
-//                         <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideB ?? debate.sideB}</strong>
-//                       </p>
-//                     )}
-//                     <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-//                       {debate.createdAt ? new Date(debate.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "Today"}
-//                     </span>
-//                   </div>
-//                 ))
-//               }
-//             </div>
+//             )
 //           )}
 //         </div>
 //       )}
+
+//       {!isBotProfile && !isExpertProfile && (
+//         <>
+//           {/* ── ROAR Points bar ── */}
+//           {/* <div style={{ padding: "18px 14px 0" }}>
+//             <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+//                 <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Roar Points</span>
+//                 <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{repScore} points</span>
+//               </div>
+//               <div style={{ height: 10, background: "rgba(255,255,255,0.08)", borderRadius: 5, overflow: "hidden" }}>
+//                 <div style={{ height: "100%", width: `${repPct}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 5, transition: "width 1s ease" }} />
+//               </div>
+//             </div>
+//           </div> */}
+//           {/* ── Points: FlipARENA / Total ── */}
+//           <div style={{ padding: "18px 14px 0" }}>
+//             <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//               <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+//                 {([["fliparena", "FlipARENA"], ["global", "Global"]] as const).map(([id, label]) => (
+//                   <button key={id} onClick={() => setPointsTab(id)}
+//                     style={{
+//                       flex: 1, padding: "7px 0", borderRadius: 20, border: "none", cursor: "pointer",
+//                       fontSize: 12, fontWeight: 700, transition: "all 0.18s",
+//                       background: pointsTab === id ? "#fff" : "rgba(255,255,255,0.08)",
+//                       color: pointsTab === id ? "#0a0a10" : "rgba(255,255,255,0.6)",
+//                     }}>
+//                     {label}
+//                   </button>
+//                 ))}
+//               </div>
+
+//               {pointsTab === "fliparena" ? (
+//                 arenaLoading && !arenaStats ? (
+//                   <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>Loading…</p>
+//                 ) : (
+//                   <>
+//                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+//                       {[
+//                         { label: "SXPs", value: (arenaStats?.points ?? 0).toLocaleString() },
+//                         { label: "Rank", value: arenaStats ? `#${arenaStats.rank}` : "—" },
+//                         { label: "Accuracy", value: arenaStats?.accuracy ?? "0%" },
+//                       ].map(({ label, value }) => (
+//                         <div key={label} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 12, background: "rgba(255,255,255,0.04)" }}>
+//                           <div className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{value}</div>
+//                           <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{label}</div>
+//                         </div>
+//                       ))}
+//                     </div>
+//                     <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "10px 0 0", textAlign: "center" }}>
+//                       {arenaStats ? `${arenaStats.correct}/${arenaStats.total} correct` : "No FlipARENA activity yet."}
+//                     </p>
+//                   </>
+//                 )
+//               ) : (
+//                 <>
+//                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}>
+//                     {[
+//                       { label: "Total SXP", value: globalStats.points.toLocaleString() },
+//                       { label: "Global Rank", value: globalStats.rank > 0 ? `#${globalStats.rank}` : "—" },
+//                       { label: "Level", value: `LVL ${levelInfo.level}` },
+//                     ].map(({ label, value }) => (
+//                       <div key={label} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 12, background: "rgba(255,255,255,0.04)" }}>
+//                         <div className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{value}</div>
+//                         <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{label}</div>
+//                       </div>
+//                     ))}
+//                   </div>
+//                   <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
+//                     <div style={{ height: "100%", width: `${levelInfo.pct}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 4, transition: "width 1s ease" }} />
+//                   </div>
+//                   <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "8px 0 0", textAlign: "right" }}>
+//                     +{levelInfo.xpRemaining.toLocaleString()} SXP to next level
+//                   </p>
+//                 </>
+//               )}
+//             </div>
+//           </div>
+
+//           {/* ── Global Reputation ── */}
+//           {globalTier && (
+//             <div style={{ padding: "18px 14px 8px" }}>
+//               <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+//                   <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
+//                     {globalTier.label} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>· Tier {globalTier.tierLevel}/7</span>
+//                   </span>
+//                   {globalTier.tier !== "GOAT" && (
+//                     <span style={{ fontSize: 11, color: "rgba(255,255,255,0.5)" }}>{globalTierProgress}% to next</span>
+//                   )}
+//                 </div>
+//                 <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
+//                   <div style={{ height: "100%", width: `${globalTierProgress}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 4, transition: "width 1s ease" }} />
+//                 </div>
+//               </div>
+//             </div>
+//           )}
+
+//           {/* ── Roar Journey ── */}
+//           <RoarJourneySection
+//             predictions={statPredictions}
+//             debates={statDebates}
+//             posts={statPosts}
+//             // badgeSrcs={[
+//             //   FIRST_ROAR_BADGE_SRC,
+//             //   ...(user.badges ?? [])
+//             //     .filter((b: any) => b.unlocked && b.imageUrl)
+//             //     .slice(0, 3)
+//             //     .map((b: any) => toBadgeImageSrc(b.imageUrl)),
+//             // ]}
+//             badgeSrcs={[
+//               ...featureBadges
+//                 .filter((fb) => fb.level > 0)
+//                 .map((fb) => fb.icons?.[Math.max(0, fb.level - 1)])
+//                 .filter(Boolean),
+//               ...specialBadges
+//                 .filter((b) => b.unlocked && b.imageUrl)
+//                 .map((b: any) => toBadgeImageSrc(b.imageUrl)),
+//             ]}
+//             onToast={onToast}
+//           />
+
+//           {/* ── Main section tabs: Overview / Badges / Activity ── */}
+//           <div style={{ padding: "18px 14px 0" }}>
+//             <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+//               {(["overview", "badges", "activity"] as const).map((tab) => (
+//                 <button
+//                   key={tab}
+//                   onClick={() => setActiveMainTab(tab)}
+//                   style={{
+//                     flex: 1,
+//                     padding: "9px 0",
+//                     borderRadius: 20,
+//                     border: "none",
+//                     cursor: "pointer",
+//                     fontSize: 13,
+//                     fontWeight: 700,
+//                     background: activeMainTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
+//                     color: activeMainTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
+//                     transition: "all 0.18s",
+//                   }}
+//                 >
+//                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
+//                 </button>
+//               ))}
+//             </div>
+//           </div>
+
+//           {/* ── OVERVIEW TAB: badges won summary ── */}
+//           {activeMainTab === "overview" && (
+//             <div style={{ padding: "0 14px 8px" }}>
+//               {(() => {
+//                 const wonFeatureBadges = featureBadges.filter((fb) => fb.level > 0);
+//                 const wonSpecialBadges = specialBadges.filter((b) => b.unlocked);
+//                 const totalWon = wonFeatureBadges.length + wonSpecialBadges.length;
+
+//                 if (totalWon === 0) {
+//                   return (
+//                     <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+//                       <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>
+//                         {isOtherProfile ? "No badges won yet." : "No badges won yet — get posting, predicting, and debating!"}
+//                       </p>
+//                     </div>
+//                   );
+//                 }
+
+//                 return (
+//                   <>
+//                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+//                       <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+//                         {isOtherProfile ? "Badges Won" : "Your Badges Won"}
+//                       </span>
+//                       <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>{totalWon} total</span>
+//                     </div>
+
+//                     {wonFeatureBadges.length > 0 && (
+//                       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: wonSpecialBadges.length > 0 ? 16 : 0 }}>
+//                         {wonFeatureBadges.map((fb) => (
+//                           <button
+//                             key={fb.feature}
+//                             onClick={() => setBadgeModal({
+//                               id: fb.feature,
+//                               badgeId: fb.feature,
+//                               unlocked: fb.level > 0,
+//                               progress: fb.progress,
+//                               _feature: fb,
+//                             })}
+//                             style={{
+//                               display: "flex", flexDirection: "column", alignItems: "center",
+//                               width: 76, background: "none", border: "none", cursor: "pointer", padding: 0,
+//                             }}
+//                           >
+//                             <div style={{
+//                               width: 56, height: 56, borderRadius: "50%",
+//                               background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
+//                               border: "2px solid rgba(233,30,140,0.5)",
+//                               display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+//                             }}>
+//                               {fb.icons?.[Math.max(0, fb.level - 1)] ? (
+//                                 <img src={fb.icons[Math.max(0, fb.level - 1)]} alt={fb.feature} style={{ width: "70%", height: "70%", objectFit: "contain" }} />
+//                               ) : (
+//                                 <span style={{ fontSize: 20 }}>🏅</span>
+//                               )}
+//                             </div>
+//                             <span style={{ fontSize: 10, color: "#fff", fontWeight: 600, marginTop: 6, textAlign: "center", textTransform: "capitalize" }}>
+//                               {fb.feature.replace(/([A-Z])/g, " $1")}
+//                             </span>
+//                             <span style={{ fontSize: 9, color: "var(--accent-magenta)", fontWeight: 700 }}>L{fb.level}</span>
+//                           </button>
+//                         ))}
+//                       </div>
+//                     )}
+
+//                     {wonSpecialBadges.length > 0 && (
+//                       <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
+//                         {wonSpecialBadges.map((b) => (
+//                           <div key={b.id} style={{
+//                             flexShrink: 0, padding: "8px 14px", borderRadius: 20,
+//                             background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
+//                             border: "1px solid rgba(255,215,0,0.35)",
+//                             fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
+//                           }}>
+//                             🏆 {b.name}
+//                           </div>
+//                         ))}
+//                       </div>
+//                     )}
+//                   </>
+//                 );
+//               })()}
+//             </div>
+//           )}
+
+//           {/* ── BADGES TAB: full feature mastery + special badges ── */}
+//           {activeMainTab === "badges" && (
+//             <>
+//               <div style={{ padding: "0 0 0" }}>
+//                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 14 }}>
+//                   <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
+//                     {isOtherProfile ? "Badges" : "Your Badges"}
+//                   </span>
+//                 </div>
+
+//                 <div style={{ display: "flex", flexDirection: "column", gap: 18, padding: "0 14px" }}>
+//                   {featureBadges.map((fb) => (
+//                     <div key={fb.feature}>
+//                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
+//                         <span style={{ fontSize: 12, fontWeight: 700, color: fb.level > 0 ? "#fff" : "rgba(255,255,255,0.45)", textTransform: "capitalize" }}>
+//                           {fb.feature.replace(/([A-Z])/g, " $1")}
+//                         </span>
+//                         <span style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700 }}>
+//                           {fb.level > 0 ? `${fb.label} · L${fb.level}/5` : "Locked"}
+//                         </span>
+//                       </div>
+
+//                       <div style={{ display: "flex", gap: 6 }}>
+//                         {[1, 2, 3, 4, 5].map((lvl) => {
+//                           const achieved = lvl <= fb.level;
+//                           const isCurrentTarget = lvl === fb.level + 1;
+//                           return (
+//                             <button
+//                               key={lvl}
+//                               onClick={() => setBadgeModal({
+//                                 id: fb.feature,
+//                                 badgeId: fb.feature,
+//                                 unlocked: fb.level > 0,
+//                                 progress: fb.progress,
+//                                 _feature: fb,
+//                               })}
+//                               style={{
+//                                 flex: "1 1 0",
+//                                 minWidth: 0,
+//                                 background: "none",
+//                                 border: "none",
+//                                 padding: 0,
+//                                 cursor: "pointer",
+//                                 display: "flex",
+//                                 flexDirection: "column",
+//                                 alignItems: "center",
+//                               }}
+//                             >
+//                               <div style={{
+//                                 width: "100%",
+//                                 aspectRatio: "1 / 1",
+//                                 maxWidth: 56,
+//                                 borderRadius: "50%",
+//                                 display: "flex", alignItems: "center", justifyContent: "center",
+//                                 overflow: "hidden",
+//                                 fontSize: 20,
+//                                 background: achieved
+//                                   ? "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))"
+//                                   : "rgba(255,255,255,0.05)",
+//                                 border: achieved
+//                                   ? "2px solid rgba(233,30,140,0.5)"
+//                                   : isCurrentTarget
+//                                     ? "2px dashed rgba(255,255,255,0.25)"
+//                                     : "2px solid rgba(255,255,255,0.08)",
+//                                 filter: achieved ? "none" : "grayscale(1) opacity(0.5)",
+//                               }}>
+//                                 {fb.icons?.[lvl - 1] ? (
+//                                   <img
+//                                     src={fb.icons[lvl - 1]}
+//                                     alt={`${fb.feature} L${lvl}`}
+//                                     style={{ width: "70%", height: "70%", objectFit: "contain" }}
+//                                     onError={(e) => {
+//                                       const target = e.currentTarget;
+//                                       target.style.display = "none";
+//                                       const parent = target.parentElement;
+//                                       if (parent && !parent.querySelector(".pip-fallback")) {
+//                                         const span = document.createElement("span");
+//                                         span.className = "pip-fallback";
+//                                         span.textContent = achieved || isCurrentTarget ? "🏅" : "🔒";
+//                                         parent.appendChild(span);
+//                                       }
+//                                     }}
+//                                   />
+//                                 ) : (
+//                                   <span>{achieved || isCurrentTarget ? "🏅" : "🔒"}</span>
+//                                 )}
+//                               </div>
+//                               <span style={{ fontSize: 8, color: achieved ? "#fff" : "rgba(255,255,255,0.35)", marginTop: 3 }}>
+//                                 L{lvl}
+//                               </span>
+//                             </button>
+//                           );
+//                         })}
+//                       </div>
+//                     </div>
+//                   ))}
+//                 </div>
+//               </div>
+
+//               {specialBadges.filter((b) => b.unlocked).length > 0 && (
+//                 <div style={{ padding: "18px 0 0" }}>
+//                   <div style={{ padding: "0 14px", marginBottom: 12 }}>
+//                     <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Special Achievements</span>
+//                   </div>
+//                   <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
+//                     {specialBadges.filter((b) => b.unlocked).map((b) => (
+//                       <div key={b.id} style={{
+//                         flexShrink: 0, padding: "8px 14px", borderRadius: 20,
+//                         background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
+//                         border: "1px solid rgba(255,215,0,0.35)",
+//                         fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
+//                       }}>
+//                         🏆 {b.name}
+//                       </div>
+//                     ))}
+//                   </div>
+//                 </div>
+//               )}
+//             </>
+//           )}
+
+//           {/* ── ACTIVITY TAB (tabbed all/posts/predictions/debates) ── */}
+//           {activeMainTab === "activity" && (!isOtherProfile || user.showActivity !== false) && (
+//             <div style={{ padding: "0 14px 0" }}>
+//               <div style={{ display: "flex", gap: 8, marginTop: 0, marginBottom: 14 }}>
+//                 {(["all", "posts", "predictions", "debates"] as const).map((tab) => (
+//                   <button key={tab} onClick={() => setActiveActivityTab(tab)}
+//                     style={{ padding: "4px 10px", borderRadius: 20, border: "none", cursor: "pointer", fontSize: 10, fontWeight: 600, background: activeActivityTab === tab ? "#fff" : "rgba(255,255,255,0.08)", color: activeActivityTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)", transition: "all 0.18s" }}>
+//                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
+//                   </button>
+//                 ))}
+//               </div>
+
+//               {/* ── All tab ── */}
+//               {activeActivityTab === "all" && (() => {
+//                 if (isLoadingActivities) {
+//                   return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
+//                 }
+//                 const allActivities = sourceActivities
+//                   .filter((a: any) =>
+//                     ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION", "ROAR_DEBATE_PARTICIPATE", "ROAR_PREDICTION_PARTICIPATE"].includes(a.type)
+//                     && a.type !== "ROAR_PREDICTION_LIVE"
+//                     && a.metadata?.predictionType !== "live"
+//                   )
+//                   .slice()
+//                   .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
+
+//                 if (allActivities.length === 0) {
+//                   return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No activity yet.</p>;
+//                 }
+
+//                 // const typeLabel = (type: string) => {
+//                 //   if (type === "ROAR_PREDICTION" || type === "ROAR_PREDICTION_PARTICIPATE") return { label: "PREDICTION", color: "#F59E0B" };
+//                 //   if (type === "ROAR_DEBATE" || type === "ROAR_DEBATE_PARTICIPATE") return { label: "DEBATE", color: "#A78BFA" };
+//                 //   return { label: "POST", color: "#F59E0B" };
+//                 // };
+
+//                 const typeLabel = (type: string): { label: string; color: string } => {
+//                   const map: Record<string, { label: string; color: string }> = {
+//                     ROAR_POST: { label: "ROAR_POST", color: "#F59E0B" },
+//                     ROAR_HOT_TAKE: { label: "ROAR_HOT_TAKE", color: "#F59E0B" },
+//                     ROAR_RAW_REACTIONS: { label: "ROAR_RAW_REACTIONS", color: "#F59E0B" },
+//                     ROAR_MEMORY: { label: "ROAR_MEMORY", color: "#F59E0B" },
+//                     ROAR_QUIZ: { label: "ROAR_QUIZ", color: "#F59E0B" },
+//                     ROAR_DEBATE: { label: "ROAR_DEBATE", color: "#A78BFA" },
+//                     ROAR_DEBATE_PARTICIPATE: { label: "ROAR_DEBATE_PARTICIPATE", color: "#6EE7B7" },
+//                     ROAR_PREDICTION: { label: "ROAR_PREDICTION", color: "#F59E0B" },
+//                     ROAR_PREDICTION_PARTICIPATE: { label: "ROAR_PREDICTION_PARTICIPATE", color: "#6EE7B7" },
+//                   };
+//                   return map[type] ?? { label: type, color: "#9CA3AF" };
+//                 };
+
+//                 return (
+//                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+//                     {allActivities.map((a: any) => {
+//                       const { label, color } = typeLabel(a.type);
+//                       const roomName = getRoomName(a.roomId, a.metadata?.roomName || a.roomName || a.metadata?.roomTitle);
+//                       const text = (a.metadata?.statement || a.label || "Activity").trim();
+//                       return (
+//                         <div key={a.id ?? `${a.type}-${a.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//                           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+//                             <span style={{ fontSize: 10, fontWeight: 800, color, background: `${color}18`, padding: "2px 7px", borderRadius: 4 }}>
+//                               {label}
+//                             </span>
+//                           </div>
+//                           <div style={{ marginBottom: 6 }}>
+//                             <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+//                               Room : {roomName.toUpperCase()}
+//                             </span>
+//                           </div>
+//                           <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+//                             {truncateText(text)}
+//                           </p>
+//                           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+//                             {formatActivityTimestamp(a.createdAt)}
+//                           </span>
+//                         </div>
+//                       );
+//                     })}
+//                   </div>
+//                 );
+//               })()}
+
+//               {/* ── Posts tab ── */}
+//               {activeActivityTab === "posts" && (() => {
+//                 const postActivities = sourceActivities.filter((a: any) =>
+//                   ["ROAR_POST", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ", "ROAR_DEBATE", "ROAR_PREDICTION"].includes(a.type)
+//                   && a.type !== "ROAR_PREDICTION_LIVE"
+//                   && a.metadata?.predictionType !== "live"
+//                 );
+//                 const displayPosts = postActivities.length > 0
+//                   ? postActivities
+//                     .sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0))
+//                     .map((p: any) => ({
+//                       id: p.id ?? `${p.type}-${p.createdAt}`,
+//                       room: getRoomName(p.roomId, p.metadata?.roomName || p.roomName || p.metadata?.sport).toUpperCase(),
+//                       badgeText: p.type === "ROAR_PREDICTION" ? "PREDICTION" : p.type === "ROAR_DEBATE" ? "DEBATE" : "POST",
+//                       text: p.metadata?.statement || p.label || "Post",
+//                       createdAt: p.createdAt,
+//                     }))
+//                   : apiHotTakes.map((h: any) => ({
+//                     id: h.postId || h.id,
+//                     room: (h.sport || "Cricket").toUpperCase(),
+//                     badgeText: "HOT TAKE",
+//                     text: h.text || "Hot take",
+//                     createdAt: h.createdAt,
+//                   }));
+
+//                 if (isLoadingActivities) {
+//                   return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
+//                 }
+//                 if (displayPosts.length === 0) {
+//                   return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No posts yet.</p>;
+//                 }
+//                 return (
+//                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+//                     {displayPosts.map((p: any) => (
+//                       <div key={p.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+//                           <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+//                             Room : {p.room}
+//                           </span>
+//                           <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
+//                             {p.badgeText}
+//                           </span>
+//                         </div>
+//                         <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+//                           {truncateText(p.text)}
+//                         </p>
+//                         <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+//                           {formatActivityTimestamp(p.createdAt)}
+//                         </span>
+//                       </div>
+//                     ))}
+//                   </div>
+//                 );
+//               })()}
+
+//               {/* ── Predictions tab ── */}
+//               {activeActivityTab === "predictions" && (
+//                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+//                   {isLoadingActivities ? (
+//                     <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading predictions...</p>
+//                   ) : filteredPreds.length === 0 ? (
+//                     <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No predictions yet.</p>
+//                   ) : filteredPreds.map((p: any) => {
+//                     const isCorrect = p.status === "CORRECT" || p.status === "settled_correct";
+//                     const isWrong = p.status === "WRONG" || p.status === "settled_wrong";
+//                     const status = isCorrect ? "CORRECT" : isWrong ? "WRONG" : "PENDING";
+//                     const statusColor = isCorrect ? "#22C55E" : isWrong ? "#EF4444" : "#F59E0B";
+//                     return (
+//                       <div key={p.id ?? `${p.postId}-${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+//                           <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+//                             Room : {getRoomName(p.roomId, p.roomName) || p.matchId || "GENERAL"}
+//                           </span>
+//                           <span style={{ fontSize: 10, fontWeight: 800, color: statusColor, background: `${statusColor}18`, padding: "2px 7px", borderRadius: 4 }}>{status}</span>
+//                         </div>
+//                         <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>{truncateText(p.text ?? p.label)}</p>
+//                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+//                           <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+//                             {formatActivityTimestamp(p.createdAt)}
+//                           </span>
+
+//                         </div>
+//                       </div>
+//                     );
+//                   })}
+//                 </div>
+//               )}
+
+//               {/* ── Debates tab ── */}
+//               {activeActivityTab === "debates" && (
+//                 <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 80 }}>
+//                   {isLoadingActivities ? (
+//                     <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading debates...</p>
+//                   ) : displayDebates.length === 0 ? (
+//                     <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No debates yet.</p>
+//                   ) : displayDebates
+//                     .map((debate: any) => (
+//                       <div key={debate.id ?? `${debate.type}-${debate.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+//                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
+//                           <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+//                             Room : {getRoomName(debate.roomId, debate.metadata?.roomName || debate.roomName || debate.metadata?.sport || debate.sport).toUpperCase()}
+//                           </span>
+//                           <span style={{ fontSize: 10, fontWeight: 800, color: "#A78BFA", background: "rgba(167,139,250,0.12)", padding: "2px 7px", borderRadius: 4 }}>DEBATE</span>
+//                         </div>
+//                         <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
+//                           {truncateText((debate.metadata?.statement || debate.text || debate.label || "Debate").trim())}
+//                         </p>
+//                         {(debate.metadata?.sideA || debate.sideA) && (debate.metadata?.sideB || debate.sideB) && (
+//                           <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
+//                             <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideA ?? debate.sideA}</strong>
+//                             {" vs "}
+//                             <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideB ?? debate.sideB}</strong>
+//                           </p>
+//                         )}
+//                         <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+//                           {formatActivityTimestamp(debate.createdAt)}
+//                         </span>
+//                       </div>
+//                     ))
+//                   }
+//                 </div>
+//               )}
+
+//               {/* ── Load more (shared across all / posts / predictions / debates) ── */}
+//               {!isLoadingActivities && activityHasMore && (
+//                 <div style={{ display: "flex", justifyContent: "center", padding: "4px 0 24px" }}>
+//                   <button
+//                     onClick={handleLoadMoreActivities}
+//                     disabled={loadingMoreActivities}
+//                     style={{
+//                       padding: "9px 22px",
+//                       borderRadius: 20,
+//                       border: "1px solid rgba(255,255,255,0.15)",
+//                       background: "rgba(255,255,255,0.06)",
+//                       color: "rgba(255,255,255,0.75)",
+//                       fontSize: 12,
+//                       fontWeight: 600,
+//                       cursor: loadingMoreActivities ? "default" : "pointer",
+//                       opacity: loadingMoreActivities ? 0.6 : 1,
+//                     }}
+//                   >
+//                     {loadingMoreActivities ? "Loading..." : "Load more (older activity)"}
+//                   </button>
+//                 </div>
+//               )}
+//               {!isLoadingActivities && !activityHasMore && sourceActivities.length > 0 && (
+//                 <p style={{ textAlign: "center", padding: "4px 0 24px", color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
+//                   You're all caught up — no earlier activity.
+//                 </p>
+//               )}
+//             </div>
+//           )}
+
+//         </>
+//       )}
+
+
 
 //       {/* ── Modals ── */}
 
@@ -986,18 +2792,74 @@
 //                 <h3 className="font-display" style={{ fontSize: 18, letterSpacing: "0.05em", color: "#fff", margin: 0 }}>CHOOSE YOUR AVATAR</h3>
 //                 <button onClick={() => setAvatarPickerOpen(false)} style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "rgba(255,255,255,0.7)", width: 28, height: 28, borderRadius: "50%", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
 //               </div>
-//               <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", marginBottom: 18 }}>Tap an avatar to set it as your profile picture</p>
-//               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, padding: "0 4px" }}>
+
+//               {/* Upload custom photo option */}
+//               <div style={{ marginBottom: 16 }}>
+//                 <label
+//                   style={{
+//                     width: "100%",
+//                     boxSizing: "border-box",
+//                     display: "flex",
+//                     alignItems: "center",
+//                     justifyContent: "center",
+//                     gap: 8,
+//                     padding: "11px 16px",
+//                     borderRadius: 14,
+//                     background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
+//                     border: "1px solid rgba(233,30,140,0.45)",
+//                     color: "#fff",
+//                     fontSize: 13,
+//                     fontWeight: 700,
+//                     cursor: uploadingAvatar ? "default" : "pointer",
+//                     transition: "all 0.2s ease",
+//                   }}
+//                 >
+//                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+//                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+//                     <polyline points="17 8 12 3 7 8" />
+//                     <line x1="12" y1="3" x2="12" y2="15" />
+//                   </svg>
+//                   {uploadingAvatar ? "Uploading photo..." : "Upload from device"}
+//                   <input
+//                     type="file"
+//                     accept="image/*"
+//                     disabled={uploadingAvatar}
+//                     onChange={(e) => {
+//                       const file = e.target.files?.[0];
+//                       if (file) handleAvatarUpload(file);
+//                       e.target.value = "";
+//                     }}
+//                     style={{ display: "none" }}
+//                   />
+//                 </label>
+//               </div>
+
+//               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+//                 <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.1)" }} />
+//                 <span style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Or choose an avatar</span>
+//                 <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,0.1)" }} />
+//               </div>
+//               <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, padding: "0 2px" }}>
 //                 {AVATAR_OPTIONS.map((src, idx) => {
 //                   const sel = selectedAvatar === src;
 //                   return (
 //                     <motion.button key={idx} whileTap={{ scale: 0.92 }} onClick={() => handleAvatarSelect(src)}
 //                       style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
-//                       <div style={{ position: "relative", width: 64, height: 64, borderRadius: "50%", border: sel ? "3px solid var(--accent-magenta)" : "2px solid rgba(255,255,255,0.08)", boxShadow: sel ? "0 0 0 2px rgba(233,30,140,0.35),0 4px 16px rgba(233,30,140,0.3)" : "none", overflow: "hidden", background: "rgba(255,255,255,0.04)" }}>
+//                       <div style={{
+//                         position: "relative",
+//                         width: "100%",
+//                         aspectRatio: "1 / 1",
+//                         maxWidth: 72,
+//                         borderRadius: "50%",
+//                         border: sel ? "3px solid var(--accent-magenta)" : "2px solid rgba(255,255,255,0.08)",
+//                         boxShadow: sel ? "0 0 0 2px rgba(233,30,140,0.35),0 4px 16px rgba(233,30,140,0.3)" : "none",
+//                         overflow: "hidden",
+//                         background: "rgba(255,255,255,0.04)",
+//                       }}>
 //                         <img src={src} alt={`Avatar ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", filter: sel ? "none" : "brightness(0.85)" }} />
 //                         {sel && (
 //                           <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(233,30,140,0.25)" }}>
-//                             <span style={{ fontSize: 22, color: "#fff" }}>✓</span>
+//                             <span style={{ fontSize: 20, color: "#fff" }}>✓</span>
 //                           </motion.div>
 //                         )}
 //                       </div>
@@ -1036,26 +2898,126 @@
 //                   ✕
 //                 </button>
 //               </div>
+
+//               {/* Profile Photo Upload in Edit Profile Modal */}
+//               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 8 }}>Profile photo</label>
+//               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18, padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)" }}>
+//                 <div style={{ position: "relative", width: 56, height: 56, borderRadius: "50%", overflow: "hidden", background: "#1a1a2e", border: "2px solid rgba(255,255,255,0.15)", flexShrink: 0 }}>
+//                   {displayAvatar ? (
+//                     <img src={displayAvatar} alt="Profile preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+//                   ) : (
+//                     <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+//                       <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="md" />
+//                     </div>
+//                   )}
+//                   {uploadingAvatar && (
+//                     <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#fff" }}>
+//                       Uploading...
+//                     </div>
+//                   )}
+//                 </div>
+//                 <div style={{ display: "flex", gap: 8, flex: 1 }}>
+//                   <label style={{
+//                     flex: 1, textAlign: "center", padding: "8px 0", borderRadius: 12,
+//                     background: "linear-gradient(135deg, rgba(233,30,140,0.2), rgba(255,107,53,0.2))",
+//                     border: "1px solid rgba(233,30,140,0.4)",
+//                     color: "#fff", fontSize: 12, fontWeight: 600, cursor: uploadingAvatar ? "default" : "pointer",
+//                   }}>
+//                     {displayAvatar ? "Upload photo" : "Upload photo"}
+//                     <input
+//                       type="file"
+//                       accept="image/*"
+//                       disabled={uploadingAvatar}
+//                       onChange={(e) => {
+//                         const file = e.target.files?.[0];
+//                         if (file) handleAvatarUpload(file);
+//                         e.target.value = "";
+//                       }}
+//                       style={{ display: "none" }}
+//                     />
+//                   </label>
+//                   <button
+//                     type="button"
+//                     onClick={() => {
+//                       setEditOpen(false);
+//                       setAvatarPickerOpen(true);
+//                     }}
+//                     style={{
+//                       padding: "8px 12px", borderRadius: 12,
+//                       background: "none", border: "1px solid rgba(255,255,255,0.15)",
+//                       color: "rgba(255,255,255,0.8)", fontSize: 12, fontWeight: 600, cursor: "pointer",
+//                     }}
+//                   >
+//                     Avatars
+//                   </button>
+//                 </div>
+//               </div>
+
+//               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Cover photo (optional)</label>
+//               <div style={{
+//                 position: "relative",
+//                 width: "100%",
+//                 height: 90,
+//                 borderRadius: 14,
+//                 overflow: "hidden",
+//                 marginBottom: 16,
+//                 background: coverPhoto ? undefined : "rgba(255,255,255,0.05)",
+//                 border: "1px solid rgba(255,255,255,0.1)",
+//                 display: "flex", alignItems: "center", justifyContent: "center",
+//               }}>
+//                 {coverPhoto ? (
+//                   <img src={coverPhoto} alt="Cover preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+//                 ) : (
+//                   <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>No cover photo set</span>
+//                 )}
+//                 {uploadingCover && (
+//                   <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff" }}>
+//                     Uploading…
+//                   </div>
+//                 )}
+//               </div>
+//               <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+//                 <label style={{
+//                   flex: 1, textAlign: "center", padding: "9px 0", borderRadius: 12,
+//                   background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+//                   color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer",
+//                 }}>
+//                   {coverPhoto ? "Change photo" : "Upload photo"}
+//                   <input
+//                     type="file"
+//                     accept="image/*"
+//                     onChange={(e) => {
+//                       const file = e.target.files?.[0];
+//                       if (file) handleCoverPhotoFile(file);
+//                       e.target.value = "";
+//                     }}
+//                     style={{ display: "none" }}
+//                   />
+//                 </label>
+//                 {coverPhoto && (
+//                   <button
+//                     type="button"
+//                     onClick={handleRemoveCoverPhoto}
+//                     style={{
+//                       padding: "9px 16px", borderRadius: 12,
+//                       background: "none", border: "1px solid rgba(255,255,255,0.15)",
+//                       color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 600, cursor: "pointer",
+//                     }}
+//                   >
+//                     Remove
+//                   </button>
+//                 )}
+//               </div>
 //               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Display name</label>
 //               <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} />
+//               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>University / Institution</label>
+//               <input type="text" value={editUniversity} onChange={(e) => setEditUniversity(e.target.value)} placeholder="e.g. Oxford University / MIT" style={inputStyle} />
 //               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Favourite player</label>
 //               <input type="text" value={editFavPlayer} onChange={(e) => setEditFavPlayer(e.target.value)} placeholder="e.g. Rohit Sharma" style={inputStyle} />
 //               <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>About me (140 chars)</label>
 //               <textarea value={editAbout} onChange={(e) => setEditAbout(e.target.value.slice(0, 140))} rows={4}
 //                 style={{ width: "100%", borderRadius: 14, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", padding: "12px 14px", color: "white", fontSize: 14, marginBottom: 16, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
-//               {/* <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, cursor: "pointer" }}>
-//                 <input type="checkbox" checked={editShowPredHistory} onChange={(e) => setEditShowPredHistory(e.target.checked)}
-//                   style={{ width: 18, height: 18, accentColor: "var(--accent-magenta)", cursor: "pointer", flexShrink: 0 }} />
-//                 <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>Show prediction history to other fans</span>
-//               </label>
-//               <label style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 24, cursor: "pointer" }}>
-//                 <input type="checkbox" checked={editShowActivity} onChange={(e) => setEditShowActivity(e.target.checked)}
-//                   style={{ width: 18, height: 18, accentColor: "var(--accent-magenta)", cursor: "pointer", flexShrink: 0 }} />
-//                 <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500 }}>Show my activity (posts, debates, predictions) to other fans</span>
-//               </label> */}
-//               {/* Small reusable toggle switch component (put above the Profile component, or inline here) */}
 //               {[
-//                 // { checked: editShowPredHistory, onToggle: () => setEditShowPredHistory(v => !v), label: "Show prediction history to other fans" },
 //                 { checked: editShowActivity, onToggle: () => setEditShowActivity(v => !v), label: "Show my activity (posts, debates, predictions) to other fans" },
 //               ].map(({ checked, onToggle, label }, i) => (
 //                 <div
@@ -1086,10 +3048,32 @@
 //               ))}
 //               <motion.button whileTap={{ scale: 0.97 }} className="btn-gradient"
 //                 onClick={async () => {
-//                   setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, } }));
+//                   setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, university: editUniversity, institution: editUniversity, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, avatarUrl: selectedAvatar || prev?.user?.avatarUrl } }));
 //                   setEditOpen(false);
+//                   try { trackProfileSignalCreated("profile_details"); } catch (e) {}
+//                   const oldUser = profileMetadata?.user || {};
+//                   if (editName && editName !== oldUser.username) {
+//                     try { trackProfileSignalCreated("username"); } catch(e){}
+//                   }
+//                   if (editAbout && editAbout !== oldUser.about) {
+//                     try { trackProfileSignalCreated("bio"); } catch(e){}
+//                   }
+//                   try { trackProfileSignalCreated("profile_details"); } catch (e) { }
 //                   onToast("Profile updated successfully");
-//                   try { await axios.patch("/api/roar/profile", { username: editName, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, }); } catch { }
+//                   try { localStorage.setItem("roar_username", editName); } catch { }
+//                   try {
+//                     await axios.patch("/api/roar/profile", {
+//                       username: editName,
+//                       university: editUniversity,
+//                       institution: editUniversity,
+//                       favPlayer: editFavPlayer,
+//                       about: editAbout,
+//                       showPredHistory: editShowPredHistory,
+//                       showActivity: editShowActivity,
+//                       coverPhotoUrl: coverPhoto ?? "",
+//                       ...(selectedAvatar ? { avatarUrl: selectedAvatar } : {}),
+//                     });
+//                   } catch { }
 //                 }}
 //                 style={{ width: "100%", padding: "8px 0", borderRadius: 999, fontSize: 16, fontWeight: 800, border: "none", cursor: "pointer", letterSpacing: "0.06em" }}>
 //                 SAVE
@@ -1100,11 +3084,9 @@
 //       </AnimatePresence>
 
 //       {/* Share */}
-//       {/* ── Share Modal — fully inline styles, no Tailwind dependency ── */}
 //       <AnimatePresence>
 //         {shareOpen && (
 //           <>
-//             {/* Backdrop */}
 //             <motion.div
 //               initial={{ opacity: 0 }}
 //               animate={{ opacity: 1 }}
@@ -1116,7 +3098,6 @@
 //               }}
 //             />
 
-//             {/* Modal panel */}
 //             <motion.div
 //               initial={{ opacity: 0, y: 20, scale: 0.95 }}
 //               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1138,7 +3119,6 @@
 //                 boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
 //               }}
 //             >
-//               {/* Header */}
 //               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
 //                 <p style={{ color: "#fff", fontSize: 14, fontWeight: 600, margin: 0 }}>
 //                   Share ROAR Profile
@@ -1154,7 +3134,6 @@
 //                 </button>
 //               </div>
 
-//               {/* Profile preview */}
 //               <div style={{ borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)", background: "#111114", padding: "10px 12px", marginBottom: 14 }}>
 //                 <p style={{ color: "#fff", fontSize: 13, fontWeight: 600, margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
 //                   {user.username ?? "ROAR Profile"}
@@ -1164,7 +3143,6 @@
 //                 </p>
 //               </div>
 
-//               {/* Share icons */}
 //               <div style={{ display: "flex", flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
 //                 {shareActions.map(({ alt, src, handler }) => (
 //                   <button
@@ -1194,7 +3172,6 @@
 //                 ))}
 //               </div>
 
-//               {/* Status messages */}
 //               {sharingImage && (
 //                 <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "8px 0 0" }}>
 //                   Preparing image…
@@ -1217,11 +3194,6 @@
 //             style={{ position: "absolute", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
 //             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={(e) => e.stopPropagation()} className="glass-card"
 //               style={{ width: "100%", maxWidth: 300, padding: 20, textAlign: "center", background: "var(--bg-secondary)" }}>
-//               {/* <div style={{ fontSize: 48, marginBottom: 12 }}>{BADGE_CONFIG[badgeModal.badgeId ?? badgeModal.id]?.icon}</div>
-//               <h3 className="font-display" style={{ fontSize: 26, marginBottom: 4 }}>{BADGE_CONFIG[badgeModal.badgeId ?? badgeModal.id]?.name}</h3>
-//               <p style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700, letterSpacing: "0.05em" }}>{badgeModal.unlocked ? "UNLOCKED" : "LOCKED"}</p>
-//               <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.4 }}>{BADGE_DETAIL[badgeModal.badgeId ?? badgeModal.id]?.description ?? "Unlock by building your legacy!"}</p> */}
-//               {/* <div style={{ fontSize: 48, marginBottom: 12 }}>{badgeModal._feature?.icon ?? "🏅"}</div> */}
 //               <div style={{ width: 64, height: 64, margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
 //                 <img
 //                   src={badgeModal._feature?.icons?.[Math.max(0, (badgeModal._feature?.level || 1) - 1)] ?? badgeModal._feature?.icon}
@@ -1272,27 +3244,6 @@
 //               style={{ width: "100%", maxWidth: 320, padding: 20, background: "var(--bg-secondary)" }}>
 //               <h3 className="font-display" style={{ fontSize: 24, marginBottom: 4, textAlign: "center", color: "#fff" }}>YOUR FAN MATCH TRIBE</h3>
 //               <p style={{ fontSize: 11, color: "var(--text-secondary)", textAlign: "center", lineHeight: 1.4, marginBottom: 16 }}>We analysed your takes & predictions to find similar fans.</p>
-//               {/* <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-//                 {[
-//                   { username: "Rahul_77", badge: "BOLD_CALLER", similarity: 72 },
-//                   { username: "StatsKing_99", badge: "ORACLE", similarity: 68 },
-//                   { username: "MumbaiMagic", badge: "RISING_FAN", similarity: 61 },
-//                 ].map((fan) => (
-//                   <div key={fan.username} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 16, background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.04)" }}>
-//                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-//                       <AvatarWithBadge username={fan.username} badge={fan.badge} size="sm" />
-//                       <div>
-//                         <h4 className="font-display" style={{ fontSize: 14, color: "#fff" }}>{fan.username.toUpperCase()}</h4>
-//                         <p style={{ fontSize: 10, color: "var(--text-muted)" }}>{BADGE_LABELS[fan.badge]}</p>
-//                       </div>
-//                     </div>
-//                     <div style={{ textAlign: "right" }}>
-//                       <span style={{ background: "var(--accent-gradient)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", fontSize: 16, fontWeight: 800 }}>{fan.similarity}%</span>
-//                       <p style={{ fontSize: 8, color: "var(--text-muted)" }}>Match</p>
-//                     </div>
-//                   </div>
-//                 ))}
-//               </div> */}
 //               <button onClick={() => setFanMatchOpen(false)} className="btn-gradient"
 //                 style={{ width: "100%", marginTop: 18, padding: "12px 0", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13 }}>
 //                 Close Tribe
@@ -1308,7 +3259,10 @@
 
 
 
-// src\components\NewROARComponent\screens\Profile.tsx
+
+
+
+
 
 "use client";
 import { trackProfileSignalCreated } from "@/lib/analytics";
@@ -1324,7 +3278,7 @@ import BackButton from "../../ReusableComponent/BackButton";
 import { useActivity } from "@/context/ActivityContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   BOT_TAGS,
   BOT_USERNAMES,
@@ -1384,7 +3338,6 @@ const toBadgeImageSrc = (imageUrl: string) => {
 };
 
 
-
 // ─── Avatar images (base64) 
 const avatar1 = "data:image/png;base64,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";
 const avatar2 = "data:image/png;base64,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";
@@ -1398,6 +3351,7 @@ const avatar9 = "data:image/png;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST
 const avatar10 = "data:image/png;base64,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";
 const avatar11 = "data:image/png;base64,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";
 const avatar12 = "data:image/png;base64,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";
+
 
 const AVATAR_OPTIONS: string[] = [
   avatar1, avatar2, avatar3, avatar4,
@@ -1474,7 +3428,6 @@ function PencilIcon() {
     </svg>
   );
 }
-
 
 function IdentityCard({
   avatarSrc, name, subtitle, tags, bio, editable, onEditClick,
@@ -1608,7 +3561,6 @@ const copyToClipboard = async (text: string) => {
   }
 };
 
-// ─── Native share-with-image helpers ──────────────────────────────────────────
 const supportsFileShare = (file: File): boolean => {
   return (
     typeof navigator !== "undefined" &&
@@ -1698,22 +3650,18 @@ function resolveUsername(userObj: any, fallbackName?: string): string {
   return fallbackName || "Fan";
 }
 
-// ─── Component
+// ─── Component ────────────────────────────────────────────────────────────────
 export default function Profile({
   userBadge, setUserBadge, onCompose, onToast, setOnboarded, onNavigateTab,
-  viewingProfile, onClose,
-  isViewingOther, fanData, onBack,
+  viewingProfile: propViewingProfile, onClose,
+  isViewingOther: propIsViewingOther, fanData, onBack,
 }: Props) {
 
   const router = useRouter();
-  const isOtherProfile = !!(viewingProfile || isViewingOther);
-  const handleBack = onBack ?? onClose;
+  const searchParams = useSearchParams();
+  const queryUserId = searchParams?.get("userId") || searchParams?.get("profile") || (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("userId") || new URLSearchParams(window.location.search).get("profile") : null);
 
-  const [activeExpertTab, setActiveExpertTab] = useState<"videos" | "posts">("videos");
-  const [expertFlipCards, setExpertFlipCards] = useState<any[]>([]);
-  const [expertFlipLoading, setExpertFlipLoading] = useState(false);
-  const [expertVideos, setExpertVideos] = useState<any[]>([]);
-  const [expertVideosLoading, setExpertVideosLoading] = useState(false);
+  const viewingProfile = propViewingProfile || queryUserId || null;
 
   const { activities, loading: activityLoading, refreshActivities, profileStats } = useActivity();
   const { user: authUser, getUserDisplayName, loading: authLoading } = useAuth();
@@ -1747,6 +3695,36 @@ export default function Profile({
     return null;
   }, [authUser]);
 
+  const isOtherProfile = useMemo(() => {
+    if (propIsViewingOther) return true;
+    if (!viewingProfile) return false;
+    const cleanViewing = String(viewingProfile).trim().toLowerCase();
+    const cleanLoggedIn = String(loggedInUserId || "").trim().toLowerCase();
+    const cleanAuthUid = String(authUser?.userId || "").trim().toLowerCase();
+    const cleanAuthActualUid = String(authUser?.actualUserId || "").trim().toLowerCase();
+    const cleanAuthEmail = String(authUser?.email || "").trim().toLowerCase();
+
+    if (
+      cleanViewing === cleanLoggedIn ||
+      cleanViewing === cleanAuthUid ||
+      cleanViewing === cleanAuthActualUid ||
+      cleanViewing === cleanAuthEmail ||
+      cleanViewing === cleanAuthEmail.replace(/[@.]/g, "_")
+    ) {
+      return false;
+    }
+    return true;
+  }, [propIsViewingOther, viewingProfile, loggedInUserId, authUser]);
+
+  const handleBack = onBack ?? onClose;
+
+
+  const [activeExpertTab, setActiveExpertTab] = useState<"videos" | "posts">("videos");
+  const [expertFlipCards, setExpertFlipCards] = useState<any[]>([]);
+  const [expertFlipLoading, setExpertFlipLoading] = useState(false);
+  const [expertVideos, setExpertVideos] = useState<any[]>([]);
+  const [expertVideosLoading, setExpertVideosLoading] = useState(false);
+
   const headerDisplayName = useMemo(() => {
     if (authUser?.name) return authUser.name;
     if (typeof getUserDisplayName === "function") {
@@ -1770,6 +3748,11 @@ export default function Profile({
     return "";
   }, [authLoading, authUser?.name, getUserDisplayName]);
 
+  const BADGE_ICONS: Record<string, string> = {
+    "ROOKIE_FAN": "/images/badges/rookiefan.png",
+    "Rookie Fan": "/images/badges/rookiefan.png",
+  };
+
   const [profileMetadata, setProfileMetadata] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editShowActivity, setEditShowActivity] = useState(true);
@@ -1778,25 +3761,13 @@ export default function Profile({
   const [fetchedActivitiesLoading, setFetchedActivitiesLoading] = useState(false);
   const [activityCounts, setActivityCounts] = useState<Record<string, number>>({});
 
-  // Activity pagination: fetch in rolling 7-day windows instead of everything at once
+  // Activity pagination: fetch in rolling 7-day windows
   const ACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
   const [activityWindowStart, setActivityWindowStart] = useState<number>(Date.now() - ACTIVITY_WINDOW_MS);
   const [activityHasMore, setActivityHasMore] = useState(true);
   const [loadingMoreActivities, setLoadingMoreActivities] = useState(false);
   const [activityUserId, setActivityUserId] = useState<string | null>(null);
   const activityIdsRef = useRef<Set<string>>(new Set());
-
-  // const BOT_USERNAMES = ["Dolly", "Radha", "Krishna"];
-  // const BOT_BIOS: Record<string, string> = {
-  //   Dolly: "SportsFan360's AI companion — answers your questions and keeps the room buzzing.",
-  //   Radha: "SportsFan360 bot bringing hot takes, banter, and match-day energy to every room.",
-  //   Krishna: "SportsFan360 bot here to spark debates and keep the predictions coming.",
-  // };
-  // const BOT_AVATARS: Record<string, string> = {
-  //  Dolly: "/images/dolly.png",
-  // Room name lookup: roomId -> { name, icon } (from /api/roar/rooms), used to label
-  // activity cards with the actual room name instead of falling back to "General Room".
-
 
   const [roomsById, setRoomsById] = useState<Record<string, { name: string; icon?: string }>>({});
   const EXTENDED_BOT_PROFILE_NAMES = ["Arjun Mehta", "Neha Iyer", "Riya Kapoor", "Kabir Sharma"];
@@ -1816,13 +3787,11 @@ export default function Profile({
           setRoomsById(map);
         }
       } catch {
-        // non-critical — activity cards will fall back to metadata/"General Room"
+        // non-critical
       }
     };
     fetchRooms();
   }, []);
-
-
 
   const getRoomName = (roomId?: string, fallback?: string) =>
     (roomId && roomsById[roomId]?.name) || fallback || "General Room";
@@ -1841,16 +3810,16 @@ export default function Profile({
   const [editShowPredHistory, setEditShowPredHistory] = useState(true);
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(() => {
-    if (typeof window !== "undefined") {
+    if (!isOtherProfile && typeof window !== "undefined") {
       return localStorage.getItem("roar_avatar_url");
     }
     return null;
   });
   const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [activeActivityTab, setActiveActivityTab] = useState<"all" | "posts" | "predictions" | "debates">("all");
 
-  // NEW: top-level section tabs shown after the Roar Journey section
   const [activeMainTab, setActiveMainTab] = useState<"overview" | "badges" | "activity">("overview");
 
   const [globalTier, setGlobalTier] = useState<any>(null);
@@ -1858,14 +3827,10 @@ export default function Profile({
   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
   const [specialBadges, setSpecialBadges] = useState<any[]>([]);
 
-  // Refetch on return-to-screen, since posting happens elsewhere (ComposeModal's
-  // parent room screen) with no direct link back to this component — the only
-  // reliable signal that "something may have changed" is the user navigating
-  // back here.
   useEffect(() => {
     const reload = () => {
       if (document.visibilityState !== "visible") return;
-      refreshActivities(); // clears ActivityContext's 30s cache
+      refreshActivities();
 
       if (!isOtherProfile) {
         const profileQuery = loggedInUserId ? `?userId=${encodeURIComponent(loggedInUserId)}` : "";
@@ -1878,6 +3843,7 @@ export default function Profile({
               apiUser.avatarUrl ||
               apiUser.avatar ||
               apiUser.photoURL ||
+              apiUser.picture ||
               apiUser.image ||
               apiUser.profilePicture ||
               authUser?.avatar ||
@@ -1950,8 +3916,6 @@ export default function Profile({
         }
         const rawItems: any[] = actRes.data.activities || [];
 
-        // Client-side safety net: enforce the requested window regardless of
-        // what the API actually returned when paging older items.
         const newItems = isInitial
           ? rawItems
           : rawItems.filter((a: any) => {
@@ -1971,13 +3935,12 @@ export default function Profile({
         setFetchedActivities([]);
       }
     } catch {
-      // non-critical — activity list will remain empty or previously loaded state
+      // non-critical
     } finally {
       setLoadingFlag(false);
     }
   };
 
-  // Loads the next-older 7-day window and appends it to what's already shown.
   const handleLoadMoreActivities = async () => {
     if (!activityUserId || loadingMoreActivities || !activityHasMore) return;
     await fetchActivities(activityUserId, { before: activityWindowStart, append: true });
@@ -1992,14 +3955,11 @@ export default function Profile({
       setActivityUserId(null);
       activityIdsRef.current = new Set();
       setCoverPhoto(null);
+      if (isOtherProfile) {
+        setSelectedAvatar(null);
+      }
       try {
         // ── 0. Check if viewing a bot profile ───────────────────────────
-        // const botName =
-        //   getBotCanonicalName(viewingProfile) ||
-        //   getBotCanonicalName(fanData?.username) ||
-        //   getBotCanonicalName(fanData?.displayName) ||
-        //   (fanData?.isBot ? fanData.username : null);
-
         const botName =
           getBotCanonicalName(viewingProfile) ||
           getBotCanonicalName(fanData?.username) ||
@@ -2013,8 +3973,6 @@ export default function Profile({
           let botRole = BOT_ROLES[botName] || "AI Match Companion";
           const samplePosts = BOT_SAMPLE_POSTS[botName] || [];
 
-          // Arjun Mehta / Neha Iyer / Riya Kapoor / Kabir Sharma have no row in
-          // /api/roar/profile — fetch their real data from /api/profile instead.
           if (EXTENDED_BOT_PROFILE_NAMES.includes(botName)) {
             try {
               const extRes = await axios.get(
@@ -2025,9 +3983,7 @@ export default function Profile({
                 botBio = extRes.data.description || botBio;
                 botRole = extRes.data.subtitle || extRes.data.role || botRole;
               }
-            } catch {
-              // fall back silently to local BOT_AVATARS/BOT_BIOS/BOT_ROLES above
-            }
+            } catch { }
           }
 
           const initialActivities = samplePosts.map((sp) => ({
@@ -2086,7 +4042,6 @@ export default function Profile({
           setActivityCounts({ ROAR_POST: samplePosts.length });
           setLoading(false);
 
-          // Asynchronously query flipline to see if there are any live/db cards by this bot
           try {
             const actRes = await axios.get("/api/flipline");
             const allCards = Array.isArray(actRes.data?.data) ? actRes.data.data : [];
@@ -2126,9 +4081,7 @@ export default function Profile({
                 })),
               }));
             }
-          } catch {
-            // Keep sample posts if flipline fetch fails
-          }
+          } catch { }
 
           return;
         }
@@ -2173,7 +4126,6 @@ export default function Profile({
           setSelectedAvatar(expertAvatar);
           setLoading(false);
 
-          // Asynchronously query flipline to get cards for this expert
           try {
             setExpertFlipLoading(true);
             const actRes = await axios.get("/api/flipline");
@@ -2216,9 +4168,7 @@ export default function Profile({
                 },
               }));
             }
-          } catch {
-            // Silently keep empty if flipline fails
-          } finally {
+          } catch { } finally {
             setExpertFlipLoading(false);
           }
 
@@ -2241,6 +4191,7 @@ export default function Profile({
               apiUser.avatarUrl ||
               apiUser.avatar ||
               apiUser.photoURL ||
+              apiUser.picture ||
               apiUser.image ||
               apiUser.profilePicture ||
               authUser?.avatar ||
@@ -2250,7 +4201,7 @@ export default function Profile({
             setProfileMetadata({
               user: {
                 ...apiUser,
-                avatarUrl: backendAvatar || apiUser.avatarUrl,
+                avatarUrl: backendAvatar || apiUser.avatarUrl || null,
                 username: initialName || apiUser.username || "",
               },
               rival: res.data.rival || null,
@@ -2293,6 +4244,7 @@ export default function Profile({
             fanData.avatarUrl ||
             fanData.avatar ||
             fanData.photoURL ||
+            fanData.picture ||
             fanData.image ||
             fanData.profilePicture;
           const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
@@ -2300,7 +4252,7 @@ export default function Profile({
           setProfileMetadata({
             user: {
               ...(fanData || {}),
-              avatarUrl: backendAvatar || fanData.avatarUrl,
+              avatarUrl: backendAvatar || null,
               username: resolvedName,
             },
             rival: fanData.rival || null,
@@ -2310,7 +4262,7 @@ export default function Profile({
             posts: fanData.posts || [],
           });
           if (fanData.badge) setUserBadge(fanData.badge);
-          if (backendAvatar) setSelectedAvatar(backendAvatar);
+          setSelectedAvatar(backendAvatar || null);
           if (fanData.coverPhotoUrl) setCoverPhoto(fanData.coverPhotoUrl);
           setEditUniversity(fanData.university ?? fanData.institution ?? "");
 
@@ -2332,6 +4284,7 @@ export default function Profile({
               apiUser.avatarUrl ||
               apiUser.avatar ||
               apiUser.photoURL ||
+              apiUser.picture ||
               apiUser.image ||
               apiUser.profilePicture;
             const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
@@ -2339,7 +4292,7 @@ export default function Profile({
             setProfileMetadata({
               user: {
                 ...apiUser,
-                avatarUrl: backendAvatar || apiUser.avatarUrl,
+                avatarUrl: backendAvatar || null,
                 username: resolvedName,
               },
               rival: res.data.rival || null,
@@ -2349,7 +4302,7 @@ export default function Profile({
               posts: res.data.posts || apiUser.posts || [],
             });
             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
-            if (backendAvatar) setSelectedAvatar(backendAvatar);
+            setSelectedAvatar(backendAvatar || null);
             if (res.data.user?.coverPhotoUrl) setCoverPhoto(res.data.user.coverPhotoUrl);
             setEditUniversity(res.data.user?.university ?? res.data.user?.institution ?? "");
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
@@ -2377,7 +4330,7 @@ export default function Profile({
     };
 
     fetchProfileData();
-  }, [viewingProfile, isViewingOther, fanData, isOtherProfile, loggedInUserId]);
+  }, [viewingProfile, propIsViewingOther, fanData, isOtherProfile, loggedInUserId]);
 
   const user = profileMetadata?.user ?? CURRENT_USER;
 
@@ -2385,7 +4338,6 @@ export default function Profile({
     if (isOtherProfile) {
       return resolveUsername(user, user?.username);
     }
-    // For logged-in user: strictly match the exact username next to the avatar in Header!
     if (headerDisplayName) return headerDisplayName;
     return resolveUsername(user, authUser?.name || (typeof getUserDisplayName === "function" ? getUserDisplayName() : undefined));
   }, [isOtherProfile, headerDisplayName, user, authUser?.name, getUserDisplayName]);
@@ -2413,7 +4365,6 @@ export default function Profile({
     setExpertFlipLoading(true);
     setExpertVideosLoading(true);
 
-    // Fetch FlipLine posts for this expert
     axios.get("/api/flipline")
       .then((res) => {
         if (cancelled) return;
@@ -2427,7 +4378,6 @@ export default function Profile({
       .catch(() => setExpertFlipCards([]))
       .finally(() => { if (!cancelled) setExpertFlipLoading(false); });
 
-    // Fetch videos from flipLong and cloudinary cricket-media (like PlaybookDrops.tsx)
     Promise.allSettled([
       axios.get("/api/flipLong").then((r) => r.data),
       axios.get("/api/cloudinary/cricket-media").then((r) => r.data),
@@ -2474,7 +4424,6 @@ export default function Profile({
           });
         }
 
-        // Match videos for this expert by name tokens in title or author
         const target = canon.toLowerCase();
         const tokens = target.split(/\s+/).filter((t: string) => t.length >= 3 && t !== "the");
 
@@ -2580,35 +4529,37 @@ export default function Profile({
   const isBotProfile = isBotName(user?.username) || !!botCanonicalName || user?.isBot === true;
   const expertCanonicalName = getExpertCanonicalName(user?.username);
   const isExpertProfile = !!expertCanonicalName;
+
+  // ── Guarded Avatar Selection (never leaks viewer's credentials to other profiles)
+  // ── Guarded Avatar Selection
   const rawAvatar =
     (isBotProfile && botCanonicalName ? BOT_AVATARS[botCanonicalName] : null) ||
     (isBotProfile && user?.username && BOT_AVATARS[user.username] ? BOT_AVATARS[user.username] : null) ||
     (isExpertProfile && expertCanonicalName ? EXPERT_AVATARS[expertCanonicalName] : null) ||
     user?.avatarUrl ||
-    user?.avatar ||
     user?.photoURL ||
+    user?.picture ||
     user?.image ||
     user?.profilePicture ||
-    selectedAvatar ||
-    authUser?.avatar ||
-    authUser?.photoURL ||
-    (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null);
+    (!isOtherProfile
+      ? (selectedAvatar ||
+        authUser?.avatar ||
+        authUser?.photoURL ||
+        (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null))
+      : null);
 
   const displayAvatar = sanitizeAvatarUrl(rawAvatar);
 
   const rival = profileMetadata.rival ?? RIVAL;
-
   const badgesToDisplay = user?.badges?.length ? user.badges : BADGES_LIST;
   const ownedBadges = badgesToDisplay.filter((b: any) => b.unlocked);
 
   const actCounts = user?.activityCounts ?? {};
-
   const apiPredictions = profileMetadata?.predictions || user?.predictions || [];
   const apiHotTakes = profileMetadata?.hotTakes || user?.hotTakes || [];
   const apiDebates = profileMetadata?.debates || user?.debates || [];
   const apiPosts = profileMetadata?.posts || user?.posts || [];
 
-  // sourceActivities reflects fetchedActivities (the windowed/fetched list).
   const sourceActivities = fetchedActivities;
   const isLoadingActivities = fetchedActivitiesLoading;
 
@@ -2641,7 +4592,6 @@ export default function Profile({
     profileStats?.posts ?? 0
   );
 
-  // Debates = debates you participated in (voted on) or created
   const statDebates = Math.max(
     (actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (actCounts.ROAR_DEBATE ?? 0),
     (activityCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (activityCounts.ROAR_DEBATE ?? 0),
@@ -2655,7 +4605,6 @@ export default function Profile({
     profileStats?.debates ?? 0
   );
 
-  // Predictions = predictions you participated in (voted on) or created
   const statPredictions = Math.max(
     (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (actCounts.ROAR_PREDICTION ?? 0),
     (activityCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (activityCounts.ROAR_PREDICTION ?? 0),
@@ -2671,7 +4620,6 @@ export default function Profile({
   );
 
   const statAccuracy = user?.accuracy != null ? `${user.accuracy}%` : "N/A";
-
   const repScore = user?.totalPoints ?? user?.reputationScore ?? 0;
   const repMax = Math.max(repScore, 500);
   const repPct = Math.round((repScore / repMax) * 100);
@@ -2733,11 +4681,50 @@ export default function Profile({
     try { await axios.patch("/api/roar/profile", { avatarUrl: src }); } catch { }
   };
 
-  // Cover photo is a free-form upload (unlike the fixed avatar gallery), so
-  // it's handled as a file input read into a data URL, matching the format
-  // the backend already accepts for avatarUrl. Optional field — clearing it
-  // is also supported.
-  const MAX_COVER_BYTES = 4 * 1024 * 1024; // 4MB, keep the profile doc small
+  const MAX_AVATAR_BYTES = 4 * 1024 * 1024; // 4MB
+  const handleAvatarUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      onToast("Please choose an image file.");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      onToast("Image is too large — please pick one under 4MB.");
+      return;
+    }
+    setUploadingAvatar(true);
+    try {
+      const dataUrl: string = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Could not read file"));
+        reader.readAsDataURL(file);
+      });
+      setSelectedAvatar(dataUrl);
+      setProfileMetadata((prev: any) => ({
+        ...prev,
+        user: {
+          ...(prev?.user ?? {}),
+          avatarUrl: dataUrl,
+          avatar: dataUrl,
+          photoURL: dataUrl,
+        },
+      }));
+      setAvatarPickerOpen(false);
+      try { localStorage.setItem("roar_avatar_url", dataUrl); } catch { }
+      window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: dataUrl } }));
+      try {
+        trackProfileSignalCreated("avatar", { avatar_url: dataUrl });
+      } catch (e) { }
+      onToast("Profile photo updated!");
+      try { await axios.patch("/api/roar/profile", { avatarUrl: dataUrl }); } catch { }
+    } catch {
+      onToast("Could not load that image.");
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const MAX_COVER_BYTES = 4 * 1024 * 1024;
   const handleCoverPhotoFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       onToast("Please choose an image file.");
@@ -2767,7 +4754,6 @@ export default function Profile({
     setCoverPhoto(null);
   };
 
-  // ── WhatsApp / native image share 
   const handleWhatsAppShare = async () => {
     if (sharingImage) return;
     setSharingImage(true);
@@ -2814,7 +4800,6 @@ export default function Profile({
     }
   };
 
-  // ── Share
   const shareActions = [
     { alt: "WhatsApp", src: "/images/share_whatsapp.png", handler: handleWhatsAppShare },
     { alt: "Threads", src: "/images/share_thread.png", handler: () => window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(buildShareText(user, userBadge))}`, "_blank") },
@@ -2824,24 +4809,12 @@ export default function Profile({
     { alt: "Copy", src: "/images/share_copy_link.png", handler: async () => { const ok = await copyToClipboard(buildShareText(user, userBadge)); if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1600); onToast("Link copied!"); } } },
   ];
 
-  const ShareButtons = ({ size }: { size: string }) => (
-    <>
-      {shareActions.map(({ alt, src, handler }) => (
-        <button key={alt} onClick={handler} type="button" disabled={alt === "WhatsApp" && sharingImage}
-          className={`${size} shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center ${alt === "WhatsApp" && sharingImage ? "opacity-50" : ""}`}>
-          <Image src={src} alt={alt} width={36} height={36} className="w-full h-full object-cover rounded-full" />
-        </button>
-      ))}
-    </>
-  );
-
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 48, borderRadius: 14, outline: "none", boxSizing: "border-box",
     background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)",
     padding: "0 14px", color: "white", fontSize: 15, marginBottom: 16,
   };
 
-  // ── Render
   return (
     <div className="screen-scroll">
       <style>{`
@@ -2865,14 +4838,23 @@ export default function Profile({
         borderBottom: "1px solid rgba(255,255,255,0.06)",
         position: "sticky", top: 0, zIndex: 50,
       }}>
-        <Link href="/MainModules/HomePage" style={{ display: "flex", alignItems: "center", gap: 10, textDecoration: "none", color: "white" }}>
-          <button style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
-          </button>
-          <h3 style={{ color: "white", margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>Profile</h3>
-        </Link>
+        <button
+          onClick={() => {
+            if (handleBack) handleBack();
+            else if (isOtherProfile) router.back();
+            else router.push("/MainModules/HomePage");
+          }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <h3 style={{ color: "white", margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>
+          {/* {isOtherProfile && effectiveUsername ? `${effectiveUsername}'s Profile` : "Profile"} */}
+          Profile
+          
+        </h3>
       </div>
 
       {/* ── Cover photo banner ── */}
@@ -2922,14 +4904,8 @@ export default function Profile({
             <div style={{ position: "relative", width: 84, height: 84 }}>
               <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
               <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
+
               {/* <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
-              {selectedAvatar ? (
-                <img src={selectedAvatar} alt="avatar" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              ) : (
-                <AvatarWithBadge username={user.username ?? CURRENT_USER.username} badge={userBadge} size="lg" />
-              )}
-            </div> */}
-              <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
                 {displayAvatar ? (
                   <img
                     src={displayAvatar}
@@ -2955,7 +4931,43 @@ export default function Profile({
                 >
                   <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="lg" />
                 </div>
+              </div> */}
+
+              <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
+                {displayAvatar ? (
+                  <img
+                    src={displayAvatar}
+                    alt="avatar"
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLElement).style.display = "none";
+                      const parent = e.currentTarget.parentElement;
+                      const fallback = parent?.querySelector(".avatar-fallback-wrapper") as HTMLElement;
+                      if (fallback) fallback.style.display = "flex";
+                    }}
+                  />
+                ) : null}
+                <div
+                  className="avatar-fallback-wrapper"
+                  style={{
+                    display: displayAvatar ? "none" : "flex",
+                    width: "100%",
+                    height: "100%",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "linear-gradient(135deg, #9333ea 0%, #4f46e5 100%)",
+                    color: "#ffffff",
+                    fontWeight: 900,
+                    fontSize: 28,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  {effectiveUsername ? effectiveUsername.trim().charAt(0).toUpperCase() : "F"}
+                </div>
               </div>
+
+
               {!isOtherProfile && (
                 <button onClick={() => setAvatarPickerOpen(true)} aria-label="Change avatar"
                   style={{ position: "absolute", bottom: 0, right: 0, zIndex: 10, width: 22, height: 22, borderRadius: "50%", background: "var(--accent-magenta)", display: "flex", alignItems: "center", justifyContent: "center", border: "2px solid rgba(10,10,16,0.97)", cursor: "pointer", padding: 0, boxShadow: "0 2px 8px rgba(233,30,140,0.7)" }}>
@@ -3003,44 +5015,6 @@ export default function Profile({
 
       {isBotProfile ? (
         <div style={{ padding: "16px 14px 40px" }}>
-          {/* Bot Info Banner */}
-          {/* <div
-            style={{
-              background: "linear-gradient(135deg, rgba(59, 130, 246, 0.12) 0%, rgba(233, 30, 140, 0.12) 100%)",
-              border: "1px solid rgba(59, 130, 246, 0.3)",
-              borderRadius: 16,
-              padding: "16px 18px",
-              marginBottom: 16,
-            }}
-           >
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 16 }}>🤖</span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: "#60a5fa", letterSpacing: "0.04em", textTransform: "uppercase" }}>
-                Official AI Sports Bot · {BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Analyst"}
-              </span>
-            </div>
-            <p style={{
-              fontSize: 13,
-              color: "rgba(255,255,255,0.85)",
-              lineHeight: 1.6,
-              margin: 0,
-            }}>
-              {BOT_BIOS[user.username] ?? BOT_BIOS[botCanonicalName || ""] ?? "SportsFan360 bot — automated fan companion."}
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 12, background: "rgba(59,130,246,0.2)", color: "#93c5fd" }}>
-                ⚡ Match Insights
-              </span>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 12, background: "rgba(233,30,140,0.2)", color: "#f472b6" }}>
-                🏏 Cricket Analyst
-              </span>
-              <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 12, background: "rgba(16,185,129,0.2)", color: "#6ee7b7" }}>
-                💬 Live FlipLine Drops
-              </span>
-            </div>
-          </div> */}
-
-          {/* Bot Info Card */}
           <IdentityCard
             avatarSrc={displayAvatar}
             name={user.username ?? botCanonicalName ?? "Bot"}
@@ -3049,7 +5023,6 @@ export default function Profile({
             bio={BOT_BIOS[user.username] ?? BOT_BIOS[botCanonicalName || ""] ?? "SportsFan360 bot — automated fan companion."}
           />
 
-          {/* Bot Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 20 }}>
             {[
               { label: "Drops & Takes", value: Math.max(statPosts, sourceActivities.length, (BOT_SAMPLE_POSTS[user.username] || BOT_SAMPLE_POSTS[botCanonicalName || ""] || []).length) },
@@ -3077,7 +5050,6 @@ export default function Profile({
             ))}
           </div>
 
-          {/* Bot Activity Feed / Drops */}
           <div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <span style={{ fontSize: 14, fontWeight: 800, color: "#fff" }}>
@@ -3133,333 +5105,228 @@ export default function Profile({
             )}
           </div>
         </div>
-      ) : !isExpertProfile ? (
+      ) : isExpertProfile ? (
         <>
-          {/* ── Stats row ── */}
-          {false && (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, padding: "22px 14px 0" }}>
-            {[
-              { value: statPosts, label: "Posts", accent: true },
-              { value: statDebates, label: "Debates", accent: true },
-              { value: statPredictions, label: "Predictions", accent: true },
-              { value: user.accuracy !== undefined && user.accuracy !== null ? `${user.accuracy}%` : "N/A", label: "Accuracy", accent: true },
-            ].map(({ value, label, accent }) => (
-              <div
-                key={label}
-                className="glass-card"
-                style={{
-                  display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
-                  padding: "10px 4px", minHeight: 66, textAlign: "center",
-                  background: "rgba(18,18,26,0.7)",
-                  border: "1px solid rgba(255,255,255,0.06)",
-                  borderRadius: 14,
-                  position: "relative", overflow: "visible",
-                }}
-              >
-                {accent && (() => {
-                  const tooltipText =
-                    label === "Posts"
-                      ? "Count of all debates, predictions, and posts you've created."
-                      : label === "Predictions"
-                        ? "Count all predictions you've participated in."
-                        : label === "Debates"
-                          ? "Count all debates you've participated in."
-                          : "Your accuracy rate across resolved predictions and debates.";
+          <IdentityCard
+            avatarSrc={displayAvatar}
+            name={effectiveUsername}
+            subtitle={EXPERT_ROLES[expertCanonicalName!] || "Sports Journalist"}
+            tags={EXPERT_TAGS[expertCanonicalName!] || []}
+            bio={EXPERT_BIOS[expertCanonicalName!] || "Verified sports journalist on SportsFan360."}
+          />
 
-                  const isLeftmost = label === "Posts";
+          <div style={{ padding: "0 14px 40px" }}>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+              {(["videos", "posts"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveExpertTab(tab)}
+                  style={{
+                    flex: 1, padding: "9px 0", borderRadius: 20, border: "none", cursor: "pointer",
+                    fontSize: 13, fontWeight: 700,
+                    background: activeExpertTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
+                    color: activeExpertTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
+                    transition: "all 0.18s",
+                  }}
+                >
+                  {tab === "videos" ? "Videos" : "Posts"}
+                </button>
+              ))}
+            </div>
 
-                  return (
-                    <div
-                      style={{ position: "absolute", top: 6, right: 6 }}
-                      onMouseEnter={(e) => {
-                        const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
-                        if (tip) tip.style.display = "block";
-                      }}
-                      onMouseLeave={(e) => {
-                        const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
-                        if (tip) tip.style.display = "none";
-                      }}
-                      onTouchStart={(e) => {
-                        const tip = (e.currentTarget as HTMLElement).querySelector('.stat-tip') as HTMLElement;
-                        if (tip) tip.style.display = tip.style.display === "block" ? "none" : "block";
-                      }}
-                    >
-                      <div style={{
-                        width: 18, height: 18, borderRadius: "50%",
-                        background: "var(--accent-magenta)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 10, fontWeight: 900, color: "#fff",
-                        cursor: "pointer",
-                      }}>i</div>
-
-                      <div className="stat-tip" style={{
-                        display: "none",
-                        position: "absolute",
-                        bottom: 24,
-                        left: isLeftmost ? 0 : "auto",
-                        right: isLeftmost ? "auto" : 0,
-                        width: 170,
-                        maxWidth: "calc(100vw - 32px)",
-                        background: "rgba(20,20,30,0.97)",
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        borderRadius: 10,
-                        padding: "8px 10px",
-                        fontSize: 11,
-                        color: "rgba(255,255,255,0.82)",
-                        lineHeight: 1.5,
-                        zIndex: 9999,
-                        pointerEvents: "none",
-                        whiteSpace: "normal",
-                        boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-                      }}>{tooltipText}</div>
-                    </div>
-                  );
-                })()}
-                <span className="font-display" style={{ fontSize: 22, color: "#fff", lineHeight: 1, fontWeight: 800 }}>{value}</span>
-                <span style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 5 }}>{label}</span>
-              </div>
-            ))}
-          </div>
-          )}
-        </>
-      ) : null}
-
-      {isExpertProfile && (
-        <IdentityCard
-          avatarSrc={displayAvatar}
-          name={effectiveUsername}
-          subtitle={EXPERT_ROLES[expertCanonicalName!] || "Sports Journalist"}
-          tags={EXPERT_TAGS[expertCanonicalName!] || []}
-          bio={EXPERT_BIOS[expertCanonicalName!] || "Verified sports journalist on SportsFan360."}
-        />
-      )}
-
-      {isExpertProfile && (
-        <div style={{ padding: "0 14px 40px" }}>
-          <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-            {(["videos", "posts"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveExpertTab(tab)}
-                style={{
-                  flex: 1, padding: "9px 0", borderRadius: 20, border: "none", cursor: "pointer",
-                  fontSize: 13, fontWeight: 700,
-                  background: activeExpertTab === tab ? "#fff" : "rgba(255,255,255,0.08)",
-                  color: activeExpertTab === tab ? "#0a0a10" : "rgba(255,255,255,0.6)",
-                  transition: "all 0.18s",
-                }}
-              >
-                {tab === "videos" ? "Videos" : "Posts"}
-              </button>
-            ))}
-          </div>
-
-          {activeExpertTab === "videos" ? (
-            expertVideosLoading ? (
-              <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading videos...</p>
-            ) : expertVideos.length === 0 ? (
-              <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No videos yet.</p>
-              </div>
-            ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
-                {expertVideos.map((video, idx) => {
-                  const preset = EXPERT_STYLE_PRESETS[idx % EXPERT_STYLE_PRESETS.length];
-                  return (
-                    <motion.div
-                      key={video.id || idx}
-                      onClick={() => {
-                        const isAudio = video.type === "AUDIO";
-                        const route = isAudio ? "/MainModules/AudioDrop" : "/MainModules/VideoDrop";
-                        router.push(
-                          `${route}?url=${encodeURIComponent(video.mediaUrl)}&title=${encodeURIComponent(video.title)}`
-                        );
-                      }}
-                      whileHover={{ scale: 1.02, y: -3 }}
-                      whileTap={{ scale: 0.98 }}
-                      style={{
-                        borderRadius: 18,
-                        overflow: "hidden",
-                        display: "flex",
-                        flexDirection: "column",
-                        cursor: "pointer",
-                        border: "1px solid rgba(255, 255, 255, 0.08)",
-                        boxShadow: "0 8px 20px -4px rgba(0, 0, 0, 0.5)",
-                        background: "#121622",
-                      }}
-                    >
-                      <div
+            {activeExpertTab === "videos" ? (
+              expertVideosLoading ? (
+                <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading videos...</p>
+              ) : expertVideos.length === 0 ? (
+                <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No videos yet.</p>
+                </div>
+              ) : (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 12 }}>
+                  {expertVideos.map((video, idx) => {
+                    const preset = EXPERT_STYLE_PRESETS[idx % EXPERT_STYLE_PRESETS.length];
+                    return (
+                      <motion.div
+                        key={video.id || idx}
+                        onClick={() => {
+                          const isAudio = video.type === "AUDIO";
+                          const route = isAudio ? "/MainModules/AudioDrop" : "/MainModules/VideoDrop";
+                          router.push(
+                            `${route}?url=${encodeURIComponent(video.mediaUrl)}&title=${encodeURIComponent(video.title)}`
+                          );
+                        }}
+                        whileHover={{ scale: 1.02, y: -3 }}
+                        whileTap={{ scale: 0.98 }}
                         style={{
-                          width: "100%",
-                          height: 130,
-                          position: "relative",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
+                          borderRadius: 18,
                           overflow: "hidden",
-                          background: preset.gradient,
+                          display: "flex",
+                          flexDirection: "column",
+                          cursor: "pointer",
+                          border: "1px solid rgba(255, 255, 255, 0.08)",
+                          boxShadow: "0 8px 20px -4px rgba(0, 0, 0, 0.5)",
+                          background: "#121622",
                         }}
                       >
-                        {video.thumbnailUrl && (
-                          <img
-                            src={video.thumbnailUrl}
-                            alt={video.title}
-                            style={{
-                              position: "absolute",
-                              inset: 0,
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                              opacity: 0.75,
-                            }}
-                          />
-                        )}
-
-                        <span
-                          style={{
-                            position: "absolute",
-                            top: 10,
-                            left: 10,
-                            zIndex: 10,
-                            fontSize: 8.5,
-                            fontWeight: 800,
-                            padding: "2px 8px",
-                            borderRadius: 999,
-                            textTransform: "uppercase",
-                            letterSpacing: "0.06em",
-                            background: preset.badgeBg,
-                            color: preset.badgeTextColor,
-                          }}
-                        >
-                          {video.type}
-                        </span>
-
                         <div
                           style={{
-                            position: "absolute",
-                            inset: 0,
+                            width: "100%",
+                            height: 130,
+                            position: "relative",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            background: "rgba(0, 0, 0, 0.25)",
+                            overflow: "hidden",
+                            background: preset.gradient,
                           }}
                         >
-                          <div
-                            style={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: "50%",
-                              border: "1px solid rgba(255, 255, 255, 0.2)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              backgroundColor: "rgba(255, 255, 255, 0.15)",
-                              backdropFilter: "blur(2px)",
-                              WebkitBackdropFilter: "blur(2px)",
-                            }}
-                          >
-                            <svg width="12" height="14" viewBox="0 0 14 16" fill="none" style={{ marginLeft: 2 }}>
-                              <path d="M13 8L1 15V1L13 8Z" fill="#fff" />
-                            </svg>
-                          </div>
-                        </div>
+                          {video.thumbnailUrl && (
+                            <img
+                              src={video.thumbnailUrl}
+                              alt={video.title}
+                              style={{
+                                position: "absolute",
+                                inset: 0,
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                opacity: 0.75,
+                              }}
+                            />
+                          )}
 
-                        {video.duration && (
                           <span
                             style={{
                               position: "absolute",
-                              bottom: 8,
-                              right: 8,
+                              top: 10,
+                              left: 10,
                               zIndex: 10,
-                              fontSize: 9,
-                              fontWeight: 700,
-                              color: "#fff",
-                              padding: "2px 6px",
-                              borderRadius: 4,
-                              background: "rgba(0, 0, 0, 0.7)",
-                              lineHeight: 1,
+                              fontSize: 8.5,
+                              fontWeight: 800,
+                              padding: "2px 8px",
+                              borderRadius: 999,
+                              textTransform: "uppercase",
+                              letterSpacing: "0.06em",
+                              background: preset.badgeBg,
+                              color: preset.badgeTextColor,
                             }}
                           >
-                            {video.duration}
+                            {video.type}
                           </span>
-                        )}
-                      </div>
 
-                      <div style={{ width: "100%", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-                        <h4
-                          style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: "#fff",
-                            lineHeight: 1.35,
-                            textAlign: "left",
-                            margin: 0,
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                          }}
-                        >
-                          {video.title}
-                        </h4>
+                          <div
+                            style={{
+                              position: "absolute",
+                              inset: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              background: "rgba(0, 0, 0, 0.25)",
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: "50%",
+                                border: "1px solid rgba(255, 255, 255, 0.2)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: "rgba(255, 255, 255, 0.15)",
+                                backdropFilter: "blur(2px)",
+                                WebkitBackdropFilter: "blur(2px)",
+                              }}
+                            >
+                              <svg width="12" height="14" viewBox="0 0 14 16" fill="none" style={{ marginLeft: 2 }}>
+                                <path d="M13 8L1 15V1L13 8Z" fill="#fff" />
+                              </svg>
+                            </div>
+                          </div>
 
-                        {video.createdAt && (
-                          <span style={{ fontSize: 9.5, fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", marginTop: "auto", paddingTop: 4 }}>
-                            {formatVideoTimestamp(video.createdAt)}
-                          </span>
-                        )}
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            )
-          ) : (
-            expertFlipLoading ? (
-              <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading posts...</p>
-            ) : expertFlipCards.length === 0 ? (
-              <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
-                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No posts yet.</p>
-              </div>
+                          {video.duration && (
+                            <span
+                              style={{
+                                position: "absolute",
+                                bottom: 8,
+                                right: 8,
+                                zIndex: 10,
+                                fontSize: 9,
+                                fontWeight: 700,
+                                color: "#fff",
+                                padding: "2px 6px",
+                                borderRadius: 4,
+                                background: "rgba(0, 0, 0, 0.7)",
+                                lineHeight: 1,
+                              }}
+                            >
+                              {video.duration}
+                            </span>
+                          )}
+                        </div>
+
+                        <div style={{ width: "100%", padding: "10px 12px", display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
+                          <h4
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 700,
+                              color: "#fff",
+                              lineHeight: 1.35,
+                              textAlign: "left",
+                              margin: 0,
+                              display: "-webkit-box",
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: "vertical",
+                              overflow: "hidden",
+                            }}
+                          >
+                            {video.title}
+                          </h4>
+
+                          {video.createdAt && (
+                            <span style={{ fontSize: 9.5, fontWeight: 500, color: "rgba(255, 255, 255, 0.35)", marginTop: "auto", paddingTop: 4 }}>
+                              {formatVideoTimestamp(video.createdAt)}
+                            </span>
+                          )}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {expertFlipCards
-                  .slice()
-                  .sort((a: any, b: any) => (b.timeMs || 0) - (a.timeMs || 0))
-                  .map((c: any, i: number) => (
-                    <div key={c.id ?? `expert-post-${i}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                          {(c.source || "FlipLine").toUpperCase()}
-                        </span>
+              expertFlipLoading ? (
+                <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading posts...</p>
+              ) : expertFlipCards.length === 0 ? (
+                <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "24px 16px", textAlign: "center" }}>
+                  <p style={{ fontSize: 13, color: "rgba(255,255,255,0.4)", margin: 0 }}>No posts yet.</p>
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {expertFlipCards
+                    .slice()
+                    .sort((a: any, b: any) => (b.timeMs || 0) - (a.timeMs || 0))
+                    .map((c: any, i: number) => (
+                      <div key={c.id ?? `expert-post-${i}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                            {(c.source || "FlipLine").toUpperCase()}
+                          </span>
+                        </div>
+                        <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>{c.content}</p>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                          <span>{c.time || ""}</span>
+                          {c.likes !== undefined && <span>❤️ {c.likes} likes</span>}
+                        </div>
                       </div>
-                      <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>{c.content}</p>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
-                        <span>{c.time || ""}</span>
-                        {c.likes !== undefined && <span>❤️ {c.likes} likes</span>}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            )
-          )}
-        </div>
-      )}
-
-      {!isBotProfile && !isExpertProfile && (
+                    ))}
+                </div>
+              )
+            )}
+          </div>
+        </>
+      ) : (
         <>
-          {/* ── ROAR Points bar ── */}
-          {/* <div style={{ padding: "18px 14px 0" }}>
-            <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>Roar Points</span>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>{repScore} points</span>
-              </div>
-              <div style={{ height: 10, background: "rgba(255,255,255,0.08)", borderRadius: 5, overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${repPct}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 5, transition: "width 1s ease" }} />
-              </div>
-            </div>
-          </div> */}
           {/* ── Points: FlipARENA / Total ── */}
           <div style={{ padding: "18px 14px 0" }}>
             <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
@@ -3484,7 +5351,7 @@ export default function Profile({
                   <>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
                       {[
-                        { label: "Arena PTS", value: (arenaStats?.points ?? 0).toLocaleString() },
+                        { label: "SXPs", value: (arenaStats?.points ?? 0).toLocaleString() },
                         { label: "Rank", value: arenaStats ? `#${arenaStats.rank}` : "—" },
                         { label: "Accuracy", value: arenaStats?.accuracy ?? "0%" },
                       ].map(({ label, value }) => (
@@ -3514,7 +5381,7 @@ export default function Profile({
                     ))}
                   </div>
                   <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${levelInfo.pct}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 4, transition: "width 1s ease" }} />
+                    <div style={{ height: "100%", width: `${levelInfo.pct}%`, background: "#ffffff", borderRadius: 4, transition: "width 1s ease" }} />
                   </div>
                   <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "8px 0 0", textAlign: "right" }}>
                     +{levelInfo.xpRemaining.toLocaleString()} SXP to next level
@@ -3537,7 +5404,7 @@ export default function Profile({
                   )}
                 </div>
                 <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
-                  <div style={{ height: "100%", width: `${globalTierProgress}%`, background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)", borderRadius: 4, transition: "width 1s ease" }} />
+                  <div style={{ height: "100%", width: `${globalTierProgress}%`, background: "#ffffff", borderRadius: 4, transition: "width 1s ease" }} />
                 </div>
               </div>
             </div>
@@ -3548,21 +5415,15 @@ export default function Profile({
             predictions={statPredictions}
             debates={statDebates}
             posts={statPosts}
-            // badgeSrcs={[
-            //   FIRST_ROAR_BADGE_SRC,
-            //   ...(user.badges ?? [])
-            //     .filter((b: any) => b.unlocked && b.imageUrl)
-            //     .slice(0, 3)
-            //     .map((b: any) => toBadgeImageSrc(b.imageUrl)),
-            // ]}
             badgeSrcs={[
               ...featureBadges
                 .filter((fb) => fb.level > 0)
                 .map((fb) => fb.icons?.[Math.max(0, fb.level - 1)])
                 .filter(Boolean),
               ...specialBadges
-                .filter((b) => b.unlocked && b.imageUrl)
-                .map((b: any) => toBadgeImageSrc(b.imageUrl)),
+  .filter((b) => b.unlocked && (b.icon || b.imageUrl))
+  .map((b: any) => toBadgeImageSrc(b.icon || b.imageUrl)),
+
             ]}
             onToast={onToast}
           />
@@ -3658,20 +5519,24 @@ export default function Profile({
                       </div>
                     )}
 
-                    {wonSpecialBadges.length > 0 && (
-                      <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
-                        {wonSpecialBadges.map((b) => (
-                          <div key={b.id} style={{
-                            flexShrink: 0, padding: "8px 14px", borderRadius: 20,
-                            background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
-                            border: "1px solid rgba(255,215,0,0.35)",
-                            fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
-                          }}>
-                            🏆 {b.name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {specialBadges.filter((b) => b.unlocked).map((b) => {
+                      const iconSrc = "/images/badges/rookiefan.png";
+                      return (
+                        <div key={b.id} style={{
+                          display: "flex", alignItems: "center", gap: 8,
+                          flexShrink: 0, padding: "6px 12px", borderRadius: 20,
+                          // background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
+                          fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+                        }}>
+                          <img
+                            src={iconSrc}
+                            alt={b.name}
+                            style={{ width: 52, height: 52, objectFit: "contain" }}
+                          />
+                        </div>
+                      );
+                    })}
+
                   </>
                 );
               })()}
@@ -3799,7 +5664,7 @@ export default function Profile({
             </>
           )}
 
-          {/* ── ACTIVITY TAB (tabbed all/posts/predictions/debates) ── */}
+          {/* ── ACTIVITY TAB ── */}
           {activeMainTab === "activity" && (!isOtherProfile || user.showActivity !== false) && (
             <div style={{ padding: "0 14px 0" }}>
               <div style={{ display: "flex", gap: 8, marginTop: 0, marginBottom: 14 }}>
@@ -3828,12 +5693,6 @@ export default function Profile({
                 if (allActivities.length === 0) {
                   return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No activity yet.</p>;
                 }
-
-                // const typeLabel = (type: string) => {
-                //   if (type === "ROAR_PREDICTION" || type === "ROAR_PREDICTION_PARTICIPATE") return { label: "PREDICTION", color: "#F59E0B" };
-                //   if (type === "ROAR_DEBATE" || type === "ROAR_DEBATE_PARTICIPATE") return { label: "DEBATE", color: "#A78BFA" };
-                //   return { label: "POST", color: "#F59E0B" };
-                // };
 
                 const typeLabel = (type: string): { label: string; color: string } => {
                   const map: Record<string, { label: string; color: string }> = {
@@ -3906,28 +5765,22 @@ export default function Profile({
                     createdAt: h.createdAt,
                   }));
 
-                if (isLoadingActivities) {
-                  return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading...</p>;
-                }
                 if (displayPosts.length === 0) {
                   return <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No posts yet.</p>;
                 }
+
                 return (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {displayPosts.map((p: any) => (
                       <div key={p.id} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                            Room : {p.room}
-                          </span>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: "var(--pending-amber, #F59E0B)", background: "rgba(245,158,11,0.12)", padding: "2px 7px", borderRadius: 4 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>{p.room}</span>
+                          <span style={{ fontSize: 10, fontWeight: 800, color: "#f472b6", background: "rgba(233,30,140,0.15)", padding: "2px 7px", borderRadius: 4 }}>
                             {p.badgeText}
                           </span>
                         </div>
-                        <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-                          {truncateText(p.text)}
-                        </p>
-                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                        <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>{p.text}</p>
+                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
                           {formatActivityTimestamp(p.createdAt)}
                         </span>
                       </div>
@@ -3938,481 +5791,430 @@ export default function Profile({
 
               {/* ── Predictions tab ── */}
               {activeActivityTab === "predictions" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {isLoadingActivities ? (
-                    <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading predictions...</p>
-                  ) : filteredPreds.length === 0 ? (
-                    <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No predictions yet.</p>
-                  ) : filteredPreds.map((p: any) => {
-                    const isCorrect = p.status === "CORRECT" || p.status === "settled_correct";
-                    const isWrong = p.status === "WRONG" || p.status === "settled_wrong";
-                    const status = isCorrect ? "CORRECT" : isWrong ? "WRONG" : "PENDING";
-                    const statusColor = isCorrect ? "#22C55E" : isWrong ? "#EF4444" : "#F59E0B";
-                    return (
-                      <div key={p.id ?? `${p.postId}-${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                            Room : {getRoomName(p.roomId, p.roomName) || p.matchId || "GENERAL"}
-                          </span>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: statusColor, background: `${statusColor}18`, padding: "2px 7px", borderRadius: 4 }}>{status}</span>
-                        </div>
-                        <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>{truncateText(p.text ?? p.label)}</p>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
+                filteredPreds.length === 0 ? (
+                  <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No predictions yet.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {filteredPreds.map((p: any) => {
+                      const roomName = getRoomName(p.roomId, p.roomName);
+                      return (
+                        <div key={p.id ?? `${p.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                              {roomName.toUpperCase()}
+                            </span>
+                            <span style={{
+                              fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 4,
+                              color: p.status === "CORRECT" || p.status === "WON" ? "#4ade80" : p.status === "WRONG" || p.status === "LOST" ? "#f87171" : "#fbbf24",
+                              background: p.status === "CORRECT" || p.status === "WON" ? "rgba(74,222,128,0.15)" : p.status === "WRONG" || p.status === "LOST" ? "rgba(248,113,113,0.15)" : "rgba(251,191,36,0.15)",
+                            }}>
+                              {p.status}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>{p.text}</p>
+                          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
                             {formatActivityTimestamp(p.createdAt)}
                           </span>
-
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )
               )}
 
               {/* ── Debates tab ── */}
               {activeActivityTab === "debates" && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingBottom: 80 }}>
-                  {isLoadingActivities ? (
-                    <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>Loading debates...</p>
-                  ) : displayDebates.length === 0 ? (
-                    <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No debates yet.</p>
-                  ) : displayDebates
-                    .map((debate: any) => (
-                      <div key={debate.id ?? `${debate.type}-${debate.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-                          <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                            Room : {getRoomName(debate.roomId, debate.metadata?.roomName || debate.roomName || debate.metadata?.sport || debate.sport).toUpperCase()}
+                displayDebates.length === 0 ? (
+                  <p style={{ textAlign: "center", padding: "24px 0", color: "rgba(255,255,255,0.4)", fontSize: 13 }}>No debates yet.</p>
+                ) : (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {displayDebates.map((d: any) => {
+                      const roomName = getRoomName(d.roomId, d.roomName || d.metadata?.roomName);
+                      const text = d.metadata?.statement || d.text || d.label || "Debate";
+                      return (
+                        <div key={d.id ?? `${d.createdAt}`} style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                              {roomName.toUpperCase()}
+                            </span>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: "#60a5fa", background: "rgba(96,165,250,0.15)", padding: "2px 7px", borderRadius: 4 }}>
+                              DEBATE
+                            </span>
+                          </div>
+                          <p style={{ fontSize: 13.5, color: "#fff", lineHeight: 1.5, margin: "0 0 10px" }}>{text}</p>
+                          <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                            {formatActivityTimestamp(d.createdAt)}
                           </span>
-                          <span style={{ fontSize: 10, fontWeight: 800, color: "#A78BFA", background: "rgba(167,139,250,0.12)", padding: "2px 7px", borderRadius: 4 }}>DEBATE</span>
                         </div>
-                        <p style={{ fontSize: 14, color: "#fff", lineHeight: 1.45, margin: "0 0 8px" }}>
-                          {truncateText((debate.metadata?.statement || debate.text || debate.label || "Debate").trim())}
-                        </p>
-                        {(debate.metadata?.sideA || debate.sideA) && (debate.metadata?.sideB || debate.sideB) && (
-                          <p style={{ fontSize: 12, color: "rgba(255,255,255,0.45)", marginBottom: 8 }}>
-                            <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideA ?? debate.sideA}</strong>
-                            {" vs "}
-                            <strong style={{ color: "rgba(255,255,255,0.7)" }}>{debate.metadata?.sideB ?? debate.sideB}</strong>
-                          </p>
-                        )}
-                        <span style={{ fontSize: 11, color: "rgba(255,255,255,0.35)" }}>
-                          {formatActivityTimestamp(debate.createdAt)}
-                        </span>
-                      </div>
-                    ))
-                  }
-                </div>
+                      );
+                    })}
+                  </div>
+                )
               )}
 
-              {/* ── Load more (shared across all / posts / predictions / debates) ── */}
-              {!isLoadingActivities && activityHasMore && (
-                <div style={{ display: "flex", justifyContent: "center", padding: "4px 0 24px" }}>
+              {/* ── Load More Activities ── */}
+              {activeActivityTab === "all" && activityHasMore && (
+                <div style={{ textAlign: "center", marginTop: 14, marginBottom: 10 }}>
                   <button
                     onClick={handleLoadMoreActivities}
                     disabled={loadingMoreActivities}
                     style={{
-                      padding: "9px 22px",
+                      padding: "8px 18px",
                       borderRadius: 20,
                       border: "1px solid rgba(255,255,255,0.15)",
-                      background: "rgba(255,255,255,0.06)",
-                      color: "rgba(255,255,255,0.75)",
+                      background: "rgba(255,255,255,0.05)",
+                      color: "#fff",
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: loadingMoreActivities ? "default" : "pointer",
                       opacity: loadingMoreActivities ? 0.6 : 1,
                     }}
                   >
-                    {loadingMoreActivities ? "Loading..." : "Load more (older activity)"}
+                    {loadingMoreActivities ? "Loading older activity..." : "Load older activity (past 7 days)"}
                   </button>
                 </div>
-              )}
-              {!isLoadingActivities && !activityHasMore && sourceActivities.length > 0 && (
-                <p style={{ textAlign: "center", padding: "4px 0 24px", color: "rgba(255,255,255,0.3)", fontSize: 11 }}>
-                  You're all caught up — no earlier activity.
-                </p>
               )}
             </div>
           )}
-
         </>
       )}
 
-
-
-      {/* ── Modals ── */}
-
-      {/* Avatar Picker */}
+      {/* ── Edit Profile Modal ── */}
       <AnimatePresence>
-        {avatarPickerOpen && !isOtherProfile && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setAvatarPickerOpen(false)}
-            style={{ position: "fixed", inset: 0, zIndex: 200, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(12px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px 16px" }}>
-            <motion.div initial={{ opacity: 0, scale: 0.88, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.88, y: -20 }} transition={{ type: "spring", damping: 26, stiffness: 340 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{ width: "100%", maxWidth: 400, background: "rgba(16,16,26,0.98)", borderRadius: 28, border: "1px solid rgba(255,255,255,0.10)", padding: "24px 20px 28px", boxShadow: "0 8px 48px rgba(0,0,0,0.6),0 0 0 1px rgba(233,30,140,0.18)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <h3 className="font-display" style={{ fontSize: 18, letterSpacing: "0.05em", color: "#fff", margin: 0 }}>CHOOSE YOUR AVATAR</h3>
-                <button onClick={() => setAvatarPickerOpen(false)} style={{ background: "rgba(255,255,255,0.08)", border: "none", color: "rgba(255,255,255,0.7)", width: 28, height: 28, borderRadius: "50%", fontSize: 15, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
-              </div>
-              <p style={{ fontSize: 12, color: "var(--text-muted)", textAlign: "center", marginBottom: 18 }}>Tap an avatar to set it as your profile picture</p>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, padding: "0 2px" }}>
-                {AVATAR_OPTIONS.map((src, idx) => {
-                  const sel = selectedAvatar === src;
-                  return (
-                    <motion.button key={idx} whileTap={{ scale: 0.92 }} onClick={() => handleAvatarSelect(src)}
-                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center" }}>
-                      <div style={{
-                        position: "relative",
-                        width: "100%",
-                        aspectRatio: "1 / 1",
-                        maxWidth: 72,
-                        borderRadius: "50%",
-                        border: sel ? "3px solid var(--accent-magenta)" : "2px solid rgba(255,255,255,0.08)",
-                        boxShadow: sel ? "0 0 0 2px rgba(233,30,140,0.35),0 4px 16px rgba(233,30,140,0.3)" : "none",
-                        overflow: "hidden",
-                        background: "rgba(255,255,255,0.04)",
-                      }}>
-                        <img src={src} alt={`Avatar ${idx + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover", filter: sel ? "none" : "brightness(0.85)" }} />
-                        {sel && (
-                          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(233,30,140,0.25)" }}>
-                            <span style={{ fontSize: 20, color: "#fff" }}>✓</span>
-                          </motion.div>
-                        )}
-                      </div>
-                    </motion.button>
-                  );
-                })}
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Edit Profile */}
-      <AnimatePresence>
-        {editOpen && !isOtherProfile && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            style={{ position: "absolute", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}
-            onClick={() => setEditOpen(false)}>
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{ width: "100%", background: "rgba(18,18,28,0.98)", borderRadius: "28px 28px 0 0", border: "1px solid rgba(255,255,255,0.08)", padding: "20px 20px 80px", maxHeight: "90vh", overflowY: "auto" }}>
-              <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
-                <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.18)" }} />
-              </div>
+        {editOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setEditOpen(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              style={{ background: "rgba(20,20,30,0.98)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 440, maxHeight: "90vh", overflowY: "auto" }}
+            >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-                <h3 className="font-display" style={{ fontSize: 22, letterSpacing: "0.05em", margin: 0 }}>EDIT PROFILE</h3>
-                <button
-                  onClick={() => setEditOpen(false)}
-                  aria-label="Close"
-                  style={{
-                    background: "rgba(255,255,255,0.08)", border: "none", color: "rgba(255,255,255,0.7)",
-                    width: 32, height: 32, borderRadius: "50%", fontSize: 16, cursor: "pointer",
-                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                  }}
-                >
-                  ✕
-                </button>
+                <h3 className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff", margin: 0 }}>Edit Profile</h3>
+                <button onClick={() => setEditOpen(false)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 20, cursor: "pointer", padding: 4 }}>✕</button>
               </div>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Cover photo (optional)</label>
-              <div style={{
-                position: "relative",
-                width: "100%",
-                height: 90,
-                borderRadius: 14,
-                overflow: "hidden",
-                marginBottom: 16,
-                background: coverPhoto ? undefined : "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {coverPhoto ? (
-                  <img src={coverPhoto} alt="Cover preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                ) : (
-                  <span style={{ fontSize: 12, color: "rgba(255,255,255,0.35)" }}>No cover photo set</span>
-                )}
-                {uploadingCover && (
-                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, color: "#fff" }}>
-                    Uploading…
-                  </div>
-                )}
-              </div>
-              <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
-                <label style={{
-                  flex: 1, textAlign: "center", padding: "9px 0", borderRadius: 12,
-                  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
-                  color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                }}>
-                  {coverPhoto ? "Change photo" : "Upload photo"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleCoverPhotoFile(file);
-                      e.target.value = "";
-                    }}
-                    style={{ display: "none" }}
-                  />
+
+              {/* Cover Photo Editor */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.6)", display: "block", marginBottom: 6 }}>
+                  Cover Photo
                 </label>
-                {coverPhoto && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveCoverPhoto}
-                    style={{
-                      padding: "9px 16px", borderRadius: 12,
-                      background: "none", border: "1px solid rgba(255,255,255,0.15)",
-                      color: "rgba(255,255,255,0.6)", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                    }}
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Display name</label>
-              <input type="text" value={editName} onChange={(e) => setEditName(e.target.value)} style={inputStyle} />
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>University / Institution</label>
-              <input type="text" value={editUniversity} onChange={(e) => setEditUniversity(e.target.value)} placeholder="e.g. Oxford University / MIT" style={inputStyle} />
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>Favourite player</label>
-              <input type="text" value={editFavPlayer} onChange={(e) => setEditFavPlayer(e.target.value)} placeholder="e.g. Rohit Sharma" style={inputStyle} />
-              <label style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, display: "block", marginBottom: 6 }}>About me (140 chars)</label>
-              <textarea value={editAbout} onChange={(e) => setEditAbout(e.target.value.slice(0, 140))} rows={4}
-                style={{ width: "100%", borderRadius: 14, background: "rgba(0,0,0,0.5)", border: "1px solid rgba(255,255,255,0.1)", padding: "12px 14px", color: "white", fontSize: 14, marginBottom: 16, outline: "none", resize: "vertical", fontFamily: "inherit", lineHeight: 1.5, boxSizing: "border-box" }} />
-              {[
-                { checked: editShowActivity, onToggle: () => setEditShowActivity(v => !v), label: "Show my activity (posts, debates, predictions) to other fans" },
-              ].map(({ checked, onToggle, label }, i) => (
-                <div
-                  key={i}
-                  onClick={onToggle}
-                  style={{
-                    display: "flex", alignItems: "center", justifyContent: "space-between",
-                    gap: 12, marginBottom: 18, cursor: "pointer", userSelect: "none",
-                  }}
-                >
-                  <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 500, flex: 1 }}>{label}</span>
-                  <div
-                    style={{
-                      width: 42, height: 24, borderRadius: 12, flexShrink: 0,
-                      background: checked ? "var(--accent-magenta)" : "rgba(255,255,255,0.15)",
-                      position: "relative", transition: "background 0.2s ease",
-                    }}
-                  >
-                    <div
-                      style={{
-                        position: "absolute", top: 2, left: checked ? 20 : 2,
-                        width: 20, height: 20, borderRadius: "50%", background: "#fff",
-                        transition: "left 0.2s ease", boxShadow: "0 1px 3px rgba(0,0,0,0.4)",
-                      }}
-                    />
+                <div style={{
+                  position: "relative", width: "100%", height: 100,
+                  borderRadius: 12, overflow: "hidden",
+                  background: coverPhoto ? undefined : "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  {coverPhoto && (
+                    <img src={coverPhoto} alt="Cover preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  )}
+                  <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+                    <label style={{
+                      padding: "6px 12px", borderRadius: 16,
+                      background: "rgba(255,255,255,0.2)", backdropFilter: "blur(6px)",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                    }}>
+                      {uploadingCover ? "Loading..." : coverPhoto ? "Change Cover" : "Upload Cover"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleCoverPhotoFile(file);
+                        }}
+                      />
+                    </label>
+                    {coverPhoto && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveCoverPhoto}
+                        style={{
+                          padding: "6px 12px", borderRadius: 16,
+                          background: "rgba(248,113,113,0.25)",
+                          border: "1px solid rgba(248,113,113,0.4)",
+                          color: "#f87171", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 </div>
-              ))}
-              <motion.button whileTap={{ scale: 0.97 }} className="btn-gradient"
-                onClick={async () => {
-                  setProfileMetadata((prev: any) => ({ ...prev, user: { ...(prev?.user ?? {}), username: editName, university: editUniversity, institution: editUniversity, favPlayer: editFavPlayer, about: editAbout, showPredHistory: editShowPredHistory, showActivity: editShowActivity, coverPhotoUrl: coverPhoto, } }));
-                  setEditOpen(false);
-                  try { trackProfileSignalCreated("profile_details"); } catch (e) {}
-                  const oldUser = profileMetadata?.user || {};
-                  if (editName && editName !== oldUser.username) {
-                    try { trackProfileSignalCreated("username"); } catch(e){}
-                  }
-                  if (editAbout && editAbout !== oldUser.about) {
-                    try { trackProfileSignalCreated("bio"); } catch(e){}
-                  }
-                  try { trackProfileSignalCreated("profile_details"); } catch (e) { }
-                  onToast("Profile updated successfully");
-                  try { localStorage.setItem("roar_username", editName); } catch { }
-                  try {
-                    await axios.patch("/api/roar/profile", {
-                      username: editName,
-                      university: editUniversity,
-                      institution: editUniversity,
-                      favPlayer: editFavPlayer,
-                      about: editAbout,
-                      showPredHistory: editShowPredHistory,
-                      showActivity: editShowActivity,
-                      coverPhotoUrl: coverPhoto ?? "",
-                    });
-                  } catch { }
-                }}
-                style={{ width: "100%", padding: "8px 0", borderRadius: 999, fontSize: 16, fontWeight: 800, border: "none", cursor: "pointer", letterSpacing: "0.06em" }}>
-                SAVE
-              </motion.button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Share */}
-      <AnimatePresence>
-        {shareOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShareOpen(false)}
-              style={{
-                position: "fixed", inset: 0, zIndex: 40,
-                background: "rgba(0,0,0,0.7)",
-              }}
-            />
-
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              transition={{ type: "spring", damping: 28, stiffness: 320 }}
-              onClick={(e) => e.stopPropagation()}
-              style={{
-                position: "fixed",
-                bottom: 80,
-                left: "50%",
-                transform: "translateX(-50%)",
-                zIndex: 50,
-                width: "calc(100% - 32px)",
-                maxWidth: 320,
-                background: "#1a1a1e",
-                borderRadius: 20,
-                border: "1px solid rgba(255,255,255,0.1)",
-                padding: "16px",
-                boxShadow: "0 8px 40px rgba(0,0,0,0.6)",
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                <p style={{ color: "#fff", fontSize: 14, fontWeight: 600, margin: 0 }}>
-                  Share ROAR Profile
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShareOpen(false)}
-                  style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", cursor: "pointer", padding: 4, display: "flex", alignItems: "center", justifyContent: "center" }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-                    <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
-                </button>
               </div>
 
-              <div style={{ borderRadius: 12, border: "1px solid rgba(255,255,255,0.1)", background: "#111114", padding: "10px 12px", marginBottom: 14 }}>
-                <p style={{ color: "#fff", fontSize: 13, fontWeight: 600, margin: "0 0 4px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {user.username ?? "ROAR Profile"}
-                </p>
-                <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {buildShareUrl(user)}
-                </p>
+              {/* Profile Photo Editor */}
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.6)", display: "block", marginBottom: 6 }}>
+                  Profile Photo
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div style={{ width: 56, height: 56, borderRadius: "50%", overflow: "hidden", background: "#1a1a2e", border: "2px solid rgba(255,255,255,0.12)", flexShrink: 0 }}>
+                    {displayAvatar ? (
+                      <img src={displayAvatar} alt="preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="md" />
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setAvatarPickerOpen(true)}
+                      style={{
+                        padding: "6px 12px", borderRadius: 16,
+                        background: "rgba(255,255,255,0.1)",
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                      }}
+                    >
+                      Choose Avatar
+                    </button>
+                    <label style={{
+                      padding: "6px 12px", borderRadius: 16,
+                      background: "rgba(233,30,140,0.2)",
+                      border: "1px solid rgba(233,30,140,0.4)",
+                      color: "#f472b6", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                    }}>
+                      {uploadingAvatar ? "Loading..." : "Upload Photo"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleAvatarUpload(file);
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
 
-              <div style={{ display: "flex", flexDirection: "row", flexWrap: "nowrap", alignItems: "center", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
-                {shareActions.map(({ alt, src, handler }) => (
-                  <button
-                    key={alt}
-                    type="button"
-                    onClick={handler}
-                    disabled={alt === "WhatsApp" && sharingImage}
-                    style={{
-                      flexShrink: 0,
-                      width: 48, height: 48,
-                      borderRadius: "50%",
-                      overflow: "hidden",
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      cursor: alt === "WhatsApp" && sharingImage ? "not-allowed" : "pointer",
-                      opacity: alt === "WhatsApp" && sharingImage ? 0.5 : 1,
-                      padding: 0,
-                    }}
-                  >
-                    <img
-                      src={src}
-                      alt={alt}
-                      style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
-                    />
-                  </button>
-                ))}
-              </div>
+              {/* Username */}
+              <label style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.6)", display: "block", marginBottom: 6 }}>
+                Display Name
+              </label>
+              <input
+                style={inputStyle}
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="Your username"
+                maxLength={30}
+              />
 
-              {sharingImage && (
-                <p style={{ fontSize: 11, color: "rgba(255,255,255,0.45)", margin: "8px 0 0" }}>
-                  Preparing image…
-                </p>
-              )}
-              {copied && (
-                <p style={{ fontSize: 11, color: "#34D399", margin: "8px 0 0" }}>
-                  Copied to clipboard!
-                </p>
-              )}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              {/* University */}
+              <label style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.6)", display: "block", marginBottom: 6 }}>
+                University / Institution
+              </label>
+              <input
+                style={inputStyle}
+                value={editUniversity}
+                onChange={(e) => setEditUniversity(e.target.value)}
+                placeholder="e.g. Stanford University"
+                maxLength={100}
+              />
 
-      {/* Badge Detail */}
-      <AnimatePresence>
-        {badgeModal && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setBadgeModal(null)}
-            style={{ position: "absolute", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={(e) => e.stopPropagation()} className="glass-card"
-              style={{ width: "100%", maxWidth: 300, padding: 20, textAlign: "center", background: "var(--bg-secondary)" }}>
-              <div style={{ width: 64, height: 64, margin: "0 auto 12px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img
-                  src={badgeModal._feature?.icons?.[Math.max(0, (badgeModal._feature?.level || 1) - 1)] ?? badgeModal._feature?.icon}
-                  alt={badgeModal._feature?.label ?? "Badge"}
-                  style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                  onError={(e) => {
-                    const target = e.currentTarget;
-                    target.style.display = "none";
-                    const parent = target.parentElement;
-                    if (parent && !parent.querySelector(".badge-modal-fallback")) {
-                      const span = document.createElement("span");
-                      span.className = "badge-modal-fallback";
-                      span.textContent = "🏅";
-                      span.style.fontSize = "48px";
-                      parent.appendChild(span);
-                    }
-                  }}
+              {/* Fav Player */}
+              <label style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.6)", display: "block", marginBottom: 6 }}>
+                Favourite Player
+              </label>
+              <input
+                style={inputStyle}
+                value={editFavPlayer}
+                onChange={(e) => setEditFavPlayer(e.target.value)}
+                placeholder="e.g. Virat Kohli"
+                maxLength={60}
+              />
+
+              {/* About */}
+              <label style={{ fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.6)", display: "block", marginBottom: 6 }}>
+                About / Bio
+              </label>
+              <textarea
+                style={{ ...inputStyle, height: 80, padding: "10px 14px", resize: "none" }}
+                value={editAbout}
+                onChange={(e) => setEditAbout(e.target.value)}
+                placeholder="A bit about your fandom..."
+                maxLength={300}
+              />
+
+              {/* Toggles */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>Show Prediction History</span>
+                <input
+                  type="checkbox"
+                  checked={editShowPredHistory}
+                  onChange={(e) => setEditShowPredHistory(e.target.checked)}
+                  style={{ width: 18, height: 18, accentColor: "#E91E8C", cursor: "pointer" }}
                 />
               </div>
 
-              <h3 className="font-display" style={{ fontSize: 26, marginBottom: 4 }}>
-                {badgeModal._feature?.label ?? "Badge"}
-              </h3>
-              <p style={{ fontSize: 10, color: "var(--accent-magenta)", fontWeight: 700, letterSpacing: "0.05em" }}>
-                {badgeModal.unlocked ? `LEVEL ${badgeModal._feature?.level}/5` : "LOCKED"}
-              </p>
-              <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.4 }}>
-                {badgeModal._feature?.nextThreshold
-                  ? `${badgeModal._feature.count}/${badgeModal._feature.nextThreshold} toward next level.`
-                  : "Max level reached!"}
-              </p>
-              <div style={{ height: 6, background: "rgba(255,255,255,0.08)", borderRadius: 3, margin: "16px 0 6px", overflow: "hidden" }}>
-                <div style={{ height: "100%", width: `${badgeModal.progress}%`, background: "var(--accent-magenta)" }} />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+                <span style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>Show Activity Feed</span>
+                <input
+                  type="checkbox"
+                  checked={editShowActivity}
+                  onChange={(e) => setEditShowActivity(e.target.checked)}
+                  style={{ width: 18, height: 18, accentColor: "#E91E8C", cursor: "pointer" }}
+                />
               </div>
-              <p style={{ fontSize: 11, color: "var(--text-muted)" }}>Progress: {badgeModal.progress}%</p>
 
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Fan Match */}
-      <AnimatePresence>
-        {fanMatchOpen && !isOtherProfile && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setFanMatchOpen(false)}
-            style={{ position: "absolute", inset: 0, zIndex: 110, background: "rgba(0,0,0,0.85)", backdropFilter: "blur(8px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
-            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} onClick={(e) => e.stopPropagation()} className="glass-card"
-              style={{ width: "100%", maxWidth: 320, padding: 20, background: "var(--bg-secondary)" }}>
-              <h3 className="font-display" style={{ fontSize: 24, marginBottom: 4, textAlign: "center", color: "#fff" }}>YOUR FAN MATCH TRIBE</h3>
-              <p style={{ fontSize: 11, color: "var(--text-secondary)", textAlign: "center", lineHeight: 1.4, marginBottom: 16 }}>We analysed your takes & predictions to find similar fans.</p>
-              <button onClick={() => setFanMatchOpen(false)} className="btn-gradient"
-                style={{ width: "100%", marginTop: 18, padding: "12px 0", border: "none", borderRadius: 12, cursor: "pointer", fontSize: 13 }}>
-                Close Tribe
+              {/* Save Button */}
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const payload: any = {
+                      username: editName.trim(),
+                      university: editUniversity.trim(),
+                      institution: editUniversity.trim(),
+                      favPlayer: editFavPlayer.trim(),
+                      about: editAbout.trim(),
+                      showPredHistory: editShowPredHistory,
+                      showActivity: editShowActivity,
+                      coverPhotoUrl: coverPhoto ?? "",
+                    };
+                    await axios.patch("/api/roar/profile", payload);
+                    setProfileMetadata((prev: any) => ({
+                      ...prev,
+                      user: {
+                        ...(prev?.user ?? {}),
+                        ...payload,
+                      },
+                    }));
+                    setEditOpen(false);
+                    onToast("Profile updated!");
+                  } catch (err: any) {
+                    onToast(err.response?.data?.error || "Could not save profile.");
+                  }
+                }}
+                style={{
+                  width: "100%", height: 48, borderRadius: 14,
+                  background: "linear-gradient(90deg, #E91E8C 0%, #FF6B35 100%)",
+                  border: "none", color: "#fff", fontSize: 15, fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Save Changes
               </button>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* ── Avatar Picker Modal ── */}
+      <AnimatePresence>
+        {avatarPickerOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", zIndex: 110, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setAvatarPickerOpen(false); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              style={{ background: "rgba(20,20,30,0.98)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 400 }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+                <h3 className="font-display" style={{ fontSize: 17, fontWeight: 800, color: "#fff", margin: 0 }}>Choose an Avatar</h3>
+                <button onClick={() => setAvatarPickerOpen(false)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.5)", fontSize: 20, cursor: "pointer", padding: 4 }}>✕</button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
+                {AVATAR_OPTIONS.map((src, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleAvatarSelect(src)}
+                    style={{
+                      aspectRatio: "1 / 1", borderRadius: "50%", overflow: "hidden",
+                      border: selectedAvatar === src ? "3px solid #E91E8C" : "2px solid rgba(255,255,255,0.1)",
+                      background: "#1a1a2e", padding: 0, cursor: "pointer",
+                    }}
+                  >
+                    <img src={src} alt={`avatar-${i + 1}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ textAlign: "center" }}>
+                <label style={{
+                  display: "inline-block", padding: "8px 18px", borderRadius: 20,
+                  background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
+                  color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                }}>
+                  {uploadingAvatar ? "Loading..." : "Upload Custom Photo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleAvatarUpload(file);
+                    }}
+                  />
+                </label>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Badge Detail Modal ── */}
+      <AnimatePresence>
+        {badgeModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+            onClick={(e) => { if (e.target === e.currentTarget) setBadgeModal(null); }}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              style={{ background: "rgba(20,20,30,0.98)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 360, textAlign: "center" }}
+            >
+              <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 16px", background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))", border: "2px solid rgba(233,30,140,0.5)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                {badgeModal._feature?.icons?.[Math.max(0, (badgeModal._feature?.level || 1) - 1)] ? (
+                  <img src={badgeModal._feature.icons[Math.max(0, (badgeModal._feature.level || 1) - 1)]} alt="badge" style={{ width: "70%", height: "70%", objectFit: "contain" }} />
+                ) : (
+                  <span style={{ fontSize: 32 }}>🏅</span>
+                )}
+              </div>
+              <h3 className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff", margin: "0 0 6px", textTransform: "capitalize" }}>
+                {badgeModal._feature ? `${badgeModal._feature.feature.replace(/([A-Z])/g, " $1")} · L${badgeModal._feature.level}` : (badgeModal.name || "Badge")}
+              </h3>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", margin: "0 0 16px", lineHeight: 1.5 }}>
+                {badgeModal._feature?.label || badgeModal.description || "Mastery badge earned on SportsFan360."}
+              </p>
+              <button
+                type="button"
+                onClick={() => setBadgeModal(null)}
+                style={{
+                  padding: "8px 24px", borderRadius: 20,
+                  background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
+                  color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                Close
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
