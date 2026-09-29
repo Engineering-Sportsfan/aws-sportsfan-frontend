@@ -2040,7 +2040,7 @@ export default function ArenaEngagementModal({
                         />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="col-span-1">
+                        {/* <div className="col-span-1">
                           <label className="text-[9px] font-bold text-white/50 block mb-1">Code</label>
                           <input
                             type="text"
@@ -2050,7 +2050,7 @@ export default function ArenaEngagementModal({
                             className={inputStyle}
                             maxLength={5}
                           />
-                        </div>
+                        </div> */}
                         <div className="col-span-2">
                           <label className="text-[9px] font-bold text-white/50 block mb-1">Key Stat</label>
                           <input
@@ -2080,7 +2080,7 @@ export default function ArenaEngagementModal({
                         />
                       </div>
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="col-span-1">
+                        {/* <div className="col-span-1">
                           <label className="text-[9px] font-bold text-white/50 block mb-1">Code</label>
                           <input
                             type="text"
@@ -2090,7 +2090,7 @@ export default function ArenaEngagementModal({
                             className={inputStyle}
                             maxLength={5}
                           />
-                        </div>
+                        </div> */}
                         <div className="col-span-2">
                           <label className="text-[9px] font-bold text-white/50 block mb-1">Key Stat</label>
                           <input
@@ -2296,14 +2296,14 @@ export default function ArenaEngagementModal({
                         className={inputStyle}
                         required
                       />
-                      <input
+                      {/* <input
                         type="text"
                         value={predLeftCode}
                         onChange={(e) => setPredLeftCode(e.target.value.toUpperCase())}
                         placeholder="Code (e.g. IN)"
                         className={inputStyle}
                         maxLength={5}
-                      />
+                      /> */}
                     </div>
 
                     <div
@@ -2344,21 +2344,21 @@ export default function ArenaEngagementModal({
                         className={inputStyle}
                         required
                       />
-                      <input
+                      {/* <input
                         type="text"
                         value={predRightCode}
                         onChange={(e) => setPredRightCode(e.target.value.toUpperCase())}
                         placeholder="Code (e.g. LK)"
                         className={inputStyle}
                         maxLength={5}
-                      />
+                      /> */}
                     </div>
                   </div>
 
-                  <div>
-                    <label className={labelStyle}>Coin Stake</label>
+                  {/* <div>
+                    <label className={labelStyle}>SXP</label>
                     <div className="flex gap-2">
-                      {[10, 25].map((stake) => (
+                      {[10].map((stake) => (
                         <button
                           key={stake}
                           type="button"
@@ -2372,7 +2372,7 @@ export default function ArenaEngagementModal({
                         </button>
                       ))}
                     </div>
-                  </div>
+                  </div> */}
                 </div>
               )}
 
