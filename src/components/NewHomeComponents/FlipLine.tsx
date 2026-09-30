@@ -416,8 +416,8 @@ function FlipLineSection({
   const baseCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
   const displayCards = applyChannelFilter(baseCards, activeFilter, selectedSport);
 
-  const mainChips = FILTER_CHIPS.slice(0, 4);
-  const extraChips = FILTER_CHIPS.slice(4);
+  const mobilePrimaryChips = FILTER_CHIPS.slice(0, 3); // All, Cricket, Football
+  const extraChips = FILTER_CHIPS.slice(3); // Athletics, Expert, Analysts
 
   return (
     <div className="w-full mb-3 sm:mb-5 relative">
@@ -426,7 +426,6 @@ function FlipLineSection({
         <span className="text-[12px] sm:text-[13px] font-black uppercase tracking-wider text-[#9AA3AF]">
           SPORT
         </span>
-
       </div>
 
       {/* Sport Filter Chips (Figma Styled) */}
@@ -434,7 +433,8 @@ function FlipLineSection({
         className="flex items-center gap-2 px-3 sm:px-4 mb-3 sm:mb-4 overflow-x-auto no-scrollbar"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {mainChips.map((chip) => {
+        {/* Mobile & Desktop: Primary Chips (All, Cricket, Football) */}
+        {mobilePrimaryChips.map((chip) => {
           const isActive = activeFilter === chip.id;
           return (
             <button
@@ -448,7 +448,7 @@ function FlipLineSection({
               {chip.isHash ? (
                 <span className="text-[#FF2D8A] font-black text-sm">#</span>
               ) : (
-                  <span className="text-xs">{chip.emoji}</span>
+                <span className="text-xs">{chip.emoji}</span>
               )}
               <span
                 className="transition-colors"
@@ -466,8 +466,37 @@ function FlipLineSection({
           );
         })}
 
-        {/* More Dropdown / Extra Chips Button */}
-        <div className="relative shrink-0">
+        {/* Desktop Only: Remaining chips (Athletics, Expert, Analysts) */}
+        {extraChips.map((chip) => {
+          const isActive = activeFilter === chip.id;
+          return (
+            <button
+              key={chip.id}
+              onClick={() => setActiveFilter(chip.id)}
+              className="hidden md:flex relative px-3.5 py-2 rounded-lg bg-[#111418] border border-[#2A2F36] items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer shrink-0 overflow-hidden"
+              style={{
+                borderColor: isActive ? '#2A2F36' : '#2A2F36',
+              }}
+            >
+              <span className="text-xs">{chip.emoji}</span>
+              <span
+                className="transition-colors"
+                style={{
+                  color: isActive ? '#FFFFFF' : '#E4E8EE',
+                  fontWeight: isActive ? 800 : 600,
+                }}
+              >
+                {chip.label}
+              </span>
+              {isActive && (
+                <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#FF2D8A]" />
+              )}
+            </button>
+          );
+        })}
+
+        {/* Mobile Only: More Dropdown Button */}
+        <div className="flex md:hidden relative shrink-0">
           <button
             ref={moreButtonRef}
             onClick={toggleMoreMenu}

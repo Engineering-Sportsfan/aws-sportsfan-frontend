@@ -590,12 +590,13 @@ function DynamicQuizCard({
   onOpenEngagedModal,
   isEngagedExpanded = false,
   onQuestionChange,
+  onOpenLeaderboard,
 }: {
   item: EngagementItem;
   userId?: string;
-    userName?: string;
-    userAvatar?: string;
-    userEmail?: string;
+  userName?: string;
+  userAvatar?: string;
+  userEmail?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
@@ -603,6 +604,7 @@ function DynamicQuizCard({
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
   onQuestionChange?: (index: number, questionId: string) => void;
+  onOpenLeaderboard?: () => void;
 }) {
   const rawQuestions =
     item.quizData?.questions && item.quizData.questions.length > 0
@@ -626,7 +628,18 @@ function DynamicQuizCard({
 
   const initialFinish = getStoredVote("quiz_finish", item.id, userId);
   const [quizFinished, setQuizFinished] = useState<boolean>(Boolean(initialFinish?.finished));
-  const [totalScore, setTotalScore] = useState<number>(Number(initialFinish?.score) || 0);
+  const [totalScore, setTotalScore] = useState<number>(() => {
+    if (initialFinish?.score !== undefined) return Number(initialFinish.score);
+    let sum = 0;
+    rawQuestions.forEach((q, idx) => {
+      const qK = `quiz_q_${q?.id || idx}`;
+      const ans = getStoredVote(qK, item.id, userId);
+      if (ans) {
+        sum += (ans.earnedPoints || (PARTICIPATION_POINTS + (ans.isCorrect ? CORRECT_OPTION_BONUS : 0)));
+      }
+    });
+    return sum;
+  });
 
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const currentQ = rawQuestions[Math.min(currentQIndex, totalQuestions - 1)];
@@ -658,6 +671,33 @@ function DynamicQuizCard({
     return false;
   }, []);
 
+  const calculateQuizProgress = useCallback(() => {
+    let answeredQCount = 0;
+    let correctQCount = 0;
+    let earnedSum = 0;
+
+    rawQuestions.forEach((q, idx) => {
+      const qK = `quiz_q_${q?.id || idx}`;
+      const ans = getStoredVote(qK, item.id, userId);
+      if (ans) {
+        answeredQCount++;
+        if (ans.isCorrect) {
+          correctQCount++;
+        }
+        earnedSum += (ans.earnedPoints || (PARTICIPATION_POINTS + (ans.isCorrect ? CORRECT_OPTION_BONUS : 0)));
+      }
+    });
+
+    const maxPossible = totalQuestions * (PARTICIPATION_POINTS + CORRECT_OPTION_BONUS);
+    return {
+      answeredCount: answeredQCount,
+      correctCount: correctQCount,
+      earnedScore: earnedSum,
+      possibleScore: maxPossible,
+      isFullyCompleted: answeredQCount >= totalQuestions,
+    };
+  }, [rawQuestions, item.id, userId, totalQuestions]);
+
   const [selectedId, setSelectedId] = useState<string | null>(
     initialQ?.selectedId || (totalQuestions === 1 && item.userVoted && item.userVote ? item.userVote : null)
   );
@@ -674,7 +714,7 @@ function DynamicQuizCard({
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-  // Track whether the current user has already engaged with any question in this quiz
+
   const hasAlreadyEngaged = useMemo(() => {
     if (item.userVoted) return true;
     if (getStoredVote("quiz_engaged", item.id, userId)) return true;
@@ -720,6 +760,33 @@ function DynamicQuizCard({
     currentQIndex + 1 >= unlockedQuestionCount &&
     currentQIndex + 1 < totalQuestions;
 
+  // Handle timeout / partial expiration notification
+  const isExpired = Boolean(item.expiresAt && Number(item.expiresAt) > 0 && now > Number(item.expiresAt));
+  const partialNotifiedRef = useRef(false);
+
+  useEffect(() => {
+    if (isExpired && hasAlreadyEngaged && !quizFinished && !partialNotifiedRef.current) {
+      partialNotifiedRef.current = true;
+      const progress = calculateQuizProgress();
+      if (progress.answeredCount > 0) {
+        const partialMsg = `Quiz Time Expired! You answered ${progress.answeredCount}/${totalQuestions} questions and earned +${progress.earnedScore} SXPs. Tap to view your final score.`;
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("sf360:new-notification", {
+              detail: {
+                title: "FlipARENA",
+                body: partialMsg,
+                ctaLabel: "View Score",
+                ctaTarget: `/MainModules/FlipArena?itemId=${item.id}&type=quiz`,
+                type: "fliparena.quiz_expired_partial",
+              },
+            })
+          );
+        }
+      }
+    }
+  }, [isExpired, hasAlreadyEngaged, quizFinished, calculateQuizProgress, totalQuestions, item.id]);
+
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
@@ -763,17 +830,14 @@ function DynamicQuizCard({
     isAnsweringRef.current = true;
     const qKey = `quiz_q_${currentQ?.id || currentQIndex}`;
     const existing = getStoredVote(qKey, item.id, userId);
-    // if (existing) return;
     if (existing) {
-      isAnsweringRef.current = false;       // ← reset if we're bailing out
+      isAnsweringRef.current = false;
       return;
     }
 
-    isAnsweringRef.current = true;
     setSelectedId(optId);
     setAnswered(true);
 
-    // CRITICAL FIX: Only increment totalEngaged ONCE per quiz set, not on each question!
     const isFirstQuizEngagement = !hasEngagedRef.current;
     if (isFirstQuizEngagement) {
       hasEngagedRef.current = true;
@@ -786,7 +850,6 @@ function DynamicQuizCard({
 
     // +2 for every question answered, +10 more if correct
     const earnedPoints = PARTICIPATION_POINTS + (isRight ? CORRECT_OPTION_BONUS : 0);
-
     const nextTotal = totalScore + earnedPoints;
     setTotalScore(nextTotal);
 
@@ -797,10 +860,45 @@ function DynamicQuizCard({
       userId
     );
 
-    if (totalQuestions === 1 || currentQIndex === totalQuestions - 1) {
+    const currentAnsweredCount = rawQuestions.filter((q, idx) => {
+      if (idx === currentQIndex) return true;
+      return Boolean(getStoredVote(`quiz_q_${q?.id || idx}`, item.id, userId));
+    }).length;
+
+    const currentCorrectCount = rawQuestions.filter((q, idx) => {
+      if (idx === currentQIndex) return isRight;
+      return Boolean(getStoredVote(`quiz_q_${q?.id || idx}`, item.id, userId)?.isCorrect);
+    }).length;
+
+    const totalPossible = totalQuestions * (PARTICIPATION_POINTS + CORRECT_OPTION_BONUS);
+
+    // Multi-quiz full completion check
+    if (totalQuestions === 1 || currentQIndex === totalQuestions - 1 || currentAnsweredCount >= totalQuestions) {
       setQuizFinished(true);
-      setStoredVote("quiz_finish", item.id, { finished: true, score: nextTotal }, userId);
+      setStoredVote("quiz_finish", item.id, {
+        finished: true,
+        score: nextTotal,
+        answeredCount: currentAnsweredCount,
+        correctCount: currentCorrectCount,
+        possibleScore: totalPossible,
+      }, userId);
       setStoredVote("quiz_engaged", item.id, true, userId);
+
+      // Single summary push notification on completion
+      const summaryMsg = `Quiz Completed! You scored ${nextTotal}/${totalPossible} SXPs (${currentCorrectCount}/${totalQuestions} correct). Check your rank on the Leaderboard!`;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("sf360:new-notification", {
+            detail: {
+              title: "FlipARENA",
+              body: summaryMsg,
+              ctaLabel: "View Leaderboard",
+              ctaTarget: `/MainModules/FlipArena?itemId=${item.id}&type=quiz&tab=leaderboard`,
+              type: "fliparena.quiz_completed",
+            },
+          })
+        );
+      }
     }
 
     try {
@@ -854,7 +952,8 @@ function DynamicQuizCard({
       }
     } else {
       setQuizFinished(true);
-      setStoredVote("quiz_finish", item.id, { finished: true, score: totalScore }, userId);
+      const p = calculateQuizProgress();
+      setStoredVote("quiz_finish", item.id, { finished: true, score: totalScore, correctCount: p.correctCount, answeredCount: p.answeredCount }, userId);
     }
   };
 
@@ -894,7 +993,6 @@ function DynamicQuizCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
@@ -908,6 +1006,7 @@ function DynamicQuizCard({
   };
 
   const formattedTime = formatEngagementPostingTime(item);
+  const currentProgress = calculateQuizProgress();
 
   return (
     <motion.div
@@ -933,14 +1032,6 @@ function DynamicQuizCard({
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-purple-400">🧠 QUIZ</span>
-          {/* <span>•</span> */}
-          {/* <span className="text-amber-400">⭐ +2 SXPs / PLAY • +10 SXPs CORRECT</span> */}
-          {/* {frequencyMinutes && (
-            <>
-              <span>•</span>
-              <span className="text-cyan-400 font-mono">⏱️ {frequencyMinutes}M INTERVAL</span>
-            </>
-          )} */}
           {isScheduled && (
             <>
               <span>•</span>
@@ -955,8 +1046,39 @@ function DynamicQuizCard({
         </div>
       </div>
 
+      {/* Quiz Header & Completion summary banner */}
+      {quizFinished && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="p-3.5 rounded-2xl bg-gradient-to-br from-purple-950/60 via-[#15181D] to-purple-900/40 border border-purple-500/40 text-center space-y-2.5 shadow-xl mb-3"
+        >
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-lg">🏆</span>
+            <h4 className="text-sm font-black text-white">Quiz Completed!</h4>
+          </div>
+          <p className="text-[11.5px] text-purple-200 font-medium leading-snug">
+            You scored <strong className="text-amber-400 font-extrabold">{totalScore}/{currentProgress.possibleScore} SXPs</strong> ({currentProgress.correctCount}/{totalQuestions} correct). Check your rank on the Leaderboard!
+          </p>
+          <div className="flex items-center justify-center gap-2 pt-1">
+            <button
+              onClick={() => onOpenLeaderboard?.()}
+              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-[11px] flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
+            >
+              <Trophy size={13} className="text-black" />
+              <span>Leaderboard</span>
+            </button>
+            <button
+              onClick={() => setCurrentQIndex(0)}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-[11px] active:scale-95 transition-all cursor-pointer"
+            >
+              Review Questions
+            </button>
+          </div>
+        </motion.div>
+      )}
+
       <div className="flex items-center justify-between gap-2 mb-1.5">
-        {/* <h3 className="text-sm font-black text-white truncate">{item.title}</h3> */}
         {totalQuestions > 1 && (
           <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full shrink-0">
             Q {currentQIndex + 1}/{totalQuestions}
@@ -967,7 +1089,7 @@ function DynamicQuizCard({
       {totalQuestions > 1 && (
         <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mb-3">
           <div
-            className="h-full bg-white transition-all duration-300"
+            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
             style={{ width: `${((currentQIndex + (answered ? 1 : 0)) / totalQuestions) * 100}%` }}
           />
         </div>
@@ -977,9 +1099,6 @@ function DynamicQuizCard({
         <div className="p-5 rounded-xl bg-purple-500/10 border border-purple-500/30 text-center my-3 space-y-2">
           <Clock size={24} className="mx-auto text-purple-400 animate-pulse" />
           <h4 className="text-sm font-black text-white">Quiz Scheduled</h4>
-          {/* <p className="text-xs text-white/70">
-            Question #1 unlocks in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
-          </p> */}
           <p className="text-xs text-white/70">
             Question #1 unlocks in{" "}
             <LiveCountdown
@@ -1107,7 +1226,6 @@ function DynamicQuizCard({
             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
           </button>
         </div>
-        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
           className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
@@ -3275,6 +3393,11 @@ export default function FlipArena({
       urlParams.get("id") ||
       (window.location.hash ? window.location.hash.replace("#", "").replace(/^engagement-/, "") : null);
     const sharedType = urlParams.get("type");
+    const tabParam = urlParams.get("tab");
+
+    if (tabParam === "leaderboard") {
+      setShowLeaderboardModal(true);
+    }
 
     if (sharedId) {
       setHighlightedItemId(sharedId);
@@ -3531,6 +3654,7 @@ export default function FlipArena({
                       onOpenEngagedModal={handleOpenEngagedModal}
                       isEngagedExpanded={engagedModalItem?.id === item.id}
                       onQuestionChange={item.type === "quiz" ? (index: number, qId: string) => handleQuizQuestionChange(item.id, index, qId) : undefined}
+                      onOpenLeaderboard={() => setShowLeaderboardModal(true)}
                     />
                     
                     {/* Inline Engaged Users List */}
