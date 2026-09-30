@@ -3,6 +3,19 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* ── SportsFan Theme Tokens (Figma Design System) ── */
+  --sf-pink: #FF2D8A;
+  --sf-orange: #FF8A00;
+  --sf-text-primary: #FFFFFF;
+  --sf-text-secondary: #E4E8EE;
+  --sf-text-muted: #9AA3AF;
+  --sf-card-bg: #111418;
+  --sf-tab-bg: #15181D;
+  --sf-border: #2A2F36;
+  --sf-border-active: #FF2D8A;
+  --sf-gradient-accent: linear-gradient(90deg, #FF2D8A 0%, #FF8A00 100%);
+  --sf-gradient-timeline: linear-gradient(180deg, #FF8A00 0%, #FF2D8A 30%, rgba(42, 47, 54, 0.6) 100%);
 }
 
 @theme inline {

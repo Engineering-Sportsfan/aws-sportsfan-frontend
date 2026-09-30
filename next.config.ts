@@ -96,6 +96,18 @@ const nextConfig = {
         },
 
 
+         // Campus Ambassadors
+
+        {
+          source: "/api/campus-ambassadors",
+          destination: `${apiTarget}/api/campus-ambassadors`,
+        },
+        {
+          source: "/api/campus-ambassadors/:path*",
+          destination: `${apiTarget}/api/campus-ambassadors/:path*`,
+        },
+
+
         // ── Cricket Articles Rewrites ──
         {
           source: "/api/cricket-articles",

@@ -118,8 +118,8 @@ function ProfileContent() {
 
   if (effectiveUserId && !profile) {
     return (
-      <div className="min-h-screen bg-[#070b14] flex items-center justify-center text-white/50 text-xs">
-        Loading profile...
+      <div className="min-h-screen bg-[#070b14] flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-[#e91e8c] animate-spin" />
       </div>
     );
   }
@@ -183,8 +183,8 @@ export default function ProfilePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#070b14] flex items-center justify-center text-white/50 text-xs">
-          Loading profile...
+        <div className="min-h-screen bg-[#070b14] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-[#e91e8c] animate-spin" />
         </div>
       }
     >
