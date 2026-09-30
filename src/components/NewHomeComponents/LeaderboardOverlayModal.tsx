@@ -1,4 +1,5 @@
 
+
 // "use client";
 
 // import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -76,6 +77,15 @@
 //   return str.endsWith("%") ? str : `${str}%`;
 // }
 
+// // ─── Avatar Validator Helper ───────────────────────────────────────────────
+// function isValidAvatarUrl(url: any): boolean {
+//   if (!url || typeof url !== "string") return false;
+//   const s = url.trim();
+//   if (!s || s === "null" || s === "undefined") return false;
+//   if (s.includes("dicebear.com") || s.includes("api.dicebear")) return false;
+//   return true;
+// }
+
 // // ─── Quiz & Campus Interfaces ───────────────────────────────────────────────
 // export interface QuizLeaderboardUser {
 //   userId: string;
@@ -94,6 +104,7 @@
 //   userEmail: string;
 //   points: number;
 //   rank?: number;
+//   avatar?: string;
 // }
 
 // export interface CampusEntry {
@@ -152,12 +163,197 @@
 //   const [allUsersList, setAllUsersList] = useState<any[]>([]);
 //   const [usersLoading, setUsersLoading] = useState(false);
 
+//   // Fetch FlipARENA Leaderboard (Real data only)
+//   const fetchQuizLeaderboard = useCallback(async () => {
+//     setQuizLoading(true);
+//     try {
+//       const res = await axios.get("/api/engagements/quiz/leaderboard");
+//       const resData = res?.data;
+//       let rawList: any[] = [];
+//       if (Array.isArray(resData)) rawList = resData;
+//       else if (Array.isArray(resData?.leaderboard)) rawList = resData.leaderboard;
+//       else if (Array.isArray(resData?.data?.entries)) rawList = resData.data.entries;
+//       else if (Array.isArray(resData?.data?.leaderboard)) rawList = resData.data.leaderboard;
+//       else if (Array.isArray(resData?.data)) rawList = resData.data;
+//       else if (Array.isArray(resData?.entries)) rawList = resData.entries;
+
+//       if (rawList.length > 0) {
+//         const normalized = rawList.map((entry: any, index: number) => {
+//           const username =
+//             entry.userName ||
+//             entry.username ||
+//             entry.name ||
+//             entry.displayName ||
+//             entry.user?.userName ||
+//             (entry.userEmail ? entry.userEmail.split("@")[0] : `Fan ${index + 1}`);
+//           const points = Number(entry.totalPoints ?? entry.points ?? entry.score ?? 0);
+//           const userId = entry.userId || entry.id || String(index);
+//           const correctCount = Number(entry.correctCount ?? entry.correctAnswers ?? 0);
+//           const totalCount = Number(entry.totalAnswered ?? entry.totalQuestions ?? 0);
+//           const rawAcc = entry.accuracy ?? (totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0);
+//           const rawAvatar = entry.userAvatar || entry.avatar || "";
+//           return {
+//             userId,
+//             username,
+//             points,
+//             rank: Number(entry.rank || index + 1),
+//             accuracy: formatAccuracy(rawAcc),
+//             correctCount,
+//             totalCount,
+//             avatar: isValidAvatarUrl(rawAvatar) ? rawAvatar.trim() : "",
+//           };
+//         });
+//         normalized.sort((a, b) => b.points - a.points);
+//         normalized.forEach((item, idx) => {
+//           item.rank = idx + 1;
+//         });
+//         setQuizList(normalized);
+//       } else {
+//         setQuizList([]);
+//       }
+//     } catch {
+//       setQuizList([]);
+//     } finally {
+//       setQuizLoading(false);
+//     }
+//   }, []);
+
+//   // Fetch ROAR Leaderboard (Real data only)
+//   const fetchRoarLeaderboard = useCallback(async () => {
+//     setRoarLoading(true);
+//     try {
+//       const res = await axios.get(`/api/roar/leaderboard?period=${roarPeriod}`);
+//       const data = res.data;
+
+//       if (res.status === 200 && data?.success && Array.isArray(data?.leaderboard) && data.leaderboard.length > 0) {
+//         const normalized = data.leaderboard.map((item: any, idx: number) => ({
+//           userId: item.userId || item.uid || String(idx),
+//           username: item.username || item.userName || item.name || "Fan",
+//           badge: item.badge || "Fan",
+//           team: item.team || "Sports Fan",
+//           accuracy: Number(item.accuracy ?? 0),
+//           predictions: Number(item.predictions ?? item.predictionCount ?? 0),
+//           reputationScore: Number(item.reputationScore ?? item.totalPoints ?? item.points ?? 0),
+//           rank: Number(item.rank || idx + 1),
+//           avatar: isValidAvatarUrl(item.avatar || item.avatarUrl || item.photoURL || item.picture || item.image) ? (item.avatar || item.avatarUrl || item.photoURL || item.picture || item.image).trim() : "",
+//         }));
+//         setRoarList(normalized);
+//       } else if (Array.isArray(globalLeaderboard) && globalLeaderboard.length > 0) {
+//         const derived = globalLeaderboard.map((u: any, idx: number) => ({
+//           userId: u.userId || String(idx),
+//           username: u.userName || (u.userEmail ? u.userEmail.split("@")[0] : `Fan ${idx + 1}`),
+//           badge: u.badge || "Fan",
+//           team: u.team || "Sports Fan",
+//           accuracy: Number(u.accuracy ?? 0),
+//           predictions: Number(u.predictions ?? u.predictionCount ?? 0),
+//           reputationScore: Number(u.totalPoints ?? u.points ?? 0),
+//           rank: idx + 1,
+//           avatar: isValidAvatarUrl(u.avatar || u.avatarUrl || u.photoURL || u.picture || u.image) ? (u.avatar || u.avatarUrl || u.photoURL || u.picture || u.image).trim() : "",
+//         }));
+//         setRoarList(derived);
+//       } else {
+//         setRoarList([]);
+//       }
+//     } catch {
+//       if (Array.isArray(globalLeaderboard) && globalLeaderboard.length > 0) {
+//         const derived = globalLeaderboard.map((u: any, idx: number) => ({
+//           userId: u.userId || String(idx),
+//           username: u.userName || (u.userEmail ? u.userEmail.split("@")[0] : `Fan ${idx + 1}`),
+//           badge: u.badge || "Fan",
+//           team: u.team || "Sports Fan",
+//           accuracy: Number(u.accuracy ?? 0),
+//           predictions: Number(u.predictions ?? u.predictionCount ?? 0),
+//           reputationScore: Number(u.totalPoints ?? u.points ?? 0),
+//           rank: idx + 1,
+//           avatar: isValidAvatarUrl(u.avatar || u.avatarUrl || u.photoURL || u.picture || u.image) ? (u.avatar || u.avatarUrl || u.photoURL || u.picture || u.image).trim() : "",
+//         }));
+//         setRoarList(derived);
+//       } else {
+//         setRoarList([]);
+//       }
+//     } finally {
+//       setRoarLoading(false);
+//     }
+//   }, [roarPeriod, globalLeaderboard]);
+
+//   // Fetch real registered users and point records for Campus clash & Avatar mapping
+//   const fetchCampusData = useCallback(async () => {
+//     setUsersLoading(true);
+//     const combinedUsers: any[] = [];
+//     const seen = new Set<string>();
+
+//     const addUsers = (arr: any[]) => {
+//       if (!Array.isArray(arr)) return;
+//       arr.forEach((u) => {
+//         if (!u) return;
+//         const key = String(u.userId || u.actualUserId || u.id || u.email || u.userEmail || u.username || "");
+//         if (key && !seen.has(key)) {
+//           seen.add(key);
+//           combinedUsers.push(u);
+//         }
+//       });
+//     };
+
+//     try {
+//       const res = await axios.get("/api/users", { withCredentials: true });
+//       const list =
+//         res.data?.users ||
+//         res.data?.data?.users ||
+//         res.data?.data ||
+//         res.data?.allUsers ||
+//         res.data?.userList ||
+//         (Array.isArray(res.data) ? res.data : []);
+//       addUsers(list);
+//     } catch {
+//       try {
+//         const fRes = await fetch("/api/users", { credentials: "include" });
+//         if (fRes.ok) {
+//           const j = await fRes.json();
+//           const list = j?.users || j?.data?.users || j?.data || (Array.isArray(j) ? j : []);
+//           addUsers(list);
+//         }
+//       } catch { }
+//     }
+
+//     try {
+//       const pRes = await axios.get("/api/user-points?limit=1000", { withCredentials: true });
+//       const pList =
+//         pRes.data?.leaderboard ||
+//         pRes.data?.data?.leaderboard ||
+//         pRes.data?.data ||
+//         pRes.data?.entries ||
+//         (Array.isArray(pRes.data) ? pRes.data : []);
+//       addUsers(pList);
+//     } catch {
+//       try {
+//         const fRes = await fetch("/api/user-points?limit=1000", { credentials: "include" });
+//         if (fRes.ok) {
+//           const j = await fRes.json();
+//           const pList = j?.leaderboard || j?.data?.leaderboard || j?.data || (Array.isArray(j) ? j : []);
+//           addUsers(pList);
+//         }
+//       } catch { }
+//     }
+
+//     try {
+//       const rawAuth = localStorage.getItem("auth_user");
+//       if (rawAuth) {
+//         const parsed = JSON.parse(rawAuth);
+//         if (parsed) addUsers([parsed]);
+//       }
+//     } catch { }
+
+//     setAllUsersList(combinedUsers);
+//     setUsersLoading(false);
+//   }, []);
+
 //   // Auto-refresh when engagement participation happens
 //   useEffect(() => {
 //     const handlePointsUpdate = () => {
 //       if (refreshLeaderboard) refreshLeaderboard();
 //       fetchQuizLeaderboard();
 //       fetchRoarLeaderboard();
+//       fetchCampusData();
 //     };
 //     if (typeof window !== "undefined") {
 //       window.addEventListener("sf360:points-updated", handlePointsUpdate);
@@ -169,84 +365,19 @@
 //         window.removeEventListener("arena-engagement-created", handlePointsUpdate);
 //       }
 //     };
-//   }, [refreshLeaderboard]);
+//   }, [refreshLeaderboard, fetchQuizLeaderboard, fetchRoarLeaderboard, fetchCampusData]);
 
-//   // Fetch real registered users and point records for Campus clash
 //   useEffect(() => {
 //     if (!isOpen) return;
-//     setUsersLoading(true);
+//     fetchCampusData();
+//   }, [isOpen, fetchCampusData]);
 
-//     const fetchAllData = async () => {
-//       const combinedUsers: any[] = [];
-//       const seen = new Set<string>();
-
-//       const addUsers = (arr: any[]) => {
-//         if (!Array.isArray(arr)) return;
-//         arr.forEach((u) => {
-//           if (!u) return;
-//           const key = String(u.userId || u.actualUserId || u.id || u.email || u.userEmail || u.username || "");
-//           if (key && !seen.has(key)) {
-//             seen.add(key);
-//             combinedUsers.push(u);
-//           }
-//         });
-//       };
-
-//       try {
-//         const res = await axios.get("/api/users", { withCredentials: true });
-//         const list =
-//           res.data?.users ||
-//           res.data?.data?.users ||
-//           res.data?.data ||
-//           res.data?.allUsers ||
-//           res.data?.userList ||
-//           (Array.isArray(res.data) ? res.data : []);
-//         addUsers(list);
-//       } catch {
-//         try {
-//           const fRes = await fetch("/api/users", { credentials: "include" });
-//           if (fRes.ok) {
-//             const j = await fRes.json();
-//             const list = j?.users || j?.data?.users || j?.data || (Array.isArray(j) ? j : []);
-//             addUsers(list);
-//           }
-//         } catch { }
-//       }
-
-//       try {
-//         const pRes = await axios.get("/api/user-points?limit=1000", { withCredentials: true });
-//         const pList =
-//           pRes.data?.leaderboard ||
-//           pRes.data?.data?.leaderboard ||
-//           pRes.data?.data ||
-//           pRes.data?.entries ||
-//           (Array.isArray(pRes.data) ? pRes.data : []);
-//         addUsers(pList);
-//       } catch {
-//         try {
-//           const fRes = await fetch("/api/user-points?limit=1000", { credentials: "include" });
-//           if (fRes.ok) {
-//             const j = await fRes.json();
-//             const pList = j?.leaderboard || j?.data?.leaderboard || j?.data || (Array.isArray(j) ? j : []);
-//             addUsers(pList);
-//           }
-//         } catch { }
-//       }
-
-//       try {
-//         const rawAuth = localStorage.getItem("auth_user");
-//         if (rawAuth) {
-//           const parsed = JSON.parse(rawAuth);
-//           if (parsed) addUsers([parsed]);
-//         }
-//       } catch { }
-
-//       setAllUsersList(combinedUsers);
-//       setUsersLoading(false);
-//     };
-
-//     fetchAllData();
-//   }, [isOpen]);
+//   useEffect(() => {
+//     if (isOpen) {
+//       if (activeTab === "fliparena") fetchQuizLeaderboard();
+//       if (activeTab === "roar") fetchRoarLeaderboard();
+//     }
+//   }, [isOpen, activeTab, fetchQuizLeaderboard, fetchRoarLeaderboard]);
 
 //   // Swipe & tab navigation state & refs
 //   const [slideDirection, setSlideDirection] = useState<number>(0);
@@ -312,122 +443,6 @@
 //     }
 //   }, [isOpen, initialTab]);
 
-//   // Fetch FlipARENA Leaderboard (Real data only)
-//   const fetchQuizLeaderboard = useCallback(async () => {
-//     setQuizLoading(true);
-//     try {
-//       const res = await axios.get("/api/engagements/quiz/leaderboard");
-//       const resData = res?.data;
-//       let rawList: any[] = [];
-//       if (Array.isArray(resData)) rawList = resData;
-//       else if (Array.isArray(resData?.leaderboard)) rawList = resData.leaderboard;
-//       else if (Array.isArray(resData?.data?.entries)) rawList = resData.data.entries;
-//       else if (Array.isArray(resData?.data?.leaderboard)) rawList = resData.data.leaderboard;
-//       else if (Array.isArray(resData?.data)) rawList = resData.data;
-//       else if (Array.isArray(resData?.entries)) rawList = resData.entries;
-
-//       if (rawList.length > 0) {
-//         const normalized = rawList.map((entry: any, index: number) => {
-//           const username =
-//             entry.userName ||
-//             entry.username ||
-//             entry.name ||
-//             entry.displayName ||
-//             entry.user?.userName ||
-//             (entry.userEmail ? entry.userEmail.split("@")[0] : `Fan ${index + 1}`);
-//           const points = Number(entry.totalPoints ?? entry.points ?? entry.score ?? 0);
-//           const userId = entry.userId || entry.id || String(index);
-//           const correctCount = Number(entry.correctCount ?? entry.correctAnswers ?? 0);
-//           const totalCount = Number(entry.totalAnswered ?? entry.totalQuestions ?? 0);
-//           const rawAcc = entry.accuracy ?? (totalCount > 0 ? Math.round((correctCount / totalCount) * 100) : 0);
-//           return {
-//             userId,
-//             username,
-//             points,
-//             rank: Number(entry.rank || index + 1),
-//             accuracy: formatAccuracy(rawAcc),
-//             correctCount,
-//             totalCount,
-//             avatar: entry.userAvatar || entry.avatar || "",
-//           };
-//         });
-//         normalized.sort((a, b) => b.points - a.points);
-//         normalized.forEach((item, idx) => {
-//           item.rank = idx + 1;
-//         });
-//         setQuizList(normalized);
-//       } else {
-//         setQuizList([]);
-//       }
-//     } catch {
-//       setQuizList([]);
-//     } finally {
-//       setQuizLoading(false);
-//     }
-//   }, []);
-
-//   // Fetch ROAR Leaderboard (Real data only)
-//   const fetchRoarLeaderboard = useCallback(async () => {
-//     setRoarLoading(true);
-//     try {
-//       const res = await axios.get(`/api/roar/leaderboard?period=${roarPeriod}`);
-//       const data = res.data;
-
-//       if (res.status === 200 && data?.success && Array.isArray(data?.leaderboard) && data.leaderboard.length > 0) {
-//         const normalized = data.leaderboard.map((item: any, idx: number) => ({
-//           userId: item.userId || item.uid || String(idx),
-//           username: item.username || item.userName || item.name || "Fan",
-//           badge: item.badge || "Fan",
-//           team: item.team || "Sports Fan",
-//           accuracy: Number(item.accuracy ?? 0),
-//           predictions: Number(item.predictions ?? item.predictionCount ?? 0),
-//           reputationScore: Number(item.reputationScore ?? item.totalPoints ?? item.points ?? 0),
-//           rank: Number(item.rank || idx + 1),
-//         }));
-//         setRoarList(normalized);
-//       } else if (Array.isArray(globalLeaderboard) && globalLeaderboard.length > 0) {
-//         const derived = globalLeaderboard.map((u: any, idx: number) => ({
-//           userId: u.userId || String(idx),
-//           username: u.userName || (u.userEmail ? u.userEmail.split("@")[0] : `Fan ${idx + 1}`),
-//           badge: u.badge || "Fan",
-//           team: u.team || "Sports Fan",
-//           accuracy: Number(u.accuracy ?? 0),
-//           predictions: Number(u.predictions ?? u.predictionCount ?? 0),
-//           reputationScore: Number(u.totalPoints ?? u.points ?? 0),
-//           rank: idx + 1,
-//         }));
-//         setRoarList(derived);
-//       } else {
-//         setRoarList([]);
-//       }
-//     } catch {
-//       if (Array.isArray(globalLeaderboard) && globalLeaderboard.length > 0) {
-//         const derived = globalLeaderboard.map((u: any, idx: number) => ({
-//           userId: u.userId || String(idx),
-//           username: u.userName || (u.userEmail ? u.userEmail.split("@")[0] : `Fan ${idx + 1}`),
-//           badge: u.badge || "Fan",
-//           team: u.team || "Sports Fan",
-//           accuracy: Number(u.accuracy ?? 0),
-//           predictions: Number(u.predictions ?? u.predictionCount ?? 0),
-//           reputationScore: Number(u.totalPoints ?? u.points ?? 0),
-//           rank: idx + 1,
-//         }));
-//         setRoarList(derived);
-//       } else {
-//         setRoarList([]);
-//       }
-//     } finally {
-//       setRoarLoading(false);
-//     }
-//   }, [roarPeriod, globalLeaderboard]);
-
-//   useEffect(() => {
-//     if (isOpen) {
-//       if (activeTab === "fliparena") fetchQuizLeaderboard();
-//       if (activeTab === "roar") fetchRoarLeaderboard();
-//     }
-//   }, [isOpen, activeTab, fetchQuizLeaderboard, fetchRoarLeaderboard]);
-
 //   // Current user info
 //   const activeUserId = user?.userId || (user as any)?.actualUserId || user?.email;
 //   const currentUserName = user?.name || (user as any)?.userName || "";
@@ -443,11 +458,11 @@
 //     );
 //   }, [quizList, activeUserId, currentUserName]);
 
-//    // Comprehensive avatar lookup map (syncs user's Google photo or uploaded avatar)
+//   // Comprehensive avatar lookup map (syncs user's real Google photo from /api/users or custom uploaded avatar)
 //   const userAvatarMap = useMemo(() => {
 //     const map = new Map<string, string>();
 //     const add = (idOrKey: any, img: any) => {
-//       if (!idOrKey || !img || typeof img !== "string" || !img.trim() || img === "null" || img === "undefined") return;
+//       if (!idOrKey || !isValidAvatarUrl(img)) return;
 //       const cleanImg = img.trim();
 //       const k = String(idOrKey).trim().toLowerCase();
 //       const noPrefix = k.replace(/^user#/i, "");
@@ -531,21 +546,21 @@
 //       (currentUserName && (userObj.username === currentUserName || userObj.userName === currentUserName || userObj.name === currentUserName));
 
 //     let avatarUrl = "";
-//     // 1. Current user's locally updated avatar
+//     // 1. Current user's locally updated avatar (if user changed it)
 //     if (isMe && typeof window !== "undefined") {
 //       const localRoarAvatar = localStorage.getItem("roar_avatar_url");
-//       if (localRoarAvatar) avatarUrl = localRoarAvatar;
+//       if (isValidAvatarUrl(localRoarAvatar)) avatarUrl = localRoarAvatar!.trim();
 //     }
 
-//     // 2. Direct avatar / Google photo on user object
+//     // 2. Direct avatar / Google photo on user object (reject fake dicebear)
 //     if (!avatarUrl) {
 //       const raw = userObj.avatarUrl || userObj.photoURL || userObj.picture || userObj.image || userObj.avatar;
-//       if (raw && typeof raw === "string" && raw.trim() && raw !== "null" && raw !== "undefined") {
-//         avatarUrl = raw.trim();
+//       if (isValidAvatarUrl(raw)) {
+//         avatarUrl = raw!.trim();
 //       }
 //     }
 
-//     // 3. Normalized multi-key lookup in userAvatarMap
+//     // 3. Multi-key lookup in userAvatarMap (contains real Google photos & uploaded avatars from /api/users)
 //     if (!avatarUrl) {
 //       const candidateKeys = [
 //         userObj.userId,
@@ -564,8 +579,8 @@
 //           userAvatarMap.get(clean.replace(/^user#/i, "")) ||
 //           userAvatarMap.get(clean.replace(/[@.]/g, "_")) ||
 //           userAvatarMap.get(clean.replace(/_/g, "."));
-//         if (found) {
-//           avatarUrl = found;
+//         if (isValidAvatarUrl(found)) {
+//           avatarUrl = found!;
 //           break;
 //         }
 //       }
@@ -573,7 +588,10 @@
 
 //     // 4. Fallback to auth user
 //     if (!avatarUrl && isMe && user) {
-//       avatarUrl = (user as any).avatarUrl || user.photoURL || (user as any).picture || (user as any).image || user.avatar || "";
+//       const authImg = (user as any).avatarUrl || user.photoURL || (user as any).picture || (user as any).image || user.avatar;
+//       if (isValidAvatarUrl(authImg)) {
+//         avatarUrl = authImg.trim();
+//       }
 //     }
 
 //     const displayName = userObj.username || userObj.userName || userObj.name || userObj.userEmail || "F";
@@ -618,7 +636,6 @@
 //       </div>
 //     );
 //   };
-
 
 //   // Filtered lists
 //   const filteredGlobal = useMemo(() => {
@@ -775,16 +792,23 @@
 //       }
 
 //       const existing = participantsMap.get(key);
+//       const rawUserAvatar = u.avatarUrl || u.photoURL || u.picture || u.image || u.avatar || u.profilePicture || u.userAvatar;
+//       const resolvedAvatar = isValidAvatarUrl(rawUserAvatar) ? rawUserAvatar.trim() : undefined;
+
 //       if (!existing) {
 //         participantsMap.set(key, {
 //           userId: match.id,
 //           userName: match.name,
 //           userEmail: match.email,
+//           avatar: resolvedAvatar,
 //           points: resolvedPoints,
 //         });
 //       } else {
 //         if (resolvedPoints > existing.points) {
 //           existing.points = resolvedPoints;
+//         }
+//         if (resolvedAvatar && !existing.avatar) {
+//           existing.avatar = resolvedAvatar;
 //         }
 //         if (
 //           match.name &&
@@ -846,12 +870,6 @@
 //           ))
 //     );
 //   }, [allCampuses, searchQuery, symbiosisParticipants]);
-
-//   const handleJoinCampus = (campusName: string) => {
-//     setRepresentedCampus(campusName);
-//     setCampusJoinedToast(`Representing ${campusName}! Early registration confirmed 🎓`);
-//     setTimeout(() => setCampusJoinedToast(null), 3500);
-//   };
 
 //   if (!isOpen) return null;
 
@@ -1033,53 +1051,6 @@
 //                 {/* ══════════════════ TAB 1: FLIPARENA LEADERBOARD ══════════════════ */}
 //                 {activeTab === "fliparena" && (
 //                   <div className="space-y-4">
-//                     {/* User Standing in FlipARENA */}
-//                     {/* <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-[#161a29] to-yellow-950/30 border border-amber-500/25 flex flex-col gap-2.5 shadow-lg"> */}
-//                     {/* <div className="flex items-center justify-between gap-2">
-//                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
-//                           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-600 flex items-center justify-center text-white shadow-md shadow-amber-500/20 shrink-0">
-//                             <Brain size={18} />
-//                           </div>
-//                           <div className="min-w-0 flex-1">
-//                             <div className="flex items-center gap-1.5 flex-wrap">
-//                               <span className="text-xs sm:text-sm font-black text-white whitespace-normal max-w-[140px] xs:max-w-[190px] sm:max-w-none">
-//                                 {currentUserName || "Your Profile"}
-//                               </span>
-//                               <span className="text-[9px] font-black text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/30 shrink-0 whitespace-nowrap">
-//                                 +2 PTS / PARTICIPATION
-//                               </span>
-//                             </div>
-//                             <p className="text-[10px] text-white/40 mt-0.5 whitespace-nowrap">
-//                               FlipARENA Standing · Quizzes, Polls, Predictions & Battles
-//                             </p>
-//                           </div>
-//                         </div>
-
-//                         <div className="text-right shrink-0 bg-white/[0.03] px-2.5 py-1.5 rounded-xl border border-white/[0.05]">
-//                           <span className="text-[9px] font-bold text-white/40 block leading-none">Your Rank</span>
-//                           <span className="text-xs font-black text-amber-400 whitespace-nowrap leading-tight mt-0.5 block">
-//                             #{currentQuizUser?.rank || currentRank || "—"}
-//                           </span>
-//                         </div>
-//                       </div>
-
-//                       <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.06]">
-//                         <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-//                           <span className="text-[10px] font-bold text-white/40 uppercase">Accuracy</span>
-//                           <span className="text-xs font-black text-emerald-400 whitespace-nowrap">
-//                             {formatAccuracy(currentQuizUser?.accuracy)}
-//                           </span>
-//                         </div>
-
-//                         <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-amber-500/[0.08] border border-amber-500/20">
-//                           <span className="text-[10px] font-bold text-amber-300/70 uppercase">Arena PTS</span>
-//                           <span className="text-xs font-black text-amber-400 whitespace-nowrap">
-//                             {(currentQuizUser?.points ?? currentPoints).toLocaleString()} PTS
-//                           </span>
-//                         </div>
-//                       </div>
-//                     </div> */}
-
 //                     {/* FlipARENA Banner with Refresh */}
 //                     <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-[#161a29] to-yellow-500/10 border border-amber-500/30 flex items-center justify-between">
 //                       <div className="flex items-center gap-2.5">
@@ -1119,7 +1090,7 @@
 //                             {formatAccuracy(filteredQuiz[1]?.accuracy)} acc
 //                           </span>
 //                           <span className="text-xs font-black text-slate-200 mt-0.5 shrink-0">
-//                             {filteredQuiz[1]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">PTS</span>
+//                             {filteredQuiz[1]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">SXP</span>
 //                           </span>
 //                         </div>
 
@@ -1141,7 +1112,7 @@
 //                             {formatAccuracy(filteredQuiz[0]?.accuracy)} acc
 //                           </span>
 //                           <span className="text-xs font-black text-amber-400 mt-0.5 shrink-0">
-//                             {filteredQuiz[0]?.points?.toLocaleString()} <span className="text-[9px] text-amber-500">PTS</span>
+//                             {filteredQuiz[0]?.points?.toLocaleString()} <span className="text-[9px] text-amber-500">SXP</span>
 //                           </span>
 //                         </div>
 
@@ -1160,7 +1131,7 @@
 //                             {formatAccuracy(filteredQuiz[2]?.accuracy)} acc
 //                           </span>
 //                           <span className="text-xs font-black text-amber-300/80 mt-0.5 shrink-0">
-//                             {filteredQuiz[2]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">PTS</span>
+//                             {filteredQuiz[2]?.points?.toLocaleString()} <span className="text-[9px] text-white/40">SXP</span>
 //                           </span>
 //                         </div>
 //                       </div>
@@ -1234,7 +1205,7 @@
 
 //                               <div className="text-right shrink-0">
 //                                 <span className="text-xs font-black text-amber-400">
-//                                   {quizzer.points?.toLocaleString()} PTS
+//                                   {quizzer.points?.toLocaleString()} SXP
 //                                 </span>
 //                                 <div className="text-[10px] font-bold text-emerald-400">
 //                                   {formatAccuracy(quizzer.accuracy)} acc
@@ -1248,10 +1219,227 @@
 //                   </div>
 //                 )}
 
-//                 {/* ══════════════════ TAB 2: GLOBAL LEADERBOARD ══════════════════ */}
-//                 {activeTab === "global" && (
+//                 {/* ══════════════════ TAB 2: CAMPUS CLASH ══════════════════ */}
+//                 {activeTab === "campus" && (
 //                   <div className="space-y-4">
-//                     {/* User Current Standing Card */}
+//                     {/* Campus Banner with Refresh */}
+//                     <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-[#161a29] to-teal-500/10 border border-emerald-500/30 flex items-center justify-between">
+//                       <div className="flex items-center gap-2.5">
+//                         <div className="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+//                           <GraduationCap size={20} />
+//                         </div>
+//                         <div>
+//                           <h4 className="text-xs font-black text-white">Campus Clash Rankings</h4>
+//                           <p className="text-[10px] text-white/50">Inter-college standings & university roster</p>
+//                         </div>
+//                       </div>
+//                       <button
+//                         onClick={fetchCampusData}
+//                         disabled={usersLoading}
+//                         className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-emerald-400 border border-white/10 transition-colors cursor-pointer"
+//                         title="Refresh Campus Rankings"
+//                       >
+//                         <RotateCw size={14} className={usersLoading ? "animate-spin" : ""} />
+//                       </button>
+//                     </div>
+
+//                     <div className="space-y-2">
+//                       {filteredCampus.length === 0 ? (
+//                         <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
+//                           {searchQuery
+//                             ? `No campuses or participants matched "${searchQuery}".`
+//                             : "No campus entries found."}
+//                         </div>
+//                       ) : (
+//                         filteredCampus.map((campus) => {
+//                           const isRepresented = representedCampus === campus.campusName;
+//                           const isSymbiosis = !!campus.isSymbiosis;
+//                           const isExpanded = expandedCampus === campus.campusName;
+
+//                           return (
+//                             <div
+//                               key={campus.campusName}
+//                               onClick={() => {
+//                                 if (isSymbiosis) {
+//                                   setExpandedCampus(isExpanded ? null : campus.campusName);
+//                                 }
+//                               }}
+//                               className={`p-3 sm:p-3.5 rounded-2xl border transition-all flex flex-col gap-2 group ${isSymbiosis
+//                                 ? isExpanded
+//                                   ? "bg-gradient-to-br from-amber-950/20 via-[#0e1322] to-emerald-950/20 border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.12)] cursor-pointer"
+//                                   : "bg-gradient-to-br from-amber-950/10 via-[#0b0f1a] to-emerald-950/10 border-amber-500/25 hover:border-amber-500/40 cursor-pointer"
+//                                 : isRepresented
+//                                   ? "bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
+//                                   : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
+//                                 }`}
+//                             >
+//                               <div className="flex items-center justify-between gap-2">
+//                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
+//                                   <span
+//                                     className={`text-xs sm:text-sm font-black w-6 text-center shrink-0 ${campus.rank === 1
+//                                       ? "text-amber-400"
+//                                       : campus.rank === 2
+//                                         ? "text-slate-300"
+//                                         : campus.rank === 3
+//                                           ? "text-amber-600"
+//                                           : "text-white/40"
+//                                       }`}
+//                                   >
+//                                     #{campus.rank}
+//                                   </span>
+
+//                                   <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-base shrink-0 group-hover:scale-105 transition-transform ${isSymbiosis
+//                                     ? "bg-amber-500/15 border border-amber-500/30 text-amber-300"
+//                                     : "bg-white/[0.04] border border-white/10"
+//                                     }`}>
+//                                     {campus.logoIcon}
+//                                   </div>
+
+//                                   <div className="min-w-0 flex-1">
+//                                     <div className="flex items-center gap-1.5 flex-wrap">
+//                                       <h4 className="text-xs sm:text-sm font-black text-white break-words">
+//                                         {campus.campusName}
+//                                       </h4>
+//                                     </div>
+//                                   </div>
+//                                 </div>
+
+//                                 <div className="text-right shrink-0 pl-2">
+//                                   <span className="text-xs sm:text-sm font-black text-emerald-400">
+//                                     {campus.points.toLocaleString()}
+//                                   </span>
+//                                   <span className="text-[9px] font-bold text-white/40 ml-1">SXP</span>
+//                                 </div>
+//                               </div>
+
+//                               <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.04] text-[10px] text-white/50">
+//                                 <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
+//                                   <span className="text-white/20">•</span>
+//                                   <span className="text-emerald-400 font-bold">{campus.fansCount} Participants</span>
+//                                   <span className="text-white/20 hidden xs:inline">•</span>
+//                                   <span className="whitespace-nowrap text-white/40">
+//                                     Top: <strong className="text-white/70">@{campus.topFan}</strong>
+//                                   </span>
+//                                 </div>
+
+//                                 <div className="flex items-center gap-1.5 shrink-0">
+//                                   {isSymbiosis && (
+//                                     <button
+//                                       onClick={(e) => {
+//                                         e.stopPropagation();
+//                                         setExpandedCampus(isExpanded ? null : campus.campusName);
+//                                       }}
+//                                       className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer active:scale-95"
+//                                       title={isExpanded ? "Hide Symbiosis participants" : "View Symbiosis participants"}
+//                                     >
+//                                       <Users size={11} className="text-amber-400" />
+//                                       <span className="hidden xs:inline">{isExpanded ? "Hide Roster" : `Roster (${symbiosisTotalParticipants})`}</span>
+//                                       {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+//                                     </button>
+//                                   )}
+//                                 </div>
+//                               </div>
+
+//                               {/* Accordion Content */}
+//                               <AnimatePresence>
+//                                 {isSymbiosis && isExpanded && (
+//                                   <motion.div
+//                                     initial={{ opacity: 0, height: 0 }}
+//                                     animate={{ opacity: 1, height: "auto" }}
+//                                     exit={{ opacity: 0, height: 0 }}
+//                                     transition={{ duration: 0.22, ease: "easeOut" }}
+//                                     className="overflow-hidden pt-2.5 mt-1 border-t border-white/[0.08]"
+//                                     onClick={(e) => e.stopPropagation()}
+//                                   >
+//                                     <div className="bg-[#080d1a] p-3 rounded-xl border border-amber-500/25 space-y-2.5 shadow-inner">
+//                                       <div className="flex items-center justify-between text-[11px] pb-2 border-b border-white/[0.06]">
+//                                         <div className="text-[10px] font-bold text-emerald-400">
+//                                         Total Symbiosis SXPs - {symbiosisTotalPoints.toLocaleString()} 
+//                                         </div>
+//                                       </div>
+
+//                                       <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
+//                                         {usersLoading && symbiosisParticipants.length === 0 ? (
+//                                           <div className="py-6 text-center text-xs text-white/40 flex items-center justify-center gap-2">
+//                                             <RotateCw size={14} className="animate-spin text-amber-400" />
+//                                             <span>Loading symbiosis participants...</span>
+//                                           </div>
+//                                         ) : symbiosisParticipants.length === 0 ? (
+//                                           <div className="py-5 text-center text-xs text-white/40">
+//                                             No registered participants with symbiosis found in system yet.
+//                                           </div>
+//                                         ) : (
+//                                           symbiosisParticipants.map((p) => {
+//                                             const isCurrentUser =
+//                                               (activeUserId && p.userId === activeUserId) ||
+//                                               (user?.email && p.userEmail.toLowerCase() === user.email.toLowerCase());
+
+//                                             return (
+//                                               <div
+//                                                 key={p.userId}
+//                                                 className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border transition-all ${isCurrentUser
+//                                                   ? "bg-amber-500/15 border-amber-500/50 shadow-sm"
+//                                                   : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
+//                                                   }`}
+//                                               >
+//                                                 <div className="flex items-center gap-2 min-w-0 flex-1">
+//                                                   <span
+//                                                     className={`text-[11px] font-black w-4 text-center shrink-0 ${p.rank === 1
+//                                                       ? "text-amber-400"
+//                                                       : p.rank === 2
+//                                                         ? "text-slate-300"
+//                                                         : p.rank === 3
+//                                                           ? "text-amber-600"
+//                                                           : "text-white/40"
+//                                                       }`}
+//                                                   >
+//                                                     #{p.rank}
+//                                                   </span>
+//                                                   {renderUserAvatar({ userId: p.userId, userName: p.userName, userEmail: p.userEmail, avatar: p.avatar }, 26, () => handleOpenUserProfile(p.userId || p.userEmail, undefined, p.userName))}
+//                                                   <div className="min-w-0 flex-1">
+//                                                     <div className="flex items-center gap-1.5 flex-wrap">
+//                                                       <span
+//                                                         onClick={() => handleOpenUserProfile(p.userId || p.userEmail, undefined, p.userName)}
+//                                                         className="text-xs font-black text-white break-words cursor-pointer hover:text-amber-300 hover:underline transition-colors"
+//                                                       >
+//                                                         {p.userName}
+//                                                       </span>
+//                                                       {isCurrentUser && (
+//                                                         <span className="text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase font-mono">
+//                                                           YOU
+//                                                         </span>
+//                                                       )}
+//                                                     </div>
+//                                                     <p className="text-[9px] text-white/40 font-mono break-all">{p.userEmail}</p>
+//                                                   </div>
+//                                                 </div>
+
+//                                                 <div className="text-right shrink-0 pl-2">
+//                                                   <span className="text-xs font-black text-emerald-400 whitespace-nowrap">
+//                                                     {p.points.toLocaleString()}
+//                                                   </span>
+//                                                   <span className="text-[9px] font-bold text-white/40 ml-1">SXP</span>
+//                                                 </div>
+//                                               </div>
+//                                             );
+//                                           })
+//                                         )}
+//                                       </div>
+//                                     </div>
+//                                   </motion.div>
+//                                 )}
+//                               </AnimatePresence>
+//                             </div>
+//                           );
+//                         })
+//                       )}
+//                     </div>
+//                   </div>
+//                 )}
+
+//                 {/* ══════════════════ TAB 3: GLOBAL LEADERBOARD (COMMENTED) ══════════════════ */}
+//                 {/* {activeTab === "global" && (
+//                   <div className="space-y-4">
 //                     <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/40 via-[#141824] to-purple-950/40 border border-rose-500/25 flex flex-col gap-2.5 shadow-lg">
 //                       <div className="flex items-center justify-between gap-2">
 //                         <div className="flex items-center gap-2.5 min-w-0 flex-1">
@@ -1306,16 +1494,15 @@
 //                       </div>
 //                     </div>
 
-//                     {/* Top 3 Podium (Global) */}
 //                     {!searchQuery && filteredGlobal.length >= 3 && (
 //                       <div className="grid grid-cols-3 gap-2 pt-1">
 //                         <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-slate-400/10 via-slate-500/5 to-transparent border border-slate-300/20 text-center relative min-w-0">
 //                           <span className="text-base sm:text-lg mb-0.5">🥈</span>
 //                           <div className="mb-1.5">
-//                             {renderUserAvatar(filteredGlobal[1], 36, () => handleOpenUserProfile(filteredGlobal[1]?.userId, filteredGlobal[1]?.userHandle, filteredGlobal[1]?.userName))}
+//                             {renderUserAvatar(filteredGlobal[1], 36, () => handleOpenUserProfile(filteredGlobal[1]?.userId, (filteredGlobal[1] as any)?.userHandle, filteredGlobal[1]?.userName))}
 //                           </div>
 //                           <span
-//                             onClick={() => handleOpenUserProfile(filteredGlobal[1]?.userId, filteredGlobal[1]?.userHandle, filteredGlobal[1]?.userName)}
+//                             onClick={() => handleOpenUserProfile(filteredGlobal[1]?.userId, (filteredGlobal[1] as any)?.userHandle, filteredGlobal[1]?.userName)}
 //                             className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight cursor-pointer hover:text-slate-300 hover:underline transition-colors"
 //                           >
 //                             {filteredGlobal[1]?.userName}
@@ -1331,10 +1518,10 @@
 //                             <span>🥇</span>
 //                           </div>
 //                           <div className="mb-1.5">
-//                             {renderUserAvatar(filteredGlobal[0], 40, () => handleOpenUserProfile(filteredGlobal[0]?.userId, filteredGlobal[0]?.userHandle, filteredGlobal[0]?.userName))}
+//                             {renderUserAvatar(filteredGlobal[0], 40, () => handleOpenUserProfile(filteredGlobal[0]?.userId, (filteredGlobal[0] as any)?.userHandle, filteredGlobal[0]?.userName))}
 //                           </div>
 //                           <span
-//                             onClick={() => handleOpenUserProfile(filteredGlobal[0]?.userId, filteredGlobal[0]?.userHandle, filteredGlobal[0]?.userName)}
+//                             onClick={() => handleOpenUserProfile(filteredGlobal[0]?.userId, (filteredGlobal[0] as any)?.userHandle, filteredGlobal[0]?.userName)}
 //                             className="text-[11px] sm:text-xs font-black text-amber-300 break-words line-clamp-1 text-center w-full leading-tight cursor-pointer hover:underline transition-colors"
 //                           >
 //                             {filteredGlobal[0]?.userName}
@@ -1347,10 +1534,10 @@
 //                         <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-700/10 via-amber-800/5 to-transparent border border-amber-700/30 text-center relative min-w-0">
 //                           <span className="text-base sm:text-lg mb-0.5">🥉</span>
 //                           <div className="mb-1.5">
-//                             {renderUserAvatar(filteredGlobal[2], 36, () => handleOpenUserProfile(filteredGlobal[2]?.userId, filteredGlobal[2]?.userHandle, filteredGlobal[2]?.userName))}
+//                             {renderUserAvatar(filteredGlobal[2], 36, () => handleOpenUserProfile(filteredGlobal[2]?.userId, (filteredGlobal[2] as any)?.userHandle, filteredGlobal[2]?.userName))}
 //                           </div>
 //                           <span
-//                             onClick={() => handleOpenUserProfile(filteredGlobal[2]?.userId, filteredGlobal[2]?.userHandle, filteredGlobal[2]?.userName)}
+//                             onClick={() => handleOpenUserProfile(filteredGlobal[2]?.userId, (filteredGlobal[2] as any)?.userHandle, filteredGlobal[2]?.userName)}
 //                             className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight cursor-pointer hover:text-amber-300 hover:underline transition-colors"
 //                           >
 //                             {filteredGlobal[2]?.userName}
@@ -1362,7 +1549,6 @@
 //                       </div>
 //                     )}
 
-//                     {/* Ranked List */}
 //                     <div className="space-y-1.5">
 //                       <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
 //                         <span>Rank & Fan</span>
@@ -1406,11 +1592,11 @@
 //                                 >
 //                                   #{rank}
 //                                 </span>
-//                                 {renderUserAvatar(fan, 32, () => handleOpenUserProfile(fan.userId, fan.userHandle, fan.userName))}
+//                                 {renderUserAvatar(fan, 32, () => handleOpenUserProfile(fan.userId, (fan as any).userHandle, fan.userName))}
 //                                 <div className="min-w-0 flex-1 pr-2">
 //                                   <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
 //                                     <span
-//                                       onClick={() => handleOpenUserProfile(fan.userId, fan.userHandle, fan.userName)}
+//                                       onClick={() => handleOpenUserProfile(fan.userId, (fan as any).userHandle, fan.userName)}
 //                                       className="break-words cursor-pointer hover:text-rose-300 hover:underline transition-colors"
 //                                     >
 //                                       {fan.userName || "Fan"}
@@ -1437,14 +1623,11 @@
 //                       )}
 //                     </div>
 //                   </div>
-//                 )}
+//                 )} */}
 
-
-
-//                 {/* ══════════════════ TAB 3: ROAR LEADERBOARD ══════════════════ */}
-//                 {activeTab === "roar" && (
+//                 {/* ══════════════════ TAB 4: ROAR LEADERBOARD (COMMENTED) ══════════════════ */}
+//                 {/* {activeTab === "roar" && (
 //                   <div className="space-y-4">
-//                     {/* ROAR Prediction Banner */}
 //                     <div className="p-3.5 rounded-2xl bg-gradient-to-r from-orange-500/10 via-[#161a29] to-red-500/10 border border-orange-500/30 flex items-center justify-between">
 //                       <div className="flex items-center gap-2.5">
 //                         <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400">
@@ -1465,7 +1648,6 @@
 //                       </button>
 //                     </div>
 
-//                     {/* ROAR Ranked List */}
 //                     <div className="space-y-2">
 //                       <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
 //                         <span>Rank & Predictor</span>
@@ -1554,257 +1736,7 @@
 //                       )}
 //                     </div>
 //                   </div>
-//                 )}
-
-//                 {/* ══════════════════ TAB 4: CAMPUS CLASH ══════════════════ */}
-//                 {activeTab === "campus" && (
-//                   <div className="space-y-4">
-//                     {/* <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 via-[#111624] to-blue-950/30 border border-emerald-500/30 relative overflow-hidden">
-//                       <div className="relative z-10">
-//                         <div className="flex items-center gap-2 mb-1.5">
-//                           <span className="text-[9px] font-black bg-emerald-500 text-black px-2 py-0.5 rounded-full tracking-wider uppercase">
-//                             SEASON 1 BETA
-//                           </span>
-//                           <span className="text-xs font-bold text-white/60">Inter-College Fandom League</span>
-//                         </div>
-//                         <h3 className="text-base font-black text-white">Campus Clash 🎓</h3>
-//                         <p className="text-xs text-white/60 mt-1 leading-relaxed">
-//                           Represent your university, score points for your campus in Arena & Watchalong, and claim the #1 collegiate trophy!
-//                         </p>
-//                       </div>
-//                     </div> */}
-
-//                     <div className="space-y-2">
-//                       {/* <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
-//                         <span>Rank & University</span>
-//                         <span>Fans & Score</span>
-//                       </div> */}
-
-//                       {filteredCampus.length === 0 ? (
-//                         <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
-//                           {searchQuery
-//                             ? `No campuses or participants matched "${searchQuery}".`
-//                             : "No campus entries found."}
-//                         </div>
-//                       ) : (
-//                         filteredCampus.map((campus) => {
-//                           const isRepresented = representedCampus === campus.campusName;
-//                           const isSymbiosis = !!campus.isSymbiosis;
-//                           const isExpanded = expandedCampus === campus.campusName;
-
-//                           return (
-//                             <div
-//                               key={campus.campusName}
-//                               onClick={() => {
-//                                 if (isSymbiosis) {
-//                                   setExpandedCampus(isExpanded ? null : campus.campusName);
-//                                 }
-//                               }}
-//                               className={`p-3 sm:p-3.5 rounded-2xl border transition-all flex flex-col gap-2 group ${isSymbiosis
-//                                 ? isExpanded
-//                                   ? "bg-gradient-to-br from-amber-950/20 via-[#0e1322] to-emerald-950/20 border-amber-500/40 shadow-[0_0_20px_rgba(245,158,11,0.12)] cursor-pointer"
-//                                   : "bg-gradient-to-br from-amber-950/10 via-[#0b0f1a] to-emerald-950/10 border-amber-500/25 hover:border-amber-500/40 cursor-pointer"
-//                                 : isRepresented
-//                                   ? "bg-emerald-500/10 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.15)]"
-//                                   : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
-//                                 }`}
-//                             >
-//                               <div className="flex items-center justify-between gap-2">
-//                                 <div className="flex items-center gap-2.5 min-w-0 flex-1">
-//                                   <span
-//                                     className={`text-xs sm:text-sm font-black w-6 text-center shrink-0 ${campus.rank === 1
-//                                       ? "text-amber-400"
-//                                       : campus.rank === 2
-//                                         ? "text-slate-300"
-//                                         : campus.rank === 3
-//                                           ? "text-amber-600"
-//                                           : "text-white/40"
-//                                       }`}
-//                                   >
-//                                     #{campus.rank}
-//                                   </span>
-
-//                                   <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center text-base shrink-0 group-hover:scale-105 transition-transform ${isSymbiosis
-//                                     ? "bg-amber-500/15 border border-amber-500/30 text-amber-300"
-//                                     : "bg-white/[0.04] border border-white/10"
-//                                     }`}>
-//                                     {campus.logoIcon}
-//                                   </div>
-
-//                                   <div className="min-w-0 flex-1">
-//                                     <div className="flex items-center gap-1.5 flex-wrap">
-//                                       <h4 className="text-xs sm:text-sm font-black text-white break-words">
-//                                         {campus.campusName}
-//                                       </h4>
-//                                       {/* <span className="text-[9px] font-extrabold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 shrink-0">
-//                                         {campus.shortName}
-//                                       </span> */}
-//                                       {/* {isSymbiosis && (
-//                                         <span className="text-[8px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono shrink-0">
-//                                           @ssss.edu.in
-//                                         </span>
-//                                       )} */}
-
-//                                     </div>
-//                                   </div>
-//                                 </div>
-
-//                                 <div className="text-right shrink-0 pl-2">
-//                                   <span className="text-xs sm:text-sm font-black text-emerald-400">
-//                                     {campus.points.toLocaleString()}
-//                                   </span>
-//                                   <span className="text-[9px] font-bold text-white/40 ml-1">PTS</span>
-//                                 </div>
-//                               </div>
-
-//                               <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/[0.04] text-[10px] text-white/50">
-//                                 <div className="flex items-center gap-2 flex-wrap min-w-0 flex-1">
-//                                   <span className="text-white/20">•</span>
-//                                   <span className="text-emerald-400 font-bold">{campus.fansCount} Participants</span>
-//                                   <span className="text-white/20 hidden xs:inline">•</span>
-//                                   <span className="whitespace-nowrap text-white/40">
-//                                     Top: <strong className="text-white/70">@{campus.topFan}</strong>
-//                                   </span>
-//                                 </div>
-
-//                                 <div className="flex items-center gap-1.5 shrink-0">
-//                                   {isSymbiosis && (
-//                                     <button
-//                                       onClick={(e) => {
-//                                         e.stopPropagation();
-//                                         setExpandedCampus(isExpanded ? null : campus.campusName);
-//                                       }}
-//                                       className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer active:scale-95"
-//                                       title={isExpanded ? "Hide Symbiosis participants" : "View Symbiosis participants"}
-//                                     >
-//                                       <Users size={11} className="text-amber-400" />
-//                                       <span className="hidden xs:inline">{isExpanded ? "Hide Roster" : `Roster (${symbiosisTotalParticipants})`}</span>
-//                                       {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-//                                     </button>
-//                                   )}
-
-//                                   {/* <button
-//                                     onClick={(e) => {
-//                                       e.stopPropagation();
-//                                       handleJoinCampus(campus.campusName);
-//                                     }}
-//                                     className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer active:scale-95 shrink-0 ${isRepresented
-//                                       ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20"
-//                                       : "bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-400"
-//                                       }`}
-//                                     title="Represent this campus"
-//                                   >
-//                                     {isRepresented ? "✓ Representing" : "Represent"}
-//                                   </button> */}
-//                                 </div>
-//                               </div>
-
-//                               {/* Accordion Content */}
-//                               <AnimatePresence>
-//                                 {isSymbiosis && isExpanded && (
-//                                   <motion.div
-//                                     initial={{ opacity: 0, height: 0 }}
-//                                     animate={{ opacity: 1, height: "auto" }}
-//                                     exit={{ opacity: 0, height: 0 }}
-//                                     transition={{ duration: 0.22, ease: "easeOut" }}
-//                                     className="overflow-hidden pt-2.5 mt-1 border-t border-white/[0.08]"
-//                                     onClick={(e) => e.stopPropagation()}
-//                                   >
-//                                     <div className="bg-[#080d1a] p-3 rounded-xl border border-amber-500/25 space-y-2.5 shadow-inner">
-//                                       <div className="flex items-center justify-between text-[11px] pb-2 border-b border-white/[0.06]">
-//                                         {/* <div className="flex items-center gap-1.5">
-//                                           <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-//                                           <span className="font-black text-amber-300">@ssss.edu.in</span>
-//                                           <span className="text-white/40">Verified Participants ({symbiosisTotalParticipants})</span>
-//                                         </div> */}
-//                                         <div className="text-[10px] font-bold text-emerald-400">
-//                                           {symbiosisTotalPoints.toLocaleString()} Total Symbiosis PTS
-//                                         </div>
-//                                       </div>
-
-//                                       <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
-//                                         {usersLoading && symbiosisParticipants.length === 0 ? (
-//                                           <div className="py-6 text-center text-xs text-white/40 flex items-center justify-center gap-2">
-//                                             <RotateCw size={14} className="animate-spin text-amber-400" />
-//                                             <span>Loading symbiosis participants...</span>
-//                                           </div>
-//                                         ) : symbiosisParticipants.length === 0 ? (
-//                                           <div className="py-5 text-center text-xs text-white/40">
-//                                             No registered participants with symbiosis found in system yet.
-//                                           </div>
-//                                         ) : (
-//                                           symbiosisParticipants.map((p) => {
-//                                             const isCurrentUser =
-//                                               (activeUserId && p.userId === activeUserId) ||
-//                                               (user?.email && p.userEmail.toLowerCase() === user.email.toLowerCase());
-
-//                                             return (
-//                                               <div
-//                                                 key={p.userId}
-//                                                 className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg border transition-all ${isCurrentUser
-//                                                   ? "bg-amber-500/15 border-amber-500/50 shadow-sm"
-//                                                   : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
-//                                                   }`}
-//                                               >
-//                                                 <div className="flex items-center gap-2 min-w-0 flex-1">
-//                                                   <span
-//                                                     className={`text-[11px] font-black w-4 text-center shrink-0 ${p.rank === 1
-//                                                       ? "text-amber-400"
-//                                                       : p.rank === 2
-//                                                         ? "text-slate-300"
-//                                                         : p.rank === 3
-//                                                           ? "text-amber-600"
-//                                                           : "text-white/40"
-//                                                       }`}
-//                                                   >
-//                                                     #{p.rank}
-//                                                   </span>
-//                                                   {renderUserAvatar({ userId: p.userId, userName: p.userName, userEmail: p.userEmail }, 26, () => handleOpenUserProfile(p.userId, undefined, p.userName))}
-//                                                   <div className="min-w-0 flex-1">
-//                                                     <div className="flex items-center gap-1.5 flex-wrap">
-//                                                       <span
-//                                                         onClick={() => handleOpenUserProfile(p.userId, undefined, p.userName)}
-//                                                         className="text-xs font-black text-white break-words cursor-pointer hover:text-amber-300 hover:underline transition-colors"
-//                                                       >
-//                                                         {p.userName}
-//                                                       </span>
-//                                                       {isCurrentUser && (
-//                                                         <span className="text-[8px] font-black bg-amber-500 text-black px-1.5 py-0.5 rounded uppercase font-mono">
-//                                                           YOU
-//                                                         </span>
-//                                                       )}
-//                                                     </div>
-//                                                     <p className="text-[9px] text-white/40 font-mono break-all">{p.userEmail}</p>
-//                                                   </div>
-//                                                 </div>
-
-//                                                 <div className="text-right shrink-0 pl-2">
-//                                                   <span className="text-xs font-black text-emerald-400 whitespace-nowrap">
-//                                                     {p.points.toLocaleString()}
-//                                                   </span>
-//                                                   <span className="text-[9px] font-bold text-white/40 ml-1">PTS</span>
-//                                                 </div>
-//                                               </div>
-//                                             );
-//                                           })
-//                                         )}
-//                                       </div>
-
-//                                       {/* <div className="flex items-center justify-between pt-1 text-[9px] text-white/40">
-//                                         <span>Domain filter: Verified students with email ending in @ssss.edu.in</span>
-//                                         <span className="text-amber-400/80 font-bold">Symbiosis SSSS</span>
-//                                       </div> */}
-//                                     </div>
-//                                   </motion.div>
-//                                 )}
-//                               </AnimatePresence>
-//                             </div>
-//                           );
-//                         })
-//                       )}
-//                     </div>
-//                   </div>
-//                 )}
+//                 )} */}
 
 //                 {/* Bottom spacer to prevent last user row and points from being cut off */}
 //                 <div className="h-8 sm:h-12 shrink-0" aria-hidden="true" />
@@ -1816,6 +1748,8 @@
 //     </AnimatePresence>
 //   );
 // }
+
+
 
 
 
@@ -1840,6 +1774,7 @@ import {
   ChevronDown,
   ChevronUp,
   Users,
+  Award,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useLeaderboard } from "@/context/LeaderboardContext";
@@ -1908,7 +1843,7 @@ function isValidAvatarUrl(url: any): boolean {
   return true;
 }
 
-// ─── Quiz & Campus Interfaces ───────────────────────────────────────────────
+// ─── Quiz, Campus & Ambassador Interfaces ──────────────────────────────────
 export interface QuizLeaderboardUser {
   userId: string;
   username: string;
@@ -1927,6 +1862,18 @@ export interface CampusParticipant {
   points: number;
   rank?: number;
   avatar?: string;
+}
+
+export interface CampusAmbassador {
+  ambassadorId?: string;
+  id?: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  campusName: string;
+  status?: string;
+  avatar?: string;
+  avatarUrl?: string;
 }
 
 export interface CampusEntry {
@@ -1984,6 +1931,9 @@ export default function LeaderboardOverlayModal({
   const [expandedCampus, setExpandedCampus] = useState<string | null>("Symbiosis");
   const [allUsersList, setAllUsersList] = useState<any[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
+
+  // Campus Ambassadors list from backend
+  const [ambassadorsList, setAmbassadorsList] = useState<CampusAmbassador[]>([]);
 
   // Fetch FlipARENA Leaderboard (Real data only)
   const fetchQuizLeaderboard = useCallback(async () => {
@@ -2098,9 +2048,33 @@ export default function LeaderboardOverlayModal({
     }
   }, [roarPeriod, globalLeaderboard]);
 
+  // Fetch Campus Ambassadors
+  const fetchCampusAmbassadors = useCallback(async () => {
+    try {
+      let data: any = null;
+      try {
+        const res = await axios.get("/api/campus-ambassadors");
+        data = res.data;
+      } catch {
+        try {
+          const fRes = await fetch("/api/campus-ambassadors");
+          if (fRes.ok) data = await fRes.json();
+        } catch {}
+      }
+
+      console.log("campus ambassadors res.data:", data);
+      const list = data?.ambassadors || (Array.isArray(data) ? data : []);
+      const activeOnly = list.filter((a: any) => !a.status || a.status === "active");
+      setAmbassadorsList(activeOnly);
+    } catch (err) {
+      console.warn("Could not fetch campus ambassadors:", err);
+    }
+  }, []);
+
   // Fetch real registered users and point records for Campus clash & Avatar mapping
   const fetchCampusData = useCallback(async () => {
     setUsersLoading(true);
+    fetchCampusAmbassadors();
     const combinedUsers: any[] = [];
     const seen = new Set<string>();
 
@@ -2167,7 +2141,7 @@ export default function LeaderboardOverlayModal({
 
     setAllUsersList(combinedUsers);
     setUsersLoading(false);
-  }, []);
+  }, [fetchCampusAmbassadors]);
 
   // Auto-refresh when engagement participation happens
   useEffect(() => {
@@ -2176,6 +2150,7 @@ export default function LeaderboardOverlayModal({
       fetchQuizLeaderboard();
       fetchRoarLeaderboard();
       fetchCampusData();
+      fetchCampusAmbassadors();
     };
     if (typeof window !== "undefined") {
       window.addEventListener("sf360:points-updated", handlePointsUpdate);
@@ -2187,19 +2162,21 @@ export default function LeaderboardOverlayModal({
         window.removeEventListener("arena-engagement-created", handlePointsUpdate);
       }
     };
-  }, [refreshLeaderboard, fetchQuizLeaderboard, fetchRoarLeaderboard, fetchCampusData]);
+  }, [refreshLeaderboard, fetchQuizLeaderboard, fetchRoarLeaderboard, fetchCampusData, fetchCampusAmbassadors]);
 
   useEffect(() => {
     if (!isOpen) return;
     fetchCampusData();
-  }, [isOpen, fetchCampusData]);
+    fetchCampusAmbassadors();
+  }, [isOpen, fetchCampusData, fetchCampusAmbassadors]);
 
   useEffect(() => {
     if (isOpen) {
       if (activeTab === "fliparena") fetchQuizLeaderboard();
       if (activeTab === "roar") fetchRoarLeaderboard();
+      if (activeTab === "campus") fetchCampusAmbassadors();
     }
-  }, [isOpen, activeTab, fetchQuizLeaderboard, fetchRoarLeaderboard]);
+  }, [isOpen, activeTab, fetchQuizLeaderboard, fetchRoarLeaderboard, fetchCampusAmbassadors]);
 
   // Swipe & tab navigation state & refs
   const [slideDirection, setSlideDirection] = useState<number>(0);
@@ -2280,7 +2257,7 @@ export default function LeaderboardOverlayModal({
     );
   }, [quizList, activeUserId, currentUserName]);
 
-  // Comprehensive avatar lookup map (syncs user's real Google photo from /api/users or custom uploaded avatar)
+  // Comprehensive avatar lookup map
   const userAvatarMap = useMemo(() => {
     const map = new Map<string, string>();
     const add = (idOrKey: any, img: any) => {
@@ -2368,13 +2345,11 @@ export default function LeaderboardOverlayModal({
       (currentUserName && (userObj.username === currentUserName || userObj.userName === currentUserName || userObj.name === currentUserName));
 
     let avatarUrl = "";
-    // 1. Current user's locally updated avatar (if user changed it)
     if (isMe && typeof window !== "undefined") {
       const localRoarAvatar = localStorage.getItem("roar_avatar_url");
       if (isValidAvatarUrl(localRoarAvatar)) avatarUrl = localRoarAvatar!.trim();
     }
 
-    // 2. Direct avatar / Google photo on user object (reject fake dicebear)
     if (!avatarUrl) {
       const raw = userObj.avatarUrl || userObj.photoURL || userObj.picture || userObj.image || userObj.avatar;
       if (isValidAvatarUrl(raw)) {
@@ -2382,7 +2357,6 @@ export default function LeaderboardOverlayModal({
       }
     }
 
-    // 3. Multi-key lookup in userAvatarMap (contains real Google photos & uploaded avatars from /api/users)
     if (!avatarUrl) {
       const candidateKeys = [
         userObj.userId,
@@ -2408,7 +2382,6 @@ export default function LeaderboardOverlayModal({
       }
     }
 
-    // 4. Fallback to auth user
     if (!avatarUrl && isMe && user) {
       const authImg = (user as any).avatarUrl || user.photoURL || (user as any).picture || (user as any).image || user.avatar;
       if (isValidAvatarUrl(authImg)) {
@@ -2460,21 +2433,10 @@ export default function LeaderboardOverlayModal({
   };
 
   // Filtered lists
-  const filteredGlobal = useMemo(() => {
-    const list = globalLeaderboard || [];
-    if (!searchQuery.trim()) return list;
-    return list.filter((u) => u.userName?.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [globalLeaderboard, searchQuery]);
-
   const filteredQuiz = useMemo(() => {
     if (!searchQuery.trim()) return quizList;
     return quizList.filter((u) => u.username?.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [quizList, searchQuery]);
-
-  const filteredRoar = useMemo(() => {
-    if (!searchQuery.trim()) return roarList;
-    return roarList.filter((u) => u.username?.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [roarList, searchQuery]);
 
   // Filter real users with @ssss.edu.in email domain for Symbiosis
   const symbiosisParticipants = useMemo(() => {
@@ -2837,22 +2799,6 @@ export default function LeaderboardOverlayModal({
                 </button>
               )}
             </div>
-
-            {/* ROAR Period Filter */}
-            {activeTab === "roar" && (
-              <div className="flex gap-1 bg-white/[0.04] p-0.5 rounded-lg border border-white/[0.06]">
-                {(["all_time", "month", "week"] as const).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setRoarPeriod(p)}
-                    className={`px-2 py-1 rounded-md text-[10px] font-black uppercase transition-all cursor-pointer ${roarPeriod === p ? "bg-amber-500/20 text-amber-400" : "text-white/40 hover:text-white/70"
-                      }`}
-                  >
-                    {p === "all_time" ? "All" : p}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           {/* Tab Content Body with Horizontal Swipe Support */}
@@ -3078,6 +3024,19 @@ export default function LeaderboardOverlayModal({
                           const isSymbiosis = !!campus.isSymbiosis;
                           const isExpanded = expandedCampus === campus.campusName;
 
+                          // Find assigned ambassadors for this campus
+                          const campusAmbassadors = ambassadorsList.filter((amb) => {
+                            const ambCampus = (amb.campusName || "").toLowerCase().trim();
+                            const ambSlug = ((amb as any).campusSlug || "").toLowerCase().trim();
+                            const targetCampus = (campus.campusName || "").toLowerCase().trim();
+
+                            if (ambCampus === targetCampus || ambSlug === targetCampus) return true;
+                            if (isSymbiosis && (ambCampus.includes("symbiosis") || ambSlug.includes("symbiosis") || amb.userEmail?.toLowerCase().includes("ssss.edu.in"))) {
+                              return true;
+                            }
+                            return false;
+                          });
+
                           return (
                             <div
                               key={campus.campusName}
@@ -3117,12 +3076,14 @@ export default function LeaderboardOverlayModal({
                                     {campus.logoIcon}
                                   </div>
 
+                                  {/* College Name & Tagline */}
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1.5 flex-wrap">
                                       <h4 className="text-xs sm:text-sm font-black text-white break-words">
                                         {campus.campusName}
                                       </h4>
                                     </div>
+                                    {/* <p className="text-[10px] text-white/40 mt-0.5 truncate">{campus.tagline}</p> */}
                                   </div>
                                 </div>
 
@@ -3171,14 +3132,42 @@ export default function LeaderboardOverlayModal({
                                     exit={{ opacity: 0, height: 0 }}
                                     transition={{ duration: 0.22, ease: "easeOut" }}
                                     className="overflow-hidden pt-2.5 mt-1 border-t border-white/[0.08]"
-                                    onClick={(e) => e.stopPropagation()}
+                                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
                                   >
                                     <div className="bg-[#080d1a] p-3 rounded-xl border border-amber-500/25 space-y-2.5 shadow-inner">
                                       <div className="flex items-center justify-between text-[11px] pb-2 border-b border-white/[0.06]">
                                         <div className="text-[10px] font-bold text-emerald-400">
-                                        Total Symbiosis SXPs - {symbiosisTotalPoints.toLocaleString()} 
+                                          Total Symbiosis SXPs - {symbiosisTotalPoints.toLocaleString()}
                                         </div>
                                       </div>
+
+                                      {/* Campus Ambassador above participants in a single line */}
+                                      {campusAmbassadors.length > 0 && (
+                                        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25 text-[11px]">
+                                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                            <Award size={13} className="text-emerald-400 shrink-0" />
+                                            <span className="font-semibold text-emerald-300 shrink-0">
+                                              Campus Ambassador{campusAmbassadors.length > 1 ? "s" : ""}:
+                                            </span>
+                                            <div className="flex items-center gap-1 min-w-0 flex-1 truncate">
+                                              {campusAmbassadors.map((amb, i) => (
+                                                <span
+                                                  key={amb.userId || amb.ambassadorId || amb.id || i}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleOpenUserProfile(amb.userId, undefined, amb.userName);
+                                                  }}
+                                                  className="font-bold text-white hover:text-emerald-300 hover:underline cursor-pointer transition-colors truncate"
+                                                  title={`View ${amb.userName}'s profile`}
+                                                >
+                                                  {amb.userName || (amb.userEmail ? amb.userEmail.split("@")[0] : "Ambassador")}
+                                                  {i < campusAmbassadors.length - 1 && <span className="text-white/40 mr-1">,</span>}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
 
                                       <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 scrollbar-thin">
                                         {usersLoading && symbiosisParticipants.length === 0 ? (
@@ -3259,307 +3248,6 @@ export default function LeaderboardOverlayModal({
                   </div>
                 )}
 
-                {/* ══════════════════ TAB 3: GLOBAL LEADERBOARD (COMMENTED) ══════════════════ */}
-                {/* {activeTab === "global" && (
-                  <div className="space-y-4">
-                    <div className="p-3 sm:p-3.5 rounded-2xl bg-gradient-to-r from-rose-950/40 via-[#141824] to-purple-950/40 border border-rose-500/25 flex flex-col gap-2.5 shadow-lg">
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-600 to-orange-500 flex items-center justify-center text-white shadow-md shadow-rose-500/20 shrink-0">
-                            <Trophy size={18} />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs sm:text-sm font-black text-white whitespace-normal max-w-[140px] xs:max-w-[190px] sm:max-w-none">
-                                {currentUserName || "Your Profile"}
-                              </span>
-                              <span className="text-[9px] font-black text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 shrink-0 whitespace-nowrap">
-                                LVL {levelInfo.level}
-                              </span>
-                            </div>
-                            <p className="text-[10px] text-white/40 mt-0.5 whitespace-nowrap">Global Fan Standing</p>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 shrink-0">
-                          <div className="text-right bg-white/[0.03] px-2.5 py-1.5 rounded-xl border border-white/[0.05]">
-                            <span className="text-[9px] font-bold text-white/40 block leading-none">Next Level in</span>
-                            <span className="text-xs font-black text-amber-400 whitespace-nowrap leading-tight mt-0.5 block">
-                              +{levelInfo.xpRemaining.toLocaleString()} SXP
-                            </span>
-                          </div>
-                          <button
-                            onClick={refreshLeaderboard}
-                            disabled={globalLoading}
-                            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-rose-400 border border-white/10 transition-colors cursor-pointer"
-                            title="Refresh Global Rankings"
-                          >
-                            <RotateCw size={14} className={globalLoading ? "animate-spin" : ""} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.06]">
-                        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-                          <span className="text-[10px] font-bold text-white/40 uppercase">Rank</span>
-                          <span className="text-xs font-black text-white whitespace-nowrap">
-                            #{currentRank > 0 ? currentRank : "—"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-rose-500/[0.08] border border-rose-500/20">
-                          <span className="text-[10px] font-bold text-rose-300/70 uppercase">Total SXP</span>
-                          <span className="text-xs font-black text-rose-400 whitespace-nowrap">
-                            {currentPoints.toLocaleString()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {!searchQuery && filteredGlobal.length >= 3 && (
-                      <div className="grid grid-cols-3 gap-2 pt-1">
-                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-slate-400/10 via-slate-500/5 to-transparent border border-slate-300/20 text-center relative min-w-0">
-                          <span className="text-base sm:text-lg mb-0.5">🥈</span>
-                          <div className="mb-1.5">
-                            {renderUserAvatar(filteredGlobal[1], 36, () => handleOpenUserProfile(filteredGlobal[1]?.userId, (filteredGlobal[1] as any)?.userHandle, filteredGlobal[1]?.userName))}
-                          </div>
-                          <span
-                            onClick={() => handleOpenUserProfile(filteredGlobal[1]?.userId, (filteredGlobal[1] as any)?.userHandle, filteredGlobal[1]?.userName)}
-                            className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight cursor-pointer hover:text-slate-300 hover:underline transition-colors"
-                          >
-                            {filteredGlobal[1]?.userName}
-                          </span>
-                          <span className="text-[10px] sm:text-[11px] font-bold text-slate-300 mt-1 shrink-0 whitespace-nowrap">
-                            {filteredGlobal[1]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-500/20 via-yellow-500/10 to-transparent border border-amber-500/40 text-center relative -mt-2 shadow-[0_0_20px_rgba(245,158,11,0.15)] min-w-0">
-                          <div className="flex items-center gap-1 text-lg sm:text-xl mb-0.5">
-                            <Crown size={15} className="text-amber-400" />
-                            <span>🥇</span>
-                          </div>
-                          <div className="mb-1.5">
-                            {renderUserAvatar(filteredGlobal[0], 40, () => handleOpenUserProfile(filteredGlobal[0]?.userId, (filteredGlobal[0] as any)?.userHandle, filteredGlobal[0]?.userName))}
-                          </div>
-                          <span
-                            onClick={() => handleOpenUserProfile(filteredGlobal[0]?.userId, (filteredGlobal[0] as any)?.userHandle, filteredGlobal[0]?.userName)}
-                            className="text-[11px] sm:text-xs font-black text-amber-300 break-words line-clamp-1 text-center w-full leading-tight cursor-pointer hover:underline transition-colors"
-                          >
-                            {filteredGlobal[0]?.userName}
-                          </span>
-                          <span className="text-[11px] sm:text-xs font-black text-amber-400 mt-1 shrink-0 whitespace-nowrap">
-                            {filteredGlobal[0]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-amber-500">SXP</span>
-                          </span>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center p-2.5 sm:p-3 rounded-2xl bg-gradient-to-b from-amber-700/10 via-amber-800/5 to-transparent border border-amber-700/30 text-center relative min-w-0">
-                          <span className="text-base sm:text-lg mb-0.5">🥉</span>
-                          <div className="mb-1.5">
-                            {renderUserAvatar(filteredGlobal[2], 36, () => handleOpenUserProfile(filteredGlobal[2]?.userId, (filteredGlobal[2] as any)?.userHandle, filteredGlobal[2]?.userName))}
-                          </div>
-                          <span
-                            onClick={() => handleOpenUserProfile(filteredGlobal[2]?.userId, (filteredGlobal[2] as any)?.userHandle, filteredGlobal[2]?.userName)}
-                            className="text-[10px] sm:text-[11px] font-black text-white break-words line-clamp-1 text-center w-full leading-tight cursor-pointer hover:text-amber-300 hover:underline transition-colors"
-                          >
-                            {filteredGlobal[2]?.userName}
-                          </span>
-                          <span className="text-[10px] sm:text-[11px] font-bold text-amber-300/80 mt-1 shrink-0 whitespace-nowrap">
-                            {filteredGlobal[2]?.totalPoints?.toLocaleString()} <span className="text-[8px] sm:text-[9px] text-white/40">SXP</span>
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
-                        <span>Rank & Fan</span>
-                        <span>Total SXP</span>
-                      </div>
-
-                      {globalLoading && filteredGlobal.length === 0 ? (
-                        <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
-                          <RotateCw size={18} className="animate-spin text-rose-500" />
-                          <span>Loading Global Rankings...</span>
-                        </div>
-                      ) : filteredGlobal.length === 0 ? (
-                        <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
-                          No fans matched your search query.
-                        </div>
-                      ) : (
-                        filteredGlobal.map((fan, idx) => {
-                          const rank = fan.rank || idx + 1;
-                          const isMe =
-                            (activeUserId && (fan.userId === activeUserId || fan.userEmail === activeUserId)) ||
-                            (fan.userName && currentUserName && fan.userName.toLowerCase() === currentUserName.toLowerCase());
-
-                          return (
-                            <div
-                              key={fan.userId || idx}
-                              className={`flex items-center justify-between px-3.5 py-2.5 rounded-xl border transition-all ${isMe
-                                ? "bg-rose-500/10 border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.2)]"
-                                : "bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]"
-                                }`}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <span
-                                  className={`text-xs font-black w-5 text-center shrink-0 ${rank === 1
-                                    ? "text-amber-400"
-                                    : rank === 2
-                                      ? "text-slate-300"
-                                      : rank === 3
-                                        ? "text-amber-600"
-                                        : "text-white/40"
-                                    }`}
-                                >
-                                  #{rank}
-                                </span>
-                                {renderUserAvatar(fan, 32, () => handleOpenUserProfile(fan.userId, (fan as any).userHandle, fan.userName))}
-                                <div className="min-w-0 flex-1 pr-2">
-                                  <p className="text-xs font-black text-white flex items-center gap-1.5 flex-wrap leading-tight">
-                                    <span
-                                      onClick={() => handleOpenUserProfile(fan.userId, (fan as any).userHandle, fan.userName)}
-                                      className="break-words cursor-pointer hover:text-rose-300 hover:underline transition-colors"
-                                    >
-                                      {fan.userName || "Fan"}
-                                    </span>
-                                    {isMe && (
-                                      <span className="text-[8px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
-                                        YOU
-                                      </span>
-                                    )}
-                                  </p>
-                                  <p className="text-[10px] text-white/40 mt-0.5">Rank #{rank}</p>
-                                </div>
-                              </div>
-
-                              <div className="text-right shrink-0">
-                                <span className="text-xs font-black text-rose-400">
-                                  {fan.totalPoints?.toLocaleString()}
-                                </span>
-                                <span className="text-[10px] font-bold text-white/40 ml-1">SXP</span>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                )} */}
-
-                {/* ══════════════════ TAB 4: ROAR LEADERBOARD (COMMENTED) ══════════════════ */}
-                {/* {activeTab === "roar" && (
-                  <div className="space-y-4">
-                    <div className="p-3.5 rounded-2xl bg-gradient-to-r from-orange-500/10 via-[#161a29] to-red-500/10 border border-orange-500/30 flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-10 h-10 rounded-xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400">
-                          <Flame size={20} />
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-black text-white">RoAR Prediction Ranks</h4>
-                          <p className="text-[10px] text-white/50">Top call accuracy & community reputation</p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={fetchRoarLeaderboard}
-                        disabled={roarLoading}
-                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-orange-400 border border-white/10 transition-colors cursor-pointer"
-                        title="Refresh RoAR Rankings"
-                      >
-                        <RotateCw size={14} className={roarLoading ? "animate-spin" : ""} />
-                      </button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[10px] font-black uppercase text-white/40 px-2">
-                        <span>Rank & Predictor</span>
-                        <span>Accuracy & Rep</span>
-                      </div>
-
-                      {roarLoading && filteredRoar.length === 0 ? (
-                        <div className="py-8 flex flex-col items-center justify-center gap-2 text-white/40 text-xs">
-                          <RotateCw size={18} className="animate-spin text-orange-500" />
-                          <span>Loading RoAR Rankings...</span>
-                        </div>
-                      ) : filteredRoar.length === 0 ? (
-                        <div className="py-8 text-center text-xs text-white/40 border border-white/5 rounded-2xl p-4">
-                          {searchQuery
-                            ? `No fans matched "${searchQuery}".`
-                            : "No RoAR rankings found for this timeframe. Create posts & earn upvotes to appear here!"}
-                        </div>
-                      ) : (
-                        filteredRoar.map((fan, idx) => {
-                          const isYou =
-                            (activeUserId && (fan.userId === activeUserId || fan.userEmail === activeUserId)) ||
-                            (fan.username && currentUserName && fan.username.toLowerCase() === currentUserName.toLowerCase()) ||
-                            (fan.username === ROAR_CURRENT_USER.username);
-                          const badgeLabel = BADGE_LABELS[fan.badge] || fan.badge || "Fan";
-                          const accColor =
-                            fan.accuracy >= 75
-                              ? "text-emerald-400"
-                              : fan.accuracy >= 65
-                                ? "text-amber-400"
-                                : "text-white/60";
-
-                          return (
-                            <div
-                              key={fan.userId || fan.username || idx}
-                              className={`flex items-center justify-between px-3.5 py-3 rounded-2xl border transition-all ${isYou
-                                ? "bg-gradient-to-r from-orange-500/15 to-pink-500/15 border-orange-500/60 shadow-[0_0_15px_rgba(249,115,22,0.2)]"
-                                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]"
-                                }`}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <span
-                                  className={`text-sm font-black w-5 text-center shrink-0 ${fan.rank === 1
-                                    ? "text-amber-400"
-                                    : fan.rank === 2
-                                      ? "text-slate-300"
-                                      : fan.rank === 3
-                                        ? "text-amber-600"
-                                        : "text-white/40"
-                                    }`}
-                                >
-                                  #{fan.rank}
-                                </span>
-                                {renderUserAvatar(fan, 32, () => handleOpenUserProfile(fan.userId, undefined, fan.username))}
-                                <div className="min-w-0 flex-1 pr-2">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span
-                                      onClick={() => handleOpenUserProfile(fan.userId, undefined, fan.username)}
-                                      className="text-xs font-black text-white break-words cursor-pointer hover:text-orange-300 hover:underline transition-colors"
-                                    >
-                                      {fan.username}
-                                    </span>
-                                    {isYou && (
-                                      <span className="text-[8px] font-black bg-orange-500 text-white px-1.5 py-0.5 rounded uppercase shrink-0">
-                                        YOU
-                                      </span>
-                                    )}
-                                    <span className="text-[9px] font-black text-orange-400/90 bg-orange-400/10 px-1.5 py-0.5 rounded-full border border-orange-400/20 shrink-0">
-                                      {badgeLabel}
-                                    </span>
-                                  </div>
-                                  <p className="text-[10px] text-white/40 mt-0.5">
-                                    {fan.team} • {fan.predictions} calls
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div className="text-right shrink-0">
-                                <span className={`text-sm font-black ${accColor}`}>{fan.accuracy}%</span>
-                                <p className="text-[10px] font-bold text-white/40 mt-0.5">
-                                  {fan.reputationScore?.toLocaleString()} Rep
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                )} */}
-
                 {/* Bottom spacer to prevent last user row and points from being cut off */}
                 <div className="h-8 sm:h-12 shrink-0" aria-hidden="true" />
               </motion.div>
@@ -3570,3 +3258,4 @@ export default function LeaderboardOverlayModal({
     </AnimatePresence>
   );
 }
+

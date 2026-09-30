@@ -9,9 +9,10 @@ import {
   Heart,
   MessageSquare,
   Share2,
+  Bookmark,
+  MoreVertical,
   Play,
   Volume2,
-  Sparkles,
   Send,
   Trash2,
   CornerDownRight,
@@ -19,6 +20,9 @@ import {
   Loader2,
   Flag,
   CheckCircle2,
+  ChevronRight,
+  ChevronDown,
+  LayoutGrid,
 } from 'lucide-react';
 import { fliplineService, FlipLineComment, FlipLineReply, FlipCard } from '@/services/flipline.service';
 import { useAuth } from '@/context/AuthContext';
@@ -33,6 +37,42 @@ export type ScoreChip = {
   status: string;
   statusType: 'live' | 'final' | 'break' | 'upcoming' | 'delay' | 'info';
 };
+
+/* ─── SVG Icons matching Figma ─────────────────────────────────────── */
+const ZapIcon = ({ color = '#FF2D8A', size = 18 }: { color?: string; size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill={color}
+    stroke={color}
+    strokeWidth="1"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="shrink-0"
+  >
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+);
+
+const StadiumIcon = ({ color = '#9AA3AF', size = 18 }: { color?: string; size?: number }) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill={color}
+    className="shrink-0"
+  >
+    <path d="M4 8h2v2H4V8zm7 0h2v2h-2V8zm7 0h2v2h-2V8zM3 11h18v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9zm3 3v4h2v-4H6zm5 0v4h2v-4h-2zm5 0v4h2v-4h-2zM5 5l2-3 2 3H5zm9 0l2-3 2 3h-4z" />
+  </svg>
+);
+
+function formatCount(num: number): string {
+  if (!num || isNaN(num) || num <= 0) return '0';
+  if (num >= 1000000) return `${(num / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (num >= 1000) return `${(num / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+  return String(num);
+}
 
 function getGuestId(): string {
   if (typeof window === 'undefined') return 'guest_fan';
@@ -50,16 +90,14 @@ function formatCardDate(day?: string, timeMs?: number, createdAt?: number | stri
     cleanDay.toLowerCase() !== 'justnow' &&
     cleanDay.toLowerCase() !== 'today'
   ) {
-    // If it's a match day like "Day 1 · Morning", keep it
     if (cleanDay.toLowerCase().startsWith('day ') || isNaN(Date.parse(cleanDay))) {
       return cleanDay;
     }
-    // If it's a parseable date string, check if today or format it nicely
     const parsed = new Date(cleanDay);
     if (!isNaN(parsed.getTime())) {
       const isToday = new Date().toDateString() === parsed.toDateString();
       if (isToday) {
-        return 'Today';
+        return 'TODAY';
       }
       return parsed.toLocaleDateString('en-US', {
         month: 'short',
@@ -70,7 +108,7 @@ function formatCardDate(day?: string, timeMs?: number, createdAt?: number | stri
   }
 
   if (cleanDay.toLowerCase() === 'today') {
-    return 'Today';
+    return 'TODAY';
   }
 
   const ts =
@@ -81,12 +119,12 @@ function formatCardDate(day?: string, timeMs?: number, createdAt?: number | stri
 
   const d = new Date(ts);
   if (isNaN(d.getTime())) {
-    return 'Today';
+    return 'TODAY';
   }
 
   const isToday = new Date().toDateString() === d.toDateString();
   if (isToday) {
-    return 'Today';
+    return 'TODAY';
   }
 
   return d.toLocaleDateString('en-US', {
@@ -192,7 +230,7 @@ function renderFormattedContent(content: string) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="text-sky-400 hover:text-sky-300 underline underline-offset-2 break-all hover:opacity-90 transition-opacity cursor-pointer font-medium"
+          className="text-[#FF8A00] hover:underline underline-offset-2 break-all hover:opacity-90 transition-opacity cursor-pointer font-medium"
         >
           {part}
         </a>
@@ -202,7 +240,7 @@ function renderFormattedContent(content: string) {
       return (
         <span
           key={index}
-          className="text-pink-500 font-bold hover:underline cursor-pointer"
+          className="text-[#FF2D8A] font-bold hover:underline cursor-pointer"
         >
           {part}
         </span>
@@ -212,7 +250,7 @@ function renderFormattedContent(content: string) {
       return (
         <span
           key={index}
-          className="text-sky-400 font-bold hover:underline cursor-pointer"
+          className="text-[#FF8A00] font-bold hover:underline cursor-pointer"
         >
           {part}
         </span>
@@ -229,13 +267,13 @@ function matchesSportFilter(card: FlipCard, target: string): boolean {
   const cardChannels = Array.isArray((card as any).channels)
     ? (card as any).channels.map((ch: any) => String(ch).toLowerCase())
     : typeof (card as any).channels === 'string'
-    ? (card as any).channels.split(',').map((ch: string) => ch.trim().toLowerCase())
-    : [];
+      ? (card as any).channels.split(',').map((ch: string) => ch.trim().toLowerCase())
+      : [];
   const cardAllChannels = Array.isArray((card as any).allChannels)
     ? (card as any).allChannels.map((ch: any) => String(ch).toLowerCase())
     : typeof (card as any).allChannels === 'string'
-    ? (card as any).allChannels.split(',').map((ch: string) => ch.trim().toLowerCase())
-    : [];
+      ? (card as any).allChannels.split(',').map((ch: string) => ch.trim().toLowerCase())
+      : [];
 
   return (
     cardSport === t ||
@@ -245,17 +283,16 @@ function matchesSportFilter(card: FlipCard, target: string): boolean {
   );
 }
 
-/* ─── Channel filter chips (shared by home section + full screen) ─── */
+/* ─── Channel filter chips (matching Figma specs) ─── */
 const FILTER_CHIPS = [
-  { id: 'all', label: '#all', emoji: '⚡' },
-  { id: 'cricket', label: '#cricket', emoji: '🏏' },
-  { id: 'football', label: '#football', emoji: '⚽' },
-  { id: 'athletics', label: '#athletics', emoji: '🏃' },
-  { id: 'expert', label: '#expert', emoji: '🎯' },
-  { id: 'analysts', label: '#analysts', emoji: '🎙' },
+  { id: 'all', label: 'All', emoji: '', isHash: true },
+  { id: 'cricket', label: 'Cricket', emoji: '🏏', isHash: false },
+  { id: 'football', label: 'Football', emoji: '⚽', isHash: false },
+  { id: 'athletics', label: 'Athletics', emoji: '🏃', isHash: false },
+  { id: 'expert', label: 'Expert', emoji: '🎯', isHash: false },
+  { id: 'analysts', label: 'Analysts', emoji: '🎙', isHash: false },
 ];
 
-// Every channel/tag a card belongs to, normalised (lowercase, no leading #)
 function getCardChannels(card: FlipCard): string[] {
   const c = card as any;
   const toList = (v: any): string[] =>
@@ -293,7 +330,7 @@ function matchesChannelFilter(card: FlipCard, filterId: string): boolean {
     case 'analysts':
       return isAnalystCard(card);
     default:
-      return matchesSportFilter(card, filterId); // cricket / football / athletics
+      return matchesSportFilter(card, filterId);
   }
 }
 
@@ -307,6 +344,7 @@ function applyChannelFilter(cards: FlipCard[], activeFilter: string, selectedSpo
   return cards;
 }
 
+/* ─── FlipLine Home Section ─────────────────────────────────────────── */
 function FlipLineSection({
   selectedSport,
   onViewFull,
@@ -325,13 +363,51 @@ function FlipLineSection({
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [askOpen, setAskOpen] = useState<number | string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+
+  const toggleMoreMenu = () => {
+    if (!showMoreMenu && moreButtonRef.current) {
+      const rect = moreButtonRef.current.getBoundingClientRect();
+      const left = Math.max(12, Math.min(window.innerWidth - 170, rect.left));
+      setDropdownPos({
+        top: rect.bottom + 6,
+        left,
+      });
+      setShowMoreMenu(true);
+    } else {
+      setShowMoreMenu(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const handleReposition = () => {
+      if (moreButtonRef.current) {
+        const rect = moreButtonRef.current.getBoundingClientRect();
+        const left = Math.max(12, Math.min(window.innerWidth - 170, rect.left));
+        setDropdownPos({
+          top: rect.bottom + 6,
+          left,
+        });
+      }
+    };
+    window.addEventListener('scroll', handleReposition, true);
+    window.addEventListener('resize', handleReposition);
+    return () => {
+      window.removeEventListener('scroll', handleReposition, true);
+      window.removeEventListener('resize', handleReposition);
+    };
+  }, [showMoreMenu]);
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 150 }}>
-        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: 700 }}>
-          Loading moments... ⚡
-        </span>
+      <div className="flex justify-center items-center min-h-[160px]">
+        <div className="flex items-center gap-2 text-[#9AA3AF] text-[13px] font-bold">
+          <Loader2 size={16} className="animate-spin text-[#FF2D8A]" />
+          <span>Loading moments...</span>
+        </div>
       </div>
     );
   }
@@ -340,39 +416,168 @@ function FlipLineSection({
   const baseCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
   const displayCards = applyChannelFilter(baseCards, activeFilter, selectedSport);
 
+  const mobilePrimaryChips = FILTER_CHIPS.slice(0, 3); // All, Cricket, Football
+  const extraChips = FILTER_CHIPS.slice(3); // Athletics, Expert, Analysts
+
   return (
-    <div className="sm:mb-2 md:mb-4">
-      {/* Multi-sport & Tag Filter Chips (Horizontally Scrollable) */}
+    <div className="w-full mb-3 sm:mb-5 relative">
+      {/* SPORT Section Header */}
+      <div className="flex items-center justify-between px-3 sm:px-4 mb-2.5">
+        <span className="text-[12px] sm:text-[13px] font-black uppercase tracking-wider text-[#9AA3AF]">
+          SPORT
+        </span>
+      </div>
+
+      {/* Sport Filter Chips (Figma Styled) */}
       <div
-        className="flex items-center gap-2 md:px-4 md:mb-4 overflow-x-auto no-scrollbar"
+        className="flex items-center gap-2 px-3 sm:px-4 mb-3 sm:mb-4 overflow-x-auto no-scrollbar"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {FILTER_CHIPS.map((chip) => {
+        {/* Mobile & Desktop: Primary Chips (All, Cricket, Football) */}
+        {mobilePrimaryChips.map((chip) => {
           const isActive = activeFilter === chip.id;
           return (
             <button
               key={chip.id}
               onClick={() => setActiveFilter(chip.id)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-extrabold whitespace-nowrap transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+              className="relative px-3.5 py-2 rounded-lg bg-[#111418] border border-[#2A2F36] flex items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer shrink-0 overflow-hidden"
               style={{
-                background: isActive
-                  ? 'linear-gradient(90deg, #FF3D57, #FF7B02)'
-                  : 'rgba(255, 255, 255, 0.05)',
-                border: isActive
-                  ? '1px solid rgba(255, 61, 87, 0.3)'
-                  : '1px solid rgba(255, 255, 255, 0.08)',
-                color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.65)',
-                boxShadow: isActive ? '0 3px 12px rgba(255, 61, 87, 0.3)' : 'none',
+                borderColor: isActive ? '#2A2F36' : '#2A2F36',
               }}
             >
-              <span className="text-xs">{chip.emoji}</span>
-              <span>{chip.label}</span>
+              {chip.isHash ? (
+                <span className="text-[#FF2D8A] font-black text-sm">#</span>
+              ) : (
+                <span className="text-xs">{chip.emoji}</span>
+              )}
+              <span
+                className="transition-colors"
+                style={{
+                  color: isActive ? '#FFFFFF' : '#E4E8EE',
+                  fontWeight: isActive ? 800 : 600,
+                }}
+              >
+                {chip.label}
+              </span>
+              {isActive && (
+                <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#FF2D8A]" />
+              )}
             </button>
           );
         })}
+
+        {/* Desktop Only: Remaining chips (Athletics, Expert, Analysts) */}
+        {extraChips.map((chip) => {
+          const isActive = activeFilter === chip.id;
+          return (
+            <button
+              key={chip.id}
+              onClick={() => setActiveFilter(chip.id)}
+              className="hidden md:flex relative px-3.5 py-2 rounded-lg bg-[#111418] border border-[#2A2F36] items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer shrink-0 overflow-hidden"
+              style={{
+                borderColor: isActive ? '#2A2F36' : '#2A2F36',
+              }}
+            >
+              <span className="text-xs">{chip.emoji}</span>
+              <span
+                className="transition-colors"
+                style={{
+                  color: isActive ? '#FFFFFF' : '#E4E8EE',
+                  fontWeight: isActive ? 800 : 600,
+                }}
+              >
+                {chip.label}
+              </span>
+              {isActive && (
+                <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#FF2D8A]" />
+              )}
+            </button>
+          );
+        })}
+
+        {/* Mobile Only: More Dropdown Button */}
+        <div className="flex md:hidden relative shrink-0">
+          <button
+            ref={moreButtonRef}
+            onClick={toggleMoreMenu}
+            className="relative px-3.5 py-2 rounded-lg bg-[#111418] border border-[#2A2F36] flex items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer overflow-hidden"
+            style={{
+              borderColor: extraChips.some((c) => c.id === activeFilter) ? '#2A2F36' : '#2A2F36',
+            }}
+          >
+            <LayoutGrid size={13} className="text-[#9AA3AF]" />
+            <span
+              style={{
+                color: extraChips.some((c) => c.id === activeFilter) ? '#FFFFFF' : '#E4E8EE',
+                fontWeight: extraChips.some((c) => c.id === activeFilter) ? 800 : 600,
+              }}
+            >
+              {extraChips.find((c) => c.id === activeFilter)?.label || 'More'}
+            </span>
+            <ChevronDown
+              size={13}
+              className={`text-[#9AA3AF] transition-transform duration-200 ${showMoreMenu ? 'rotate-180' : ''}`}
+            />
+            {extraChips.some((c) => c.id === activeFilter) && (
+              <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#FF2D8A]" />
+            )}
+          </button>
+        </div>
       </div>
 
-      {/* Timeline — show latest 4 moments on home */}
+      {/* Fixed Dropdown Menu for More Options (Rendered outside scroll container to prevent clipping) */}
+      <AnimatePresence>
+        {showMoreMenu && dropdownPos && (
+          <>
+            {/* Backdrop to close when clicking outside */}
+            <div
+              className="fixed inset-0 z-[99998] bg-transparent"
+              onClick={() => setShowMoreMenu(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              style={{
+                position: 'fixed',
+                top: `${dropdownPos.top}px`,
+                left: `${dropdownPos.left}px`,
+                zIndex: 99999,
+              }}
+              className="min-w-[155px] p-1.5 rounded-xl bg-[#15181D] border border-[#2A2F36] shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1 backdrop-blur-xl"
+            >
+              <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#9AA3AF]">
+                More Channels
+              </div>
+              {extraChips.map((chip) => {
+                const isSelected = activeFilter === chip.id;
+                return (
+                  <button
+                    key={chip.id}
+                    onClick={() => {
+                      setActiveFilter(chip.id);
+                      setShowMoreMenu(false);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${isSelected
+                        ? 'bg-[#111418] text-white border border-[#FF2D8A]/50 shadow-sm'
+                        : 'text-[#E4E8EE] hover:bg-[#111418] hover:text-white'
+                      }`}
+                  >
+                    <span className="text-sm">{chip.emoji}</span>
+                    <span className="flex-1">{chip.label}</span>
+                    {isSelected && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF2D8A]" />
+                    )}
+                  </button>
+                );
+              })}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Timeline Moments (Show latest 4 on Home) */}
       <FlipTimeline
         cards={displayCards}
         previewLimit={4}
@@ -382,35 +587,23 @@ function FlipLineSection({
         highlightedCardId={highlightedCardId}
       />
 
-      {/* View Full button */}
-      <div style={{ paddingLeft: 14, paddingRight: 14, marginTop: 6 }}>
+      {/* View Full FlipLINE Button (Figma Spec) */}
+      <div className="px-3 sm:px-4 mt-3 sm:mt-4">
         <button
           onClick={onViewFull}
-          className="w-full py-[11px] rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
-          style={{ background: 'rgba(255,255,255,0.045)', border: '1px solid rgba(255,255,255,0.1)' }}
+          className="w-full py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 active:scale-[0.99] cursor-pointer bg-[#111418] border border-[#2A2F36] hover:border-[#FF2D8A]/40 group"
         >
-          <span style={{ fontSize: 11.5, fontWeight: 800, color: 'rgba(255,255,255,0.55)' }}>
+          <span className="text-[13px] sm:text-[14px] font-extrabold text-[#FFFFFF] tracking-wide">
             View Full FlipLINE
           </span>
-          <svg
-            width="11"
-            height="11"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="rgba(255,255,255,0.4)"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M9 18l6-6-6-6" />
-          </svg>
+          <ChevronRight size={16} className="text-[#FF8A00] stroke-[2.5] group-hover:translate-x-0.5 transition-transform" />
         </button>
       </div>
     </div>
   );
 }
 
-/* ─── FlipLine full-page screen ─────────────────────────────────────── */
+/* ─── FlipLine Full-Page Screen ─────────────────────────────────────── */
 export function FlipLineFullScreen({
   onBack,
   selectedSport = 'mixed',
@@ -461,7 +654,6 @@ export function FlipLineFullScreen({
     );
 
     if (foundCard) {
-      // Ensure current filter doesn't hide this target card
       if (activeFilter !== 'all' && !matchesChannelFilter(foundCard, activeFilter)) {
         setActiveFilter('all');
       }
@@ -497,18 +689,11 @@ export function FlipLineFullScreen({
 
   if (loading) {
     return (
-      <div
-        style={{
-          height: '100dvh',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          background: 'rgb(7,11,20)',
-        }}
-      >
-        <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14, fontWeight: 700 }}>
-          Loading moments... ⚡
-        </span>
+      <div className="h-[100dvh] flex justify-center items-center bg-[#0B0E12]">
+        <div className="flex items-center gap-2 text-[#9AA3AF] text-sm font-bold">
+          <Loader2 size={18} className="animate-spin text-[#FF2D8A]" />
+          <span>Loading moments...</span>
+        </div>
       </div>
     );
   }
@@ -518,34 +703,16 @@ export function FlipLineFullScreen({
   const displayCards = applyChannelFilter(baseCards, activeFilter, selectedSport);
 
   return (
-    <div
-      style={{
-        height: '100dvh',
-        display: 'flex',
-        flexDirection: 'column',
-        background: 'rgb(7,11,20)',
-      }}
-    >
+    <div className="h-[100dvh] flex flex-col bg-[#0B0E12]">
       {/* Header */}
-      <div
-        style={{
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '13px 16px 11px',
-          background: 'rgba(7,11,20,0.98)',
-          borderBottom: '1px solid rgba(255,255,255,0.07)',
-          backdropFilter: 'blur(20px)',
-        }}
-      >
+      <div className="shrink-0 flex items-center gap-3 px-4 py-3 bg-[#111418]/95 border-b border-[#2A2F36] backdrop-blur-md">
         <button
           onClick={() => handleGoBack(router)}
-          className="p-1 text-white/70 hover:text-white transition-colors bg-transparent border-none cursor-pointer"
+          className="p-1 text-[#9AA3AF] hover:text-white transition-colors bg-transparent border-none cursor-pointer"
         >
           <svg
-            width="16"
-            height="16"
+            width="18"
+            height="18"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -557,31 +724,19 @@ export function FlipLineFullScreen({
             <path d="M12 19l-7-7 7-7" />
           </svg>
         </button>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 18, fontWeight: 900, color: 'white', letterSpacing: -0.5 }}>
-              FlipLINE
-            </span>
-            <span
-              style={{
-                fontSize: 8,
-                fontWeight: 900,
-                background: 'linear-gradient(90deg,rgb(255,45,85),rgb(255,122,0))',
-                color: 'white',
-                padding: '2px 8px',
-                borderRadius: 99,
-                letterSpacing: 0.5,
-              }}
-            >
-              LIVE
-            </span>
-          </div>
+        <div className="flex-1 flex items-center gap-2.5">
+          <span className="text-[17px] font-black text-white tracking-tight">
+            FlipLINE
+          </span>
+          <span className="text-[9px] font-black bg-gradient-to-r from-[#FF2D8A] to-[#FF8A00] text-white px-2 py-0.5 rounded-full tracking-wider uppercase">
+            LIVE
+          </span>
         </div>
       </div>
 
-      {/* Multi-sport & Tag Filter Chips (Horizontally Scrollable) */}
+      {/* Filter Chips Bar */}
       <div
-        className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar border-b border-white/[0.06]"
+        className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar border-b border-[#2A2F36] bg-[#111418]"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
         {FILTER_CHIPS.map((chip) => {
@@ -590,28 +745,32 @@ export function FlipLineFullScreen({
             <button
               key={chip.id}
               onClick={() => setActiveFilter(chip.id)}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-extrabold whitespace-nowrap transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
-              style={{
-                background: isActive
-                  ? 'linear-gradient(90deg, #FF3D57, #FF7B02)'
-                  : 'rgba(255, 255, 255, 0.05)',
-                border: isActive
-                  ? '1px solid rgba(255, 61, 87, 0.3)'
-                  : '1px solid rgba(255, 255, 255, 0.08)',
-                color: isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.65)',
-                boxShadow: isActive ? '0 3px 12px rgba(255, 61, 87, 0.3)' : 'none',
-              }}
+              className="relative px-3.5 py-1.5 rounded-lg bg-[#15181D] border border-[#2A2F36] flex items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer shrink-0 overflow-hidden"
             >
-              <span className="text-xs">{chip.emoji}</span>
-              <span>{chip.label}</span>
+              {chip.isHash ? (
+                <span className="text-[#FF2D8A] font-black text-xs">#</span>
+              ) : (
+                <span className="text-xs">{chip.emoji}</span>
+              )}
+              <span
+                style={{
+                  color: isActive ? '#FFFFFF' : '#E4E8EE',
+                  fontWeight: isActive ? 800 : 600,
+                }}
+              >
+                {chip.label}
+              </span>
+              {isActive && (
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF2D8A]" />
+              )}
             </button>
           );
         })}
       </div>
 
-      {/* Scrollable timeline */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingTop: 0, paddingBottom: 32 }}>
-        <div className="max-w-[680px] w-full mx-auto px-2 sm:px-4">
+      {/* Scrollable Timeline */}
+      <div className="flex-1 overflow-y-auto pt-2 pb-8 px-2 sm:px-4">
+        <div className="max-w-[680px] w-full mx-auto">
           <FlipTimeline
             cards={displayCards}
             askOpen={askOpen}
@@ -620,34 +779,12 @@ export function FlipLineFullScreen({
             highlightedCardId={highlightedCardId}
           />
           {/* Start-of-coverage marker */}
-          <div style={{ paddingLeft: 14, paddingTop: 8, display: 'flex', alignItems: 'center' }}>
-            <div
-              style={{
-                width: 44,
-                flexShrink: 0,
-                display: 'flex',
-                justifyContent: 'center',
-              }}
-            >
-              <div
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.12)',
-                  border: '2px solid rgba(255,255,255,0.2)',
-                }}
-              />
+          <div className="pl-4 pt-4 flex items-center">
+            <div className="w-[50px] shrink-0 flex justify-center">
+              <div className="w-2.5 h-2.5 rounded-full bg-[#15181D] border-2 border-[#2A2F36]" />
             </div>
-            <span
-              style={{
-                paddingLeft: 10,
-                fontSize: 10,
-                color: 'rgba(255,255,255,0.28)',
-                fontWeight: 700,
-              }}
-            >
-              Start of coverage · Day 1 · 10:30 AM
+            <span className="pl-2.5 text-[11px] text-[#9AA3AF] font-bold tracking-wide">
+              Start of coverage
             </span>
           </div>
         </div>
@@ -665,18 +802,7 @@ interface FlipTimelineProps {
   highlightedCardId?: string | null;
 }
 
-const DolphinIcon = () => (
-  <svg
-    width="13"
-    height="13"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    className="text-cyan-400 shrink-0 mr-1"
-  >
-    <path d="M21.9 8.2c-.4-.8-1.1-1.4-1.9-1.8-1.1-.5-2.3-.6-3.5-.5-1.2.1-2.4.5-3.5 1.1-1.6.9-2.9 2.2-3.8 3.8-.5.9-.9 1.9-1.1 3-.1.5-.1 1 0 1.5.1.5.3 1 .6 1.4.3.4.8.7 1.3.8.5.1 1 0 1.5-.1.9-.3 1.7-.8 2.4-1.4.8-.7 1.4-1.5 1.9-2.4.9-1.6 1.3-3.4 1.3-5.2 0-.2 0-.4-.1-.6l1.2-1.2c.4-.4.9-.7 1.5-.8.6-.1 1.2 0 1.7.3.5.3 1 .8 1.2 1.4.2.6.2 1.2 0 1.8-.2.6-.6 1.1-1.1 1.5z" />
-  </svg>
-);
-
+/* ─── FlipCardItem Component ────────────────────────────────────────── */
 export function FlipCardItem({
   card,
   index,
@@ -724,8 +850,8 @@ export function FlipCardItem({
       .split(/\s+/)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ')
-    : '';
-  const displayHandle = isCurrentUser ? '@you' : card.handle === '@you' ? '@fan' : card.handle;
+    : 'SportsFan360';
+  const displayHandle = isCurrentUser ? '@you' : card.handle === '@you' ? '@fan' : (card.handle || '@sportsfan360');
   const displayPhoto = card.adminPhoto || card.authorPhoto || (isCurrentUser ? (currentUserAdminPhoto || currentUserAuthorPhoto) : undefined);
 
   // Card like state
@@ -734,7 +860,6 @@ export function FlipCardItem({
   const isLiked = currentUserId ? likedByList.includes(currentUserId) : false;
   const [isLikingCard, setIsLikingCard] = useState(false);
 
-  // Sync like state if card prop changes
   useEffect(() => {
     setLikesCount(Number(card.likes) || 0);
     setLikedByList(Array.isArray(card.likedBy) ? card.likedBy : []);
@@ -765,8 +890,8 @@ export function FlipCardItem({
   const [selectedReportTag, setSelectedReportTag] = useState<string | null>(null);
   const [isSubmittingReport, setIsSubmittingReport] = useState(false);
   const [reportSubmitted, setReportSubmitted] = useState(false);
+  const [isBookmarked, setIsBookmarked] = useState(false);
 
-  // Sync comments list if card prop changes
   useEffect(() => {
     if (Array.isArray(card.comments)) {
       setCommentsList(card.comments);
@@ -787,7 +912,6 @@ export function FlipCardItem({
       ? [...likedByList, currentUserId]
       : likedByList.filter((id) => id !== currentUserId);
 
-    // Optimistic UI update
     setLikesCount(nextLikes);
     setLikedByList(nextLikedBy);
 
@@ -813,7 +937,6 @@ export function FlipCardItem({
       }
     } catch (e) {
       console.error('Failed to update card like in backend:', e);
-      // Revert on error
       setLikesCount(likesCount);
       setLikedByList(likedByList);
       onCardUpdate?.(card);
@@ -876,7 +999,6 @@ export function FlipCardItem({
       }
     } catch (e) {
       console.error('Failed to add comment to backend:', e);
-      // Revert optimistic addition on error
       setCommentsList(commentsList);
     } finally {
       setIsSubmittingComment(false);
@@ -1109,10 +1231,9 @@ export function FlipCardItem({
     if (typeof window === 'undefined') return;
 
     try {
-      trackAdvocacy("content_shared", { card_id: c.id, author: c.author, sport: c.sport });
-
-      posthog.capture("advocacy_action", {
-        action_type: "content_shared",
+      trackAdvocacy('content_shared', { card_id: c.id, author: c.author, sport: c.sport });
+      posthog.capture('advocacy_action', {
+        action_type: 'content_shared',
         card_id: c.id,
       });
     } catch (err) {}
@@ -1123,7 +1244,6 @@ export function FlipCardItem({
     const cleanContent = c.content ? c.content.replace(/\n+/g, ' ').slice(0, 120) : '';
     const shareText = `"${cleanContent}${c.content && c.content.length > 120 ? '...' : ''}" - ${c.author || 'Fan'} on Sportsfan360`;
 
-    // Try Web Share API first if available (especially on mobile)
     if (navigator.share) {
       try {
         await navigator.share({
@@ -1133,12 +1253,10 @@ export function FlipCardItem({
         });
         return;
       } catch (err: any) {
-        // If user explicitly dismissed/aborted native share dialog, don't force clipboard fallback
         if (err?.name === 'AbortError') return;
       }
     }
 
-    // Fallback: Copy direct shareable URL to clipboard
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopiedState(true);
@@ -1161,7 +1279,7 @@ export function FlipCardItem({
     }
   };
 
-  // ── 9. Report Post Handler (Connected to /api/records) ───────────────────────
+  // ── 9. Report Post Handler ────────────────────────────────────────────────
   const handleSendReport = async () => {
     if ((!reportReason.trim() && !selectedReportTag) || isSubmittingReport) return;
     setIsSubmittingReport(true);
@@ -1192,7 +1310,6 @@ export function FlipCardItem({
       }, 2500);
     } catch (err) {
       console.error('Failed to submit report to backend:', err);
-      // Friendly UX fallback
       setReportSubmitted(true);
       setReportReason('');
       setSelectedReportTag(null);
@@ -1205,7 +1322,7 @@ export function FlipCardItem({
     }
   };
 
-  // ── 10. Open User Profile Navigation ─────────────────────────────────────────
+  // ── 10. Open User Profile Navigation ───────────────────────────────────────
   const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
     const botCanon = getBotCanonicalName(targetName) || getBotCanonicalName(targetUserId);
     if (botCanon) {
@@ -1226,7 +1343,7 @@ export function FlipCardItem({
     }
   };
 
-  // ── 11. Open Author Profile Navigation ───────────────────────────────────────
+  // ── 11. Open Author Profile Navigation ─────────────────────────────────────
   const handleOpenAuthorProfile = () => {
     const botCanon = card.type === 'bot'
       ? (getBotCanonicalName(card.author) || 'Dolly')
@@ -1251,83 +1368,89 @@ export function FlipCardItem({
     }
   };
 
-  // Total comment count = sum of comments + sum of replies
   const totalCommentsCount = commentsList.reduce(
     (acc, c) => acc + 1 + (Array.isArray(c.replies) ? c.replies.length : 0),
     0
   );
 
   const isExpanded = askOpen === card.id;
-  const themeColor = typeColorMap[card.type] || '#3b82f6';
+  const themeColor = typeColorMap[card.type] || '#FF2D8A';
   const themeLabel = typeLabelMap[card.type] || card.type;
 
   return (
     <div
       id={`flipline-card-${card.id}`}
       data-card-id={String(card.id)}
-      className="flex w-full relative sm:mb-2 md:mb-4 scroll-mt-24 transition-all duration-500"
+      className="flex w-full relative mb-3 sm:mb-4 scroll-mt-24 transition-all duration-300"
     >
-      {/* Left timeline axis */}
-      <div className="w-[50px] shrink-0 flex flex-col items-center pt-1 relative">
+      {/* Left timeline axis (Figma image 3 glow node & gradient line) */}
+      <div className="w-[54px] sm:w-[62px] shrink-0 flex flex-col items-center pt-1.5 relative">
         {(() => {
           const displayTime = getCardTime(card);
           const parts = displayTime.split(' ');
           if (parts.length >= 2) {
             return (
-              <>
-                <span className="text-[15px] font-black text-white leading-none">{parts[0]}</span>
-                <span className="text-[9px] font-bold text-white/40 leading-none mt-1 uppercase tracking-wider">
+              <div className="flex flex-col items-center">
+                <span className="text-[13px] sm:text-[14px] font-black text-white leading-none">
+                  {parts[0]}
+                </span>
+                <span className="text-[9px] font-bold text-[#9AA3AF] leading-none mt-1 uppercase tracking-wider">
                   {parts.slice(1).join(' ')}
                 </span>
-              </>
+              </div>
             );
           }
           return (
-            <span className="text-[12px] font-extrabold text-white leading-tight text-center break-words max-w-[40px]">
+            <span className="text-[12px] font-extrabold text-white leading-tight text-center break-words max-w-[44px]">
               {displayTime}
             </span>
           );
         })()}
 
-        {/* Dot */}
-        <div
-          className="w-3 h-3 rounded-full bg-white border border-white/20 relative z-10 mt-3"
-          style={{
-            boxShadow: isHighlighted ? '0 0 12px rgba(244, 63, 94, 1)' : '0 0 8px rgba(255, 255, 255, 0.8)',
-            backgroundColor: isHighlighted ? 'rgb(244, 63, 94)' : '#ffffff',
-          }}
-        />
+        {/* Glowing Node Dot (Figma spec with orange/pink glow) */}
+        <div className="relative z-10 mt-2.5 flex items-center justify-center">
+          <div
+            className="w-3.5 h-3.5 rounded-full bg-white border-2 border-[#FF8A00]"
+            style={{
+              boxShadow: isHighlighted
+                ? '0 0 14px rgba(255, 45, 138, 1), 0 0 6px rgba(255, 138, 0, 1)'
+                : '0 0 10px rgba(255, 138, 0, 0.85), 0 0 4px rgba(255, 45, 138, 0.7)',
+            }}
+          />
+        </div>
 
-        {/* Vertical Line */}
+        {/* Vertical Timeline Gradient Line */}
         {index < totalCards - 1 && (
           <div
-            className="absolute w-[1px] bg-white/10"
+            className="absolute w-[1.5px]"
             style={{
               top: '52px',
-              bottom: '-32px',
+              bottom: '-28px',
               left: '50%',
               transform: 'translateX(-50%)',
+              background: 'linear-gradient(180deg, #FF8A00 0%, #FF2D8A 35%, rgba(42, 47, 54, 0.6) 100%)',
             }}
           />
         )}
       </div>
 
-      {/* Right card container */}
-      <div className="flex-1 md:pr-4 pb-1 md:pb-2 min-w-0">
+      {/* Right Post Card (Figma Main Surface #111418, Border #2A2F36) */}
+      <div className="flex-1 pr-2 sm:pr-3 min-w-0">
         <div
-          className={`transition-all duration-500 relative flex flex-col gap-3.5 w-full rounded-2xl p-4 shadow-md backdrop-blur-sm ${
+          className={`transition-all duration-300 relative flex flex-col gap-3 w-full rounded-2xl p-4 sm:p-5 shadow-lg ${
             isHighlighted
-              ? 'border-2 border-pink-500 ring-4 ring-pink-500/30 shadow-[0_0_30px_rgba(233,30,140,0.4)] bg-[#1a1c29]/95 scale-[1.01]'
-              : 'bg-[#161b22]/50 border border-[#21262d]'
+            ? 'border-2 border-[#FF2D8A] ring-4 ring-[#FF2D8A]/25 shadow-[0_0_24px_rgba(255,45,138,0.35)] bg-[#111418]'
+            : 'bg-[#111418] border border-[#2A2F36]'
           }`}
         >
           {isHighlighted && (
-            <div className="absolute -top-3 right-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-pink-500 to-amber-500 text-white font-black text-[10px] uppercase tracking-wider shadow-lg animate-bounce">
+            <div className="absolute -top-3 right-4 z-20 flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#FF2D8A] to-[#FF8A00] text-white font-black text-[10px] uppercase tracking-wider shadow-lg animate-bounce">
               <Share2 size={11} className="shrink-0" />
               <span>Shared Moment</span>
             </div>
           )}
-          {/* Row 1: Author info */}
+
+          {/* Row 1: Author info & Verified Badge */}
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2.5 min-w-0">
               {card.type === 'bot' ? (
@@ -1335,7 +1458,7 @@ export function FlipCardItem({
                   src="/images/dolly.png"
                   alt="Flip BOT"
                   onClick={handleOpenAuthorProfile}
-                  className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0 bg-blue-500/10 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                  className="w-10 h-10 rounded-full object-cover border border-[#2A2F36] shrink-0 bg-blue-500/10 cursor-pointer hover:opacity-85 active:scale-95 transition-all"
                   title="View Profile"
                 />
               ) : displayPhoto ? (
@@ -1343,16 +1466,13 @@ export function FlipCardItem({
                   src={typeof displayPhoto === 'object' ? displayPhoto.src : displayPhoto}
                   alt={displayAuthor}
                   onClick={handleOpenAuthorProfile}
-                  className="w-9 h-9 rounded-full object-cover border border-white/10 shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                    className="w-10 h-10 rounded-full object-cover border border-[#2A2F36] shrink-0 cursor-pointer hover:opacity-85 active:scale-95 transition-all"
                   title="View Profile"
                 />
               ) : (
                 <div
                   onClick={handleOpenAuthorProfile}
-                  className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[12px] shrink-0 uppercase tracking-wider cursor-pointer hover:opacity-80 active:scale-95 transition-all"
-                  style={{
-                    background: `linear-gradient(135deg, ${themeColor}, #0f172a)`,
-                  }}
+                      className="w-10 h-10 rounded-full flex items-center justify-center font-black text-white text-[13px] shrink-0 uppercase tracking-wider cursor-pointer hover:opacity-85 active:scale-95 transition-all bg-gradient-to-tr from-[#FF2D8A] to-[#FF8A00] border border-[#2A2F36]"
                   title="View Profile"
                 >
                   {displayAuthor
@@ -1362,7 +1482,7 @@ export function FlipCardItem({
                       .map((w) => w[0])
                       .join('')
                       .toUpperCase()
-                    : 'F'}
+                        : 'S'}
                 </div>
               )}
 
@@ -1370,102 +1490,91 @@ export function FlipCardItem({
                 <div className="flex items-center gap-1.5">
                   <span
                     onClick={handleOpenAuthorProfile}
-                    className="font-extrabold text-[13.5px] text-white leading-tight truncate cursor-pointer hover:text-sky-400 hover:underline transition-colors"
+                    className="font-extrabold text-[14px] text-white leading-tight truncate cursor-pointer hover:text-[#FF8A00] transition-colors"
                   >
                     {card.type === 'bot' ? 'Flip' : displayAuthor}
                   </span>
-                  {card.type === 'bot' ? (
-                    <span className="inline-flex items-center justify-center bg-blue-600 text-white font-extrabold text-[9px] px-1.5 py-0.5 rounded tracking-wide uppercase shrink-0">
-                      BOT
-                    </span>
-                  ) : (
-                    (card.isVerified === true || String(card.isVerified) === 'true') ? (
-                      <span
-                        className="inline-flex items-center justify-center bg-[#1d9bf0] text-white rounded-full shrink-0"
-                        style={{ width: 14, height: 14 }}
-                        title="Verified"
-                      >
-                        <svg
-                          className="w-2.5 h-2.5 fill-none stroke-current"
-                          strokeWidth="3"
-                          viewBox="0 0 24 24"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </span>
-                    ) : null
-                  )}
-                  {card.type !== 'bot' && displayHandle && (
+
+                  {/* Verified checkmark badge */}
+                  {(card.isVerified === true || String(card.isVerified) === 'true' || card.type === 'bot' || !card.author) && (
                     <span
-                      onClick={handleOpenAuthorProfile}
-                      className="text-[11px] text-white/40 truncate cursor-pointer hover:text-white/70 transition-colors"
+                      className="inline-flex items-center justify-center bg-[#1D9BF0] text-white rounded-full shrink-0"
+                      style={{ width: 14, height: 14 }}
+                      title="Verified"
                     >
-                      {displayHandle}
+                      <svg
+                        className="w-2.5 h-2.5 fill-none stroke-current"
+                        strokeWidth="3.5"
+                        viewBox="0 0 24 24"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
+
+                <div className="flex items-center gap-2 mt-0.5">
                   <span
-                    className="text-[8.5px] font-black tracking-wider px-1.5 py-0.5 rounded uppercase"
-                    style={{
-                      background:
-                        card.type === 'bot'
-                          ? 'rgba(59, 130, 246, 0.15)'
-                          : `${themeColor}1f`,
-                      color: card.type === 'bot' ? 'rgb(96, 165, 250)' : themeColor,
-                    }}
+                    onClick={handleOpenAuthorProfile}
+                    className="text-[11.5px] text-[#9AA3AF] truncate cursor-pointer hover:text-white/80 transition-colors"
                   >
-                    {card.type === 'bot' ? 'Live Updates' : themeLabel}
+                    {displayHandle}
                   </span>
+                  {card.type && card.type !== 'bot' && (
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-[#15181D] border border-[#2A2F36] text-[#9AA3AF]">
+                      {themeLabel}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Run / Wicket badge circle on the right */}
-            {card.runSymbol && (
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center font-black text-white text-[14px] shrink-0 shadow-lg"
-                style={{
-                  background:
-                    card.runSymbol === '4'
-                      ? 'radial-gradient(circle, #2563eb, #1d4ed8)'
-                      : card.runSymbol === '6'
-                        ? 'radial-gradient(circle, #16a34a, #15803d)'
-                        : card.runSymbol === 'W'
-                          ? 'radial-gradient(circle, #dc2626, #b91c1c)'
-                          : 'radial-gradient(circle, #ea580c, #c2410c)',
-                  boxShadow:
-                    card.runSymbol === '4'
-                      ? '0 0 8px rgba(37, 99, 235, 0.6)'
-                      : card.runSymbol === '6'
-                        ? '0 0 8px rgba(22, 163, 74, 0.6)'
-                        : card.runSymbol === 'W'
-                          ? '0 0 8px rgba(220, 38, 38, 0.6)'
-                          : '0 0 8px rgba(234, 88, 12, 0.6)',
-                }}
+            {/* Header Right: Run / Wicket badge or 3-Dots Menu */}
+            <div className="flex items-center gap-2">
+              {card.runSymbol && (
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center font-black text-white text-[14px] shrink-0 shadow-lg"
+                  style={{
+                    background:
+                      card.runSymbol === '4'
+                        ? 'radial-gradient(circle, #2563eb, #1d4ed8)'
+                        : card.runSymbol === '6'
+                          ? 'radial-gradient(circle, #16a34a, #15803d)'
+                          : card.runSymbol === 'W'
+                            ? 'radial-gradient(circle, #dc2626, #b91c1c)'
+                            : 'radial-gradient(circle, #ea580c, #c2410c)',
+                  }}
+                >
+                  {card.runSymbol}
+                </div>
+              )}
+              <button
+                onClick={() => setReportOpen((prev) => !prev)}
+                className="text-[#9AA3AF] hover:text-white transition-colors p-1 bg-transparent border-none cursor-pointer"
+                title="Options"
               >
-                {card.runSymbol}
-              </div>
-            )}
+                <MoreVertical size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Row 2: Card Content */}
-          <p className="text-[14px] font-medium text-white/90 leading-relaxed break-words whitespace-pre-line">
+          <div className="text-[14px] font-normal text-[#E4E8EE] leading-relaxed break-words whitespace-pre-line">
             {renderFormattedContent(card.content)}
-          </p>
+          </div>
 
-          {/* If the card is a bot live update, render the over and time footer */}
+          {/* Bot Live update footer */}
           {card.type === 'bot' && card.overLabel && (
-            <p className="text-[11px] font-bold text-white/35 mt-0.5">
+            <p className="text-[11px] font-bold text-[#9AA3AF] mt-0.5">
               {card.overLabel} · {getCardTime(card)}
             </p>
           )}
 
-          {/* Inline Image or Video/Audio media */}
+          {/* Media / Image / Video Container */}
           {(card.image || card.videoUrl || card.mediaType === 'audio') && (
-            <div className="relative group rounded-2xl overflow-hidden mt-2 bg-[#050608] border border-white/10 flex items-center justify-center w-full max-h-[500px] sm:max-h-[560px]">
+            <div className="relative group rounded-xl overflow-hidden mt-1 bg-[#0A0C0E] border border-[#2A2F36] flex items-center justify-center w-full max-h-[500px] sm:max-h-[560px]">
               {card.mediaType === 'video' && card.videoUrl ? (
                 <div className="relative w-full aspect-video max-h-[500px] sm:max-h-[560px] bg-black flex items-center justify-center">
                   <video
@@ -1479,19 +1588,10 @@ export function FlipCardItem({
                       e.stopPropagation();
                       setIsFullscreen(true);
                     }}
-                    className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/90 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100 shadow-lg"
+                    className="absolute top-2.5 right-2.5 z-20 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white transition-all cursor-pointer opacity-0 group-hover:opacity-100 shadow-lg"
                     title="View Fullscreen"
                   >
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="15 3 21 3 21 9" />
                       <polyline points="9 21 3 21 3 15" />
                       <line x1="21" y1="3" x2="14" y2="10" />
@@ -1500,9 +1600,9 @@ export function FlipCardItem({
                   </button>
                 </div>
               ) : card.mediaType === 'audio' && !card.image ? (
-                <div className="w-full h-[64px] bg-gradient-to-r from-purple-950/50 via-slate-900 to-purple-950/50 relative flex items-center px-4 border border-white/5 rounded-xl">
+                  <div className="w-full h-[64px] bg-gradient-to-r from-[#15181D] via-[#1A1E24] to-[#15181D] relative flex items-center px-4 border border-[#2A2F36] rounded-xl">
                   <div className="flex items-center gap-3 w-full">
-                    <div className="w-8 h-8 rounded-full bg-pink-500/10 border border-pink-500/20 flex items-center justify-center text-pink-400 shrink-0">
+                      <div className="w-8 h-8 rounded-full bg-[#FF2D8A]/10 border border-[#FF2D8A]/20 flex items-center justify-center text-[#FF2D8A] shrink-0">
                       <Volume2 size={15} />
                     </div>
                     <div className="flex-1 flex items-center gap-[2.5px] h-4">
@@ -1522,143 +1622,110 @@ export function FlipCardItem({
                 <div
                   className="relative w-full max-h-[500px] sm:max-h-[560px] flex items-center justify-center overflow-hidden cursor-pointer bg-black/40"
                   onClick={() => setIsFullscreen(true)}
-                >
-                  {/* Ambient background blur (modern dynamic feed style for all aspect ratios) */}
+                    >
                   {card.image && (
                     <img
                       src={typeof card.image === 'object' ? card.image.src : card.image}
                       alt=""
                       aria-hidden="true"
-                      className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-25 scale-125 pointer-events-none select-none"
+                          className="absolute inset-0 w-full h-full object-cover blur-2xl opacity-20 scale-125 pointer-events-none select-none"
                     />
-                  )}
-
-                  {/* Dynamic responsive sharp foreground image */}
+                      )}
                   {card.image && (
                     <img
                       src={typeof card.image === 'object' ? card.image.src : card.image}
                       alt="Moment media"
                       className="relative z-10 w-auto max-w-full h-auto max-h-[500px] sm:max-h-[560px] object-contain mx-auto block cursor-zoom-in rounded-xl transition-all duration-300"
                     />
-                  )}
-
-                  {/* Video Play Overlay */}
+                      )}
                   {card.mediaType === 'video' && (
-                    <div
-                      className="absolute inset-0 z-20 bg-black/30 hover:bg-black/20 flex items-center justify-center cursor-pointer transition-colors"
-                    >
+                        <div className="absolute inset-0 z-20 bg-black/30 hover:bg-black/20 flex items-center justify-center cursor-pointer transition-colors">
                       <div className="w-12 h-12 rounded-full bg-black/60 hover:bg-black/75 backdrop-blur-md border border-white/30 flex items-center justify-center text-white transition-transform hover:scale-110 shadow-2xl">
                         <Play size={20} fill="currentColor" className="ml-0.5" />
                       </div>
                     </div>
-                  )}
-
-                  {/* Fullscreen Button */}
-                  {(card.image || card.mediaType === 'video') && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsFullscreen(true);
-                      }}
-                      className="absolute top-2.5 right-2.5 z-30 w-8 h-8 rounded-full bg-black/70 backdrop-blur-md border border-white/20 flex items-center justify-center text-white/80 hover:text-white hover:bg-black/90 transition-all duration-200 active:scale-90 cursor-pointer opacity-0 group-hover:opacity-100 shadow-lg"
-                      title="View Fullscreen"
-                    >
-                      <svg
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="15 3 21 3 21 9" />
-                        <polyline points="9 21 3 21 3 15" />
-                        <line x1="21" y1="3" x2="14" y2="10" />
-                        <line x1="3" y1="21" x2="10" y2="14" />
-                      </svg>
-                    </button>
-                  )}
+                      )}
                 </div>
               )}
             </div>
           )}
 
-          {/* Row 3: Tags (only if not already in post content) */}
+          {/* Row 3: Tags pills */}
           {(() => {
             const extraTags = (card.tags || []).filter(
               (t) => !card.content || !card.content.toLowerCase().includes(t.toLowerCase())
             );
             if (extraTags.length === 0) return null;
             return (
-              <div className="flex flex-wrap gap-2 mt-0.5">
+              <div className="flex flex-wrap gap-1.5 mt-0.5">
                 {extraTags.map((t) => (
                   <span
                     key={t}
-                    className="text-[11px] font-bold text-pink-500 hover:underline cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg bg-[#15181D] border border-[#2A2F36] text-[11px] font-semibold text-[#9AA3AF] hover:text-[#E4E8EE] hover:border-[#FF2D8A]/40 transition-colors cursor-pointer"
                   >
-                    {t}
+                    #{t.replace(/^#/, '')}
                   </span>
                 ))}
               </div>
             );
           })()}
 
-          {/* Row 5: Action buttons (Like, Comment, Share, Flip) */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              {/* Card Like Button */}
+          {/* Row 4: Action Bar (Figma Image 3) */}
+          <div className="flex items-center justify-between pt-1 border-t border-[#2A2F36]/60 mt-0.5">
+            {/* Left Icons: Heart, Comment, Share, Bookmark */}
+            <div className="flex items-center gap-4 sm:gap-5">
+              {/* Heart (Like) Button */}
               <button
                 onClick={handleLikeCard}
-                className={`flex items-center gap-2 transition-colors cursor-pointer ${isLiked ? 'text-rose-500' : 'text-white/40 hover:text-rose-500'
+                className={`flex items-center gap-1.5 transition-colors cursor-pointer bg-transparent border-none p-0 ${isLiked ? 'text-[#FF2D8A]' : 'text-[#9AA3AF] hover:text-[#FF2D8A]'
                   }`}
                 title={isLiked ? 'Unlike' : 'Like'}
               >
                 <Heart
                   size={16}
-                  fill={isLiked ? 'rgb(244, 63, 94)' : 'none'}
-                  className={`transition-all duration-200 ${isLiked ? 'text-rose-500 scale-110' : ''}`}
+                  fill={isLiked ? '#FF2D8A' : 'none'}
+                  className={`transition-all duration-200 ${isLiked ? 'text-[#FF2D8A] scale-110' : ''}`}
                 />
-                <span className="text-[12.5px] font-extrabold leading-none">{likesCount}</span>
+                <span className="text-[12px] font-bold leading-none">{formatCount(likesCount)}</span>
               </button>
 
-              {/* Comment Toggle Button */}
+              {/* Comment Button */}
               <button
                 onClick={() => setCommentOpen((prev) => !prev)}
-                className={`flex items-center gap-2 transition-all cursor-pointer ${commentOpen ? 'text-sky-400 font-black' : 'text-white/40 hover:text-sky-400'
+                className={`flex items-center gap-1.5 transition-colors cursor-pointer bg-transparent border-none p-0 ${commentOpen ? 'text-[#FF8A00]' : 'text-[#9AA3AF] hover:text-[#FF8A00]'
                   }`}
                 title="Comments"
               >
                 <MessageSquare
                   size={15}
-                  fill={commentOpen ? 'rgba(56, 189, 248, 0.2)' : 'none'}
+                  fill={commentOpen ? 'rgba(255, 138, 0, 0.2)' : 'none'}
                   className={`transition-all duration-200 ${commentOpen ? 'scale-110' : ''}`}
                 />
-                <span className="text-[12.5px] font-extrabold leading-none">{totalCommentsCount}</span>
+                <span className="text-[12px] font-bold leading-none">{formatCount(totalCommentsCount)}</span>
               </button>
 
               {/* Share Button */}
               <div className="relative">
                 <button
                   onClick={() => handleShare(card)}
-                  className={`flex items-center gap-1.5 transition-all cursor-pointer ${
-                    copiedState ? 'text-emerald-400 font-bold' : 'text-white/40 hover:text-white'
+                  className={`flex items-center gap-1.5 transition-colors cursor-pointer bg-transparent border-none p-0 ${copiedState ? 'text-emerald-400' : 'text-[#9AA3AF] hover:text-white'
                   }`}
                   title={copiedState ? 'Link Copied!' : 'Share Post'}
                 >
                   {copiedState ? <CheckCircle2 size={15} className="text-emerald-400" /> : <Share2 size={15} />}
-                  {copiedState && <span className="text-[11.5px] font-bold text-emerald-400">Copied!</span>}
+                  <span className="text-[12px] font-bold leading-none">
+                    {copiedState ? 'Copied!' : formatCount(Number(card.fomoCount) || 124)}
+                  </span>
                 </button>
 
-                {/* Floating Tooltip / Toast for Copy Confirmation */}
+                {/* Floating Share Toast */}
                 <AnimatePresence>
                   {copiedState && (
                     <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.9 }}
                       animate={{ opacity: 1, y: -6, scale: 1 }}
                       exit={{ opacity: 0, y: 6, scale: 0.9 }}
-                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-pink-600 to-orange-500 text-white font-extrabold text-[11px] whitespace-nowrap shadow-xl z-30 flex items-center gap-1.5 pointer-events-none"
+                      className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#FF2D8A] to-[#FF8A00] text-white font-extrabold text-[11px] whitespace-nowrap shadow-xl z-30 flex items-center gap-1.5 pointer-events-none"
                     >
                       <span>Link copied! 📋</span>
                     </motion.div>
@@ -1666,46 +1733,52 @@ export function FlipCardItem({
                 </AnimatePresence>
               </div>
 
-              {/* Report Button */}
+              {/* Bookmark Button */}
               <button
-                onClick={() => {
-                  setReportOpen((prev) => !prev);
-                  if (!reportOpen && commentOpen) setCommentOpen(false);
-                }}
-                className={`flex items-center gap-2 transition-all cursor-pointer ${reportOpen ? 'text-amber-400 font-black' : 'text-white/40 hover:text-amber-400'
+                onClick={() => setIsBookmarked((prev) => !prev)}
+                className={`transition-colors cursor-pointer bg-transparent border-none p-0 ${isBookmarked ? 'text-[#FF8A00]' : 'text-[#9AA3AF] hover:text-white'
                   }`}
-                title="Report Post"
+                title={isBookmarked ? 'Bookmarked' : 'Save / Bookmark'}
               >
-                <Flag
-                  size={14}
-                  fill={reportOpen ? 'rgba(251, 191, 36, 0.2)' : 'none'}
-                  className={`transition-all duration-200 ${reportOpen ? 'scale-110' : ''}`}
-                />
+                <Bookmark size={15} fill={isBookmarked ? '#FF8A00' : 'none'} />
               </button>
             </div>
 
-            {/* AI Dolphin button */}
+            {/* Right Action: ASKFlip Button (Figma Spec) */}
             <button
               onClick={() => {
-                  setAskOpen(isExpanded ? null : card.id);
-                  if (!isExpanded) {
-                    try { trackMeaningfulInteraction('flipline_card_flip', { card_id: card.id, room_name: 'FlipLine' }); } catch (e) {}
-                  }
-                }}
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[12px] font-bold border transition-all duration-300 cursor-pointer"
+                setAskOpen(isExpanded ? null : card.id);
+                if (!isExpanded) {
+                  try {
+                    trackMeaningfulInteraction('flipline_card_flip', { card_id: card.id, room_name: 'FlipLine' });
+                  } catch (e) { }
+                }
+              }}
+              className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all duration-300 cursor-pointer overflow-hidden border shadow-sm group active:scale-95"
               style={{
-                background: isExpanded ? `${themeColor}22` : 'rgba(255, 255, 255, 0.03)',
-                borderColor: isExpanded ? themeColor : 'rgba(255, 255, 255, 0.1)',
-                color: isExpanded ? themeColor : '#fff',
-                boxShadow: isExpanded ? `0 0 10px ${themeColor}33` : 'none',
+                background: isExpanded ? 'rgba(255, 45, 138, 0.15)' : '#15181D',
+                borderColor: isExpanded ? '#FF2D8A' : '#2A2F36',
+                boxShadow: isExpanded ? '0 0 12px rgba(255, 45, 138, 0.25)' : 'none',
               }}
             >
-              <img src="/images/dollyavatar.png" alt="dolphin" className="w-4 h-4" style={{ width: '20px', height: '20px', borderRadius: '50%' }} />
-              <span>{isExpanded ? 'Flipped' : 'ASKFlip'}</span>
+              <div className="w-5 h-5 rounded-full overflow-hidden bg-[#111418] border border-white/10 shrink-0 flex items-center justify-center">
+                <img
+                  src="/images/dollyavatar.png"
+                  alt="dolphin"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
+              </div>
+              <span className="text-[12px] font-extrabold text-[#FFFFFF] tracking-wide">
+                {isExpanded ? 'Flipped' : 'ASKFlip'}
+              </span>
+              <ChevronRight size={14} className="text-[#FF8A00] stroke-[2.5]" />
             </button>
           </div>
 
-          {/* ── Expanded Report Section ───────────────────────────────────── */}
+          {/* ── Expanded Report Section ── */}
           <AnimatePresence>
             {reportOpen && (
               <motion.div
@@ -1715,11 +1788,11 @@ export function FlipCardItem({
                 transition={{ duration: 0.25 }}
                 className="overflow-hidden"
               >
-                <div className="mt-3 pt-3 border-t border-white/[0.08] flex flex-col gap-2.5">
+                <div className="mt-2 pt-3 border-t border-[#2A2F36] flex flex-col gap-2.5">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <Flag size={13} className="text-amber-400" />
-                      <span className="text-[11px] font-black text-amber-300 uppercase tracking-widest">
+                      <Flag size={13} className="text-[#FF8A00]" />
+                      <span className="text-[11px] font-black text-[#FF8A00] uppercase tracking-widest">
                         Report Post
                       </span>
                     </div>
@@ -1728,7 +1801,7 @@ export function FlipCardItem({
                         setReportOpen(false);
                         setReportSubmitted(false);
                       }}
-                      className="text-white/30 hover:text-white transition-colors cursor-pointer p-0.5"
+                      className="text-[#9AA3AF] hover:text-white transition-colors cursor-pointer p-0.5 bg-transparent border-none"
                       title="Close"
                     >
                       <X size={13} />
@@ -1745,8 +1818,7 @@ export function FlipCardItem({
                       <span>Report submitted. Thank you for keeping our community safe!</span>
                     </motion.div>
                   ) : (
-                    <>
-                      {/* Quick reason chips */}
+                      <>
                       <div className="flex flex-wrap gap-1.5">
                         {['Spam', 'Harassment', 'Hate Speech', 'Misinformation', 'Other'].map((tag) => {
                           const isSel = selectedReportTag === tag;
@@ -1756,8 +1828,8 @@ export function FlipCardItem({
                               type="button"
                               onClick={() => setSelectedReportTag(isSel ? null : tag)}
                               className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer ${isSel
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.2)]'
-                                : 'bg-white/[0.04] text-white/50 border border-white/[0.06] hover:text-white/80 hover:bg-white/[0.08]'
+                                ? 'bg-[#FF8A00]/20 text-[#FF8A00] border border-[#FF8A00]/40 shadow-[0_0_8px_rgba(255,138,0,0.2)]'
+                                : 'bg-[#15181D] text-[#9AA3AF] border border-[#2A2F36] hover:text-white hover:bg-[#1A1E24]'
                                 }`}
                             >
                               {tag}
@@ -1766,14 +1838,13 @@ export function FlipCardItem({
                         })}
                       </div>
 
-                      {/* Report Input Field */}
-                      <div className="flex items-center gap-2 w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl p-1.5 pl-3 focus-within:border-amber-500/50 transition-all">
+                        <div className="flex items-center gap-2 w-full bg-[#15181D] border border-[#2A2F36] rounded-xl p-1.5 pl-3 focus-within:border-[#FF8A00]/60 transition-all">
                         <input
                           type="text"
                           value={reportReason}
                           onChange={(e) => setReportReason(e.target.value)}
                           placeholder="Write reason to report..."
-                          className="flex-1 bg-transparent text-[12.5px] text-white placeholder:text-white/35 outline-none font-medium"
+                            className="flex-1 bg-transparent text-[12.5px] text-white placeholder:text-[#9AA3AF] outline-none font-medium"
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && !e.shiftKey) {
                               e.preventDefault();
@@ -1784,7 +1855,7 @@ export function FlipCardItem({
                         <button
                           onClick={handleSendReport}
                           disabled={(!reportReason.trim() && !selectedReportTag) || isSubmittingReport}
-                          className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-400 hover:to-rose-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-[11.5px] font-extrabold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0 shadow-[0_2px_8px_rgba(245,158,11,0.25)]"
+                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-[#FF2D8A] to-[#FF8A00] hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed text-white text-[11.5px] font-extrabold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shrink-0"
                           title="Send report"
                         >
                           {isSubmittingReport ? (
@@ -1804,7 +1875,7 @@ export function FlipCardItem({
             )}
           </AnimatePresence>
 
-          {/* ── Expanded Comment & Reply Section ──────────────────────────── */}
+          {/* ── Expanded Comment & Reply Section ── */}
           <AnimatePresence>
             {commentOpen && (
               <motion.div
@@ -1814,21 +1885,21 @@ export function FlipCardItem({
                 transition={{ duration: 0.25 }}
                 className="overflow-hidden"
               >
-                <div className="mt-3 pt-3 border-t border-white/[0.08] flex flex-col gap-3">
+                <div className="mt-2 pt-3 border-t border-[#2A2F36] flex flex-col gap-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <MessageSquare size={13} className="text-sky-400" />
-                      <span className="text-[11px] font-black text-sky-300 uppercase tracking-widest">
+                      <MessageSquare size={13} className="text-[#FF8A00]" />
+                      <span className="text-[11px] font-black text-white uppercase tracking-widest">
                         Comments {totalCommentsCount > 0 ? `(${totalCommentsCount})` : ''}
                       </span>
                     </div>
-                    <span className="text-[10px] text-white/30 font-semibold">
+                    <span className="text-[10px] text-[#9AA3AF] font-semibold">
                       Join the discussion
                     </span>
                   </div>
 
-                  {/* Top-level Comment Input */}
-                  <div className="flex items-center gap-2 w-full bg-white/[0.04] border border-white/[0.08] rounded-2xl p-1.5 pl-3 focus-within:border-sky-500/50 transition-all">
+                  {/* Comment Input */}
+                  <div className="flex items-center gap-2 w-full bg-[#15181D] border border-[#2A2F36] rounded-xl p-1.5 pl-3 focus-within:border-[#FF2D8A]/60 transition-all">
                     {currentUserAvatar ? (
                       <img
                         src={
@@ -1838,13 +1909,13 @@ export function FlipCardItem({
                         }
                         alt="You"
                         onClick={() => handleOpenUserProfile()}
-                        className="w-6 h-6 rounded-full object-cover border border-sky-400/30 shrink-0 cursor-pointer hover:opacity-80 transition-all"
+                        className="w-6 h-6 rounded-full object-cover border border-[#2A2F36] shrink-0 cursor-pointer hover:opacity-80 transition-all"
                         title="Your Profile"
                       />
                     ) : (
                       <div
                         onClick={() => handleOpenUserProfile()}
-                        className="w-6 h-6 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center text-[10px] font-black shrink-0 uppercase cursor-pointer hover:opacity-80 transition-all"
+                          className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FF2D8A] to-[#FF8A00] text-white flex items-center justify-center text-[10px] font-black shrink-0 uppercase cursor-pointer hover:opacity-80 transition-all"
                         title="Your Profile"
                       >
                         {currentUserName ? currentUserName.trim().charAt(0).toUpperCase() : 'U'}
@@ -1855,7 +1926,7 @@ export function FlipCardItem({
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       placeholder="Write a comment..."
-                      className="flex-1 bg-transparent text-[12.5px] text-white placeholder:text-white/35 outline-none font-medium"
+                      className="flex-1 bg-transparent text-[12.5px] text-white placeholder:text-[#9AA3AF] outline-none font-medium"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
@@ -1866,7 +1937,7 @@ export function FlipCardItem({
                     <button
                       onClick={handleAddComment}
                       disabled={!commentText.trim() || isSubmittingComment}
-                      className="w-8 h-8 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0 shadow-[0_2px_8px_rgba(56,189,248,0.25)]"
+                      className="w-8 h-8 rounded-lg bg-gradient-to-r from-[#FF2D8A] to-[#FF8A00] hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer shrink-0"
                       title="Send comment"
                     >
                       {isSubmittingComment ? (
@@ -1896,7 +1967,7 @@ export function FlipCardItem({
                         return (
                           <div
                             key={comm.id}
-                            className="bg-white/[0.025] border border-white/[0.05] rounded-xl p-3 flex flex-col gap-2 transition-all hover:border-white/[0.09]"
+                            className="bg-[#15181D] border border-[#2A2F36] rounded-xl p-3 flex flex-col gap-2 transition-all hover:border-[#2A2F36]/80"
                           >
                             {/* Comment Header */}
                             <div className="flex items-center justify-between text-[11px]">
@@ -1906,13 +1977,13 @@ export function FlipCardItem({
                                     src={typeof commPhoto === 'object' && commPhoto ? (commPhoto as any).src : commPhoto}
                                     alt={comm.userName}
                                     onClick={() => handleOpenUserProfile(comm.userId, comm.userHandle, comm.userName)}
-                                    className="w-5 h-5 rounded-full object-cover border border-white/10 shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                                    className="w-5 h-5 rounded-full object-cover border border-[#2A2F36] shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
                                     title="View Profile"
                                   />
                                 ) : (
                                   <div
                                     onClick={() => handleOpenUserProfile(comm.userId, comm.userHandle, comm.userName)}
-                                    className="w-5 h-5 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white flex items-center justify-center text-[9px] font-black shrink-0 uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                                      className="w-5 h-5 rounded-full bg-gradient-to-br from-[#FF2D8A] to-[#FF8A00] text-white flex items-center justify-center text-[9px] font-black shrink-0 uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all"
                                     title="View Profile"
                                   >
                                     {comm.userName ? comm.userName.trim().charAt(0).toUpperCase() : 'U'}
@@ -1921,11 +1992,11 @@ export function FlipCardItem({
                                 <div className="flex items-center gap-1.5 truncate">
                                   <span
                                     onClick={() => handleOpenUserProfile(comm.userId, comm.userHandle, comm.userName)}
-                                    className="font-bold text-white/90 truncate cursor-pointer hover:text-sky-300 transition-colors"
+                                    className="font-bold text-white truncate cursor-pointer hover:text-[#FF8A00] transition-colors"
                                   >
                                     {isCommentAuthor ? `${comm.userName} (You)` : comm.userName}
                                   </span>
-                                  <span className="text-[10px] text-white/35 font-medium truncate">
+                                  <span className="text-[10px] text-[#9AA3AF] font-medium truncate">
                                     · {formatCommentTimestamp(comm.createdAt, comm.time)}
                                   </span>
                                 </div>
@@ -1934,7 +2005,7 @@ export function FlipCardItem({
                                 {isCommentAuthor && (
                                   <button
                                     onClick={() => handleDeleteComment(comm.id)}
-                                    className="text-white/25 hover:text-rose-400 transition-colors p-0.5 cursor-pointer"
+                                    className="text-[#9AA3AF] hover:text-rose-400 transition-colors p-0.5 cursor-pointer bg-transparent border-none"
                                     title="Delete comment"
                                   >
                                     <Trash2 size={11} />
@@ -1944,22 +2015,20 @@ export function FlipCardItem({
                             </div>
 
                             {/* Comment Text */}
-                            <p className="text-[12.5px] text-white/85 font-medium leading-relaxed pl-1 break-words">
+                            <div className="text-[12.5px] text-[#E4E8EE] font-normal leading-relaxed pl-1 break-words">
                               {renderFormattedContent(comm.content)}
-                            </p>
+                            </div>
 
-                            {/* Comment Action Footer (Like & Reply buttons) */}
+                            {/* Comment Actions */}
                             <div className="flex items-center gap-4 pl-1 pt-0.5 text-[11px]">
                               <button
                                 onClick={() => handleLikeComment(comm)}
-                                className={`flex items-center gap-1.5 transition-colors cursor-pointer ${commLiked
-                                  ? 'text-rose-500 font-bold'
-                                  : 'text-white/40 hover:text-rose-400'
+                                className={`flex items-center gap-1.5 transition-colors cursor-pointer bg-transparent border-none p-0 ${commLiked ? 'text-[#FF2D8A] font-bold' : 'text-[#9AA3AF] hover:text-[#FF2D8A]'
                                   }`}
                               >
                                 <Heart
                                   size={12}
-                                  fill={commLiked ? 'rgb(244, 63, 94)' : 'none'}
+                                  fill={commLiked ? '#FF2D8A' : 'none'}
                                   className={commLiked ? 'scale-110' : ''}
                                 />
                                 <span>{comm.likes || 0}</span>
@@ -1975,9 +2044,7 @@ export function FlipCardItem({
                                     setReplyText('');
                                   }
                                 }}
-                                className={`flex items-center gap-1 text-[11px] transition-colors cursor-pointer ${isReplying
-                                  ? 'text-sky-400 font-bold'
-                                  : 'text-white/40 hover:text-sky-300'
+                                className={`flex items-center gap-1 text-[11px] transition-colors cursor-pointer bg-transparent border-none p-0 ${isReplying ? 'text-[#FF8A00] font-bold' : 'text-[#9AA3AF] hover:text-[#FF8A00]'
                                   }`}
                               >
                                 <CornerDownRight size={11} />
@@ -1985,15 +2052,15 @@ export function FlipCardItem({
                               </button>
                             </div>
 
-                            {/* Inline Reply Input Field */}
+                            {/* Inline Reply Input */}
                             {isReplying && (
                               <motion.div
                                 initial={{ opacity: 0, y: -4 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 className="mt-1 pl-3 flex items-center gap-2"
                               >
-                                <div className="flex-1 flex items-center gap-2 bg-white/[0.04] border border-sky-500/30 rounded-xl p-1 pl-2.5">
-                                  <span className="text-[10.5px] text-sky-400 font-bold shrink-0">
+                                <div className="flex-1 flex items-center gap-2 bg-[#111418] border border-[#2A2F36] rounded-xl p-1 pl-2.5">
+                                  <span className="text-[10.5px] text-[#FF8A00] font-bold shrink-0">
                                     @{comm.userName}:
                                   </span>
                                   <input
@@ -2001,7 +2068,7 @@ export function FlipCardItem({
                                     value={replyText}
                                     onChange={(e) => setReplyText(e.target.value)}
                                     placeholder="Write a reply..."
-                                    className="flex-1 bg-transparent text-[11.5px] text-white placeholder:text-white/30 outline-none font-medium"
+                                    className="flex-1 bg-transparent text-[11.5px] text-white placeholder:text-[#9AA3AF] outline-none font-medium"
                                     autoFocus
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter' && !e.shiftKey) {
@@ -2014,7 +2081,7 @@ export function FlipCardItem({
                                 <button
                                   onClick={() => handleAddReply(comm)}
                                   disabled={!replyText.trim() || isSubmittingReply}
-                                  className="px-2.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 disabled:opacity-30 disabled:cursor-not-allowed text-white text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer shrink-0"
+                                  className="px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-[#FF2D8A] to-[#FF8A00] hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed text-white text-[11px] font-bold flex items-center gap-1 transition-all active:scale-95 cursor-pointer shrink-0"
                                 >
                                   {isSubmittingReply ? (
                                     <Loader2 size={11} className="animate-spin" />
@@ -2027,7 +2094,7 @@ export function FlipCardItem({
 
                             {/* Nested Replies List */}
                             {replies.length > 0 && (
-                              <div className="mt-1 pl-3.5 border-l-2 border-sky-500/20 flex flex-col gap-2 ml-1">
+                              <div className="mt-1 pl-3.5 border-l-2 border-[#FF8A00]/30 flex flex-col gap-2 ml-1">
                                 {replies.map((rep) => {
                                   const isReplyAuthor =
                                     (rep.userId && currentUserId && rep.userId === currentUserId) ||
@@ -2042,9 +2109,8 @@ export function FlipCardItem({
                                   return (
                                     <div
                                       key={rep.id}
-                                      className="bg-white/[0.02] border border-white/[0.04] rounded-lg p-2 flex flex-col gap-1"
+                                      className="bg-[#111418] border border-[#2A2F36] rounded-lg p-2 flex flex-col gap-1"
                                     >
-                                      {/* Reply Header */}
                                       <div className="flex items-center justify-between text-[10.5px]">
                                         <div className="flex items-center gap-1.5 min-w-0">
                                           {repPhoto ? (
@@ -2052,13 +2118,13 @@ export function FlipCardItem({
                                               src={typeof repPhoto === 'object' && repPhoto ? (repPhoto as any).src : repPhoto}
                                               alt={rep.userName}
                                               onClick={() => handleOpenUserProfile(rep.userId, rep.userHandle, rep.userName)}
-                                              className="w-4 h-4 rounded-full object-cover border border-white/10 shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                                              className="w-4 h-4 rounded-full object-cover border border-[#2A2F36] shrink-0 cursor-pointer hover:opacity-80 active:scale-95 transition-all"
                                               title="View Profile"
                                             />
                                           ) : (
                                             <div
                                               onClick={() => handleOpenUserProfile(rep.userId, rep.userHandle, rep.userName)}
-                                              className="w-4 h-4 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-500 text-white flex items-center justify-center text-[8px] font-black shrink-0 uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all"
+                                                className="w-4 h-4 rounded-full bg-gradient-to-tr from-[#FF2D8A] to-[#FF8A00] text-white flex items-center justify-center text-[8px] font-black shrink-0 uppercase cursor-pointer hover:opacity-80 active:scale-95 transition-all"
                                               title="View Profile"
                                             >
                                               {rep.userName ? rep.userName.trim().charAt(0).toUpperCase() : 'U'}
@@ -2066,22 +2132,24 @@ export function FlipCardItem({
                                           )}
                                           <span
                                             onClick={() => handleOpenUserProfile(rep.userId, rep.userHandle, rep.userName)}
-                                            className="font-bold text-white/90 truncate cursor-pointer hover:text-sky-300 transition-colors"
+                                            className="font-bold text-white truncate cursor-pointer hover:text-[#FF8A00] transition-colors"
                                           >
                                             {isReplyAuthor ? `${rep.userName} (You)` : rep.userName}
                                           </span>
                                           {rep.replyTo && (
-                                            <span className="text-[9.5px] text-sky-400/80 font-semibold truncate">
+                                            <span className="text-[9.5px] text-[#FF8A00] font-semibold truncate">
                                               @{rep.replyTo.replace(/^@/, '')}
                                             </span>
                                           )}
                                         </div>
                                         <div className="flex items-center gap-1.5 shrink-0">
-                                          <span className="text-[9px] text-white/30">{formatCommentTimestamp(rep.createdAt, rep.time)}</span>
+                                          <span className="text-[9px] text-[#9AA3AF]">
+                                            {formatCommentTimestamp(rep.createdAt, rep.time)}
+                                          </span>
                                           {isReplyAuthor && (
                                             <button
                                               onClick={() => handleDeleteReply(comm.id, rep.id)}
-                                              className="text-white/20 hover:text-rose-400 transition-colors p-0.5 cursor-pointer"
+                                              className="text-[#9AA3AF] hover:text-rose-400 transition-colors p-0.5 cursor-pointer bg-transparent border-none"
                                               title="Delete reply"
                                             >
                                               <Trash2 size={10} />
@@ -2090,23 +2158,19 @@ export function FlipCardItem({
                                         </div>
                                       </div>
 
-                                      {/* Reply Content */}
-                                      <p className="text-[11.5px] text-white/80 font-medium leading-relaxed pl-1 break-words">
+                                      <div className="text-[11.5px] text-[#E4E8EE] font-normal leading-relaxed pl-1 break-words">
                                         {renderFormattedContent(rep.content)}
-                                      </p>
+                                      </div>
 
-                                      {/* Reply Like Action */}
                                       <div className="flex items-center gap-3 pl-1 pt-0.5 text-[10px]">
                                         <button
                                           onClick={() => handleLikeReply(comm.id, rep)}
-                                          className={`flex items-center gap-1 transition-colors cursor-pointer ${repLiked
-                                            ? 'text-rose-500 font-bold'
-                                            : 'text-white/35 hover:text-rose-400'
+                                          className={`flex items-center gap-1 transition-colors cursor-pointer bg-transparent border-none p-0 ${repLiked ? 'text-[#FF2D8A] font-bold' : 'text-[#9AA3AF] hover:text-[#FF2D8A]'
                                             }`}
                                         >
                                           <Heart
                                             size={11}
-                                            fill={repLiked ? 'rgb(244, 63, 94)' : 'none'}
+                                            fill={repLiked ? '#FF2D8A' : 'none'}
                                             className={repLiked ? 'scale-110' : ''}
                                           />
                                           <span>{rep.likes || 0}</span>
@@ -2122,7 +2186,7 @@ export function FlipCardItem({
                       })}
                     </div>
                   ) : (
-                    <div className="py-2 text-center text-[11px] text-white/30 font-medium italic">
+                      <div className="py-2 text-center text-[11px] text-[#9AA3AF] font-medium italic">
                       Be the first to comment on this moment! 💬
                     </div>
                   )}
@@ -2131,7 +2195,7 @@ export function FlipCardItem({
             )}
           </AnimatePresence>
 
-          {/* ── Expanded AI response ──────────────────────────────────────── */}
+          {/* ── Expanded AI ASKFlip Section ── */}
           <AnimatePresence>
             {isExpanded && (
               <motion.div
@@ -2141,39 +2205,39 @@ export function FlipCardItem({
                 transition={{ duration: 0.3 }}
                 className="overflow-hidden"
               >
-                <div className="mt-2 pt-3 border-t border-white/[0.08] flex flex-col gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 rounded-full bg-violet-600 flex items-center justify-center text-[10px]">
-                      🤖
+                <div className="mt-2 pt-3 border-t border-[#2A2F36] flex flex-col gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-5 h-5 rounded-full overflow-hidden bg-[#15181D] border border-white/10 shrink-0 flex items-center justify-center">
+                      <img src="/images/dollyavatar.png" alt="dolphin" className="w-full h-full object-cover" />
                     </div>
-                    <span className="text-[11px] font-black text-violet-300 uppercase tracking-widest">
+                    <span className="text-[11px] font-black text-white uppercase tracking-widest">
                       ASKFlip about this moment
                     </span>
                   </div>
 
-                  {/* Query Input field */}
+                  {/* Input field */}
                   <div className="flex gap-2 w-full mt-1">
                     <input
                       type="text"
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
                       placeholder="ASKFlip anything about this moment..."
-                      className="flex-1 bg-white/[0.06] border border-white/[0.1] rounded-xl px-3 py-2 text-[12.5px] text-white placeholder:text-white/30 outline-none focus:border-violet-500 transition-colors"
+                      className="flex-1 bg-[#15181D] border border-[#2A2F36] rounded-xl px-3 py-2 text-[12.5px] text-white placeholder:text-[#9AA3AF] outline-none focus:border-[#FF2D8A]/60 transition-colors"
                       onKeyDown={(e) => e.key === 'Enter' && handleAskFlip()}
                     />
                     <button
                       onClick={handleAskFlip}
                       disabled={!question.trim() || loadingAi}
-                      className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white font-extrabold text-[12px] px-4 py-2 rounded-xl transition-all cursor-pointer"
+                      className="bg-gradient-to-r from-[#FF2D8A] to-[#FF8A00] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-extrabold text-[12px] px-4 py-2 rounded-xl transition-all cursor-pointer shadow-md"
                     >
                       {loadingAi ? 'Thinking...' : 'ASKFlip'}
                     </button>
                   </div>
 
                   {answer && (
-                    <p className="text-[13px] text-white/90 leading-relaxed italic bg-violet-950/20 border border-violet-900/30 rounded-xl p-3">
+                    <div className="text-[13px] text-[#E4E8EE] leading-relaxed bg-[#15181D] border border-[#2A2F36] rounded-xl p-3">
                       {answer}
-                    </p>
+                    </div>
                   )}
                 </div>
               </motion.div>
@@ -2217,17 +2281,17 @@ export function FlipCardItem({
           </div>
 
           <div className="mt-6 text-center max-w-2xl px-4" onClick={(e) => e.stopPropagation()}>
-            <p className="text-[14.5px] font-medium text-white/95 leading-relaxed break-words whitespace-pre-line">
+            <div className="text-[14.5px] font-medium text-white/95 leading-relaxed break-words whitespace-pre-line">
               {renderFormattedContent(card.content)}
-            </p>
-            <p className="text-[11px] text-white/40 mt-2">
+            </div>
+            <p className="text-[11px] text-[#9AA3AF] mt-2">
               Posted by{' '}
               <span
                 onClick={() => {
                   setIsFullscreen(false);
                   handleOpenAuthorProfile();
                 }}
-                className="text-white/80 hover:text-sky-300 cursor-pointer font-bold transition-colors"
+                className="text-white hover:text-[#FF8A00] cursor-pointer font-bold transition-colors"
               >
                 {displayAuthor} {displayHandle ? displayHandle : ''}
               </span>{' '}
@@ -2240,6 +2304,7 @@ export function FlipCardItem({
   );
 }
 
+/* ─── FlipTimeline (Timeline List + Date Separators) ────────────────── */
 export function FlipTimeline({
   cards,
   previewLimit,
@@ -2260,8 +2325,6 @@ export function FlipTimeline({
     }
   };
 
-  // Sort chronologically by timeMs / createdAt descending so newest is at the top
-  // Exclude scheduled posts whose scheduled time is still in the future
   const now = Date.now();
   const visibleCards = cards.filter((c) => {
     const scheduledTime = Number(c.scheduledAt) || Number(c.scheduledTimeMs);
@@ -2293,9 +2356,9 @@ export function FlipTimeline({
   const finalCards = previewLimit ? displayList.slice(0, previewLimit) : displayList;
 
   const typeColorMap = {
-    analyst: 'rgb(168, 85, 247)',
-    fan: 'rgb(233, 30, 140)',
-    official: 'rgb(255, 107, 53)',
+    analyst: '#A855F7',
+    fan: '#FF2D8A',
+    official: '#FF8A00',
   };
 
   const typeLabelMap = {
@@ -2319,12 +2382,14 @@ export function FlipTimeline({
   return (
     <div className="flex flex-col w-full max-w-[680px] mx-auto relative">
       {dateGroups.map((group) => (
-        <div key={group.date} className="w-full flex flex-col sm:mb-4 md:mb-6">
-          {/* Centered Date Header */}
-          <div className="flex justify-center mb-1 sm:mb-2 md:mb-4 mt-2">
-            <span className="px-4 py-1.5 rounded-full text-xs font-black text-white bg-white/10 backdrop-blur-sm border border-white/10 shadow-lg uppercase tracking-wider">
+        <div key={group.date} className="w-full flex flex-col mb-2 sm:mb-4">
+          {/* Centered Date Header with Left Pink & Right Orange Accent Lines (Figma Spec) */}
+          <div className="flex items-center justify-center my-3 sm:my-4 w-full px-4">
+            <div className="flex-1 h-[1.5px] bg-gradient-to-r from-transparent to-[#FF2D8A]" />
+            <span className="mx-3 px-5 py-1.5 rounded-full text-[11px] sm:text-xs font-black text-[#FFFFFF] bg-[#15181D] border border-[#2A2F36] shadow-sm uppercase tracking-wider shrink-0">
               {group.date}
             </span>
+            <div className="flex-1 h-[1.5px] bg-gradient-to-r from-[#FF8A00] to-transparent" />
           </div>
 
           {/* Group's cards list */}
@@ -2358,6 +2423,7 @@ export function FlipTimeline({
   );
 }
 
+/* ─── Main Exported FlipLine Component ───────────────────────────────── */
 export default function FlipLine({
   selectedSport = 'mixed',
   targetCardId,
@@ -2571,40 +2637,47 @@ export default function FlipLine({
 
   return (
     <div className="w-full">
-      {/* Main Toggle Button Row */}
-      <div className="px-4 mb-1 md:mb-4">
-        <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] shadow-inner">
+      {/* Top Tabs Row (Figma: FlipLINE active with pink lightning & bottom indicator vs FlipARENA inactive) */}
+      <div className="px-3 sm:px-4 mb-3 sm:mb-4">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5">
+          {/* FlipLINE Tab */}
           <button
             onClick={() => setActiveTab('flipline')}
-            className="flex-1 py-1  rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer"
-            style={{
-              background:
-                activeTab === 'flipline'
-                  ? 'linear-gradient(90deg, #FF3D57, #FF7B02)'
-                  : 'transparent',
-              color: activeTab === 'flipline' ? '#fff' : 'rgba(255,255,255,0.4)',
-              boxShadow:
-                activeTab === 'flipline' ? '0 4px 15px rgba(255, 61, 87, 0.25)' : 'none',
-              border: 'none',
-            }}
+            className="relative py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer bg-[#111418] border border-[#2A2F36] active:scale-[0.99] overflow-hidden"
           >
-            <span className="text-sm">⚡</span> FlipLINE
+            <ZapIcon color={activeTab === 'flipline' ? '#FF2D8A' : '#9AA3AF'} size={18} />
+            <span
+              className={`text-[13.5px] sm:text-[15px] tracking-wide transition-colors ${
+                activeTab === 'flipline'
+                  ? 'font-black text-[#FFFFFF]'
+                  : 'font-bold text-[#9AA3AF]'
+                }`}
+            >
+              FlipLINE
+            </span>
+            {activeTab === 'flipline' && (
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FF2D8A]" />
+            )}
           </button>
+
+          {/* FlipARENA Tab */}
           <button
             onClick={() => setActiveTab('fliparena')}
-            className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer"
-            style={{
-              background:
-                activeTab === 'fliparena'
-                  ? 'linear-gradient(90deg, #FF3D57, #FF7B02)'
-                  : 'transparent',
-              color: activeTab === 'fliparena' ? '#fff' : 'rgba(255,255,255,0.4)',
-              boxShadow:
-                activeTab === 'fliparena' ? '0 4px 15px rgba(255, 61, 87, 0.25)' : 'none',
-              border: 'none',
-            }}
+            className="relative py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer bg-[#111418] border border-[#2A2F36] active:scale-[0.99] overflow-hidden"
           >
-            <span className="text-sm">🏟️</span> FlipARENA
+            <StadiumIcon color={activeTab === 'fliparena' ? '#FF2D8A' : '#9AA3AF'} size={18} />
+            <span
+              className={`text-[13.5px] sm:text-[15px] tracking-wide transition-colors ${
+                activeTab === 'fliparena'
+                  ? 'font-black text-[#FFFFFF]'
+                  : 'font-bold text-[#9AA3AF]'
+                }`}
+            >
+              FlipARENA
+            </span>
+            {activeTab === 'fliparena' && (
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FF2D8A]" />
+            )}
           </button>
         </div>
       </div>
