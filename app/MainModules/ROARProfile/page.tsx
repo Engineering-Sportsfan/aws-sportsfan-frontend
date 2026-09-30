@@ -5,7 +5,7 @@ import { GLOBAL_CSS } from "@/src/components/NewROARComponent/constants/styles";
 import ProfileScreen from "@/src/components/NewROARComponent/screens/Profile";
 
 export default function ROARProfilePage() {
-  const [userBadge, setUserBadge] = useState("RISING_FAN");
+  const [userBadge, setUserBadge] = useState("ROOKIE_FAN");
 
   // Toast state (simple inline toast — no ROAR orchestrator needed here)
   const [toastMsg, setToastMsg] = useState("");
@@ -22,10 +22,14 @@ export default function ROARProfilePage() {
     <div
       className="roar-root"
       style={{
-        minHeight: "calc(100vh - 60px)",
+        height: "100vh",
+        maxHeight: "100dvh",
         background: "#050508",
         position: "relative",
         overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        overscrollBehavior: "none",
       }}
     >
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />

@@ -1,7 +1,1063 @@
-"use client";
-// components\NewHomeComponents\SportScoreSection.tsx
-import ReactCountryFlag from "react-country-flag";
+// "use client";
+// // components\NewHomeComponents\SportScoreSection.tsx
+// import ReactCountryFlag from "react-country-flag";
 
+// import { useEffect, useRef, useState } from "react";
+// import { motion, AnimatePresence } from "framer-motion";
+// import {
+//   Activity,
+//   Bell,
+//   MapPin,
+//   Trophy,
+//   Flag,
+//   Calendar,
+//   Award,
+//   BarChart3,
+//   Newspaper,
+//   ChevronRight,
+//   X,
+// } from "lucide-react";
+// import { useRouter } from 'next/navigation';
+
+// export type LiveCard = {
+//   type: "live";
+//   id: string;
+//   status: "LIVE";
+//   competition: string; // e.g. "ODI · Champions Trophy"
+//   teamAName: string;
+//   teamAShort: string;
+//   teamAScore?: string; // "204/32.4"
+//   teamBName: string;
+//   teamBShort: string;
+//   teamBScore?: string; // "—" if not batted yet
+//   overSummary: { label: string; kind: "wicket" | "dot" | "run" | "four" | "six" }[];
+//   rrr?: string; // "RRR 7.2"
+//   oversLabel: string; // "Ov 32.4"
+//   fanCount: number;
+//   venue?: string;
+//   matchLabel?: string; // "Match 22"
+//   isFootball?: boolean;
+//   footballScoreA?: number;
+//   footballScoreB?: number;
+//   minute?: string; // "85'"
+//   scorers?: string; // "Evanilson 24', 67' · Di María 52'"
+//   result?: string; // "INDIA WON by 45 runs"
+//   manOfMatch?: string; // "Bumrah 4/42"
+//   ctaLabel?: string;
+//   bgImageUrl?: string;
+//   onJoin: () => void;
+// };
+
+// export type UpcomingCard = {
+//   type: "upcoming";
+//   id: string;
+//   competition: string; // "T20 · Asia Cup"
+//   teamAName: string;
+//   teamAShort: string;
+//   teamBName: string;
+//   teamBShort: string;
+//   venue: string;
+//   time: string; // "7:30 PM IST"
+//   startsInMs: number; // epoch ms for countdown
+//   onNotify: () => void;
+// };
+
+// export type VipCard = {
+//   type: "vip";
+//   id: string;
+//   tag: string; // "AICHI-NAGOYA, JAPAN · 2026"
+//   eventTag?: string;
+//   dateRange?: string; // "19 Sep - 4 Oct"
+//   title: string; // "ASIAN GAMES 2026"
+//   subtitle: string; // "India. Passion. Glory."
+//   bgImageUrl?: string;
+//   scarcityTag?: string;
+//   price?: string;
+//   priceSuffix?: string;
+//   ctaLabel: string; // "Explore Today's Action"
+//   onBook: () => void;
+// };
+
+// export type HeroCard = LiveCard | UpcomingCard | VipCard;
+
+// export type MedalTally = {
+//   gold: number;
+//   silver: number;
+//   bronze: number;
+// };
+
+// export type IndiaStatsData = {
+//   eventsToday: number;
+//   medals: MedalTally;
+//   countryRank: number;
+//   flagUrl?: string;
+// };
+
+// const AUTO_ADVANCE_MS = 20000;
+
+// function useCountdown(targetMs: number) {
+//   const [label, setLabel] = useState("");
+//   useEffect(() => {
+//     const tick = () => {
+//       const diff = targetMs - Date.now();
+//       if (diff <= 0) {
+//         setLabel("Starting now");
+//         return;
+//       }
+//       const totalHours = Math.floor(diff / (1000 * 60 * 60));
+//       const days = Math.floor(totalHours / 24);
+//       const hours = totalHours % 24;
+//       setLabel(days > 0 ? `${days}d ${hours}h` : `${hours}h`);
+//     };
+//     tick();
+//     const iv = setInterval(tick, 60_000);
+//     return () => clearInterval(iv);
+//   }, [targetMs]);
+//   return label;
+// }
+
+// const OV_DOT_COLOR: Record<LiveCard["overSummary"][number]["kind"], string> = {
+//   wicket: "#e91e8c",
+//   dot: "#2a2a32",
+//   run: "#f59e0b",
+//   four: "#22c55e",
+//   six: "#22c55e",
+// };
+
+// /* ---------------------------------- VIP / Event hero card (Image 1) ---------------------------------- */
+
+// function VipCardView({ card }: { card: VipCard }) {
+//   return (
+//     <div
+//       className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px] flex flex-col justify-between"
+//       style={{
+//         backgroundImage: `linear-gradient(180deg, rgba(10,4,20,0.55) 0%, rgba(10,4,20,0.85) 100%), url(${card.bgImageUrl ?? ""
+//           })`,
+//         backgroundSize: "cover",
+//         backgroundPosition: "center",
+//         background: card.bgImageUrl
+//           ? undefined
+//           : "linear-gradient(135deg,#1a0b1e,#12040f)",
+//       }}
+//     >
+//       {card.dateRange && (
+//         <div className="absolute top-4 right-4">
+//           <span className="text-[11px] font-bold text-white bg-white/10 border border-white/15 px-3 py-1.5 rounded-full backdrop-blur-sm">
+//             {card.dateRange}
+//           </span>
+//         </div>
+//       )}
+
+//       <div>
+//         <p className="text-[11px] font-extrabold tracking-widest text-amber-400 mb-1.5">
+//           {card.tag}
+//         </p>
+//         <h2 className="text-[28px] font-black text-white leading-[1.05] mb-2">
+//           {card.title}
+//         </h2>
+//         <p className="text-[13px] font-medium text-white/70">{card.subtitle}</p>
+//       </div>
+
+//       <motion.button
+//         whileTap={{ scale: 0.97 }}
+//         onClick={card.onBook}
+//         className="mt-4 self-start px-5 py-3 rounded-full font-extrabold text-white text-[13px] flex items-center gap-2"
+//         style={{ background: "linear-gradient(135deg,#f59e0b,#ea580c)" }}
+//       >
+//         {card.ctaLabel}
+//         <span>→</span>
+//       </motion.button>
+//     </div>
+//   );
+// }
+
+// /* ---------------------------------- Live football card (Image 2) ---------------------------------- */
+
+// // function LiveFootballCardView({ card }: { card: LiveCard }) {
+// //   return (
+// //     <div
+// //       className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px]"
+// //       style={{
+// //         backgroundImage: `linear-gradient(180deg, rgba(6,6,10,0.55) 0%, rgba(6,6,10,0.9) 100%), url(${card.bgImageUrl ?? ""
+// //           })`,
+// //         backgroundSize: "cover",
+// //         backgroundPosition: "center",
+// //         backgroundColor: "#111318",
+// //       }}
+// //     >
+// //       <div className="flex items-center gap-2 mb-4">
+// //         <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full">
+// //           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+// //           LIVE
+// //         </span>
+// //         <span className="text-[10px] font-semibold text-white/70 bg-white/[0.08] px-2.5 py-1 rounded-full">
+// //           {card.competition}
+// //         </span>
+// //       </div>
+
+// //       <p className="text-[10px] font-extrabold tracking-widest text-amber-400 mb-3">
+// //         {card.matchLabel}
+// //       </p>
+
+// //       <div className="bg-black/40 rounded-xl p-3.5 mb-3">
+// //         <div className="flex items-center justify-between">
+// //           <div className="min-w-0">
+// //             <p className="text-[13px] font-extrabold text-white mb-0.5">{card.teamAName}</p>
+// //             <p className="text-[11px] text-white/50">Home · {card.venue}</p>
+// //           </div>
+// //           <p className="text-3xl font-black text-white px-2">{card.footballScoreA}</p>
+// //         </div>
+
+// //         <div className="flex items-center gap-2 my-1.5">
+// //           <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded">
+// //             {card.minute}
+// //           </span>
+// //           <div className="h-px flex-1 bg-white/10" />
+// //         </div>
+
+// //         <div className="flex items-center justify-between">
+// //           <div className="min-w-0">
+// //             <p className="text-[13px] font-extrabold text-white mb-0.5">{card.teamBName}</p>
+// //             <p className="text-[11px] text-white/50">Away</p>
+// //           </div>
+// //           <p className="text-3xl font-black text-white px-2">{card.footballScoreB}</p>
+// //         </div>
+// //       </div>
+
+// //       {card.scorers && (
+// //         <p className="text-[11px] text-white/50 mb-4 truncate">{card.scorers}</p>
+// //       )}
+
+// //       <motion.button
+// //         whileTap={{ scale: 0.97 }}
+// //         onClick={card.onJoin}
+// //         className="w-full py-3 rounded-full font-extrabold text-white text-[13px] flex items-center justify-center gap-2"
+// //         style={{ background: "linear-gradient(135deg,#4f46e5,#3b82f6)" }}
+// //       >
+// //         {card.ctaLabel ?? "Watch Live"}
+// //         <span>→</span>
+// //       </motion.button>
+// //     </div>
+// //   );
+// // }
+
+// /* ---------------------------------- Live cricket card (Image 3) ---------------------------------- */
+
+// function LiveCricketCardView({ card }: { card: LiveCard }) {
+//   return (
+//     <div
+//       className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px]"
+//       style={{
+//         backgroundImage: `linear-gradient(180deg, rgba(10,4,20,0.55) 0%, rgba(10,4,20,0.92) 100%), url(${card.bgImageUrl ?? ""
+//           })`,
+//         backgroundSize: "cover",
+//         backgroundPosition: "center",
+//         backgroundColor: "#1a0b1e",
+//       }}
+//     >
+//       <div className="flex items-center gap-2 mb-4">
+//         <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full">
+//           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+//           LIVE
+//         </span>
+//         <span className="text-[10px] font-semibold text-white/70 bg-white/[0.08] px-2.5 py-1 rounded-full">
+//           {card.competition}
+//         </span>
+//       </div>
+
+//       <p className="text-[10px] font-extrabold tracking-widest text-amber-400 mb-3">
+//         {card.matchLabel}
+//       </p>
+
+//       <div className="space-y-2.5 mb-3">
+//         <div className="flex items-center justify-between">
+//           <span className="text-[14px] font-bold text-white">{card.teamAName}</span>
+//           <span className="text-xl font-black text-white">
+//             {/* {card.teamAScore.split("/")[0]}
+//             <span className="text-white/40">/{card.teamAScore.split("/")[1]}</span> */}
+//             {(card.teamAScore ?? "0/0").split("/")[0]}
+//             <span className="text-white/40">/{(card.teamAScore ?? "0/0").split("/")[1]}</span>
+//             {card.oversLabel && (
+//               <span className="text-[11px] font-semibold text-white/40 ml-1">
+//                 ({card.oversLabel})
+//               </span>
+//             )}
+//           </span>
+//         </div>
+//         <div className="flex items-center justify-between">
+//           <span className="text-[14px] font-bold text-white">{card.teamBName}</span>
+//           <span className="text-xl font-black text-white">{card.teamBScore ?? "—"}</span>
+//         </div>
+//       </div>
+
+//       {/* {card.result && (
+//         <div className="flex items-center gap-2 mb-4">
+//           <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-500/15 px-2.5 py-1 rounded-full">
+//             {card.result}
+//           </span>
+//           {card.manOfMatch && (
+//             <span className="text-[11px] text-white/50">{card.manOfMatch}</span>
+//           )}
+//         </div>
+//       )} */}
+
+//       {card.ctaLabel !== "View Highlights" && (
+//         <motion.button
+//           whileTap={{ scale: 0.97 }}
+//           onClick={card.onJoin}
+//           className="w-full mt-3 py-3 rounded-full font-extrabold text-white text-[13px] flex items-center justify-center gap-2"
+//           style={{ background: "linear-gradient(135deg,#E91E8C,#FF6B35)" }}
+//         >
+//           {card.ctaLabel ?? "Watch Along"}
+//           <span>→</span>
+//         </motion.button>
+//       )}
+//     </div>
+//   );
+// }
+
+// function UpcomingCardView({ card }: { card: UpcomingCard }) {
+//   const countdown = useCountdown(card.startsInMs);
+//   return (
+//     <div
+//       className="relative w-full rounded-2xl overflow-hidden p-4"
+//       style={{ background: "linear-gradient(135deg,#0b1330,#050814)" }}
+//     >
+//       <div className="flex items-center justify-between mb-4">
+//         <div className="flex items-center gap-2">
+//           <span className="text-[10px] font-extrabold text-blue-300 bg-blue-400/10 px-2 py-1 rounded-full">
+//             UPCOMING
+//           </span>
+//           <span className="text-[10px] font-semibold text-white/50 bg-white/[0.06] px-2 py-1 rounded-full">
+//             {card.competition}
+//           </span>
+//         </div>
+//         <span className="text-[10px] font-bold text-amber-300">⏱ {countdown}</span>
+//       </div>
+
+//       <div className="flex items-center justify-between mb-4">
+//         <div className="min-w-0">
+//           <p className="text-[10px] font-bold text-white/50 uppercase tracking-wide mb-0.5">
+//             {card.teamAName}
+//           </p>
+//           <p className="text-2xl font-black text-white leading-none">{card.teamAShort}</p>
+//         </div>
+//         <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center text-[10px] font-bold text-blue-200">
+//           VS
+//         </div>
+//         <div className="min-w-0 text-right">
+//           <p className="text-[10px] font-bold text-white/50 uppercase tracking-wide mb-0.5">
+//             {card.teamBName}
+//           </p>
+//           <p className="text-2xl font-black text-white leading-none">{card.teamBShort}</p>
+//         </div>
+//       </div>
+
+//       <div className="flex items-center gap-2 mb-4 bg-white/[0.05] rounded-xl px-3 py-2.5">
+//         <MapPin size={13} className="text-white/40 shrink-0" />
+//         <span className="text-[11px] text-white/60 font-medium truncate">{card.venue}</span>
+//         <span className="ml-auto text-[11px] text-white/60 font-bold shrink-0">{card.time}</span>
+//       </div>
+
+//       <motion.button
+//         whileTap={{ scale: 0.97 }}
+//         onClick={card.onNotify}
+//         className="w-full py-3 rounded-full font-extrabold text-white text-[13px] flex items-center justify-center gap-2"
+//         style={{ background: "linear-gradient(135deg,#4f46e5,#3b82f6)" }}
+//       >
+//         <Bell size={14} />
+//         Set Reminder · Notify Me
+//       </motion.button>
+//     </div>
+//   );
+// }
+
+// /* ---------------------------------- Hero card carousel ---------------------------------- */
+
+// export function HeroCardSkeleton() {
+//   return (
+//     <div className="w-full pt-3">
+//       <div className="relative w-full rounded-2xl overflow-hidden p-5 min-h-[220px] bg-[#12101c] border border-white/[0.06] flex flex-col justify-between animate-pulse">
+//         <div className="flex items-center justify-between">
+//           <div className="h-5 w-28 bg-white/10 rounded-full" />
+//           <div className="h-5 w-16 bg-white/10 rounded-full" />
+//         </div>
+//         <div className="my-4 space-y-3">
+//           <div className="flex items-center justify-between">
+//             <div className="h-6 w-36 bg-white/10 rounded-md" />
+//             <div className="h-6 w-20 bg-white/10 rounded-md" />
+//           </div>
+//           <div className="flex items-center justify-between">
+//             <div className="h-6 w-36 bg-white/10 rounded-md" />
+//             <div className="h-6 w-20 bg-white/10 rounded-md" />
+//           </div>
+//         </div>
+//         <div className="flex items-center justify-between pt-3 border-t border-white/[0.06]">
+//           <div className="h-4 w-32 bg-white/10 rounded" />
+//           <div className="h-8 w-28 bg-gradient-to-r from-pink-500/30 to-purple-600/30 rounded-full" />
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
+// function HeroCarousel({ cards, loading }: { cards: HeroCard[]; loading?: boolean }) {
+//   const [index, setIndex] = useState(0);
+//   const [isPaused, setIsPaused] = useState(false);
+//   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+//   const router = useRouter();
+
+//   useEffect(() => {
+//     if (cards.length <= 1 || isPaused) {
+//       if (timerRef.current) clearInterval(timerRef.current);
+//       return;
+//     }
+//     timerRef.current = setInterval(() => {
+//       setIndex((i) => (i + 1) % cards.length);
+//     }, AUTO_ADVANCE_MS);
+//     return () => {
+//       if (timerRef.current) clearInterval(timerRef.current);
+//     };
+//   }, [cards.length, isPaused]);
+
+//   if (loading) {
+//     return <HeroCardSkeleton />;
+//   }
+
+//   if (cards.length === 0) return null;
+//   const active = cards[Math.min(index, cards.length - 1)];
+//   if (!active) return null;
+
+//   const restartTimer = () => {
+//     if (timerRef.current) clearInterval(timerRef.current);
+//     if (!isPaused) {
+//       timerRef.current = setInterval(() => {
+//         setIndex((i) => (i + 1) % cards.length);
+//       }, AUTO_ADVANCE_MS);
+//     }
+//   };
+
+//   return (
+//     <div 
+//       className="w-full md:pt-3"
+//       onMouseEnter={() => setIsPaused(true)}
+//       onMouseLeave={() => setIsPaused(false)}
+//     >
+//       <div className="relative overflow-hidden rounded-2xl">
+//         <AnimatePresence mode="wait">
+//           <motion.div
+//             key={active.id}
+//             initial={{ opacity: 0, x: 30 }}
+//             animate={{ opacity: 1, x: 0 }}
+//             exit={{ opacity: 0, x: -30 }}
+//             transition={{ duration: 0.55, ease: "easeInOut" }}
+//           >
+//             {active.type === "vip" && <VipCardView card={active} />}
+//             {/* {active.type === "live" && active.isFootball && (
+//               <LiveFootballCardView card={active} />
+//             )} */}
+//             {active.type === "live" && !active.isFootball && (
+//               <LiveCricketCardView card={active} />
+//             )}
+//             {active.type === "upcoming" && <UpcomingCardView card={active} />}
+//           </motion.div>
+//         </AnimatePresence>
+//       </div>
+
+//       {cards.length > 1 && (
+//         <div className="flex items-center justify-center gap-1.5 mt-2.5">
+//           {cards.map((c, i) => (
+//             <button
+//               key={c.id}
+//               type="button"
+//               onClick={() => {
+//                 setIndex(i);
+//                 restartTimer();
+//               }}
+//               className="h-1.5 rounded-full border-none cursor-pointer transition-all duration-200"
+//               style={{
+//                 width: i === index ? 18 : 6,
+//                 background:
+//                   i === index
+//                     ? "linear-gradient(90deg,#E91E8C,#FF6B35)"
+//                     : "rgba(255,255,255,0.2)",
+//               }}
+//               aria-label={`Go to slide ${i + 1}`}
+//             />
+//           ))}
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// /* ---------------------------------- India stats bar (Image 4) ---------------------------------- */
+
+// function IndiaStatsBar({
+//   data,
+//   onAllSportsClick,
+// }: {
+//   data: IndiaStatsData;
+//   onAllSportsClick?: () => void;
+// }) {
+//   const router = useRouter();
+//   const IndianFlagIcon = () => (
+//     <ReactCountryFlag
+//       countryCode="IN"
+//       svg
+//       style={{
+//         width: "16px",
+//         height: "16px",
+//       }}
+//     />
+//   );
+//   const navItems = [
+//     { label: "All Sports", icon: Trophy },
+//     // { label: "India", icon: Flag },
+//     { label: "Match Center", icon: Calendar },
+//     { label: "Indian Hub", icon: IndianFlagIcon },
+//     // { label: "Medal Tally", icon: Award },
+//     { label: "Record Explore", icon: BarChart3 },
+//     // { label: "News", icon: Newspaper },
+//   ];
+
+//   const onRecordsExplore = () => {
+//     router.push("/MainModules/RecordsExplorer")
+//   }
+
+//   const onMatchCenter = () => {
+//     router.push("/MainModules/NewMatchCenter")
+//   }
+//   const onIndianHub = () => {
+//     router.push("/MainModules/AthleteHomePage")
+//   }
+  
+//   return (
+//     <div className="w-full md:mt-3 rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06]">
+       
+//       <div className="flex items-center justify-between px-4 py-4">
+//         <div className="flex items-center gap-2.5">
+//           {data.flagUrl ? (
+//             <img src={data.flagUrl} alt="India" className="w-9 h-6 rounded object-fit" />
+//           ) : (
+//             <div className="w-9 h-6 rounded overflow-hidden flex flex-col shrink-0">
+//               <div className="flex-1 bg-orange-500" />
+//               <div className="flex-1 bg-white" />
+//               <div className="flex-1 bg-green-600" />
+//             </div>
+//           )}
+//           <div>
+//             <p className="text-[10px] font-bold text-white/40 uppercase tracking-wide">
+//               India Today
+//             </p>
+//             <p className="text-[15px] font-extrabold text-white">{data.eventsToday} Events</p>
+//           </div>
+//         </div>
+
+//         <div className="flex items-center gap-4">
+//           <div className="text-center">
+//             <span className="text-lg">🥇</span>
+//             <p className="text-lg font-black text-amber-400 leading-none mt-0.5">
+//               {data.medals.gold}
+//             </p>
+//           </div>
+//           <div className="text-center">
+//             <span className="text-lg">🥈</span>
+//             <p className="text-lg font-black text-slate-300 leading-none mt-0.5">
+//               {data.medals.silver}
+//             </p>
+//           </div>
+//           <div className="text-center">
+//             <span className="text-lg">🥉</span>
+//             <p className="text-lg font-black text-orange-400 leading-none mt-0.5">
+//               {data.medals.bronze}
+//             </p>
+//           </div>
+//           <div className="text-right pl-1">
+//             <p className="text-[9px] font-bold text-white/40 uppercase tracking-wide">
+//               India Rank
+//             </p>
+//             <p className="text-2xl font-black text-emerald-400 leading-none">
+//               #{data.countryRank}
+//             </p>
+//           </div>
+//         </div>
+//       </div>
+      
+
+//       {/* <div className="grid grid-cols-4">
+//         {navItems.map(({ label, icon: Icon }) => (
+//           <button
+//             key={label}
+//             type="button"
+//             onClick={() => {
+//               if (label === "All Sports" && onAllSportsClick) {
+//                 onAllSportsClick();
+//               }
+//                if (label === "Record Explore" && onRecordsExplore) {
+//                 onRecordsExplore();
+//               }
+//               if (label === "Indian Hub" && onIndianHub) {
+//                 onIndianHub();
+//               }
+//               if (label === "Match Center" && onMatchCenter) {
+//                 onMatchCenter();
+//               }
+//             }}
+//             className="flex flex-col items-center justify-center gap-1.5 py-3 hover:bg-white/[0.04] transition-colors"
+//           >
+//             <Icon size={16} className="text-white/70" />
+//             <span className="text-[9px] font-semibold text-white/60 text-center leading-tight px-0.5">
+//               {label}
+//             </span>
+//           </button>
+//         ))}
+//       </div> */}
+//     </div>
+//   );
+// }
+
+// /* ---------------------------------- Live & Upcoming Matches strip ---------------------------------- */
+
+// export type MiniMatchCard = {
+//   id: string;
+//   status: "LIVE" | "UPCOMING" | "DONE";
+//   sportEmoji: string;
+//   sport: string; // "Badminton"
+//   subtitle: string; // "Lakshya Sen (IND)"
+//   scoreLine?: string; // "22 - 21"
+//   metaLine?: string; // "Round of 16"
+//   countdownLabel?: string; // "Starts in"
+//   countdown?: string; // "18m 45s"
+//   scheduleLine?: string; // "Today, 7:30 PM"
+//   medalEmoji?: string; // "🥇"
+//   medalLabel?: string; // "Gold"
+//   resultCountry?: string; // "India"
+//   ctaLabel: string;
+//   ctaGradient: string;
+//   onAction: () => void;
+// };
+
+// const STATUS_STYLES: Record<
+//   MiniMatchCard["status"],
+//   { badgeBg: string; badgeText: string; dot?: boolean }
+// > = {
+//   LIVE: { badgeBg: "bg-emerald-400/10", badgeText: "text-emerald-400", dot: true },
+//   UPCOMING: { badgeBg: "bg-violet-400/10", badgeText: "text-violet-300", dot: false },
+//   DONE: { badgeBg: "bg-amber-400/10", badgeText: "text-amber-300", dot: false },
+// };
+
+// function MiniMatchCardView({ card }: { card: MiniMatchCard }) {
+//   const statusStyle = STATUS_STYLES[card.status];
+
+//   return (
+//     <div className="shrink-0 w-[190px] rounded-2xl bg-[#12101c] border border-white/[0.06] p-3.5 flex flex-col">
+//       <div className="flex items-center justify-between mb-3">
+//         <span
+//           className={`flex items-center gap-1 text-[9px] font-extrabold px-2 py-1 rounded-full ${statusStyle.badgeBg} ${statusStyle.badgeText}`}
+//         >
+//           {statusStyle.dot && (
+//             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+//           )}
+//           {card.status}
+//         </span>
+//         <span className="text-base leading-none">{card.sportEmoji}</span>
+//       </div>
+
+//       <p className="text-[14px] font-extrabold text-white mb-0.5">{card.sport}</p>
+//       <p className="text-[11px] text-white/50 mb-3 truncate">{card.subtitle}</p>
+
+//       <div className="flex-1 mb-3">
+//         {card.status !== "UPCOMING" && card.scoreLine && (
+//           <>
+//             <p className="text-2xl font-black text-white leading-none">{card.scoreLine}</p>
+//             {card.metaLine && (
+//               <p className="text-[10px] text-white/40 mt-1">{card.metaLine}</p>
+//             )}
+//           </>
+//         )}
+
+//         {card.status === "UPCOMING" && (
+//           <>
+//             <p className="text-[11px] font-semibold text-white/50">{card.countdownLabel}</p>
+//             <p className="text-lg font-black text-white leading-tight">{card.countdown}</p>
+//             {card.scheduleLine && (
+//               <p className="text-[10px] text-white/40 mt-1">{card.scheduleLine}</p>
+//             )}
+//           </>
+//         )}
+
+//         {card.status === "DONE" && card.medalEmoji && (
+//           <>
+//             <p className="text-lg font-extrabold text-amber-400 flex items-center gap-1.5">
+//               <span>{card.medalEmoji}</span>
+//               {card.medalLabel}
+//             </p>
+//             {card.resultCountry && (
+//               <p className="text-[10px] text-white/40 mt-1">{card.resultCountry}</p>
+//             )}
+//           </>
+//         )}
+//       </div>
+
+//       {card.ctaLabel !== "View Highlights" && (
+//         <motion.button
+//           whileTap={{ scale: 0.97 }}
+//           onClick={card.onAction}
+//           className="w-full mt-auto py-2.5 rounded-full font-extrabold text-white text-[11px]"
+//           style={{ background: card.ctaGradient }}
+//         >
+//           {card.ctaLabel}
+//         </motion.button>
+//       )}
+//     </div>
+//   );
+// }
+
+// function MatchesStrip({ cards }: { cards: MiniMatchCard[] }) {
+//   return (
+//     <div className="w-full mt-5">
+//       <div className="flex items-center justify-between mb-3">
+//         <h3 className="text-[17px] font-extrabold text-white">Live &amp; Upcoming Matches</h3>
+//         <button
+//           type="button"
+//           className="flex items-center gap-0.5 text-[12px] font-bold"
+//           style={{ color: "#E91E8C" }}
+//         >
+//           View all
+//           <ChevronRight size={14} />
+//         </button>
+//       </div>
+
+//       <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory">
+//         {cards.map((c) => (
+//           <div key={c.id} className="snap-start">
+//             <MiniMatchCardView card={c} />
+//           </div>
+//         ))}
+//       </div>
+//     </div>
+//   );
+// }
+
+// /* ---------------------------------- Mock data (static - no router needed) ---------------------------------- */
+
+// const MOCK_INDIA_STATS: IndiaStatsData = {
+//   eventsToday: 18,
+//   medals: { gold: 7, silver: 5, bronze: 11 },
+//   countryRank: 3,
+// };
+
+// const MOCK_MINI_MATCHES: MiniMatchCard[] = [
+//   {
+//     id: "badminton-lakshya",
+//     status: "LIVE",
+//     sportEmoji: "🏸",
+//     sport: "Badminton",
+//     subtitle: "Lakshya Sen (IND)",
+//     scoreLine: "22 - 21",
+//     metaLine: "Round of 16",
+//     ctaLabel: "Watch Live",
+//     ctaGradient: "linear-gradient(135deg,#E91E8C,#FF6B35)",
+//     onAction: () => console.log("Navigate to Badminton live room"),
+//   },
+//   {
+//     id: "athletics-100m",
+//     status: "UPCOMING",
+//     sportEmoji: "🏃",
+//     sport: "Athletics",
+//     subtitle: "Men's 100m Final",
+//     countdownLabel: "Starts in",
+//     countdown: "18m 45s",
+//     scheduleLine: "Today, 7:30 PM",
+//     ctaLabel: "Set Reminder",
+//     ctaGradient: "linear-gradient(135deg,#7c3aed,#a855f7)",
+//     onAction: () => console.log("Set reminder for Athletics 100m final"),
+//   },
+//   {
+//     id: "hockey-ind-kor",
+//     status: "LIVE",
+//     sportEmoji: "🏑",
+//     sport: "Hockey",
+//     subtitle: "India vs Korea",
+//     scoreLine: "2 - 1",
+//     metaLine: "Q3 · 45:12",
+//     ctaLabel: "Match Center",
+//     ctaGradient: "linear-gradient(135deg,#06b6d4,#3b82f6)",
+//     onAction: () => console.log("Navigate to Hockey match center"),
+//   },
+//   {
+//     id: "shooting-10m-air-rifle",
+//     status: "DONE",
+//     sportEmoji: "🎯",
+//     sport: "Shooting",
+//     subtitle: "10m Air Rifle Mixed",
+//     medalEmoji: "🥇",
+//     medalLabel: "Gold",
+//     resultCountry: "India",
+//     ctaLabel: "Results",
+//     ctaGradient: "linear-gradient(135deg,#334155,#1e293b)",
+//     onAction: () => console.log("Navigate to Shooting results"),
+//   },
+// ];
+
+// const SPORTS_LIST = [
+//   { id: "mixed", label: "Mixed", emoji: "🏆" },
+//   { id: "athletics", label: "Athletics", emoji: "🏃" },
+//   { id: "cricket", label: "Cricket", emoji: "🏏" },
+//   { id: "football", label: "Football", emoji: "⚽" },
+//   { id: "badminton", label: "Badminton", emoji: "🏸" },
+//   { id: "kabaddi", label: "Kabaddi", emoji: "🤼" },
+//   { id: "lawn tennis", label: "Lawn Tennis", emoji: "🎾" },
+//   { id: "hockey", label: "Hockey", emoji: "🏑" },
+//   { id: "wrestling", label: "Wrestling", emoji: "🤼" },
+//   { id: "shooting", label: "Shooting", emoji: "🎯" },
+//   { id: "boxing", label: "Boxing", emoji: "🥊" },
+//   { id: "swimming", label: "Swimming", emoji: "🏊" },
+//   { id: "weightlifting", label: "Weightlifting", emoji: "🏋️" },
+// ];
+
+// export default function SportScoreSection({
+//   selectedSport: externalSelectedSport,
+//   onSelectSport,
+// }: {
+//   selectedSport?: string;
+//   onSelectSport?: (sport: string) => void;
+// }) {
+//   const router = useRouter();
+//   const [localSelectedSport, setLocalSelectedSport] = useState("mixed");
+//   const [isAllSportsOpen, setIsAllSportsOpen] = useState(false);
+
+//   const selectedSport = externalSelectedSport ?? localSelectedSport;
+//   const setSelectedSport = onSelectSport ?? setLocalSelectedSport;
+
+//   const [roanuzHeroCards, setRoanuzHeroCards] = useState<HeroCard[]>([]);
+//   const [roanuzMatches, setRoanuzMatches] = useState<MiniMatchCard[]>([]);
+//   const [heroLoading, setHeroLoading] = useState(true);
+//   const [matchesLoading, setMatchesLoading] = useState(true);
+
+//   useEffect(() => {
+//     const fetchData = async () => {
+//       let watchAlongRoomId = "acc569cd-831b-4f3c-ab7d-cf862b11be6a"; // Fallback
+//       try {
+//         const roomsRes = await fetch('/api/watch-along');
+//         const roomsData = await roomsRes.json();
+//         if (roomsData.success && roomsData.rooms) {
+//           // Prioritize the "Day 2" room since it's today's specific match room, otherwise fallback to any Sri Lanka room
+//           const matchRoom = roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka") && r.name?.toLowerCase().includes("day 2")) 
+//                          || roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka"))
+//                          || roomsData.rooms[0];
+//           if (matchRoom) {
+//             watchAlongRoomId = matchRoom.id;
+//           }
+//         }
+//       } catch (e) {
+//         console.error("Error fetching watch along rooms", e);
+//       }
+
+//       fetch('/api/featured-matches')
+//         .then(r => r.json())
+//         .then(data => {
+//           if (data.success && Array.isArray(data.items) && data.items.length > 0) {
+//              const processedCards: HeroCard[] = data.items
+//                .map((item: any) => {
+//                  const nameA = (item.teamAName || "").toLowerCase();
+//                  const nameB = (item.teamBName || "").toLowerCase();
+//                  const isIndSlMatch = (nameA.includes("india") && nameB.includes("sri lanka")) || (nameA.includes("sri lanka") && nameB.includes("india"));
+                 
+//                  return {
+//                    ...item,
+//                    bgImageUrl: isIndSlMatch ? ("/images/with_ananad.png") : item.bgImageUrl,
+//                    ctaLabel: item.ctaLabel || (item.status === "LIVE" ? "Watch Along" : "View Match"),
+//                    onJoin: () => {
+//                      if (item.watchAlongRoomId) {
+//                        window.location.href = `/MainModules/WatchAlong/room/${item.watchAlongRoomId}`;
+//                      } else if (isIndSlMatch && watchAlongRoomId) {
+//                        window.location.href = `/MainModules/WatchAlong/room/${watchAlongRoomId}`;
+//                      } else if (item.id) {
+//                        window.location.href = `/MainModules/WatchAlong/room/${item.id}`;
+//                      }
+//                    }
+//                  };
+//                });
+//               const indSlCards = processedCards.filter((item: any) => {
+//                 const nameA = (item.teamAName || "").toLowerCase();
+//                 const nameB = (item.teamBName || "").toLowerCase();
+//                 const comp = (item.competition || "").toLowerCase();
+//                 const shortA = (item.teamAShort || "").toLowerCase();
+//                 const shortB = (item.teamBShort || "").toLowerCase();
+
+//                 const hasIndia = nameA.includes("india") || nameB.includes("india") || shortA === "ind" || shortB === "ind" || comp.includes("india");
+//                 const hasSriLanka = nameA.includes("sri lanka") || nameB.includes("sri lanka") || shortA === "sl" || shortB === "sl" || comp.includes("sri lanka");
+
+//                 return hasIndia && hasSriLanka;
+//               });
+//               setRoanuzHeroCards(indSlCards);
+//           } else {
+//              setRoanuzHeroCards([]);
+//           }
+//         })
+//         .catch(e => {
+//           console.error("Error fetching featured matches:", e);
+//         })
+//         .finally(() => {
+//           setHeroLoading(false);
+//         });
+
+//       if (selectedSport === "cricket" || selectedSport === "mixed") {
+//         fetch('/api/cricket-feed')
+//           .then(r => r.json())
+//           .then(data => {
+//             if (data.success && Array.isArray(data.liveAndUpcoming)) {
+//                const withActions = data.liveAndUpcoming.map((m: any) => ({
+//                  ...m,
+//                  onAction: () => {
+//                    if (m.id) {
+//                      router.push(`/MainModules/WatchAlong/room/${m.id}`);
+//                    }
+//                  }
+//                }));
+//                setRoanuzMatches(withActions);
+//             } else {
+//                setRoanuzMatches([]);
+//             }
+//           })
+//           .catch(e => {
+//             console.error("Error fetching cricket feed:", e);
+//           })
+//           .finally(() => {
+//             setMatchesLoading(false);
+//           });
+//       } else {
+//         setRoanuzMatches([]);
+//         setMatchesLoading(false);
+//       }
+//     };
+
+//     fetchData(); // Fetch immediately
+//     const interval = setInterval(fetchData, 15000); // Poll every 15s
+
+//     return () => clearInterval(interval);
+//   }, [selectedSport, router]);
+
+//   return (
+//     <div className="w-full relative flex flex-col gap-3">
+//       {/* <HeroCarousel cards={roanuzHeroCards} loading={heroLoading} /> */}
+
+//       {/* Watch Along Banner */}
+//       <div className="w-full max-w-lg md:max-w-xl mx-auto flex flex-col gap-2 my-1">
+//         <div
+//           // onClick={() => router.push("/MainModules/WatchAlong")}
+//           className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer transition-all duration-300 hover:border-pink-500/40 hover:opacity-95 max-h-[260px] md:max-h-[300px] flex items-center justify-center bg-black/40"
+//         >
+//           <img
+//             src="/images/asiangamesbanner.png"
+//             alt="Watch Along Banner"
+//             className="w-full h-auto max-h-[130px] md:max-h-[200px] object-fit"
+//           />
+//         </div>
+
+       
+//         {/* <div className="flex justify-center w-full">
+//           <motion.button
+//             whileTap={{ scale: 0.96 }}
+//             onClick={() => router.push("/MainModules/WatchAlong")}
+//             className="w-auto px-6 py-2 sm:px-8 sm:py-2.5 rounded-xl font-bold text-white text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-[0_4px_16px_rgba(233,30,140,0.3)] transition-all cursor-pointer hover:opacity-95"
+//             style={{
+//               background: "linear-gradient(135deg, #E91E8C 0%, #FF6B35 100%)",
+//             }}
+//           >
+//             <span>Join</span>
+//             <ChevronRight size={16} />
+//           </motion.button>
+//         </div> */}
+//       </div>
+
+//       <IndiaStatsBar data={MOCK_INDIA_STATS} onAllSportsClick={() => setIsAllSportsOpen(true)} />
+//       {/* <MatchesStrip cards={filteredMatches} /> */}
+
+//       <AnimatePresence>
+//         {isAllSportsOpen && (
+//           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+//             {/* Backdrop */}
+//             <motion.div
+//               initial={{ opacity: 0 }}
+//               animate={{ opacity: 1 }}
+//               exit={{ opacity: 0 }}
+//               onClick={() => setIsAllSportsOpen(false)}
+//               className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+//             />
+//             {/* Modal Panel */}
+//             <motion.div
+//               initial={{ opacity: 0, y: 100 }}
+//               animate={{ opacity: 1, y: 0 }}
+//               exit={{ opacity: 0, y: 100 }}
+//               transition={{ type: "spring", damping: 25, stiffness: 350 }}
+//               className="relative w-full max-w-[420px] bg-[#0c0914] border border-white/[0.08] rounded-t-[32px] sm:rounded-[32px] overflow-hidden shadow-2xl z-10"
+//             >
+//               {/* Drag handle style */}
+//               <div className="w-12 h-1 bg-white/20 rounded-full mx-auto my-3" />
+              
+//               <div className="flex items-start justify-between px-6 pt-1 pb-4">
+//                 <div>
+//                   <h2 className="text-[22px] font-black text-white leading-tight">All Sports</h2>
+//                   <p className="text-[11px] text-white/50 mt-1">Select a sport to filter your feed</p>
+//                 </div>
+//                 <button
+//                   type="button"
+//                   onClick={() => setIsAllSportsOpen(false)}
+//                   className="w-8 h-8 rounded-full bg-white/[0.08] flex items-center justify-center text-white/70 hover:bg-white/10 hover:text-white transition-colors"
+//                 >
+//                   <X size={16} />
+//                 </button>
+//               </div>
+
+//               <div className="px-6 pb-8 grid grid-cols-4 gap-3 max-h-[60vh] overflow-y-auto scrollbar-hide">
+//                 {SPORTS_LIST.map((sport) => {
+//                   const isSelected = selectedSport === sport.id;
+//                   return (
+//                     <div key={sport.id} className="relative pb-3.5 flex flex-col items-center">
+//                       <button
+//                         type="button"
+//                         onClick={() => {
+//                           setSelectedSport(sport.id);
+//                           setIsAllSportsOpen(false);
+//                         }}
+//                         className={`w-full aspect-square rounded-2xl border flex flex-col items-center justify-center p-2 transition-all duration-200 ${
+//                           isSelected
+//                             ? "border-[#E91E8C] bg-[#E91E8C]/10 shadow-[0_0_15px_rgba(233,30,140,0.15)]"
+//                             : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
+//                         }`}
+//                       >
+//                         <span className="text-2xl mb-1">{sport.emoji}</span>
+//                         <span
+//                           className={`text-[10px] font-bold text-center leading-tight transition-colors ${
+//                             isSelected ? "text-[#E91E8C]" : "text-white/60"
+//                           }`}
+//                         >
+//                           {sport.label}
+//                         </span>
+//                       </button>
+//                       {isSelected && (
+//                         <div className="absolute bottom-0.5 w-1.5 h-1.5 rounded-full bg-[#E91E8C]" />
+//                       )}
+//                     </div>
+//                   );
+//                 })}
+//               </div>
+//             </motion.div>
+//           </div>
+//         )}
+//       </AnimatePresence>
+//     </div>
+//   );
+// }
+
+
+
+"use client";
+// components/NewHomeComponents/SportScoreSection.tsx
+import ReactCountryFlag from "react-country-flag";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -17,7 +1073,7 @@ import {
   ChevronRight,
   X,
 } from "lucide-react";
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
 
 export type LiveCard = {
   type: "live";
@@ -89,8 +1145,12 @@ export type MedalTally = {
 export type IndiaStatsData = {
   eventsToday: number;
   medals: MedalTally;
-  countryRank: number;
+  countryRank: number | string;
   flagUrl?: string;
+  flag?: string;
+  label?: string;
+  rankLabel?: string;
+  country?: string;
 };
 
 const AUTO_ADVANCE_MS = 20000;
@@ -124,15 +1184,16 @@ const OV_DOT_COLOR: Record<LiveCard["overSummary"][number]["kind"], string> = {
   six: "#22c55e",
 };
 
-/* ---------------------------------- VIP / Event hero card (Image 1) ---------------------------------- */
+/* ---------------------------------- VIP / Event hero card ---------------------------------- */
 
 function VipCardView({ card }: { card: VipCard }) {
   return (
     <div
       className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px] flex flex-col justify-between"
       style={{
-        backgroundImage: `linear-gradient(180deg, rgba(10,4,20,0.55) 0%, rgba(10,4,20,0.85) 100%), url(${card.bgImageUrl ?? ""
-          })`,
+        backgroundImage: `linear-gradient(180deg, rgba(10,4,20,0.55) 0%, rgba(10,4,20,0.85) 100%), url(${
+          card.bgImageUrl ?? ""
+        })`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         background: card.bgImageUrl
@@ -171,85 +1232,16 @@ function VipCardView({ card }: { card: VipCard }) {
   );
 }
 
-/* ---------------------------------- Live football card (Image 2) ---------------------------------- */
-
-// function LiveFootballCardView({ card }: { card: LiveCard }) {
-//   return (
-//     <div
-//       className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px]"
-//       style={{
-//         backgroundImage: `linear-gradient(180deg, rgba(6,6,10,0.55) 0%, rgba(6,6,10,0.9) 100%), url(${card.bgImageUrl ?? ""
-//           })`,
-//         backgroundSize: "cover",
-//         backgroundPosition: "center",
-//         backgroundColor: "#111318",
-//       }}
-//     >
-//       <div className="flex items-center gap-2 mb-4">
-//         <span className="flex items-center gap-1 text-[10px] font-extrabold text-emerald-400 bg-emerald-400/10 px-2.5 py-1 rounded-full">
-//           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-//           LIVE
-//         </span>
-//         <span className="text-[10px] font-semibold text-white/70 bg-white/[0.08] px-2.5 py-1 rounded-full">
-//           {card.competition}
-//         </span>
-//       </div>
-
-//       <p className="text-[10px] font-extrabold tracking-widest text-amber-400 mb-3">
-//         {card.matchLabel}
-//       </p>
-
-//       <div className="bg-black/40 rounded-xl p-3.5 mb-3">
-//         <div className="flex items-center justify-between">
-//           <div className="min-w-0">
-//             <p className="text-[13px] font-extrabold text-white mb-0.5">{card.teamAName}</p>
-//             <p className="text-[11px] text-white/50">Home · {card.venue}</p>
-//           </div>
-//           <p className="text-3xl font-black text-white px-2">{card.footballScoreA}</p>
-//         </div>
-
-//         <div className="flex items-center gap-2 my-1.5">
-//           <span className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 px-2 py-0.5 rounded">
-//             {card.minute}
-//           </span>
-//           <div className="h-px flex-1 bg-white/10" />
-//         </div>
-
-//         <div className="flex items-center justify-between">
-//           <div className="min-w-0">
-//             <p className="text-[13px] font-extrabold text-white mb-0.5">{card.teamBName}</p>
-//             <p className="text-[11px] text-white/50">Away</p>
-//           </div>
-//           <p className="text-3xl font-black text-white px-2">{card.footballScoreB}</p>
-//         </div>
-//       </div>
-
-//       {card.scorers && (
-//         <p className="text-[11px] text-white/50 mb-4 truncate">{card.scorers}</p>
-//       )}
-
-//       <motion.button
-//         whileTap={{ scale: 0.97 }}
-//         onClick={card.onJoin}
-//         className="w-full py-3 rounded-full font-extrabold text-white text-[13px] flex items-center justify-center gap-2"
-//         style={{ background: "linear-gradient(135deg,#4f46e5,#3b82f6)" }}
-//       >
-//         {card.ctaLabel ?? "Watch Live"}
-//         <span>→</span>
-//       </motion.button>
-//     </div>
-//   );
-// }
-
-/* ---------------------------------- Live cricket card (Image 3) ---------------------------------- */
+/* ---------------------------------- Live cricket card ---------------------------------- */
 
 function LiveCricketCardView({ card }: { card: LiveCard }) {
   return (
     <div
       className="relative w-full rounded-2xl overflow-hidden p-4 min-h-[220px]"
       style={{
-        backgroundImage: `linear-gradient(180deg, rgba(10,4,20,0.55) 0%, rgba(10,4,20,0.92) 100%), url(${card.bgImageUrl ?? ""
-          })`,
+        backgroundImage: `linear-gradient(180deg, rgba(10,4,20,0.55) 0%, rgba(10,4,20,0.92) 100%), url(${
+          card.bgImageUrl ?? ""
+        })`,
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundColor: "#1a0b1e",
@@ -273,8 +1265,6 @@ function LiveCricketCardView({ card }: { card: LiveCard }) {
         <div className="flex items-center justify-between">
           <span className="text-[14px] font-bold text-white">{card.teamAName}</span>
           <span className="text-xl font-black text-white">
-            {/* {card.teamAScore.split("/")[0]}
-            <span className="text-white/40">/{card.teamAScore.split("/")[1]}</span> */}
             {(card.teamAScore ?? "0/0").split("/")[0]}
             <span className="text-white/40">/{(card.teamAScore ?? "0/0").split("/")[1]}</span>
             {card.oversLabel && (
@@ -289,17 +1279,6 @@ function LiveCricketCardView({ card }: { card: LiveCard }) {
           <span className="text-xl font-black text-white">{card.teamBScore ?? "—"}</span>
         </div>
       </div>
-
-      {/* {card.result && (
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-[10px] font-extrabold text-emerald-300 bg-emerald-500/15 px-2.5 py-1 rounded-full">
-            {card.result}
-          </span>
-          {card.manOfMatch && (
-            <span className="text-[11px] text-white/50">{card.manOfMatch}</span>
-          )}
-        </div>
-      )} */}
 
       {card.ctaLabel !== "View Highlights" && (
         <motion.button
@@ -372,7 +1351,7 @@ function UpcomingCardView({ card }: { card: UpcomingCard }) {
   );
 }
 
-/* ---------------------------------- Hero card carousel ---------------------------------- */
+/* ---------------------------------- Hero card skeleton & carousel ---------------------------------- */
 
 export function HeroCardSkeleton() {
   return (
@@ -405,7 +1384,6 @@ function HeroCarousel({ cards, loading }: { cards: HeroCard[]; loading?: boolean
   const [index, setIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     if (cards.length <= 1 || isPaused) {
@@ -453,9 +1431,6 @@ function HeroCarousel({ cards, loading }: { cards: HeroCard[]; loading?: boolean
             transition={{ duration: 0.55, ease: "easeInOut" }}
           >
             {active.type === "vip" && <VipCardView card={active} />}
-            {/* {active.type === "live" && active.isFootball && (
-              <LiveFootballCardView card={active} />
-            )} */}
             {active.type === "live" && !active.isFootball && (
               <LiveCricketCardView card={active} />
             )}
@@ -491,54 +1466,63 @@ function HeroCarousel({ cards, loading }: { cards: HeroCard[]; loading?: boolean
   );
 }
 
-/* ---------------------------------- India stats bar (Image 4) ---------------------------------- */
+/* ---------------------------------- India stats bar ---------------------------------- */
 
 function IndiaStatsBar({
   data,
-  onAllSportsClick,
+  isLoading,
 }: {
-  data: IndiaStatsData;
-  onAllSportsClick?: () => void;
+  data?: IndiaStatsData | null;
+  isLoading?: boolean;
 }) {
-  const router = useRouter();
-  const IndianFlagIcon = () => (
-    <ReactCountryFlag
-      countryCode="IN"
-      svg
-      style={{
-        width: "16px",
-        height: "16px",
-      }}
-    />
-  );
-  const navItems = [
-    { label: "All Sports", icon: Trophy },
-    // { label: "India", icon: Flag },
-    { label: "Match Center", icon: Calendar },
-    { label: "Indian Hub", icon: IndianFlagIcon },
-    // { label: "Medal Tally", icon: Award },
-    { label: "Record Explore", icon: BarChart3 },
-    // { label: "News", icon: Newspaper },
-  ];
-
-  const onRecordsExplore = () => {
-    router.push("/MainModules/RecordsExplorer")
+  if (isLoading || !data) {
+    return (
+      <div className="w-full max-w-lg md:max-w-xl mx-auto rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06] animate-pulse">
+        <div className="flex items-center justify-between px-4 py-3.5 sm:py-4">
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            <div className="w-10 h-3 rounded bg-white/10" />
+            <div className="w-9 h-6 rounded bg-white/10" />
+          </div>
+          <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
+            <div className="flex flex-col items-center gap-1.5 min-w-[28px]">
+              <div className="w-5 h-5 rounded-full bg-white/10" />
+              <div className="w-4 h-4 rounded bg-white/10" />
+            </div>
+            <div className="flex flex-col items-center gap-1.5 min-w-[28px]">
+              <div className="w-5 h-5 rounded-full bg-white/10" />
+              <div className="w-4 h-4 rounded bg-white/10" />
+            </div>
+            <div className="flex flex-col items-center gap-1.5 min-w-[28px]">
+              <div className="w-5 h-5 rounded-full bg-white/10" />
+              <div className="w-4 h-4 rounded bg-white/10" />
+            </div>
+            <div className="flex flex-col items-center gap-1.5 min-w-[32px]">
+              <div className="w-7 h-3 rounded bg-white/10" />
+              <div className="w-4 h-4 rounded bg-white/10" />
+            </div>
+            <div className="flex flex-col items-end gap-1.5 pl-1">
+              <div className="w-14 h-3 rounded bg-white/10" />
+              <div className="w-8 h-6 rounded bg-white/10" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
-  const onMatchCenter = () => {
-    router.push("/MainModules/NewMatchCenter")
-  }
-  const onIndianHub = () => {
-    router.push("/MainModules/AthleteHomePage")
-  }
-  
+  const totalMedals = Number(data.medals.gold || 0) + Number(data.medals.silver || 0) + Number(data.medals.bronze || 0);
+
   return (
-    <div className="w-full md:mt-3 rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06]">
-      {/* 
-      <div className="flex items-center justify-between px-4 py-4">
-        <div className="flex items-center gap-2.5">
+    <div className="w-full max-w-lg md:max-w-xl mx-auto rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06]">
+      <div className="flex items-center justify-between px-4 py-3.5 sm:py-4">
+        <div className="flex flex-col items-center justify-center shrink-0">
+          <p className="text-xs sm:text-sm font-black text-white leading-tight mb-1 text-center">
+            {data.country || "India"}
+          </p>
           {data.flagUrl ? (
-            <img src={data.flagUrl} alt="India" className="w-9 h-6 rounded object-fit" />
+            <img src={data.flagUrl} alt={data.country || "India"} className="w-9 h-6 rounded object-cover shadow-sm" />
+          ) : data.flag ? (
+            <span className="text-2xl leading-none">{data.flag}</span>
           ) : (
             <div className="w-9 h-6 rounded overflow-hidden flex flex-col shrink-0">
               <div className="flex-1 bg-orange-500" />
@@ -546,260 +1530,71 @@ function IndiaStatsBar({
               <div className="flex-1 bg-green-600" />
             </div>
           )}
-          <div>
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-wide">
-              India Today
-            </p>
-            <p className="text-[15px] font-extrabold text-white">{data.eventsToday} Events</p>
-          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-center">
-            <span className="text-lg">🥇</span>
-            <p className="text-lg font-black text-amber-400 leading-none mt-0.5">
+        <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
+          <div className="flex flex-col items-center justify-between text-center min-w-[28px]">
+            <div className="h-5 sm:h-6 flex items-center justify-center">
+              <span className="text-base sm:text-lg leading-none">🥇</span>
+            </div>
+            <p className="text-base sm:text-lg font-black text-amber-400 leading-none mt-1">
               {data.medals.gold}
             </p>
           </div>
-          <div className="text-center">
-            <span className="text-lg">🥈</span>
-            <p className="text-lg font-black text-slate-300 leading-none mt-0.5">
+          <div className="flex flex-col items-center justify-between text-center min-w-[28px]">
+            <div className="h-5 sm:h-6 flex items-center justify-center">
+              <span className="text-base sm:text-lg leading-none">🥈</span>
+            </div>
+            <p className="text-base sm:text-lg font-black text-slate-300 leading-none mt-1">
               {data.medals.silver}
             </p>
           </div>
-          <div className="text-center">
-            <span className="text-lg">🥉</span>
-            <p className="text-lg font-black text-orange-400 leading-none mt-0.5">
+          <div className="flex flex-col items-center justify-between text-center min-w-[28px]">
+            <div className="h-5 sm:h-6 flex items-center justify-center">
+              <span className="text-base sm:text-lg leading-none">🥉</span>
+            </div>
+            <p className="text-base sm:text-lg font-black text-orange-400 leading-none mt-1">
               {data.medals.bronze}
             </p>
           </div>
-          <div className="text-right pl-1">
-            <p className="text-[9px] font-bold text-white/40 uppercase tracking-wide">
-              India Rank
+          <div className="flex flex-col items-center justify-between text-center min-w-[32px]">
+            <div className="h-5 sm:h-6 flex items-center justify-center">
+              <span className="text-[9px] sm:text-[10px] font-bold text-white/50 uppercase tracking-wide leading-none">
+                TOTAL
+              </span>
+            </div>
+            <p className="text-base sm:text-lg font-black text-white leading-none mt-1">
+              {totalMedals}
             </p>
-            <p className="text-2xl font-black text-emerald-400 leading-none">
-              #{data.countryRank}
+          </div>
+          <div className="flex flex-col items-end justify-between text-right pl-1 sm:pl-2">
+            <div className="h-5 sm:h-6 flex items-center justify-end">
+              <span className="text-[9px] sm:text-[10px] font-bold text-white/50 uppercase tracking-wide leading-none">
+                {data.rankLabel || "India Rank"}
+              </span>
+            </div>
+            <p className="text-xl sm:text-2xl font-black text-emerald-400 leading-none mt-1">
+              #{String(data.countryRank).replace("#", "")}
             </p>
           </div>
         </div>
       </div>
-      */}
-
-      {/* <div className="grid grid-cols-4">
-        {navItems.map(({ label, icon: Icon }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => {
-              if (label === "All Sports" && onAllSportsClick) {
-                onAllSportsClick();
-              }
-               if (label === "Record Explore" && onRecordsExplore) {
-                onRecordsExplore();
-              }
-              if (label === "Indian Hub" && onIndianHub) {
-                onIndianHub();
-              }
-              if (label === "Match Center" && onMatchCenter) {
-                onMatchCenter();
-              }
-            }}
-            className="flex flex-col items-center justify-center gap-1.5 py-3 hover:bg-white/[0.04] transition-colors"
-          >
-            <Icon size={16} className="text-white/70" />
-            <span className="text-[9px] font-semibold text-white/60 text-center leading-tight px-0.5">
-              {label}
-            </span>
-          </button>
-        ))}
-      </div> */}
     </div>
   );
 }
 
-/* ---------------------------------- Live & Upcoming Matches strip ---------------------------------- */
+/* ---------------------------------- Default Fallback Stats ---------------------------------- */
 
-export type MiniMatchCard = {
-  id: string;
-  status: "LIVE" | "UPCOMING" | "DONE";
-  sportEmoji: string;
-  sport: string; // "Badminton"
-  subtitle: string; // "Lakshya Sen (IND)"
-  scoreLine?: string; // "22 - 21"
-  metaLine?: string; // "Round of 16"
-  countdownLabel?: string; // "Starts in"
-  countdown?: string; // "18m 45s"
-  scheduleLine?: string; // "Today, 7:30 PM"
-  medalEmoji?: string; // "🥇"
-  medalLabel?: string; // "Gold"
-  resultCountry?: string; // "India"
-  ctaLabel: string;
-  ctaGradient: string;
-  onAction: () => void;
-};
-
-const STATUS_STYLES: Record<
-  MiniMatchCard["status"],
-  { badgeBg: string; badgeText: string; dot?: boolean }
-> = {
-  LIVE: { badgeBg: "bg-emerald-400/10", badgeText: "text-emerald-400", dot: true },
-  UPCOMING: { badgeBg: "bg-violet-400/10", badgeText: "text-violet-300", dot: false },
-  DONE: { badgeBg: "bg-amber-400/10", badgeText: "text-amber-300", dot: false },
-};
-
-function MiniMatchCardView({ card }: { card: MiniMatchCard }) {
-  const statusStyle = STATUS_STYLES[card.status];
-
-  return (
-    <div className="shrink-0 w-[190px] rounded-2xl bg-[#12101c] border border-white/[0.06] p-3.5 flex flex-col">
-      <div className="flex items-center justify-between mb-3">
-        <span
-          className={`flex items-center gap-1 text-[9px] font-extrabold px-2 py-1 rounded-full ${statusStyle.badgeBg} ${statusStyle.badgeText}`}
-        >
-          {statusStyle.dot && (
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          )}
-          {card.status}
-        </span>
-        <span className="text-base leading-none">{card.sportEmoji}</span>
-      </div>
-
-      <p className="text-[14px] font-extrabold text-white mb-0.5">{card.sport}</p>
-      <p className="text-[11px] text-white/50 mb-3 truncate">{card.subtitle}</p>
-
-      <div className="flex-1 mb-3">
-        {card.status !== "UPCOMING" && card.scoreLine && (
-          <>
-            <p className="text-2xl font-black text-white leading-none">{card.scoreLine}</p>
-            {card.metaLine && (
-              <p className="text-[10px] text-white/40 mt-1">{card.metaLine}</p>
-            )}
-          </>
-        )}
-
-        {card.status === "UPCOMING" && (
-          <>
-            <p className="text-[11px] font-semibold text-white/50">{card.countdownLabel}</p>
-            <p className="text-lg font-black text-white leading-tight">{card.countdown}</p>
-            {card.scheduleLine && (
-              <p className="text-[10px] text-white/40 mt-1">{card.scheduleLine}</p>
-            )}
-          </>
-        )}
-
-        {card.status === "DONE" && card.medalEmoji && (
-          <>
-            <p className="text-lg font-extrabold text-amber-400 flex items-center gap-1.5">
-              <span>{card.medalEmoji}</span>
-              {card.medalLabel}
-            </p>
-            {card.resultCountry && (
-              <p className="text-[10px] text-white/40 mt-1">{card.resultCountry}</p>
-            )}
-          </>
-        )}
-      </div>
-
-      {card.ctaLabel !== "View Highlights" && (
-        <motion.button
-          whileTap={{ scale: 0.97 }}
-          onClick={card.onAction}
-          className="w-full mt-auto py-2.5 rounded-full font-extrabold text-white text-[11px]"
-          style={{ background: card.ctaGradient }}
-        >
-          {card.ctaLabel}
-        </motion.button>
-      )}
-    </div>
-  );
-}
-
-function MatchesStrip({ cards }: { cards: MiniMatchCard[] }) {
-  return (
-    <div className="w-full mt-5">
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[17px] font-extrabold text-white">Live &amp; Upcoming Matches</h3>
-        <button
-          type="button"
-          className="flex items-center gap-0.5 text-[12px] font-bold"
-          style={{ color: "#E91E8C" }}
-        >
-          View all
-          <ChevronRight size={14} />
-        </button>
-      </div>
-
-      <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide snap-x snap-mandatory">
-        {cards.map((c) => (
-          <div key={c.id} className="snap-start">
-            <MiniMatchCardView card={c} />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/* ---------------------------------- Mock data (static - no router needed) ---------------------------------- */
-
-const MOCK_INDIA_STATS: IndiaStatsData = {
+const DEFAULT_INDIA_STATS: IndiaStatsData = {
   eventsToday: 18,
   medals: { gold: 7, silver: 5, bronze: 11 },
   countryRank: 3,
+  label: "INDIA TODAY",
+  rankLabel: "India Rank",
+  country: "India",
+  flag: "🇮🇳",
+  flagUrl: "https://flagcdn.com/w80/in.png",
 };
-
-const MOCK_MINI_MATCHES: MiniMatchCard[] = [
-  {
-    id: "badminton-lakshya",
-    status: "LIVE",
-    sportEmoji: "🏸",
-    sport: "Badminton",
-    subtitle: "Lakshya Sen (IND)",
-    scoreLine: "22 - 21",
-    metaLine: "Round of 16",
-    ctaLabel: "Watch Live",
-    ctaGradient: "linear-gradient(135deg,#E91E8C,#FF6B35)",
-    onAction: () => console.log("Navigate to Badminton live room"),
-  },
-  {
-    id: "athletics-100m",
-    status: "UPCOMING",
-    sportEmoji: "🏃",
-    sport: "Athletics",
-    subtitle: "Men's 100m Final",
-    countdownLabel: "Starts in",
-    countdown: "18m 45s",
-    scheduleLine: "Today, 7:30 PM",
-    ctaLabel: "Set Reminder",
-    ctaGradient: "linear-gradient(135deg,#7c3aed,#a855f7)",
-    onAction: () => console.log("Set reminder for Athletics 100m final"),
-  },
-  {
-    id: "hockey-ind-kor",
-    status: "LIVE",
-    sportEmoji: "🏑",
-    sport: "Hockey",
-    subtitle: "India vs Korea",
-    scoreLine: "2 - 1",
-    metaLine: "Q3 · 45:12",
-    ctaLabel: "Match Center",
-    ctaGradient: "linear-gradient(135deg,#06b6d4,#3b82f6)",
-    onAction: () => console.log("Navigate to Hockey match center"),
-  },
-  {
-    id: "shooting-10m-air-rifle",
-    status: "DONE",
-    sportEmoji: "🎯",
-    sport: "Shooting",
-    subtitle: "10m Air Rifle Mixed",
-    medalEmoji: "🥇",
-    medalLabel: "Gold",
-    resultCountry: "India",
-    ctaLabel: "Results",
-    ctaGradient: "linear-gradient(135deg,#334155,#1e293b)",
-    onAction: () => console.log("Navigate to Shooting results"),
-  },
-];
 
 const SPORTS_LIST = [
   { id: "mixed", label: "Mixed", emoji: "🏆" },
@@ -832,21 +1627,57 @@ export default function SportScoreSection({
   const setSelectedSport = onSelectSport ?? setLocalSelectedSport;
 
   const [roanuzHeroCards, setRoanuzHeroCards] = useState<HeroCard[]>([]);
-  const [roanuzMatches, setRoanuzMatches] = useState<MiniMatchCard[]>([]);
+  const [roanuzMatches, setRoanuzMatches] = useState<any[]>([]);
   const [heroLoading, setHeroLoading] = useState(true);
   const [matchesLoading, setMatchesLoading] = useState(true);
 
+  // Live dynamic medal tally data
+  const [indiaStats, setIndiaStats] = useState<IndiaStatsData | null>(null);
+  const [medalLoading, setMedalLoading] = useState(true);
+
   useEffect(() => {
     const fetchData = async () => {
+      // 1. Fetch live Medal Tally from backend API
+      try {
+        const medalRes = await fetch("/api/medal-tally");
+        const medalJson = await medalRes.json();
+        if (medalJson.success && medalJson.data) {
+          const d = medalJson.data;
+          setIndiaStats({
+            eventsToday: Number(d.events) || 0,
+            medals: {
+              gold: Number(d.gold) || 0,
+              silver: Number(d.silver) || 0,
+              bronze: Number(d.bronze) || 0,
+            },
+            countryRank: d.worldRank ?? 1,
+            flagUrl: d.flagUrl,
+            flag: d.flag || "🇮🇳",
+            label: d.label || `${d.country || "India"} Today`,
+            rankLabel: d.rankLabel || "India Rank",
+            country: d.country || "India",
+          });
+        }
+      } catch (e) {
+        console.warn("Notice: Failed to fetch live medal tally:", e);
+      } finally {
+        setMedalLoading(false);
+      }
+
+      // 2. Fetch featured matches
       let watchAlongRoomId = "acc569cd-831b-4f3c-ab7d-cf862b11be6a"; // Fallback
       try {
-        const roomsRes = await fetch('/api/watch-along');
+        const roomsRes = await fetch("/api/watch-along");
         const roomsData = await roomsRes.json();
         if (roomsData.success && roomsData.rooms) {
-          // Prioritize the "Day 2" room since it's today's specific match room, otherwise fallback to any Sri Lanka room
-          const matchRoom = roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka") && r.name?.toLowerCase().includes("day 2")) 
-                         || roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka"))
-                         || roomsData.rooms[0];
+          const matchRoom =
+            roomsData.rooms.find(
+              (r: any) =>
+                r.name?.toLowerCase().includes("sri lanka") &&
+                r.name?.toLowerCase().includes("day 2")
+            ) ||
+            roomsData.rooms.find((r: any) => r.name?.toLowerCase().includes("sri lanka")) ||
+            roomsData.rooms[0];
           if (matchRoom) {
             watchAlongRoomId = matchRoom.id;
           }
@@ -855,49 +1686,61 @@ export default function SportScoreSection({
         console.error("Error fetching watch along rooms", e);
       }
 
-      fetch('/api/featured-matches')
-        .then(r => r.json())
-        .then(data => {
+      fetch("/api/featured-matches")
+        .then((r) => r.json())
+        .then((data) => {
           if (data.success && Array.isArray(data.items) && data.items.length > 0) {
-             const processedCards: HeroCard[] = data.items
-               .map((item: any) => {
-                 const nameA = (item.teamAName || "").toLowerCase();
-                 const nameB = (item.teamBName || "").toLowerCase();
-                 const isIndSlMatch = (nameA.includes("india") && nameB.includes("sri lanka")) || (nameA.includes("sri lanka") && nameB.includes("india"));
-                 
-                 return {
-                   ...item,
-                   bgImageUrl: isIndSlMatch ? ("/images/with_ananad.png") : item.bgImageUrl,
-                   ctaLabel: item.ctaLabel || (item.status === "LIVE" ? "Watch Along" : "View Match"),
-                   onJoin: () => {
-                     if (item.watchAlongRoomId) {
-                       window.location.href = `/MainModules/WatchAlong/room/${item.watchAlongRoomId}`;
-                     } else if (isIndSlMatch && watchAlongRoomId) {
-                       window.location.href = `/MainModules/WatchAlong/room/${watchAlongRoomId}`;
-                     } else if (item.id) {
-                       window.location.href = `/MainModules/WatchAlong/room/${item.id}`;
-                     }
-                   }
-                 };
-               });
-              const indSlCards = processedCards.filter((item: any) => {
-                const nameA = (item.teamAName || "").toLowerCase();
-                const nameB = (item.teamBName || "").toLowerCase();
-                const comp = (item.competition || "").toLowerCase();
-                const shortA = (item.teamAShort || "").toLowerCase();
-                const shortB = (item.teamBShort || "").toLowerCase();
+            const processedCards: HeroCard[] = data.items.map((item: any) => {
+              const nameA = (item.teamAName || "").toLowerCase();
+              const nameB = (item.teamBName || "").toLowerCase();
+              const isIndSlMatch =
+                (nameA.includes("india") && nameB.includes("sri lanka")) ||
+                (nameA.includes("sri lanka") && nameB.includes("india"));
 
-                const hasIndia = nameA.includes("india") || nameB.includes("india") || shortA === "ind" || shortB === "ind" || comp.includes("india");
-                const hasSriLanka = nameA.includes("sri lanka") || nameB.includes("sri lanka") || shortA === "sl" || shortB === "sl" || comp.includes("sri lanka");
+              return {
+                ...item,
+                bgImageUrl: isIndSlMatch ? "/images/with_ananad.png" : item.bgImageUrl,
+                ctaLabel:
+                  item.ctaLabel || (item.status === "LIVE" ? "Watch Along" : "View Match"),
+                onJoin: () => {
+                  if (item.watchAlongRoomId) {
+                    window.location.href = `/MainModules/WatchAlong/room/${item.watchAlongRoomId}`;
+                  } else if (isIndSlMatch && watchAlongRoomId) {
+                    window.location.href = `/MainModules/WatchAlong/room/${watchAlongRoomId}`;
+                  } else if (item.id) {
+                    window.location.href = `/MainModules/WatchAlong/room/${item.id}`;
+                  }
+                },
+              };
+            });
+            const indSlCards = processedCards.filter((item: any) => {
+              const nameA = (item.teamAName || "").toLowerCase();
+              const nameB = (item.teamBName || "").toLowerCase();
+              const comp = (item.competition || "").toLowerCase();
+              const shortA = (item.teamAShort || "").toLowerCase();
+              const shortB = (item.teamBShort || "").toLowerCase();
 
-                return hasIndia && hasSriLanka;
-              });
-              setRoanuzHeroCards(indSlCards);
+              const hasIndia =
+                nameA.includes("india") ||
+                nameB.includes("india") ||
+                shortA === "ind" ||
+                shortB === "ind" ||
+                comp.includes("india");
+              const hasSriLanka =
+                nameA.includes("sri lanka") ||
+                nameB.includes("sri lanka") ||
+                shortA === "sl" ||
+                shortB === "sl" ||
+                comp.includes("sri lanka");
+
+              return hasIndia && hasSriLanka;
+            });
+            setRoanuzHeroCards(indSlCards);
           } else {
-             setRoanuzHeroCards([]);
+            setRoanuzHeroCards([]);
           }
         })
-        .catch(e => {
+        .catch((e) => {
           console.error("Error fetching featured matches:", e);
         })
         .finally(() => {
@@ -905,24 +1748,24 @@ export default function SportScoreSection({
         });
 
       if (selectedSport === "cricket" || selectedSport === "mixed") {
-        fetch('/api/cricket-feed')
-          .then(r => r.json())
-          .then(data => {
+        fetch("/api/cricket-feed")
+          .then((r) => r.json())
+          .then((data) => {
             if (data.success && Array.isArray(data.liveAndUpcoming)) {
-               const withActions = data.liveAndUpcoming.map((m: any) => ({
-                 ...m,
-                 onAction: () => {
-                   if (m.id) {
-                     router.push(`/MainModules/WatchAlong/room/${m.id}`);
-                   }
-                 }
-               }));
-               setRoanuzMatches(withActions);
+              const withActions = data.liveAndUpcoming.map((m: any) => ({
+                ...m,
+                onAction: () => {
+                  if (m.id) {
+                    router.push(`/MainModules/WatchAlong/room/${m.id}`);
+                  }
+                },
+              }));
+              setRoanuzMatches(withActions);
             } else {
-               setRoanuzMatches([]);
+              setRoanuzMatches([]);
             }
           })
-          .catch(e => {
+          .catch((e) => {
             console.error("Error fetching cricket feed:", e);
           })
           .finally(() => {
@@ -942,39 +1785,19 @@ export default function SportScoreSection({
 
   return (
     <div className="w-full relative flex flex-col gap-3">
-      {/* <HeroCarousel cards={roanuzHeroCards} loading={heroLoading} /> */}
-
       {/* Watch Along Banner */}
       <div className="w-full max-w-lg md:max-w-xl mx-auto flex flex-col gap-2 my-1">
-        <div
-          // onClick={() => router.push("/MainModules/WatchAlong")}
-          className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer transition-all duration-300 hover:border-pink-500/40 hover:opacity-95 max-h-[260px] md:max-h-[300px] flex items-center justify-center bg-black/40"
-        >
+        <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer transition-all duration-300 hover:border-pink-500/40 hover:opacity-95 max-h-[260px] md:max-h-[300px] flex items-center justify-center bg-black/40">
           <img
             src="/images/asiangamesbanner.png"
             alt="Watch Along Banner"
             className="w-full h-auto max-h-[130px] md:max-h-[200px] object-fit"
           />
         </div>
-
-       
-        {/* <div className="flex justify-center w-full">
-          <motion.button
-            whileTap={{ scale: 0.96 }}
-            onClick={() => router.push("/MainModules/WatchAlong")}
-            className="w-auto px-6 py-2 sm:px-8 sm:py-2.5 rounded-xl font-bold text-white text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-[0_4px_16px_rgba(233,30,140,0.3)] transition-all cursor-pointer hover:opacity-95"
-            style={{
-              background: "linear-gradient(135deg, #E91E8C 0%, #FF6B35 100%)",
-            }}
-          >
-            <span>Join</span>
-            <ChevronRight size={16} />
-          </motion.button>
-        </div> */}
       </div>
 
-      <IndiaStatsBar data={MOCK_INDIA_STATS} onAllSportsClick={() => setIsAllSportsOpen(true)} />
-      {/* <MatchesStrip cards={filteredMatches} /> */}
+      {/* Dynamic Medal Tally Bar */}
+      <IndiaStatsBar data={indiaStats} isLoading={medalLoading} />
 
       <AnimatePresence>
         {isAllSportsOpen && (
@@ -997,7 +1820,7 @@ export default function SportScoreSection({
             >
               {/* Drag handle style */}
               <div className="w-12 h-1 bg-white/20 rounded-full mx-auto my-3" />
-              
+
               <div className="flex items-start justify-between px-6 pt-1 pb-4">
                 <div>
                   <h2 className="text-[22px] font-black text-white leading-tight">All Sports</h2>

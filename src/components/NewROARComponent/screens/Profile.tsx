@@ -3292,6 +3292,8 @@ import {
 import { EXPERT_TAGS, getExpertCanonicalName, EXPERT_BIOS, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 import { RoarJourneySection } from "../components/RoarJourneySection";
 import { useLeaderboard } from "@/context/LeaderboardContext";
+import { engagementService } from "@/services/engagement.service";
+import { EngagementItem } from "@/types/engagements";
 
 const EXPERT_STYLE_PRESETS = [
   {
@@ -3331,7 +3333,7 @@ function formatVideoTimestamp(isoDate?: string | number): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-const FIRST_ROAR_BADGE_SRC = "/images/badges/postl1.png";
+const FIRST_ROAR_BADGE_SRC = "/images/badges/rookiefan.png";
 const toBadgeImageSrc = (imageUrl: string) => {
   if (/^(https?:)?\/\//.test(imageUrl) || imageUrl.startsWith("/")) return imageUrl;
   return `/images/badges/${imageUrl}`;
@@ -3650,6 +3652,17 @@ function resolveUsername(userObj: any, fallbackName?: string): string {
   return fallbackName || "Fan";
 }
 
+// Shared in-memory cache for own profile so switching tabs renders immediately without loading screen
+let cachedOwnProfileMetadata: any = null;
+let cachedOwnActivities: any[] = [];
+let cachedOwnActivityCounts: Record<string, number> = {};
+
+export function invalidateProfileCache() {
+  cachedOwnProfileMetadata = null;
+  cachedOwnActivities = [];
+  cachedOwnActivityCounts = {};
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function Profile({
   userBadge, setUserBadge, onCompose, onToast, setOnboarded, onNavigateTab,
@@ -3751,15 +3764,195 @@ export default function Profile({
   const BADGE_ICONS: Record<string, string> = {
     "ROOKIE_FAN": "/images/badges/rookiefan.png",
     "Rookie Fan": "/images/badges/rookiefan.png",
+    "RISING_FAN": "/images/badges/rookiefan.png",
+    "Rising Fan": "/images/badges/rookiefan.png",
+    "FIRST_ROAR": "/images/badges/rookiefan.png",
   };
 
-  const [profileMetadata, setProfileMetadata] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const DEFAULT_ROOKIE_BADGE = {
+    id: "ROOKIE_FAN",
+    name: "Rookie Fan",
+    description: "Congratulations! You’ve officially earned your Rookie Fan status. Your journey with SportsFan360 starts now.",
+    rarity: "Special Achievement",
+    howTo: "Complete initial fan onboarding on SportsFan360",
+    unlocked: true,
+    icon: "/images/badges/rookiefan.png",
+    imageUrl: "/images/badges/rookiefan.png",
+    iconSrc: "/images/badges/rookiefan.png",
+  };
+
+  const normalizeSpecialBadges = (rawBadges: any[] = []): any[] => {
+    const list = Array.isArray(rawBadges) ? [...rawBadges] : [];
+    let hasRookie = false;
+    const updated = list.map((b: any) => {
+      const isRookieBadge =
+        b.id === "ROOKIE_FAN" ||
+        b.id === "RISING_FAN" ||
+        b.id === "FIRST_ROAR" ||
+        b.name === "Rookie Fan" ||
+        b.name === "Rising Fan";
+
+      if (isRookieBadge) {
+        hasRookie = true;
+        return {
+          ...b,
+          id: "ROOKIE_FAN",
+          name: "Rookie Fan",
+          description: "Congratulations! You’ve officially earned your Rookie Fan status. Your journey with SportsFan360 starts now.",
+          rarity: "Special Achievement",
+          howTo: "Complete initial fan onboarding on SportsFan360",
+          icon: "/images/badges/rookiefan.png",
+          imageUrl: "/images/badges/rookiefan.png",
+          iconSrc: "/images/badges/rookiefan.png",
+          unlocked: true,
+        };
+      }
+      return b;
+    });
+
+    if (!hasRookie) {
+      updated.unshift({ ...DEFAULT_ROOKIE_BADGE });
+    }
+
+    return updated;
+  };
+
+  const DEFAULT_FEATURE_DEFINITIONS = [
+    {
+      feature: "posts",
+      label: "Rookie Writer",
+      labels: ["Rookie Writer", "Wordsmith", "Hot Take Hero", "Master Scribe", "Roar Legend"],
+      icons: [
+        "/images/badges/postl1.png",
+        "/images/badges/postl2.png",
+        "/images/badges/postl3.png",
+        "/images/badges/postl4.png",
+        "/images/badges/postl5.png",
+      ],
+      thresholds: [1, 3, 10, 25, 50],
+      statKey: "posts",
+    },
+    {
+      feature: "predictions",
+      label: "Oracle",
+      labels: ["Rookie Predictor", "Sharp Caller", "Oracle", "Seer", "Prophet"],
+      icons: [
+        "/images/badges/predictionl1.png",
+        "/images/badges/predictionl2.png",
+        "/images/badges/predictionl3.png",
+        "/images/badges/predictionl4.png",
+        "/images/badges/predictionl5.png",
+      ],
+      thresholds: [1, 3, 10, 25, 50],
+      statKey: "predictions",
+    },
+    {
+      feature: "debates",
+      label: "Debate Champ",
+      labels: ["Rookie Debater", "Contender", "Debate Champ", "Floor General", "Undisputed"],
+      icons: [
+        "/images/badges/debatel1.png",
+        "/images/badges/debatel2.png",
+        "/images/badges/debatel3.png",
+        "/images/badges/debatel4.png",
+        "/images/badges/debatel5.png",
+      ],
+      thresholds: [1, 3, 10, 25, 50],
+      statKey: "debates",
+    },
+    {
+      feature: "comments",
+      label: "Active Voice",
+      labels: ["First Words", "Active Voice", "Conversation Starter", "Crowd Favorite", "Iconic Voice"],
+      icons: [
+        "/images/badges/commentsl1.png",
+        "/images/badges/commentsl2.png",
+        "/images/badges/commentsl3.png",
+        "/images/badges/commentsl4.png",
+        "/images/badges/commentsl5.png",
+      ],
+      thresholds: [1, 5, 15, 35, 75],
+      statKey: "comments",
+    },
+    {
+      feature: "community",
+      label: "Community Pillar",
+      labels: ["New Neighbor", "Regular", "Community Pillar", "Campus Hero", "Hall of Famer"],
+      icons: [
+        "/images/badges/communityl1.png",
+        "/images/badges/communityl2.png",
+        "/images/badges/communityl3.png",
+        "/images/badges/communityl4.png",
+        "/images/badges/communityl5.png",
+      ],
+      thresholds: [1, 5, 15, 35, 75],
+      statKey: "community",
+    },
+    {
+      feature: "fanBattle",
+      label: "Battle Veteran",
+      labels: ["Challenger", "Battle Veteran", "Warrior", "Champion", "Immortal"],
+      icons: [
+        "/images/badges/fanBattlel1.png",
+        "/images/badges/fanBattlel2.png",
+        "/images/badges/fanBattlel3.png",
+        "/images/badges/fanBattlel4.png",
+        "/images/badges/fanBattlel5.png",
+      ],
+      thresholds: [1, 5, 15, 30, 50],
+      statKey: "fanBattle",
+    },
+    {
+      feature: "media",
+      label: "Media Star",
+      labels: ["Photographer", "Content Creator", "Media Star", "Broadcast Lead", "Media Mogul"],
+      icons: [
+        "/images/badges/medial1.png",
+        "/images/badges/medial2.png",
+        "/images/badges/medial3.png",
+        "/images/badges/medial4.png",
+        "/images/badges/medial5.png",
+      ],
+      thresholds: [1, 5, 15, 30, 50],
+      statKey: "media",
+    },
+    {
+      feature: "shares",
+      label: "Amplifier",
+      labels: ["Sharer", "Broadcaster", "Amplifier", "Super Spreader", "Viral Titan"],
+      icons: [
+        "/images/badges/sharesl1.png",
+        "/images/badges/sharesl2.png",
+        "/images/badges/sharesl3.png",
+        "/images/badges/sharesl4.png",
+        "/images/badges/sharesl5.png",
+      ],
+      thresholds: [1, 5, 15, 30, 50],
+      statKey: "shares",
+    },
+    {
+      feature: "trivia",
+      label: "Trivia Master",
+      labels: ["Trivia Novice", "Trivia Buff", "Trivia Master", "Grandmaster", "Encyclopedic"],
+      icons: [
+        "/images/badges/trivial1.png",
+        "/images/badges/trivial2.png",
+        "/images/badges/trivial3.png",
+        "/images/badges/trivial4.png",
+        "/images/badges/trivial5.png",
+      ],
+      thresholds: [1, 5, 15, 30, 50],
+      statKey: "trivia",
+    },
+  ];
+
+  const [profileMetadata, setProfileMetadata] = useState<any>(() => isOtherProfile ? null : cachedOwnProfileMetadata);
+  const [loading, setLoading] = useState(() => isOtherProfile ? true : !cachedOwnProfileMetadata);
   const [editShowActivity, setEditShowActivity] = useState(true);
 
-  const [fetchedActivities, setFetchedActivities] = useState<any[]>([]);
+  const [fetchedActivities, setFetchedActivities] = useState<any[]>(() => isOtherProfile ? [] : cachedOwnActivities);
   const [fetchedActivitiesLoading, setFetchedActivitiesLoading] = useState(false);
-  const [activityCounts, setActivityCounts] = useState<Record<string, number>>({});
+  const [activityCounts, setActivityCounts] = useState<Record<string, number>>(() => isOtherProfile ? {} : cachedOwnActivityCounts);
 
   // Activity pagination: fetch in rolling 7-day windows
   const ACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -3825,7 +4018,7 @@ export default function Profile({
   const [globalTier, setGlobalTier] = useState<any>(null);
   const [globalTierProgress, setGlobalTierProgress] = useState(0);
   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
-  const [specialBadges, setSpecialBadges] = useState<any[]>([]);
+  const [specialBadges, setSpecialBadges] = useState<any[]>([DEFAULT_ROOKIE_BADGE]);
 
   useEffect(() => {
     const reload = () => {
@@ -3869,7 +4062,7 @@ export default function Profile({
               setEditUniversity(apiUser.university || apiUser.institution);
             }
             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
-            if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
+            if (res.data.specialBadges) setSpecialBadges(normalizeSpecialBadges(res.data.specialBadges));
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
             if (backendAvatar) {
@@ -3912,7 +4105,13 @@ export default function Profile({
       const actRes = await axios.get(url);
       if (actRes.data?.success) {
         if (actRes.data.counts) {
-          setActivityCounts((prev) => ({ ...prev, ...actRes.data.counts }));
+          setActivityCounts((prev) => {
+            const updated = { ...prev, ...actRes.data.counts };
+            if (!isOtherProfile) {
+              cachedOwnActivityCounts = updated;
+            }
+            return updated;
+          });
         }
         const rawItems: any[] = actRes.data.activities || [];
 
@@ -3927,7 +4126,13 @@ export default function Profile({
         const deduped = newItems.filter((a: any) => a?.id != null && !activityIdsRef.current.has(a.id));
         deduped.forEach((a: any) => activityIdsRef.current.add(a.id));
 
-        setFetchedActivities((prev) => (isAppend ? [...prev, ...deduped] : deduped));
+        setFetchedActivities((prev) => {
+          const updated = isAppend ? [...prev, ...deduped] : deduped;
+          if (!isOtherProfile && isInitial) {
+            cachedOwnActivities = updated;
+          }
+          return updated;
+        });
         setActivityHasMore(rawItems.length > 0);
         setActivityWindowStart(startDate);
         setActivityUserId(actualUserId);
@@ -3948,15 +4153,18 @@ export default function Profile({
 
   useEffect(() => {
     const fetchProfileData = async () => {
-      setLoading(true);
-      setFetchedActivities([]);
-      setActivityWindowStart(Date.now() - ACTIVITY_WINDOW_MS);
-      setActivityHasMore(true);
-      setActivityUserId(null);
-      activityIdsRef.current = new Set();
-      setCoverPhoto(null);
-      if (isOtherProfile) {
-        setSelectedAvatar(null);
+      const hasCached = !isOtherProfile && !!cachedOwnProfileMetadata;
+      if (!hasCached) {
+        setLoading(true);
+        setFetchedActivities([]);
+        setActivityWindowStart(Date.now() - ACTIVITY_WINDOW_MS);
+        setActivityHasMore(true);
+        setActivityUserId(null);
+        activityIdsRef.current = new Set();
+        setCoverPhoto(null);
+        if (isOtherProfile) {
+          setSelectedAvatar(null);
+        }
       }
       try {
         // ── 0. Check if viewing a bot profile ───────────────────────────
@@ -4198,7 +4406,7 @@ export default function Profile({
               authUser?.photoURL;
             const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
 
-            setProfileMetadata({
+            const newMeta = {
               user: {
                 ...apiUser,
                 avatarUrl: backendAvatar || apiUser.avatarUrl || null,
@@ -4209,7 +4417,11 @@ export default function Profile({
               hotTakes: res.data.hotTakes || apiUser.hotTakes || [],
               debates: res.data.debates || apiUser.debates || [],
               posts: res.data.posts || apiUser.posts || [],
-            });
+            };
+            setProfileMetadata(newMeta);
+            if (!isOtherProfile) {
+              cachedOwnProfileMetadata = newMeta;
+            }
             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
             if (initialName) setEditName(initialName);
             setEditUniversity(res.data.user?.university ?? res.data.user?.institution ?? "");
@@ -4220,7 +4432,7 @@ export default function Profile({
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
-            if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
+            if (res.data.specialBadges) setSpecialBadges(normalizeSpecialBadges(res.data.specialBadges));
             if (backendAvatar) {
               setSelectedAvatar(backendAvatar);
               try { localStorage.setItem("roar_avatar_url", backendAvatar); } catch { }
@@ -4265,6 +4477,7 @@ export default function Profile({
           setSelectedAvatar(backendAvatar || null);
           if (fanData.coverPhotoUrl) setCoverPhoto(fanData.coverPhotoUrl);
           setEditUniversity(fanData.university ?? fanData.institution ?? "");
+          setSpecialBadges(normalizeSpecialBadges(fanData.specialBadges || []));
 
           const uid = fanData.actualUserId || fanData.userId;
           if (uid) await fetchActivities(uid);
@@ -4308,7 +4521,7 @@ export default function Profile({
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
             if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
-            if (res.data.specialBadges) setSpecialBadges(res.data.specialBadges);
+            if (res.data.specialBadges) setSpecialBadges(normalizeSpecialBadges(res.data.specialBadges));
 
             const uid = res.data.user?.actualUserId || res.data.user?.userId || viewingProfile;
             await fetchActivities(uid);
@@ -4447,6 +4660,48 @@ export default function Profile({
   const [pointsTab, setPointsTab] = useState<"fliparena" | "global">("fliparena");
   const [arenaStats, setArenaStats] = useState<{ points: number; rank: number; accuracy: string; correct: number; total: number } | null>(null);
   const [arenaLoading, setArenaLoading] = useState(false);
+   const [userEngagements, setUserEngagements] = useState<EngagementItem[]>([]);
+
+    // ── Fetch engagements specifically for the profile being viewed ──
+  useEffect(() => {
+    let cancelled = false;
+
+    // Isolate target user ID when viewing other profile vs own profile
+    const targetUid = isOtherProfile
+      ? (profileMetadata?.user?.actualUserId ||
+         profileMetadata?.user?.userId ||
+         (typeof viewingProfile === "string" ? viewingProfile : null) ||
+         fanData?.actualUserId ||
+         fanData?.userId)
+      : (profileMetadata?.user?.actualUserId ||
+         profileMetadata?.user?.userId ||
+         loggedInUserId ||
+         authUser?.actualUserId ||
+         authUser?.userId ||
+         authUser?.email);
+
+    if (!targetUid) {
+      setUserEngagements([]);
+      return;
+    }
+
+    const query = { userId: targetUid, limit: 200 };
+
+    engagementService
+      .getEngagements(query)
+      .then((items) => {
+        if (!cancelled && Array.isArray(items)) {
+          setUserEngagements(items);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setUserEngagements([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOtherProfile, profileMetadata?.user, viewingProfile, fanData, loggedInUserId, authUser]);
 
   const targetKeys = useMemo(() => {
     const s = new Set<string>();
@@ -4517,43 +4772,6 @@ export default function Profile({
 
   const levelInfo = useMemo(() => calculateLevelData(globalStats.points), [globalStats.points]);
 
-  if (loading || !profileMetadata) {
-    return (
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", color: "var(--text-muted)" }}>
-        Loading profile...
-      </div>
-    );
-  }
-
-  const botCanonicalName = getBotCanonicalName(user?.username);
-  const isBotProfile = isBotName(user?.username) || !!botCanonicalName || user?.isBot === true;
-  const expertCanonicalName = getExpertCanonicalName(user?.username);
-  const isExpertProfile = !!expertCanonicalName;
-
-  // ── Guarded Avatar Selection (never leaks viewer's credentials to other profiles)
-  // ── Guarded Avatar Selection
-  const rawAvatar =
-    (isBotProfile && botCanonicalName ? BOT_AVATARS[botCanonicalName] : null) ||
-    (isBotProfile && user?.username && BOT_AVATARS[user.username] ? BOT_AVATARS[user.username] : null) ||
-    (isExpertProfile && expertCanonicalName ? EXPERT_AVATARS[expertCanonicalName] : null) ||
-    user?.avatarUrl ||
-    user?.photoURL ||
-    user?.picture ||
-    user?.image ||
-    user?.profilePicture ||
-    (!isOtherProfile
-      ? (selectedAvatar ||
-        authUser?.avatar ||
-        authUser?.photoURL ||
-        (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null))
-      : null);
-
-  const displayAvatar = sanitizeAvatarUrl(rawAvatar);
-
-  const rival = profileMetadata.rival ?? RIVAL;
-  const badgesToDisplay = user?.badges?.length ? user.badges : BADGES_LIST;
-  const ownedBadges = badgesToDisplay.filter((b: any) => b.unlocked);
-
   const actCounts = user?.activityCounts ?? {};
   const apiPredictions = profileMetadata?.predictions || user?.predictions || [];
   const apiHotTakes = profileMetadata?.hotTakes || user?.hotTakes || [];
@@ -4618,6 +4836,221 @@ export default function Profile({
     predictionActivities.length,
     profileStats?.predictions ?? 0
   );
+
+  const statComments = Math.max(
+    actCounts.ROAR_COMMENT ?? 0,
+    activityCounts.ROAR_COMMENT ?? 0,
+    user?.commentsCount ?? user?.commentCount ?? 0
+  );
+
+  const isTargetCreator = useCallback((item: any) => {
+    const createdBy = String(item?.createdBy || item?.creatorId || item?.author || item?.userId || "").trim().toLowerCase();
+    return (
+      !!createdBy &&
+      (targetKeys.has(createdBy) || targetKeys.has(createdBy.replace(/[@.]/g, "_")))
+    );
+  }, [targetKeys]);
+
+  const statPolls = useMemo(() => {
+    const isPoll = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "poll" || t === "polls";
+    };
+    const matching = userEngagements.filter(
+      (e) => isPoll(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote)
+    );
+    return Math.max(
+      matching.length,
+      user?.pollCount ?? 0,
+      (user as any)?.pollsCount ?? 0,
+      (user as any)?.stats?.pollCount ?? 0,
+      (user as any)?.stats?.polls ?? 0,
+      isOtherProfile ? 0 : (activityCounts.ROAR_POLL ?? 0)
+    );
+  }, [userEngagements, isTargetCreator, user, isOtherProfile, activityCounts]);
+
+  const statArenaPredictions = useMemo(() => {
+    const isPred = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "prediction" || t === "predictions";
+    };
+    const matching = userEngagements.filter(
+      (e) => isPred(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote)
+    );
+    return Math.max(
+      matching.length,
+      user?.arenaPredictionCount ?? 0,
+      (user as any)?.arenaPredictionsCount ?? 0,
+      (user as any)?.stats?.arenaPredictionCount ?? 0,
+      (user as any)?.stats?.arenaPredictions ?? 0
+    );
+  }, [userEngagements, isTargetCreator, user]);
+
+  const statFanBattles = useMemo(() => {
+    const isBattle = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "fan_battle" || t === "battle" || t === "fan_battles" || t === "battles";
+    };
+    const matching = userEngagements.filter(
+      (e) => isBattle(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote)
+    );
+    return Math.max(
+      matching.length,
+      user?.fanBattleCount ?? 0,
+      (user as any)?.fanBattlesCount ?? 0,
+      (user as any)?.stats?.fanBattleCount ?? 0,
+      (user as any)?.stats?.fanBattles ?? 0
+    );
+  }, [userEngagements, isTargetCreator, user]);
+
+  const statQuiz = useMemo(() => {
+    const isQuiz = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "quiz" || t === "quizzes" || t === "trivia";
+    };
+    const matching = userEngagements.filter(
+      (e) => isQuiz(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote || (e as any).userAnswer)
+    );
+    return Math.max(
+      matching.length,
+      user?.quizCount ?? 0,
+      (user as any)?.quizzesCount ?? 0,
+      user?.triviaCount ?? 0,
+      (user as any)?.stats?.quizCount ?? 0,
+      (user as any)?.stats?.quizzes ?? 0,
+      isOtherProfile ? 0 : (activityCounts.ROAR_QUIZ ?? 0)
+    );
+  }, [userEngagements, isTargetCreator, user, isOtherProfile, activityCounts]);
+
+  const statMeme = useMemo(() => {
+    const isMeme = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "meme" || t === "memes";
+    };
+    const matching = userEngagements.filter(
+      (e) => isMeme(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userReaction || e.userLiked)
+    );
+    return Math.max(
+      matching.length,
+      user?.memeCount ?? 0,
+      (user as any)?.memesCount ?? 0,
+      (user as any)?.stats?.memeCount ?? 0,
+      (user as any)?.stats?.memes ?? 0
+    );
+  }, [userEngagements, isTargetCreator, user]);
+
+
+
+  const effectiveFeatureBadges = useMemo(() => {
+    const countsMap: Record<string, number> = {
+      posts: statPosts,
+      predictions: statPredictions,
+      debates: statDebates,
+      comments: statComments,
+      community: Math.max(statPosts + statDebates + statPredictions, user?.communityCount ?? 0),
+      fanBattle: Math.max(statPredictions, user?.fanBattleCount ?? 0),
+      media: Math.max(postActivities.filter((p: any) => p.metadata?.hasMedia || p.hasMedia).length, user?.mediaCount ?? 0),
+      shares: Math.max(actCounts.ROAR_SHARE ?? 0, activityCounts.ROAR_SHARE ?? 0, user?.sharesCount ?? 0),
+      trivia: Math.max(actCounts.ROAR_QUIZ ?? 0, activityCounts.ROAR_QUIZ ?? 0, user?.triviaCount ?? 0),
+    };
+
+    return DEFAULT_FEATURE_DEFINITIONS.map((def) => {
+      const existing = (featureBadges || []).find(
+        (fb: any) => fb.feature?.toLowerCase() === def.feature.toLowerCase()
+      ) || {};
+
+      const count = Math.max(existing.count || 0, countsMap[def.statKey] || 0);
+
+      let calcLevel = 0;
+      for (let i = 0; i < def.thresholds.length; i++) {
+        if (count >= def.thresholds[i]) {
+          calcLevel = i + 1;
+        } else {
+          break;
+        }
+      }
+      const level = Math.max(existing.level || 0, calcLevel);
+      const label = level > 0 ? def.labels[level - 1] : def.labels[0];
+      const progress = level >= 5 ? 100 : Math.min(100, Math.round((count / def.thresholds[Math.min(level, def.thresholds.length - 1)]) * 100));
+
+      return {
+        ...def,
+        ...existing,
+        feature: def.feature,
+        level,
+        count,
+        label,
+        progress: existing.progress !== undefined && existing.progress > progress ? existing.progress : progress,
+        icons: existing.icons?.length === 5 ? existing.icons : def.icons,
+        labels: def.labels,
+        thresholds: def.thresholds,
+      };
+    });
+  }, [featureBadges, statPosts, statPredictions, statDebates, statComments, user, postActivities, actCounts, activityCounts]);
+
+  if (loading || !profileMetadata) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "60vh",
+          height: "100%",
+          width: "100%",
+        }}
+      >
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: "3px solid rgba(255, 255, 255, 0.15)",
+            borderTopColor: "var(--accent-magenta, #e91e8c)",
+            animation: "roar-profile-spin 0.8s linear infinite",
+          }}
+        />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @keyframes roar-profile-spin {
+                to { transform: rotate(360deg); }
+              }
+            `,
+          }}
+        />
+      </div>
+    );
+  }
+
+  const botCanonicalName = getBotCanonicalName(user?.username);
+  const isBotProfile = isBotName(user?.username) || !!botCanonicalName || user?.isBot === true;
+  const expertCanonicalName = getExpertCanonicalName(user?.username);
+  const isExpertProfile = !!expertCanonicalName;
+
+  // ── Guarded Avatar Selection (never leaks viewer's credentials to other profiles)
+  // ── Guarded Avatar Selection
+  const rawAvatar =
+    (isBotProfile && botCanonicalName ? BOT_AVATARS[botCanonicalName] : null) ||
+    (isBotProfile && user?.username && BOT_AVATARS[user.username] ? BOT_AVATARS[user.username] : null) ||
+    (isExpertProfile && expertCanonicalName ? EXPERT_AVATARS[expertCanonicalName] : null) ||
+    user?.avatarUrl ||
+    user?.photoURL ||
+    user?.picture ||
+    user?.image ||
+    user?.profilePicture ||
+    (!isOtherProfile
+      ? (selectedAvatar ||
+        authUser?.avatar ||
+        authUser?.photoURL ||
+        (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null))
+      : null);
+
+  const displayAvatar = sanitizeAvatarUrl(rawAvatar);
+
+  const rival = profileMetadata.rival ?? RIVAL;
+  const badgesToDisplay = user?.badges?.length ? user.badges : BADGES_LIST;
+  const ownedBadges = badgesToDisplay.filter((b: any) => b.unlocked);
 
   const statAccuracy = user?.accuracy != null ? `${user.accuracy}%` : "N/A";
   const repScore = user?.totalPoints ?? user?.reputationScore ?? 0;
@@ -4816,7 +5249,7 @@ export default function Profile({
   };
 
   return (
-    <div className="screen-scroll">
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", maxHeight: "100%", width: "100%", position: "relative", overflow: "hidden", overscrollBehavior: "none" }}>
       <style>{`
   .profile-avatar-fill, .profile-avatar-fill > * {
     width: 100% !important;
@@ -4830,8 +5263,9 @@ export default function Profile({
   }
 `}</style>
 
-      {/* ── Top header bar ── */}
+      {/* ── Top header bar (Fixed & sticky, never scrolls or bounces) ── */}
       <div style={{
+        flexShrink: 0,
         display: "flex", alignItems: "center", gap: 10,
         padding: "14px 16px 12px",
         background: "rgba(10,10,16,0.97)", backdropFilter: "blur(20px)",
@@ -4851,18 +5285,18 @@ export default function Profile({
           </svg>
         </button>
         <h3 style={{ color: "white", margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "0.01em" }}>
-          {/* {isOtherProfile && effectiveUsername ? `${effectiveUsername}'s Profile` : "Profile"} */}
           Profile
-          
         </h3>
       </div>
 
-      {/* ── Cover photo banner ── */}
-      <div style={{
-        position: "relative",
-        width: "100%",
-        height: 120,
-        background: coverPhoto
+      {/* ── Scrollable screen body ── */}
+      <div className="screen-scroll" style={{ flex: 1, minHeight: 0, overflowY: "auto", overflowX: "hidden", overscrollBehavior: "none", overscrollBehaviorY: "none", WebkitOverflowScrolling: "touch" }}>
+        {/* ── Cover photo banner ── */}
+        <div style={{
+          position: "relative",
+          width: "100%",
+          height: 120,
+          background: coverPhoto
           ? undefined
           : "linear-gradient(135deg, rgba(233,30,140,0.35), rgba(255,107,53,0.35))",
         overflow: "hidden",
@@ -5412,18 +5846,38 @@ export default function Profile({
 
           {/* ── Roar Journey ── */}
           <RoarJourneySection
+            polls={statPolls}
+            arenaPredictions={statArenaPredictions}
+            fanBattles={statFanBattles}
+            quiz={statQuiz}
+            meme={statMeme}
             predictions={statPredictions}
             debates={statDebates}
             posts={statPosts}
             badgeSrcs={[
-              ...featureBadges
+              ...effectiveFeatureBadges
                 .filter((fb) => fb.level > 0)
                 .map((fb) => fb.icons?.[Math.max(0, fb.level - 1)])
                 .filter(Boolean),
               ...specialBadges
-  .filter((b) => b.unlocked && (b.icon || b.imageUrl))
-  .map((b: any) => toBadgeImageSrc(b.icon || b.imageUrl)),
-
+                .filter((b) => b.unlocked !== false)
+                .map((b: any) => {
+                  const isRookie =
+                    b.id === "ROOKIE_FAN" ||
+                    b.id === "RISING_FAN" ||
+                    b.name === "Rookie Fan" ||
+                    b.name === "Rising Fan";
+                  if (isRookie) return "/images/badges/rookiefan.png";
+                  return b.iconSrc || toBadgeImageSrc(b.icon || b.imageUrl || "/images/badges/rookiefan.png");
+                }),
+            ]}
+            badgeNames={[
+              ...effectiveFeatureBadges
+                .filter((fb) => fb.level > 0)
+                .map((fb) => fb.labels?.[Math.max(0, fb.level - 1)] || fb.label || `${fb.feature} (Lvl ${fb.level})`),
+              ...specialBadges
+                .filter((b) => b.unlocked !== false)
+                .map((b: any) => b.name || b.title || "Special Badge"),
             ]}
             onToast={onToast}
           />
@@ -5458,8 +5912,8 @@ export default function Profile({
           {activeMainTab === "overview" && (
             <div style={{ padding: "0 14px 8px" }}>
               {(() => {
-                const wonFeatureBadges = featureBadges.filter((fb) => fb.level > 0);
-                const wonSpecialBadges = specialBadges.filter((b) => b.unlocked);
+                const wonFeatureBadges = effectiveFeatureBadges.filter((fb) => fb.level > 0);
+                const wonSpecialBadges = specialBadges.filter((b) => b.unlocked !== false);
                 const totalWon = wonFeatureBadges.length + wonSpecialBadges.length;
 
                 if (totalWon === 0) {
@@ -5483,59 +5937,126 @@ export default function Profile({
 
                     {wonFeatureBadges.length > 0 && (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: wonSpecialBadges.length > 0 ? 16 : 0 }}>
-                        {wonFeatureBadges.map((fb) => (
-                          <button
-                            key={fb.feature}
-                            onClick={() => setBadgeModal({
-                              id: fb.feature,
-                              badgeId: fb.feature,
-                              unlocked: fb.level > 0,
-                              progress: fb.progress,
-                              _feature: fb,
-                            })}
-                            style={{
-                              display: "flex", flexDirection: "column", alignItems: "center",
-                              width: 76, background: "none", border: "none", cursor: "pointer", padding: 0,
-                            }}
-                          >
-                            <div style={{
-                              width: 56, height: 56, borderRadius: "50%",
-                              background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
-                              border: "2px solid rgba(233,30,140,0.5)",
-                              display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
-                            }}>
-                              {fb.icons?.[Math.max(0, fb.level - 1)] ? (
-                                <img src={fb.icons[Math.max(0, fb.level - 1)]} alt={fb.feature} style={{ width: "70%", height: "70%", objectFit: "contain" }} />
-                              ) : (
-                                <span style={{ fontSize: 20 }}>🏅</span>
-                              )}
-                            </div>
-                            <span style={{ fontSize: 10, color: "#fff", fontWeight: 600, marginTop: 6, textAlign: "center", textTransform: "capitalize" }}>
-                              {fb.feature.replace(/([A-Z])/g, " $1")}
-                            </span>
-                            <span style={{ fontSize: 9, color: "var(--accent-magenta)", fontWeight: 700 }}>L{fb.level}</span>
-                          </button>
-                        ))}
+                        {wonFeatureBadges.map((fb) => {
+                          const currentIcon = fb.icons?.[Math.max(0, fb.level - 1)];
+                          const featureTitle = fb.label
+                            ? `${fb.label}`
+                            : `${fb.feature.replace(/([A-Z])/g, " $1")} · Level ${fb.level}`;
+                          const featureDesc = `You earned the ${fb.label || fb.feature} badge (Level ${fb.level}/5) for your activity in ${fb.feature.replace(/([A-Z])/g, " $1")} on SportsFan360.`;
+                          return (
+                            <button
+                              key={fb.feature}
+                              onClick={() => setBadgeModal({
+                                id: `${fb.feature}_l${fb.level}`,
+                                badgeId: `${fb.feature}_l${fb.level}`,
+                                name: featureTitle,
+                                subtitle: `${fb.feature.replace(/([A-Z])/g, " $1")} · Level ${fb.level}/5`,
+                                description: featureDesc,
+                                unlocked: true,
+                                progress: fb.progress,
+                                level: fb.level,
+                                iconSrc: currentIcon,
+                                _feature: fb,
+                                isSpecial: false,
+                              })}
+                              style={{
+                                display: "flex", flexDirection: "column", alignItems: "center",
+                                width: 76, background: "none", border: "none", cursor: "pointer", padding: 0,
+                              }}
+                            >
+                              <div style={{
+                                width: 56, height: 56, borderRadius: "50%",
+                                background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
+                                border: "2px solid rgba(233,30,140,0.5)",
+                                display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+                              }}>
+                                {currentIcon ? (
+                                  <img src={currentIcon} alt={fb.feature} style={{ width: "70%", height: "70%", objectFit: "contain" }} />
+                                ) : (
+                                  <span style={{ fontSize: 20 }}>🏅</span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: 10, color: "#fff", fontWeight: 600, marginTop: 6, textAlign: "center", textTransform: "capitalize" }}>
+                                {fb.feature.replace(/([A-Z])/g, " $1")}
+                              </span>
+                              <span style={{ fontSize: 9, color: "var(--accent-magenta)", fontWeight: 700 }}>L{fb.level}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
 
-                    {specialBadges.filter((b) => b.unlocked).map((b) => {
-                      const iconSrc = "/images/badges/rookiefan.png";
-                      return (
-                        <div key={b.id} style={{
-                          display: "flex", alignItems: "center", gap: 8,
-                          flexShrink: 0, padding: "6px 12px", borderRadius: 20,
-                          // background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
-                          fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
-                        }}>
-                          <img
-                            src={iconSrc}
-                            alt={b.name}
-                            style={{ width: 52, height: 52, objectFit: "contain" }}
-                          />
-                        </div>
-                      );
-                    })}
+                    {wonSpecialBadges.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                        {wonSpecialBadges.map((b) => {
+                          const isRookie =
+                            b.id === "ROOKIE_FAN" ||
+                            b.id === "RISING_FAN" ||
+                            b.id === "FIRST_ROAR" ||
+                            b.name === "Rookie Fan" ||
+                            b.name === "Rising Fan";
+                          const iconSrc = isRookie
+                            ? "/images/badges/rookiefan.png"
+                            : (b.iconSrc ||
+                               ((b.icon || b.imageUrl)
+                                 ? toBadgeImageSrc(b.icon || b.imageUrl)
+                                 : (BADGE_ICONS[b.id] || BADGE_ICONS[b.name] || "/images/badges/rookiefan.png")));
+                          const detail = BADGE_DETAIL[b.id] || BADGE_DETAIL[b.name?.toUpperCase()?.replace(/\s+/g, "_")] || null;
+                          const badgeName = isRookie ? "Rookie Fan" : (b.name || detail?.name || "Special Achievement");
+                          const badgeDesc = isRookie
+                            ? "Congratulations! You’ve officially earned your Rookie Fan status. Your journey with SportsFan360 starts now."
+                            : (b.description || b.desc || detail?.description || "Special achievement badge earned on SportsFan360.");
+                          return (
+                            <button
+                              key={b.id}
+                              onClick={() => setBadgeModal({
+                                id: isRookie ? "ROOKIE_FAN" : b.id,
+                                badgeId: isRookie ? "ROOKIE_FAN" : b.id,
+                                name: badgeName,
+                                description: badgeDesc,
+                                rarity: b.rarity || detail?.rarity || "Special Achievement",
+                                iconSrc,
+                                unlocked: true,
+                                isSpecial: true,
+                                badge: b,
+                              })}
+                              style={{
+                                display: "flex", flexDirection: "column", alignItems: "center",
+                                width: 76, background: "none", border: "none", cursor: "pointer", padding: 0,
+                              }}
+                            >
+                              <div style={{
+                                width: 56, height: 56, borderRadius: "50%",
+                                background: "linear-gradient(135deg, rgba(255,215,0,0.25), rgba(255,107,53,0.25))",
+                                border: "2px solid rgba(255,215,0,0.5)",
+                                display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+                              }}>
+                                <img
+                                  src={iconSrc}
+                                  alt={badgeName}
+                                  style={{ width: "70%", height: "70%", objectFit: "contain" }}
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLElement).style.display = "none";
+                                    const parent = e.currentTarget.parentElement;
+                                    if (parent && !parent.querySelector(".special-fallback")) {
+                                      const span = document.createElement("span");
+                                      span.className = "special-fallback";
+                                      span.textContent = "🏆";
+                                      span.style.fontSize = "22px";
+                                      parent.appendChild(span);
+                                    }
+                                  }}
+                                />
+                              </div>
+                              <span style={{ fontSize: 10, color: "#fff", fontWeight: 600, marginTop: 6, textAlign: "center", lineHeight: 1.2 }}>
+                                {badgeName}
+                              </span>
+                              <span style={{ fontSize: 9, color: "#FFD700", fontWeight: 700 }}>Special</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
 
                   </>
                 );
@@ -5543,18 +6064,100 @@ export default function Profile({
             </div>
           )}
 
-          {/* ── BADGES TAB: full feature mastery + special badges ── */}
+          {/* ── BADGES TAB: special achievements at top + full feature mastery ── */}
           {activeMainTab === "badges" && (
             <>
+              {/* Special Achievements at top in a new row showing badge not text */}
+              {specialBadges.filter((b) => b.unlocked !== false).length > 0 && (
+                <div style={{ padding: "0 14px 18px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Special Achievements</span>
+                    <span style={{ fontSize: 11, color: "rgba(255,255,255,0.4)" }}>
+                      {specialBadges.filter((b) => b.unlocked !== false).length} earned
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                    {specialBadges.filter((b) => b.unlocked !== false).map((b) => {
+                      const isRookie =
+                        b.id === "ROOKIE_FAN" ||
+                        b.id === "RISING_FAN" ||
+                        b.id === "FIRST_ROAR" ||
+                        b.name === "Rookie Fan" ||
+                        b.name === "Rising Fan";
+                      const iconSrc = isRookie
+                        ? "/images/badges/rookiefan.png"
+                        : (b.iconSrc ||
+                           ((b.icon || b.imageUrl)
+                             ? toBadgeImageSrc(b.icon || b.imageUrl)
+                             : (BADGE_ICONS[b.id] || BADGE_ICONS[b.name] || "/images/badges/rookiefan.png")));
+                      const detail = BADGE_DETAIL[b.id] || BADGE_DETAIL[b.name?.toUpperCase()?.replace(/\s+/g, "_")] || null;
+                      const badgeName = isRookie ? "Rookie Fan" : (b.name || detail?.name || "Special Achievement");
+                      const badgeDesc = isRookie
+                        ? "Congratulations! You’ve officially earned your Rookie Fan status. Your journey with SportsFan360 starts now."
+                        : (b.description || b.desc || detail?.description || "Special achievement badge earned on SportsFan360.");
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => setBadgeModal({
+                            id: isRookie ? "ROOKIE_FAN" : b.id,
+                            badgeId: isRookie ? "ROOKIE_FAN" : b.id,
+                            name: badgeName,
+                            description: badgeDesc,
+                            rarity: b.rarity || detail?.rarity || "Special Achievement",
+                            iconSrc,
+                            unlocked: true,
+                            isSpecial: true,
+                            badge: b,
+                          })}
+                          style={{
+                            display: "flex", flexDirection: "column", alignItems: "center",
+                            width: 76, background: "none", border: "none", cursor: "pointer", padding: 0,
+                          }}
+                        >
+                          <div style={{
+                            width: 56, height: 56, borderRadius: "50%",
+                            background: "linear-gradient(135deg, rgba(255,215,0,0.25), rgba(255,107,53,0.25))",
+                            border: "2px solid rgba(255,215,0,0.5)",
+                            display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+                          }}>
+                            <img
+                              src={iconSrc}
+                              alt={badgeName}
+                              style={{ width: "70%", height: "70%", objectFit: "contain" }}
+                              onError={(e) => {
+                                (e.currentTarget as HTMLElement).style.display = "none";
+                                const parent = e.currentTarget.parentElement;
+                                if (parent && !parent.querySelector(".special-fallback")) {
+                                  const span = document.createElement("span");
+                                  span.className = "special-fallback";
+                                  span.textContent = "🏆";
+                                  span.style.fontSize = "22px";
+                                  parent.appendChild(span);
+                                }
+                              }}
+                            />
+                          </div>
+                          <span style={{ fontSize: 10, color: "#fff", fontWeight: 600, marginTop: 6, textAlign: "center", lineHeight: 1.2 }}>
+                            {badgeName}
+                          </span>
+                          <span style={{ fontSize: 9, color: "#FFD700", fontWeight: 700 }}>Special</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Feature Mastery Badges */}
               <div style={{ padding: "0 0 0" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0 14px", marginBottom: 14 }}>
                   <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>
-                    {isOtherProfile ? "Badges" : "Your Badges"}
+                    {isOtherProfile ? "Badges" : "Feature Mastery"}
                   </span>
                 </div>
 
                 <div style={{ display: "flex", flexDirection: "column", gap: 18, padding: "0 14px" }}>
-                  {featureBadges.map((fb) => (
+                  {effectiveFeatureBadges.map((fb) => (
                     <div key={fb.feature}>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 }}>
                         <span style={{ fontSize: 12, fontWeight: 700, color: fb.level > 0 ? "#fff" : "rgba(255,255,255,0.45)", textTransform: "capitalize" }}>
@@ -5569,15 +6172,31 @@ export default function Profile({
                         {[1, 2, 3, 4, 5].map((lvl) => {
                           const achieved = lvl <= fb.level;
                           const isCurrentTarget = lvl === fb.level + 1;
+                          const lvlLabel = fb.labels?.[lvl - 1] || `${fb.feature.replace(/([A-Z])/g, " $1")} Level ${lvl}`;
+                          const lvlIcon = fb.icons?.[lvl - 1] || null;
+                          const reqThreshold = fb.thresholds?.[lvl - 1];
+                          const statName = fb.feature.replace(/([A-Z])/g, " $1").toLowerCase();
+                          const lvlDesc = achieved
+                            ? `You earned the ${lvlLabel} (Level ${lvl}/5) badge for your activity in ${statName} on SportsFan360.`
+                            : reqThreshold
+                              ? `Reach ${reqThreshold} ${statName} to unlock the ${lvlLabel} (Level ${lvl}/5) badge.`
+                              : `Unlock Level ${lvl} by continuing your activity in ${statName} on SportsFan360.`;
+
                           return (
                             <button
                               key={lvl}
                               onClick={() => setBadgeModal({
-                                id: fb.feature,
-                                badgeId: fb.feature,
-                                unlocked: fb.level > 0,
-                                progress: fb.progress,
+                                id: `${fb.feature}_l${lvl}`,
+                                badgeId: `${fb.feature}_l${lvl}`,
+                                name: lvlLabel,
+                                subtitle: `${fb.feature.replace(/([A-Z])/g, " $1")} · Level ${lvl}/5`,
+                                description: lvlDesc,
+                                unlocked: achieved,
+                                level: lvl,
+                                progress: achieved ? 100 : (lvl === fb.level + 1 ? fb.progress : 0),
+                                iconSrc: lvlIcon,
                                 _feature: fb,
+                                isSpecial: false,
                               })}
                               style={{
                                 flex: "1 1 0",
@@ -5641,26 +6260,6 @@ export default function Profile({
                   ))}
                 </div>
               </div>
-
-              {specialBadges.filter((b) => b.unlocked).length > 0 && (
-                <div style={{ padding: "18px 0 0" }}>
-                  <div style={{ padding: "0 14px", marginBottom: 12 }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>Special Achievements</span>
-                  </div>
-                  <div style={{ display: "flex", gap: 10, overflowX: "auto", padding: "4px 14px 8px", scrollbarWidth: "none" }}>
-                    {specialBadges.filter((b) => b.unlocked).map((b) => (
-                      <div key={b.id} style={{
-                        flexShrink: 0, padding: "8px 14px", borderRadius: 20,
-                        background: "linear-gradient(135deg, rgba(255,215,0,0.15), rgba(255,107,53,0.15))",
-                        border: "1px solid rgba(255,215,0,0.35)",
-                        fontSize: 12, fontWeight: 700, color: "#FFD700", whiteSpace: "nowrap",
-                      }}>
-                        🏆 {b.name}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </>
           )}
 
@@ -5878,6 +6477,7 @@ export default function Profile({
           )}
         </>
       )}
+      </div>
 
       {/* ── Edit Profile Modal ── */}
       <AnimatePresence>
@@ -6173,47 +6773,186 @@ export default function Profile({
 
       {/* ── Badge Detail Modal ── */}
       <AnimatePresence>
-        {badgeModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-            onClick={(e) => { if (e.target === e.currentTarget) setBadgeModal(null); }}
-          >
+        {badgeModal && (() => {
+          const isSpecial = !!badgeModal.isSpecial;
+          const feature = badgeModal._feature;
+          const isRookie =
+            badgeModal.id === "ROOKIE_FAN" ||
+            badgeModal.badgeId === "ROOKIE_FAN" ||
+            badgeModal.id === "RISING_FAN" ||
+            badgeModal.badgeId === "RISING_FAN" ||
+            badgeModal.id === "FIRST_ROAR" ||
+            badgeModal.name === "Rookie Fan" ||
+            badgeModal.name === "Rising Fan";
+
+          const isUnlocked = isRookie ? true : badgeModal.unlocked !== false;
+
+          const modalIcon = isRookie
+            ? "/images/badges/rookiefan.png"
+            : (badgeModal.iconSrc ||
+               (feature?.icons && feature.icons[Math.max(0, (badgeModal.level || feature.level || 1) - 1)]) ||
+               (badgeModal.icon || badgeModal.imageUrl ? toBadgeImageSrc(badgeModal.icon || badgeModal.imageUrl) : null) ||
+               null);
+
+          const title = isRookie
+            ? "Rookie Fan"
+            : (badgeModal.name ||
+               (feature?.label ? `${feature.label}` : null) ||
+               (feature?.feature ? `${feature.feature.replace(/([A-Z])/g, " $1")} Mastery` : null) ||
+               "Badge");
+
+          const description = isRookie
+            ? "Congratulations! You’ve officially earned your Rookie Fan status. Your journey with SportsFan360 starts now."
+            : (badgeModal.description ||
+               feature?.description ||
+               (feature?.label
+                 ? `You earned the ${feature.label} (Level ${badgeModal.level || feature.level || 1}) badge for your activity in ${feature.feature?.replace(/([A-Z])/g, " $1")} on SportsFan360.`
+                 : "Badge earned on SportsFan360."));
+
+          const subtitle = isSpecial
+            ? (isRookie ? "Special Achievement" : (badgeModal.rarity || badgeModal.category || "Special Achievement"))
+            : (badgeModal.subtitle ||
+               (feature?.label && badgeModal.level
+                 ? `${feature.feature?.replace(/([A-Z])/g, " $1")} · Level ${badgeModal.level}/5`
+                 : badgeModal.category || "Feature Mastery"));
+
+          return (
             <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              style={{ background: "rgba(20,20,30,0.98)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 20, padding: "24px 20px", width: "100%", maxWidth: 360, textAlign: "center" }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(8px)", zIndex: 120, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+              onClick={(e) => { if (e.target === e.currentTarget) setBadgeModal(null); }}
             >
-              <div style={{ width: 80, height: 80, borderRadius: "50%", margin: "0 auto 16px", background: "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))", border: "2px solid rgba(233,30,140,0.5)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                {badgeModal._feature?.icons?.[Math.max(0, (badgeModal._feature?.level || 1) - 1)] ? (
-                  <img src={badgeModal._feature.icons[Math.max(0, (badgeModal._feature.level || 1) - 1)]} alt="badge" style={{ width: "70%", height: "70%", objectFit: "contain" }} />
-                ) : (
-                  <span style={{ fontSize: 32 }}>🏅</span>
-                )}
-              </div>
-              <h3 className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff", margin: "0 0 6px", textTransform: "capitalize" }}>
-                {badgeModal._feature ? `${badgeModal._feature.feature.replace(/([A-Z])/g, " $1")} · L${badgeModal._feature.level}` : (badgeModal.name || "Badge")}
-              </h3>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", margin: "0 0 16px", lineHeight: 1.5 }}>
-                {badgeModal._feature?.label || badgeModal.description || "Mastery badge earned on SportsFan360."}
-              </p>
-              <button
-                type="button"
-                onClick={() => setBadgeModal(null)}
+              <motion.div
+                initial={{ scale: 0.95, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.95, opacity: 0 }}
                 style={{
-                  padding: "8px 24px", borderRadius: 20,
-                  background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)",
-                  color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  position: "relative",
+                  background: "rgba(20,20,30,0.98)",
+                  border: isSpecial ? "1px solid rgba(255,215,0,0.3)" : "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 20,
+                  padding: "28px 20px 24px",
+                  width: "100%",
+                  maxWidth: 360,
+                  textAlign: "center",
+                  boxShadow: isSpecial ? "0 8px 32px rgba(255,215,0,0.15)" : "0 8px 32px rgba(0,0,0,0.5)",
                 }}
               >
-                Close
-              </button>
+                {/* Close 'X' Button on right side corner */}
+                <button
+                  type="button"
+                  onClick={() => setBadgeModal(null)}
+                  aria-label="Close"
+                  style={{
+                    position: "absolute",
+                    top: 14,
+                    right: 14,
+                    width: 32,
+                    height: 32,
+                    borderRadius: "50%",
+                    background: "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    color: "rgba(255,255,255,0.7)",
+                    fontSize: 16,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    padding: 0,
+                    zIndex: 10,
+                    transition: "all 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = "#fff";
+                    e.currentTarget.style.background = "rgba(255,255,255,0.16)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = "rgba(255,255,255,0.7)";
+                    e.currentTarget.style.background = "rgba(255,255,255,0.08)";
+                  }}
+                >
+                  ✕
+                </button>
+
+                {/* Badge Icon */}
+                <div style={{
+                  width: 84, height: 84, borderRadius: "50%", margin: "0 auto 14px",
+                  background: !isUnlocked
+                    ? "rgba(255,255,255,0.05)"
+                    : isSpecial
+                      ? "linear-gradient(135deg, rgba(255,215,0,0.25), rgba(255,107,53,0.25))"
+                      : "linear-gradient(135deg, rgba(233,30,140,0.25), rgba(255,107,53,0.25))",
+                  border: !isUnlocked
+                    ? "2px solid rgba(255,255,255,0.18)"
+                    : isSpecial
+                      ? "2px solid rgba(255,215,0,0.5)"
+                      : "2px solid rgba(233,30,140,0.5)",
+                  filter: !isUnlocked ? "grayscale(1) opacity(0.65)" : "none",
+                  display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+                }}>
+                  {modalIcon ? (
+                    <img
+                      src={modalIcon}
+                      alt={title}
+                      style={{ width: "72%", height: "72%", objectFit: "contain" }}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLElement).style.display = "none";
+                        const parent = e.currentTarget.parentElement;
+                        if (parent && !parent.querySelector(".fallback-badge-modal")) {
+                          const span = document.createElement("span");
+                          span.className = "fallback-badge-modal";
+                          span.textContent = !isUnlocked ? "🔒" : isSpecial ? "🏆" : "🏅";
+                          span.style.fontSize = "34px";
+                          parent.appendChild(span);
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 34 }}>{!isUnlocked ? "🔒" : isSpecial ? "🏆" : "🏅"}</span>
+                  )}
+                </div>
+
+                {/* Status pill */}
+                {isUnlocked ? (
+                  <div style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "3px 10px", borderRadius: 12,
+                    background: "rgba(34, 197, 94, 0.15)", border: "1px solid rgba(34, 197, 94, 0.35)",
+                    color: "#4ade80", fontSize: 11, fontWeight: 700, marginBottom: 10,
+                  }}>
+                    <span>✓</span> Badge Earned
+                  </div>
+                ) : (
+                  <div style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    padding: "3px 10px", borderRadius: 12,
+                    background: "rgba(255, 255, 255, 0.08)", border: "1px solid rgba(255, 255, 255, 0.18)",
+                    color: "rgba(255, 255, 255, 0.6)", fontSize: 11, fontWeight: 700, marginBottom: 10,
+                  }}>
+                    <span>🔒</span> Locked
+                  </div>
+                )}
+
+                {/* Badge Title */}
+                <h3 className="font-display" style={{ fontSize: 19, fontWeight: 800, color: "#fff", margin: "0 0 4px", textTransform: "capitalize" }}>
+                  {title}
+                </h3>
+
+                {/* Subtitle / Level / Category */}
+                <p style={{ fontSize: 12, color: isSpecial ? "#FFD700" : "var(--accent-magenta)", fontWeight: 700, margin: "0 0 12px", textTransform: "capitalize" }}>
+                  {subtitle}
+                </p>
+
+                {/* Description */}
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.75)", margin: "0 0 14px", lineHeight: 1.55 }}>
+                  {description}
+                </p>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
+          );
+        })()}
       </AnimatePresence>
     </div>
   );

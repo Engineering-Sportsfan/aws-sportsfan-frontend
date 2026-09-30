@@ -1,412 +1,22 @@
-// "use client";
-// import { useState, useRef, useEffect } from "react";
-// import { motion } from "framer-motion";
-
-// interface RoarJourneySectionProps {
-//     predictions: number;
-//     debates: number;
-//     posts: number;
-//     badgeSrcs: string[];      // unlocked badge image paths
-//     onToast: (m: string) => void;
-// }
-
-// function buildShareText(
-//     predictions: number,
-//     debates: number,
-//     posts: number,
-//     badgeCount: number,
-// ) {
-//     return [
-//         "🔥 My Roar Journey on Sportsfan360",
-//         "",
-//         `🔮 Predictions: ${predictions}`,
-//         `⚡ Debates: ${debates}`,
-//         `✏️ Posts: ${posts}`,
-//         badgeCount > 0 ? `🏅 Badges Earned: ${badgeCount}` : null,
-//         "",
-//         "Join us 👉 https://sportsfan-frontend.vercel.app/",
-//         "#StartRoaring #Sportsfan360",
-//     ]
-//         .filter((l) => l !== null)
-//         .join("\n");
-// }
-
-// export function RoarJourneySection({
-//     predictions,
-//     debates,
-//     posts,
-//     badgeSrcs,
-//     onToast,
-// }: RoarJourneySectionProps) {
-//     const [sharing, setSharing] = useState(false);
-//     const canvasRef = useRef<HTMLCanvasElement>(null);
-
-//     // ── Preload the background image on mount ───────────────────────────────
-//     // This is the key fix. If the image is loaded *inside* the click handler,
-//     // the wait on bg.onload can take long enough (network + decode) that
-//     // Chrome's "transient user activation" window expires before
-//     // navigator.share() is called — at which point share() throws silently
-//     // and the code falls through to the clipboard/download fallback, which
-//     // looks exactly like "sharing isn't working."
-//     // By preloading once on mount, the tap handler only does fast, local
-//     // canvas work — no network wait — so the gesture stays "fresh."
-//     const bgImageRef = useRef<HTMLImageElement | null>(null);
-//     const [bgFailed, setBgFailed] = useState(false);
-
-//     useEffect(() => {
-//         const img = new window.Image();
-//         // Same-origin image in /public — crossOrigin is defensive only.
-//         img.crossOrigin = "anonymous";
-//         img.onload = () => {
-//             bgImageRef.current = img;
-//         };
-//         img.onerror = () => {
-//             console.error(
-//                 "[RoarJourneySection] Failed to load /images/profilecard.png — " +
-//                 "check the file exists in /public/images and the path is correct."
-//             );
-//             setBgFailed(true);
-//         };
-//         img.src = "/images/profilecard.png";
-//     }, []);
-
-//     const generateShareCard = (): Promise<Blob | null> => {
-//         return new Promise((resolve) => {
-//             const bg = bgImageRef.current;
-//             if (!bg) {
-//                 resolve(null);
-//                 return;
-//             }
-
-//             const canvas = document.createElement("canvas");
-//             canvas.width = 1340;
-//             canvas.height = 752;
-//             const ctx = canvas.getContext("2d");
-//             if (!ctx) return resolve(null);
-
-//             try {
-//                 ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
-//             } catch (e) {
-//                 // Tainted canvas (CORS) — should not happen for same-origin
-//                 // /public assets, but bail safely if it ever does.
-//                 console.error("[RoarJourneySection] Canvas draw failed (possible CORS taint):", e);
-//                 resolve(null);
-//                 return;
-//             }
-
-//             const stats = [
-//                 { label: "PREDICTIONS", value: predictions, x: 220 },
-//                 { label: "DEBATES", value: debates, x: 490 },
-//                 { label: "POSTS", value: posts, x: 760 },
-//                 { label: "BADGES EARNED", value: badgeSrcs.length, x: 1030 },
-//             ];
-
-//             stats.forEach(({ label, value, x }) => {
-//                 const y = 530;
-
-//                 ctx.font = "bold 88px Arial";
-//                 ctx.fillStyle = label === "PREDICTIONS" ? "#9333EA"
-//                     : label === "DEBATES" ? "#F97316"
-//                         : label === "POSTS" ? "#14B8A6"
-//                             : "#F97316";
-//                 ctx.textAlign = "center";
-//                 ctx.fillText(String(value), x + 50, y);
-
-//                 ctx.font = "bold 22px Arial";
-//                 ctx.fillStyle = "#1a1a1a";
-//                 ctx.fillText(label, x + 50, y + 48);
-//             });
-
-//             canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
-//         });
-//     };
-
-//     const handleShare = async () => {
-//         if (sharing) return;
-//         setSharing(true);
-
-//         // Helpful diagnostics — safe to remove once confirmed working.
-//         if (typeof window !== "undefined" && window.isSecureContext === false) {
-//             console.warn(
-//                 "[RoarJourneySection] navigator.share requires a secure context " +
-//                 "(HTTPS or localhost). Current page is not secure — this alone " +
-//                 "will silently disable native sharing."
-//             );
-//         }
-//         if (typeof navigator === "undefined" || !navigator.share) {
-//             console.warn("[RoarJourneySection] navigator.share is not available in this browser/context.");
-//         }
-
-//         try {
-//             const blob = await generateShareCard();
-
-//             if (blob) {
-//                 const file = new File([blob], "my-roar-journey.png", { type: "image/png" });
-
-//                 if (typeof navigator !== "undefined" && navigator.canShare?.({ files: [file] })) {
-//                     try {
-//                         await navigator.share({
-//                             files: [file],
-//                             title: "My Roar Journey",
-//                             text: "Hey! Join me on Sportsfan360 👉 https://sportsfan-frontend.vercel.app/MainModules/ROAR",
-//                         });
-//                         setSharing(false);
-//                         return;
-//                     } catch (shareErr: any) {
-//                         if (shareErr?.name === "AbortError") {
-//                             // User cancelled the share sheet — not an error.
-//                             setSharing(false);
-//                             return;
-//                         }
-//                         console.error("[RoarJourneySection] navigator.share threw:", shareErr);
-//                         // fall through to download fallback below
-//                     }
-//                 } else {
-//                     console.warn(
-//                         "[RoarJourneySection] canShare({files}) returned false — " +
-//                         "browser can't share this file type here, falling back to download."
-//                     );
-//                 }
-
-//                 // Fallback: download the image
-//                 const url = URL.createObjectURL(blob);
-//                 const a = document.createElement("a");
-//                 a.href = url;
-//                 a.download = "my-roar-journey.png";
-//                 a.click();
-//                 URL.revokeObjectURL(url);
-//                 onToast("Card saved! Share it from your gallery.");
-//             } else {
-//                 // No blob — background image likely failed to load/preload.
-//                 if (bgFailed) {
-//                     onToast("Couldn't load the share card image.");
-//                 } else {
-//                     await navigator.clipboard?.writeText(
-//                         buildShareText(predictions, debates, posts, badgeSrcs.length)
-//                     );
-//                     onToast("Copied to clipboard!");
-//                 }
-//             }
-//         } catch (err: any) {
-//             if (err?.name !== "AbortError") {
-//                 console.error("[RoarJourneySection] handleShare failed:", err);
-//                 onToast("Could not share.");
-//             }
-//         } finally {
-//             setSharing(false);
-//         }
-//     };
-
-//     const displayedBadges = badgeSrcs.slice(0, 4);
-
-//     return (
-//         <div style={{ padding: "0 14px 18px" }}>
-//             {/* ── Card ── */}
-//             <div
-//                 style={{
-//                     borderRadius: 20,
-//                     overflow: "hidden",
-//                     background: "linear-gradient(160deg, #1c1628 0%, #0e0e18 60%, #180e20 100%)",
-//                     border: "1px solid rgba(255,255,255,0.07)",
-//                     position: "relative",
-//                 }}
-//             >
-//                 {/* decorative glow — top-right */}
-//                 <div
-//                     style={{
-//                         position: "absolute", top: -40, right: -40,
-//                         width: 160, height: 160, borderRadius: "50%",
-//                         background: "rgba(233,30,140,0.1)", filter: "blur(44px)",
-//                         pointerEvents: "none",
-//                     }}
-//                 />
-
-//                 {/* ── Header row ── */}
-//                 <div
-//                     style={{
-//                         display: "flex", alignItems: "center",
-//                         justifyContent: "space-between",
-//                         padding: "14px 16px 10px",
-//                     }}
-//                 >
-//                     <span
-//                         style={{
-//                             fontSize: 13, fontWeight: 700, color: "#fff",
-//                             letterSpacing: "0.01em",
-//                         }}
-//                     >
-//                         Your Roar Journey
-//                     </span>
-
-//                     {/* ROAR. pill */}
-//                     <div
-//                         style={{
-//                             background: "linear-gradient(135deg, #E91E8C 0%, #FF6B35 100%)",
-//                             borderRadius: 8, padding: "3px 10px",
-//                         }}
-//                     >
-//                         <span
-//                             style={{
-//                                 fontFamily: "'Bebas Neue','Impact','Arial Narrow',sans-serif",
-//                                 fontSize: 16, fontWeight: 900,
-//                                 letterSpacing: "0.08em", color: "#fff",
-//                             }}
-//                         >
-//                             ROAR.
-//                         </span>
-//                     </div>
-//                 </div>
-
-//                 {/* ── Stats row ── */}
-//                 <div
-//                     style={{
-//                         display: "grid", gridTemplateColumns: "repeat(3,1fr)",
-//                         gap: 8, padding: "0 14px 14px",
-//                     }}
-//                 >
-//                     {[
-//                         { label: "PREDICT", value: predictions, icon: "🔮", hot: true },
-//                         { label: "DEBATE", value: debates, icon: "⚡", hot: false },
-//                         { label: "POST", value: posts, icon: "✏️", hot: false },
-//                     ].map(({ label, value, icon, hot }) => (
-//                         <div
-//                             key={label}
-//                             style={{
-//                                 background: "#0a0a14",
-//                                 border: `1px solid ${hot ? "rgba(233,30,140,0.25)" : "rgba(255,255,255,0.06)"}`,
-//                                 borderRadius: 16,
-//                                 padding: "10px 10px 8px",
-//                                 display: "flex", flexDirection: "column",
-//                                 alignItems: "flex-start", gap: 6,
-//                             }}
-//                         >
-//                             {/* pill */}
-//                             <div
-//                                 style={{
-//                                     display: "inline-flex", alignItems: "center", gap: 3,
-//                                     background: hot ? "rgba(233,30,140,0.18)" : "rgba(255,255,255,0.08)",
-//                                     borderRadius: 999, padding: "2px 7px 2px 5px",
-//                                 }}
-//                             >
-//                                 <span style={{ fontSize: 9, lineHeight: 1 }}>{icon}</span>
-//                                 <span
-//                                     style={{
-//                                         fontSize: 8, fontWeight: 800,
-//                                         letterSpacing: "0.07em",
-//                                         color: hot ? "#E91E8C" : "rgba(255,255,255,0.6)",
-//                                         textTransform: "uppercase",
-//                                     }}
-//                                 >
-//                                     {label}
-//                                 </span>
-//                             </div>
-//                             {/* number */}
-//                             <span
-//                                 style={{
-//                                     fontFamily: "'Bebas Neue','Impact','Arial Narrow',sans-serif",
-//                                     fontSize: 36, fontWeight: 900,
-//                                     color: "#fff", lineHeight: 1, paddingLeft: 2,
-//                                 }}
-//                             >
-//                                 {value}
-//                             </span>
-//                         </div>
-//                     ))}
-//                 </div>
-
-//                 {/* ── Badges earned ── */}
-//                 <div style={{ padding: "0 14px 14px" }}>
-//                     <p
-//                         style={{
-//                             fontSize: 11, fontWeight: 700,
-//                             letterSpacing: "0.08em",
-//                             color: "rgba(255,255,255,0.45)",
-//                             marginBottom: 10, textTransform: "uppercase",
-//                         }}
-//                     >
-//                         Badges Earned
-//                     </p>
-//                     <div style={{ display: "flex", gap: 10 }}>
-//                         {displayedBadges.map((src, i) => (
-//                             <div
-//                                 key={i}
-//                                 style={{
-//                                     width: 58, height: 58, borderRadius: 14,
-//                                     background: "rgba(255,255,255,0.04)",
-//                                     border: "1px solid rgba(255,255,255,0.07)",
-//                                     display: "flex", alignItems: "center",
-//                                     justifyContent: "center", overflow: "hidden", flexShrink: 0,
-//                                 }}
-//                             >
-//                                 <img
-//                                     src={src} alt={`Badge ${i + 1}`}
-//                                     style={{ width: 48, height: 48, objectFit: "contain" }}
-//                                 />
-//                             </div>
-//                         ))}
-//                     </div>
-//                 </div>
-
-//                 {/* ── Footer ── */}
-//                 <div
-//                     style={{
-//                         display: "flex", alignItems: "center",
-//                         justifyContent: "space-between",
-//                         padding: "10px 14px 16px",
-//                     }}
-//                 >
-//                     <div>
-//                         <p style={{ fontSize: 10, color: "rgba(255,255,255,0.35)", margin: "0 0 2px" }}>
-//                             Join us at Sportsfan360
-//                         </p>
-//                         <p
-//                             style={{
-//                                 fontSize: 10, fontWeight: 800, margin: 0,
-//                                 background: "linear-gradient(90deg,#E91E8C,#FF6B35)",
-//                                 WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-//                             }}
-//                         >
-//                             #StartRoaring
-//                         </p>
-//                     </div>
-
-//                     <motion.button
-//                         whileTap={{ scale: 0.91 }}
-//                         onClick={handleShare}
-//                         disabled={sharing}
-//                         style={{
-//                             padding: "9px 22px",
-//                             border: "1.5px solid rgba(255,255,255,0.3)",
-//                             borderRadius: 999,
-//                             background: "transparent",
-//                             color: "#fff", fontSize: 13, fontWeight: 700,
-//                             cursor: sharing ? "not-allowed" : "pointer",
-//                             letterSpacing: "0.01em",
-//                             opacity: sharing ? 0.6 : 1,
-//                             transition: "opacity 0.15s",
-//                         }}
-//                     >
-//                         {sharing ? "Sharing…" : "Share"}
-//                     </motion.button>
-//                 </div>
-//             </div>
-//         </div>
-//     );
-// }
-
-
-
-
-
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface RoarJourneySectionProps {
+    // FlipARENA counts (optional with fallback to 0)
+    polls?: number;
+    arenaPredictions?: number;
+    fanBattles?: number;
+    quiz?: number;
+    meme?: number;
+
+    // ROAR counts
     predictions: number;
     debates: number;
     posts: number;
+
     badgeSrcs: string[];
+    badgeNames?: string[];
     onToast: (m: string) => void;
 }
 
@@ -415,16 +25,47 @@ function buildShareText(
     debates: number,
     posts: number,
     badgeCount: number,
+    polls: number = 0,
+    arenaPredictions: number = 0,
+    fanBattles: number = 0,
+    quiz: number = 0,
+    meme: number = 0,
+    badgeNames: string[] = [],
+    badgeSrcs: string[] = []
 ) {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://sportsfan-frontend.vercel.app";
+    const url = typeof window !== "undefined" ? window.location.href : "https://sportsfan-frontend.vercel.app/MainModules/ROAR";
+    
+    const badgesSection = badgeNames.length > 0
+        ? [
+            `🏅 Badges Earned (${badgeNames.length}):`,
+            ...badgeNames.map((name, idx) => {
+                const src = badgeSrcs[idx];
+                const fullSrc = src ? (src.startsWith("http") ? src : `${origin}${src.startsWith("/") ? "" : "/"}${src}`) : "";
+                return fullSrc ? `  🎖️ ${name}: ${fullSrc}` : `  🎖️ ${name}`;
+            }),
+          ]
+        : badgeCount > 0
+        ? [`🏅 Badges Earned: ${badgeCount}`]
+        : [];
+
     return [
-        "🔥 My Roar Journey on Sportsfan360",
+        "🔥 My Sportsfan360 Journey",
         "",
-        `🔮 Predictions: ${predictions}`,
-        `⚡ Debates: ${debates}`,
-        `✏️ Posts: ${posts}`,
-        badgeCount > 0 ? `🏅 Badges Earned: ${badgeCount}` : null,
+        "⚔️ FlipARENA:",
+        `  📊 Polls: ${polls}`,
+        `  🎯 Predictions: ${arenaPredictions}`,
+        `  🥊 Fan Battles: ${fanBattles}`,
+        `  🧠 Quizzes: ${quiz}`,
+        `  🎭 Memes: ${meme}`,
         "",
-        "Join us 👉 https://sportsfan-frontend.vercel.app/MainModules/ROAR",
+        "🦁 ROAR:",
+        `  🔮 Predictions: ${predictions}`,
+        `  ⚡ Debates: ${debates}`,
+        `  ✏️ Posts: ${posts}`,
+        ...badgesSection,
+        "",
+        `Join us 👉 ${url}`,
         "#StartRoaring #Sportsfan360",
     ]
         .filter((l) => l !== null)
@@ -441,10 +82,16 @@ const SHARE_ACTIONS = [
 ];
 
 export function RoarJourneySection({
-    predictions,
-    debates,
-    posts,
-    badgeSrcs,
+    polls = 0,
+    arenaPredictions = 0,
+    fanBattles = 0,
+    quiz = 0,
+    meme = 0,
+    predictions = 0,
+    debates = 0,
+    posts = 0,
+    badgeSrcs = [],
+    badgeNames = [],
     onToast,
 }: RoarJourneySectionProps) {
     const [isMobile, setIsMobile] = useState(false);
@@ -490,7 +137,19 @@ export function RoarJourneySection({
     }, [shareOpen]);
 
     // ── Desktop share handlers ──
-    const text = buildShareText(predictions, debates, posts, badgeSrcs.length);
+    const text = buildShareText(
+        predictions,
+        debates,
+        posts,
+        badgeSrcs.length,
+        polls,
+        arenaPredictions,
+        fanBattles,
+        quiz,
+        meme,
+        badgeNames,
+        badgeSrcs
+    );
 
     const handleWhatsApp = () =>
         window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
@@ -505,16 +164,16 @@ export function RoarJourneySection({
         setTimeout(() => setCopied(false), 1600);
         window.open("https://www.instagram.com/", "_blank");
     };
-    const handleLinkedIn = () =>
+    const handleLinkedIn = () => {
+        const currentUrl = typeof window !== "undefined" ? window.location.href : "https://sportsfan-frontend.vercel.app/MainModules/ROAR";
         window.open(
-            `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
-                "https://sportsfan-frontend.vercel.app/MainModules/ROAR"
-            )}`,
+            `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(currentUrl)}`,
             "_blank"
         );
+    };
     const handleX = () =>
         window.open(
-            `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`,
+            `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`,
             "_blank"
         );
     const handleCopy = async () => {
@@ -535,6 +194,30 @@ export function RoarJourneySection({
         LinkedIn: handleLinkedIn,
         X: handleX,
         Copy: handleCopy,
+    };
+
+    // Helper to fetch actual badge image files
+    const fetchBadgeImageFiles = async (): Promise<File[]> => {
+        const files: File[] = [];
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        for (let i = 0; i < badgeSrcs.length; i++) {
+            const src = badgeSrcs[i];
+            if (!src) continue;
+            try {
+                const fullUrl = src.startsWith("http") ? src : `${origin}${src.startsWith("/") ? "" : "/"}${src}`;
+                const res = await fetch(fullUrl);
+                if (res.ok) {
+                    const blob = await res.blob();
+                    const name = badgeNames[i]
+                        ? `${badgeNames[i].toLowerCase().replace(/[^a-z0-9]/g, "_")}.png`
+                        : `badge_${i + 1}.png`;
+                    files.push(new File([blob], name, { type: blob.type || "image/png" }));
+                }
+            } catch (e) {
+                console.error("[RoarJourneySection] Could not fetch badge image:", src, e);
+            }
+        }
+        return files;
     };
 
     // ── Mobile share handler ──
@@ -574,10 +257,6 @@ export function RoarJourneySection({
                                 : "#F97316";
                 ctx.textAlign = "center";
                 ctx.fillText(String(value), x + 50, y);
-
-                // ctx.font = "bold 22px Arial";
-                // ctx.fillStyle = "#1a1a1a";
-                // ctx.fillText(label, x + 50, y + 48);
             });
 
             canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
@@ -588,43 +267,72 @@ export function RoarJourneySection({
         if (sharing) return;
         setSharing(true);
         try {
-            const blob = await generateShareCard();
+            // 1. Fetch direct badge image files
+            const badgeFiles = await fetchBadgeImageFiles();
+            const shareFiles: File[] = [...badgeFiles];
 
-            if (blob) {
-                const file = new File([blob], "my-roar-journey.png", {
+            // 2. Also generate summary card if available
+            const cardBlob = await generateShareCard();
+            if (cardBlob) {
+                const cardFile = new File([cardBlob], "my-roar-journey.png", {
                     type: "image/png",
                 });
-                if (
-                    typeof navigator !== "undefined" &&
-                    navigator.canShare?.({ files: [file] })
-                ) {
-                    try {
-                        await navigator.share({
-                            files: [file],
-                            title: "My Roar Journey",
-                            text: "Hey! Join me on Sportsfan360 👉 https://sportsfan-frontend.vercel.app/MainModules/ROAR",
-                        });
-                        return;
-                    } catch (shareErr: any) {
-                        if (shareErr?.name === "AbortError") return;
-                        console.error("[RoarJourneySection] navigator.share threw:", shareErr);
-                    }
+                shareFiles.unshift(cardFile);
+            }
+
+            // 3. Share files directly via native share
+            if (
+                shareFiles.length > 0 &&
+                typeof navigator !== "undefined" &&
+                navigator.canShare?.({ files: shareFiles })
+            ) {
+                try {
+                    const currentUrl = typeof window !== "undefined" ? window.location.href : "https://sportsfan-frontend.vercel.app/MainModules/ROAR";
+                    await navigator.share({
+                        files: shareFiles,
+                        title: "My Sportsfan Journey & Badges",
+                        text: `Hey! Check out my journey & badges on Sportsfan360 👉 ${currentUrl}`,
+                    });
+                    return;
+                } catch (shareErr: any) {
+                    if (shareErr?.name === "AbortError") return;
+                    console.error("[RoarJourneySection] navigator.share threw:", shareErr);
                 }
-                // Fallback: download
-                const url = URL.createObjectURL(blob);
+            }
+
+            // 4. Fallback for single file share if multiple files not supported
+            if (
+                shareFiles.length > 0 &&
+                typeof navigator !== "undefined" &&
+                navigator.canShare?.({ files: [shareFiles[0]] })
+            ) {
+                try {
+                    const currentUrl = typeof window !== "undefined" ? window.location.href : "https://sportsfan-frontend.vercel.app/MainModules/ROAR";
+                    await navigator.share({
+                        files: [shareFiles[0]],
+                        title: "My Sportsfan Journey",
+                        text: `Hey! Check out my journey on Sportsfan360 👉 ${currentUrl}`,
+                    });
+                    return;
+                } catch (shareErr: any) {
+                    if (shareErr?.name === "AbortError") return;
+                }
+            }
+
+            // 5. Fallback download
+            if (shareFiles.length > 0) {
+                const url = URL.createObjectURL(shareFiles[0]);
                 const a = document.createElement("a");
                 a.href = url;
-                a.download = "my-roar-journey.png";
+                a.download = shareFiles[0].name;
                 a.click();
                 URL.revokeObjectURL(url);
-                onToast("Card saved! Share it from your gallery.");
+                onToast("Badge image saved! Share it from your gallery.");
             } else {
                 if (bgFailed) {
-                    onToast("Couldn't load the share card image.");
+                    onToast("Couldn't load share images.");
                 } else {
-                    await navigator.clipboard?.writeText(
-                        buildShareText(predictions, debates, posts, badgeSrcs.length)
-                    );
+                    await navigator.clipboard?.writeText(text);
                     onToast("Copied to clipboard!");
                 }
             }
@@ -674,7 +382,7 @@ export function RoarJourneySection({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        padding: "14px 16px 10px",
+                        padding: "14px 16px 8px",
                     }}
                 >
                     <span
@@ -685,63 +393,134 @@ export function RoarJourneySection({
                             letterSpacing: "0.01em",
                         }}
                     >
-                        Your Roar Journey
+                        Your Journey
                     </span>
-                    <div
+                </div>
+
+                {/* ── 1. FlipARENA Section ── */}
+                <div style={{ padding: "0 14px 12px" }}>
+                    <p
                         style={{
-                            background:
-                                "linear-gradient(135deg, #E91E8C 0%, #2e1b15ff 100%)",
-                            borderRadius: 8,
-                            padding: "3px 10px",
+                            fontSize: 10,
+                            fontWeight: 800,
+                            letterSpacing: "0.08em",
+                            color: "#F472B6",
+                            margin: "0 0 8px 2px",
+                           
                         }}
                     >
-                        <span
-                            style={{
-                                fontFamily:
-                                    "'Bebas Neue','Impact','Arial Narrow',sans-serif",
-                                fontSize: 16,
-                                fontWeight: 900,
-                                letterSpacing: "0.08em",
-                                color: "#fff",
-                            }}
-                        >
-                            ROAR.
-                        </span>
+                        FlipARENA
+                    </p>
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(3, 1fr)",
+                            gap: 6,
+                        }}
+                    >
+                        {[
+                            { label: "POLL", value: polls, icon: "📊", color: "#38BDF8" },
+                            { label: "PREDICTION", value: arenaPredictions, icon: "🎯", color: "#A855F7" },
+                            { label: "BATTLE", value: fanBattles, icon: "⚔️", color: "#EF4444" },
+                            { label: "QUIZ", value: quiz, icon: "🧠", color: "#F59E0B" },
+                            { label: "MEME", value: meme, icon: "🎭", color: "#10B981" },
+                        ].map(({ label, value, icon, color }) => (
+                            <div
+                                key={label}
+                                style={{
+                                    background: "#0a0a14",
+                                    border: "1px solid rgba(255,255,255,0.06)",
+                                    borderRadius: 12,
+                                    padding: "8px 4px 6px",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 4,
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 2,
+                                        background: "rgba(255,255,255,0.05)",
+                                        borderRadius: 999,
+                                        padding: "1px 5px",
+                                    }}
+                                >
+                                    <span style={{ fontSize: 8, lineHeight: 1 }}>{icon}</span>
+                                    <span
+                                        style={{
+                                            fontSize: 7,
+                                            fontWeight: 800,
+                                            letterSpacing: "0.04em",
+                                            color: color,
+                                            textTransform: "uppercase",
+                                        }}
+                                    >
+                                        {label}
+                                    </span>
+                                </div>
+                                <span
+                                    style={{
+                                        fontFamily:
+                                            "'Bebas Neue','Impact','Arial Narrow',sans-serif",
+                                        fontSize: 24,
+                                        fontWeight: 900,
+                                        color: "#fff",
+                                        lineHeight: 1,
+                                    }}
+                                >
+                                    {value}
+                                </span>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
-                {/* Stats */}
-                <div
-                    style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(3,1fr)",
-                        gap: 8,
-                        padding: "0 14px 14px",
-                    }}
-                >
-                    {[
-                        { label: "PREDICT", value: predictions, icon: "🔮", hot: true },
-                        { label: "DEBATE", value: debates, icon: "⚡", hot: false },
-                        { label: "POST", value: posts, icon: "✏️", hot: false },
-                    ].map(({ label, value, icon, hot }) => (
-                        <div
-                            key={label}
-                            style={{
-                                background: "#0a0a14",
-                                border: `1px solid ${hot
-                                        ? "rgba(233,30,140,0.25)"
-                                        : "rgba(255,255,255,0.06)"
-                                    }`,
-                                borderRadius: 16,
-                                padding: "10px 10px 8px",
-                                display: "flex",
-                                flexDirection: "column",
-                                alignItems: "flex-start",
-                                gap: 6,
-                            }}
-                        >
-                            {/* Label pill — desktop only; mobile image already has the text */}
-                          
+                {/* ── 2. ROAR Section ── */}
+                <div style={{ padding: "0 14px 14px" }}>
+                    <p
+                        style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            letterSpacing: "0.08em",
+                            color: "#FF6B35",
+                            margin: "0 0 8px 2px",
+                            textTransform: "uppercase",
+                        }}
+                    >
+                        ROAR
+                    </p>
+                    <div
+                        style={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(3, 1fr)",
+                            gap: 8,
+                        }}
+                    >
+                        {[
+                            { label: "PREDICT", value: predictions, icon: "🔮", hot: true },
+                            { label: "DEBATE", value: debates, icon: "⚡", hot: false },
+                            { label: "POST", value: posts, icon: "✏️", hot: false },
+                        ].map(({ label, value, icon, hot }) => (
+                            <div
+                                key={label}
+                                style={{
+                                    background: "#0a0a14",
+                                    border: `1px solid ${hot
+                                            ? "rgba(233,30,140,0.25)"
+                                            : "rgba(255,255,255,0.06)"
+                                        }`,
+                                    borderRadius: 14,
+                                    padding: "8px 10px 6px",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "flex-start",
+                                    gap: 4,
+                                }}
+                            >
                                 <div
                                     style={{
                                         display: "inline-flex",
@@ -769,35 +548,34 @@ export function RoarJourneySection({
                                         {label}
                                     </span>
                                 </div>
-                            
 
-                            {/* Number */}
-                            <span
-                                style={{
-                                    fontFamily:
-                                        "'Bebas Neue','Impact','Arial Narrow',sans-serif",
-                                    fontSize: 36,
-                                    fontWeight: 900,
-                                    color: "#fff",
-                                    lineHeight: 1,
-                                    paddingLeft: 2,
-                                }}
-                            >
-                                {value}
-                            </span>
-                        </div>
-                    ))}
+                                <span
+                                    style={{
+                                        fontFamily:
+                                            "'Bebas Neue','Impact','Arial Narrow',sans-serif",
+                                        fontSize: 32,
+                                        fontWeight: 900,
+                                        color: "#fff",
+                                        lineHeight: 1,
+                                        paddingLeft: 2,
+                                    }}
+                                >
+                                    {value}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Badges */}
+                {/* ── Badges ── */}
                 <div style={{ padding: "0 14px 14px" }}>
                     <p
                         style={{
-                            fontSize: 11,
+                            fontSize: 10,
                             fontWeight: 700,
                             letterSpacing: "0.08em",
                             color: "rgba(255,255,255,0.45)",
-                            marginBottom: 10,
+                            margin: "0 0 8px 2px",
                             textTransform: "uppercase",
                         }}
                     >
@@ -808,8 +586,8 @@ export function RoarJourneySection({
                             <div
                                 key={i}
                                 style={{
-                                    width: 58,
-                                    height: 58,
+                                    width: 54,
+                                    height: 54,
                                     borderRadius: 14,
                                     background: "rgba(255,255,255,0.04)",
                                     border: "1px solid rgba(255,255,255,0.07)",
@@ -823,14 +601,14 @@ export function RoarJourneySection({
                                 <img
                                     src={src}
                                     alt={`Badge ${i + 1}`}
-                                    style={{ width: 48, height: 48, objectFit: "contain" }}
+                                    style={{ width: 44, height: 44, objectFit: "contain" }}
                                 />
                             </div>
                         ))}
                     </div>
                 </div>
 
-                {/* Footer */}
+                {/* ── Footer ── */}
                 <div
                     style={{
                         display: "flex",

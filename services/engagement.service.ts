@@ -138,6 +138,8 @@ export const engagementService = {
         newlyAwarded: Boolean(res.data?.newlyAwarded),
         correctAnswer: res.data?.correctAnswer || null,
         winningChoiceId: res.data?.winningChoiceId || null,
+        leftPercentage: res.data?.leftPercentage !== undefined ? Number(res.data.leftPercentage) : undefined,
+        rightPercentage: res.data?.rightPercentage !== undefined ? Number(res.data.rightPercentage) : undefined,
       };
     } catch {
       return { hasVoted: false, selectedOptionId: null };

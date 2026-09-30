@@ -539,7 +539,9 @@ export const BADGE_LABELS: Record<string, string> = {
   CONTRARIAN: "Contrarian 🔥",
   OG_FAN: "OG Fan 👑",
   SEASONED_FAN: "Seasoned Fan 🏅",
-  RISING_FAN: "Rising Fan ⭐",
+  RISING_FAN: "Rookie Fan 🏅",
+  ROOKIE_FAN: "Rookie Fan 🏅",
+  "Rookie Fan": "Rookie Fan 🏅",
 };
 
 export const BADGE_CONFIG: Record<string, any> = {
@@ -593,13 +595,24 @@ export const BADGE_CONFIG: Record<string, any> = {
     name: "Seasoned Fan",
   },
   RISING_FAN: {
-    gradient: null,
-    icon: "⭐",
-    iconBg: "#44445A",
-    glow: "none",
-    borderOnly: true,
+    gradient: ["#FFD700", "#FF6B35"],
+    icon: "🏅",
+    iconSrc: "/images/badges/rookiefan.png",
+    iconBg: "#FFD700",
+    glow: "0 0 16px rgba(255,215,0,0.4)",
+    borderOnly: false,
     animated: false,
-    name: "Rising Fan",
+    name: "Rookie Fan",
+  },
+  ROOKIE_FAN: {
+    gradient: ["#FFD700", "#FF6B35"],
+    icon: "🏅",
+    iconSrc: "/images/badges/rookiefan.png",
+    iconBg: "#FFD700",
+    glow: "0 0 16px rgba(255,215,0,0.4)",
+    borderOnly: false,
+    animated: false,
+    name: "Rookie Fan",
   },
 };
 
@@ -647,11 +660,18 @@ export const BADGE_DETAIL: Record<string, any> = {
     gradient: "linear-gradient(135deg,#8888A0,#666680)",
   },
   RISING_FAN: {
-    name: "Rising Fan",
-    description: "Welcome to ROAR. Your legacy starts now.",
-    rarity: "Common",
-    howTo: "Complete onboarding",
-    gradient: "linear-gradient(135deg,#44445A,#6B6B8A)",
+    name: "Rookie Fan",
+    description: "Congratulations! You’ve officially earned your Rookie Fan status. Your journey with SportsFan360 starts now.",
+    rarity: "Special Achievement",
+    howTo: "Complete initial fan onboarding on SportsFan360",
+    gradient: "linear-gradient(135deg,#FFD700,#FF6B35)",
+  },
+  ROOKIE_FAN: {
+    name: "Rookie Fan",
+    description: "Congratulations! You’ve officially earned your Rookie Fan status. Your journey with SportsFan360 starts now.",
+    rarity: "Special Achievement",
+    howTo: "Complete initial fan onboarding on SportsFan360",
+    gradient: "linear-gradient(135deg,#FFD700,#FF6B35)",
   },
 };
 

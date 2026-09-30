@@ -118,8 +118,8 @@ function ProfileContent() {
 
   if (effectiveUserId && !profile) {
     return (
-      <div className="min-h-screen bg-[#070b14] flex items-center justify-center text-white/50 text-xs">
-        Loading profile...
+      <div className="min-h-screen bg-[#070b14] flex items-center justify-center">
+        <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-[#e91e8c] animate-spin" />
       </div>
     );
   }
@@ -139,12 +139,16 @@ function ProfileContent() {
   }
 
   return (
-    <div className="roar-root roar-profile-page">
+    <div className="roar-root roar-profile-page" style={{ height: "100vh", maxHeight: "100dvh", overflow: "hidden", display: "flex", flexDirection: "column", overscrollBehavior: "none" }}>
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
       <style dangerouslySetInnerHTML={{
         __html: `
           .roar-profile-page .screen-scroll {
             padding-top: 0 !important;
+            overscroll-behavior: none !important;
+          }
+          .roar-profile-page {
+            overscroll-behavior: none !important;
           }
         `
       }} />
@@ -179,8 +183,8 @@ export default function ProfilePage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-[#070b14] flex items-center justify-center text-white/50 text-xs">
-          Loading profile...
+        <div className="min-h-screen bg-[#070b14] flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-[#e91e8c] animate-spin" />
         </div>
       }
     >

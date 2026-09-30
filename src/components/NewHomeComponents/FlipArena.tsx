@@ -31,10 +31,12 @@ import {
   MessageCircle,
   MoreVertical,
   Info,
+  Users,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LeaderboardOverlayModal from "@/src/components/NewHomeComponents/LeaderboardOverlayModal";
 import ArenaEngagementModal from "./ArenaEngagementModal";
+import axios from "axios";
 
 // ─── Standard Points Constants ──────────────────────────────────────────────
 const PARTICIPATION_POINTS = 2; // Every section awards strictly +2 SXPs for participation
@@ -209,6 +211,8 @@ function DynamicFanBattleCard({
   onToast,
   onEdit,
   isHighlighted = false,
+  onOpenEngagedModal,
+  isEngagedExpanded = false,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -219,6 +223,8 @@ function DynamicFanBattleCard({
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
+  onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
 }) {
   const initialStored = getStoredVote("fb", item.id, userId);
   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(
@@ -383,7 +389,7 @@ function DynamicFanBattleCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    setTotalEngaged((prev) => prev + 1);
+    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
@@ -404,7 +410,7 @@ function DynamicFanBattleCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative group transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative group transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-[#FF3D57] shadow-[0_0_35px_rgba(255,61,87,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -452,12 +458,12 @@ function DynamicFanBattleCard({
           onClick={() => handleVote("left")}
           disabled={loading || selectedSide !== null || isScheduled}
           className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${isScheduled
-              ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
-              : selectedSide === "left"
-                ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
-                : selectedSide === "right"
-                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
+            ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
+            : selectedSide === "left"
+              ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
+              : selectedSide === "right"
+                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
             }`}
         >
           <span className="text-2xl font-black block">{left.code}</span>
@@ -486,12 +492,12 @@ function DynamicFanBattleCard({
           onClick={() => handleVote("right")}
           disabled={loading || selectedSide !== null || isScheduled}
           className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${isScheduled
-              ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
-              : selectedSide === "right"
-                ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
-                : selectedSide === "left"
-                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
+            ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
+            : selectedSide === "right"
+              ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
+              : selectedSide === "left"
+                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
             }`}
         >
           <span className="text-2xl font-black block">{right.code}</span>
@@ -534,7 +540,20 @@ function DynamicFanBattleCard({
             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
           </button>
         </div>
-        <span>{totalEngaged.toLocaleString()} engaged</span>
+        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
+        <button
+          onClick={() => onOpenEngagedModal?.(item)}
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
+        >
+          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
+        </button>
+
       </div>
     </motion.div>
   );
@@ -568,6 +587,9 @@ function DynamicQuizCard({
   onToast,
   onEdit,
   isHighlighted = false,
+  onOpenEngagedModal,
+  isEngagedExpanded = false,
+  onQuestionChange,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -578,6 +600,9 @@ function DynamicQuizCard({
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
+  onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
+  onQuestionChange?: (index: number, questionId: string) => void;
 }) {
   const rawQuestions =
     item.quizData?.questions && item.quizData.questions.length > 0
@@ -605,6 +630,12 @@ function DynamicQuizCard({
 
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const currentQ = rawQuestions[Math.min(currentQIndex, totalQuestions - 1)];
+
+  useEffect(() => {
+    if (currentQ) {
+      onQuestionChange?.(currentQIndex, currentQ.id || `q_${currentQIndex}`);
+    }
+  }, [currentQIndex, currentQ?.id, onQuestionChange]);
   const correctOptionId = currentQ?.correctOptionId || (currentQ as any)?.answer || "A";
   const frequencyMinutes = Number(
     item.quizData?.frequencyMinutes !== undefined && item.quizData?.frequencyMinutes !== null
@@ -628,13 +659,13 @@ function DynamicQuizCard({
   }, []);
 
   const [selectedId, setSelectedId] = useState<string | null>(
-    initialQ?.selectedId || (item.userVoted && item.userVote ? item.userVote : null)
+    initialQ?.selectedId || (totalQuestions === 1 && item.userVoted && item.userVote ? item.userVote : null)
   );
   const [answered, setAnswered] = useState<boolean>(Boolean(initialQ || (totalQuestions === 1 && item.userVoted)));
   const [isCorrect, setIsCorrect] = useState<boolean | null>(
     initialQ
       ? initialQ.isCorrect
-      : item.userVoted && item.userVote
+      : totalQuestions === 1 && item.userVoted && item.userVote
         ? checkIsOptionCorrect(item.userVote, currentQ)
         : null
   );
@@ -720,19 +751,23 @@ function DynamicQuizCard({
       const isRight = checkIsOptionCorrect(item.userVote, currentQ);
       setIsCorrect(isRight);
       setStoredVote(qKey, item.id, { selectedId: item.userVote, isCorrect: isRight }, userId);
+    } else {
+      setSelectedId(null);
+      setAnswered(false);
+      setIsCorrect(null);
     }
   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, checkIsOptionCorrect, currentQ, currentQIndex, totalQuestions]);
 
   const handleOptionSelect = async (optId: string) => {
     if (answered || isScheduled || isAnsweringRef.current) return;
-     isAnsweringRef.current = true;   
+    isAnsweringRef.current = true;
     const qKey = `quiz_q_${currentQ?.id || currentQIndex}`;
     const existing = getStoredVote(qKey, item.id, userId);
     // if (existing) return;
-     if (existing) {
-    isAnsweringRef.current = false;       // ← reset if we're bailing out
-    return;
-  }
+    if (existing) {
+      isAnsweringRef.current = false;       // ← reset if we're bailing out
+      return;
+    }
 
     isAnsweringRef.current = true;
     setSelectedId(optId);
@@ -806,6 +841,7 @@ function DynamicQuizCard({
       const nextIdx = currentQIndex + 1;
       setCurrentQIndex(nextIdx);
       const nextQ = rawQuestions[nextIdx];
+      onQuestionChange?.(nextIdx, nextQ?.id || `q_${nextIdx}`);
       const ans = getStoredVote(`quiz_q_${nextQ?.id || nextIdx}`, item.id, userId);
       if (ans) {
         setSelectedId(ans.selectedId);
@@ -819,6 +855,25 @@ function DynamicQuizCard({
     } else {
       setQuizFinished(true);
       setStoredVote("quiz_finish", item.id, { finished: true, score: totalScore }, userId);
+    }
+  };
+
+  const handlePrevQuestion = () => {
+    if (currentQIndex > 0) {
+      const prevIdx = currentQIndex - 1;
+      setCurrentQIndex(prevIdx);
+      const prevQ = rawQuestions[prevIdx];
+      onQuestionChange?.(prevIdx, prevQ?.id || `q_${prevIdx}`);
+      const ans = getStoredVote(`quiz_q_${prevQ?.id || prevIdx}`, item.id, userId);
+      if (ans) {
+        setSelectedId(ans.selectedId);
+        setAnswered(true);
+        setIsCorrect(ans.isCorrect);
+      } else {
+        setSelectedId(null);
+        setAnswered(false);
+        setIsCorrect(null);
+      }
     }
   };
 
@@ -839,7 +894,7 @@ function DynamicQuizCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    setTotalEngaged((prev) => prev + 1);
+    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
@@ -856,12 +911,12 @@ function DynamicQuizCard({
 
   return (
     <motion.div
-    layout={false}
+      layout={false}
       id={`engagement-${item.id}`}
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-purple-500 shadow-[0_0_35px_rgba(168,85,247,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -912,7 +967,7 @@ function DynamicQuizCard({
       {totalQuestions > 1 && (
         <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mb-3">
           <div
-            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
+            className="h-full bg-white transition-all duration-300"
             style={{ width: `${((currentQIndex + (answered ? 1 : 0)) / totalQuestions) * 100}%` }}
           />
         </div>
@@ -925,13 +980,13 @@ function DynamicQuizCard({
           {/* <p className="text-xs text-white/70">
             Question #1 unlocks in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
           </p> */}
-           <p className="text-xs text-white/70">
-      Question #1 unlocks in{" "}
-      <LiveCountdown
-        target={startTime}
-        render={(ms) => <strong className="text-amber-400 font-mono">{formatCountdown(ms)}</strong>}
-      />
-    </p>
+          <p className="text-xs text-white/70">
+            Question #1 unlocks in{" "}
+            <LiveCountdown
+              target={startTime}
+              render={(ms) => <strong className="text-amber-400 font-mono">{formatCountdown(ms)}</strong>}
+            />
+          </p>
           <span className="text-[10px] text-white/40 block">
             {frequencyMinutes > 0
               ? `Questions unlock every ${frequencyMinutes} minutes`
@@ -981,8 +1036,8 @@ function DynamicQuizCard({
             <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-2 mb-3">
               <div
                 className={`text-[11px] font-black text-center p-2 rounded-xl border flex items-center justify-center gap-1.5 ${isCorrect
-                    ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                    : "bg-red-500/10 border-red-500/30 text-red-400"
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                  : "bg-red-500/10 border-red-500/30 text-red-400"
                   }`}
               >
                 <span>{isCorrect ? "🎉" : "💡"}</span>
@@ -993,27 +1048,41 @@ function DynamicQuizCard({
                 </span>
               </div>
 
-              {totalQuestions > 1 && currentQIndex < totalQuestions - 1 && (
-                <>
-                  {isNextQuestionLocked ? (
-                    <div className="p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl flex items-center justify-between text-xs font-bold text-white/80">
-                      <span className="flex items-center gap-1.5 text-purple-300">
-                        <Clock size={13} /> Next Question #{currentQIndex + 2} in:
-                      </span>
-                      <span className="font-mono text-amber-400 font-extrabold text-sm">
-                        {formatCountdown(msToNextQuestionSlot)}
-                      </span>
-                    </div>
-                  ) : (
+              {totalQuestions > 1 && (
+                <div className={`grid ${currentQIndex > 0 && currentQIndex < totalQuestions - 1 ? "grid-cols-2" : "grid-cols-1"} gap-2.5 w-full mt-2`}>
+                  {currentQIndex > 0 && (
                     <button
-                      onClick={handleNextQuestion}
-                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-purple-600/20"
+                      onClick={handlePrevQuestion}
+                      className="w-full py-2.5 rounded-xl bg-black text-white hover:bg-white/10 border border-white/20 font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
                     >
-                      <span>Next Question</span>
-                      <ChevronRight size={14} />
+                      <ArrowLeft size={13} />
+                      <span>Previous</span>
                     </button>
                   )}
-                </>
+
+                  {currentQIndex < totalQuestions - 1 && (
+                    <>
+                      {isNextQuestionLocked ? (
+                        <div className="p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl flex items-center justify-between text-xs font-bold text-white/80">
+                          <span className="flex items-center gap-1.5 text-purple-300">
+                            <Clock size={13} /> Next #{currentQIndex + 2} in:
+                          </span>
+                          <span className="font-mono text-amber-400 font-extrabold text-sm">
+                            {formatCountdown(msToNextQuestionSlot)}
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleNextQuestion}
+                          className="w-full py-2.5 rounded-xl bg-white text-black hover:bg-neutral-200 border border-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95"
+                        >
+                          <span>Next</span>
+                          <ChevronRight size={14} />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </motion.div>
           )}
@@ -1038,7 +1107,19 @@ function DynamicQuizCard({
             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
           </button>
         </div>
-        <span>{totalEngaged.toLocaleString()} engaged</span>
+        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
+        <button
+          onClick={() => onOpenEngagedModal?.(item)}
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
+        >
+          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
+        </button>
       </div>
     </motion.div>
   );
@@ -1055,6 +1136,8 @@ function DynamicPollCard({
   onToast,
   onEdit,
   isHighlighted = false,
+  onOpenEngagedModal,
+  isEngagedExpanded = false,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -1065,6 +1148,8 @@ function DynamicPollCard({
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
+  onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
 }) {
   const initialVote = getStoredVote("poll", item.id, userId);
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -1302,7 +1387,7 @@ function DynamicPollCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    setTotalEngaged((prev) => prev + 1);
+    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
@@ -1323,7 +1408,7 @@ function DynamicPollCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -1430,12 +1515,12 @@ function DynamicPollCard({
                 onClick={() => handleVote(opt.id)}
                 disabled={voted || isExpired || loading}
                 className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${isWinner && isExpired
-                    ? "border-emerald-500/80 bg-emerald-500/[0.1] shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-                    : isSelected
-                      ? "border-blue-500/60 bg-blue-500/[0.07]"
-                      : isExpired
-                        ? "opacity-60 border-white/[0.05] bg-white/[0.01]"
-                        : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
+                  ? "border-emerald-500/80 bg-emerald-500/[0.1] shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+                  : isSelected
+                    ? "border-blue-500/60 bg-blue-500/[0.07]"
+                    : isExpired
+                      ? "opacity-60 border-white/[0.05] bg-white/[0.01]"
+                      : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
                   }`}
               >
                 {(voted || isExpired) && (
@@ -1485,7 +1570,19 @@ function DynamicPollCard({
             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
           </button>
         </div>
-        <span>{totalEngaged.toLocaleString()} engaged</span>
+        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
+        <button
+          onClick={() => onOpenEngagedModal?.(item)}
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
+        >
+          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
+        </button>
       </div>
     </motion.div>
   );
@@ -1502,6 +1599,8 @@ function DynamicPredictionCard({
   onToast,
   onEdit,
   isHighlighted = false,
+  onOpenEngagedModal,
+  isEngagedExpanded = false,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -1512,6 +1611,8 @@ function DynamicPredictionCard({
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
+  onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
 }) {
   const pred = item.predictionData || {
     question: "India win the 1st Galle Test?",
@@ -1542,20 +1643,6 @@ function DynamicPredictionCard({
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
   const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
-  const [result, setResult] = useState<{
-    leftPercentage: number;
-    rightPercentage: number;
-    coinsLocked: number;
-  } | null>(() => {
-    const c = initialVote?.choice || (item.userVote as "left" | "right");
-    if (!c) return null;
-    return {
-      leftPercentage: c === "left" ? 71 : 29,
-      rightPercentage: c === "right" ? 71 : 29,
-      coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
-    };
-  });
-
   const startTime = getEngagementStartTime(item);
   const isScheduled = startTime > now;
   const timeToStartMs = Math.max(0, startTime - now);
@@ -1564,6 +1651,119 @@ function DynamicPredictionCard({
   const expiresAt = item.predictionData?.expiresAt || (startTime + durationMins * 60 * 1000);
   const isExpired = now >= expiresAt;
   const timeRemainingMs = Math.max(0, expiresAt - now);
+
+  const calcPredictionResult = useCallback(
+    (
+      choice?: "left" | "right" | string | null,
+      serverLeftPct?: number,
+      serverRightPct?: number
+    ) => {
+      // 1. If server explicitly returned valid percentages, respect them
+      if (
+        typeof serverLeftPct === "number" &&
+        typeof serverRightPct === "number" &&
+        !isNaN(serverLeftPct) &&
+        !isNaN(serverRightPct)
+      ) {
+        return {
+          leftPercentage: Math.round(serverLeftPct),
+          rightPercentage: Math.round(serverRightPct),
+          coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
+        };
+      }
+
+      // 2. If prediction data explicitly specifies percentages
+      if (
+        typeof (pred as any).leftPercentage === "number" &&
+        typeof (pred as any).rightPercentage === "number" &&
+        !isNaN((pred as any).leftPercentage) &&
+        !isNaN((pred as any).rightPercentage)
+      ) {
+        return {
+          leftPercentage: Math.round((pred as any).leftPercentage),
+          rightPercentage: Math.round((pred as any).rightPercentage),
+          coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
+        };
+      }
+
+      // 3. Calculate dynamically from real vote counts
+      const lVotesRaw = Number(pred.leftChoice?.votes || 0);
+      const rVotesRaw = Number(pred.rightChoice?.votes || 0);
+      const userChoice = choice || selectedChoice;
+
+      const addLeft = userChoice === "left" && !item.userVoted ? 1 : 0;
+      const addRight = userChoice === "right" && !item.userVoted ? 1 : 0;
+
+      const lVotes = lVotesRaw + addLeft;
+      const rVotes = rVotesRaw + addRight;
+      const total = lVotes + rVotes;
+
+      if (total > 0) {
+        const leftPct = Math.round((lVotes / total) * 100);
+        return {
+          leftPercentage: leftPct,
+          rightPercentage: 100 - leftPct,
+          coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
+        };
+      }
+
+      return {
+        leftPercentage: 50,
+        rightPercentage: 50,
+        coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
+      };
+    },
+    [pred, initialVote?.coinsLocked, item.userVoted, selectedChoice]
+  );
+
+  const [result, setResult] = useState<{
+    leftPercentage: number;
+    rightPercentage: number;
+    coinsLocked: number;
+  } | null>(() => {
+    const c = initialVote?.choice || (item.userVote as "left" | "right");
+    if (!c && !isExpired) return null;
+
+    if (
+      typeof initialVote?.leftPercentage === "number" &&
+      typeof initialVote?.rightPercentage === "number"
+    ) {
+      return {
+        leftPercentage: Math.round(initialVote.leftPercentage),
+        rightPercentage: Math.round(initialVote.rightPercentage),
+        coinsLocked: initialVote.coinsLocked || pred.coinStake || 25,
+      };
+    }
+
+    if (
+      typeof (pred as any).leftPercentage === "number" &&
+      typeof (pred as any).rightPercentage === "number"
+    ) {
+      return {
+        leftPercentage: Math.round((pred as any).leftPercentage),
+        rightPercentage: Math.round((pred as any).rightPercentage),
+        coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
+      };
+    }
+
+    const lVotes = Number(pred.leftChoice?.votes || 0) + (c === "left" && !item.userVoted ? 1 : 0);
+    const rVotes = Number(pred.rightChoice?.votes || 0) + (c === "right" && !item.userVoted ? 1 : 0);
+    const total = lVotes + rVotes;
+    if (total > 0) {
+      const leftPct = Math.round((lVotes / total) * 100);
+      return {
+        leftPercentage: leftPct,
+        rightPercentage: 100 - leftPct,
+        coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
+      };
+    }
+
+    return {
+      leftPercentage: 50,
+      rightPercentage: 50,
+      coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
+    };
+  });
 
   const winningTarget =
     pred.winningChoiceId ||
@@ -1628,23 +1828,34 @@ function DynamicPredictionCard({
     if (stored?.choice) {
       setSelectedChoice(stored.choice);
       setPredicted(true);
-      setResult({
-        leftPercentage: stored.choice === "left" ? 71 : 29,
-        rightPercentage: stored.choice === "right" ? 71 : 29,
-        coinsLocked: stored.coinsLocked || pred.coinStake || 25,
-      });
+      const computed = calcPredictionResult(
+        stored.choice,
+        stored.leftPercentage,
+        stored.rightPercentage
+      );
+      setResult(computed);
     }
 
     if (item.userVoted && item.userVote) {
       const choice = item.userVote as "left" | "right";
       setSelectedChoice(choice);
       setPredicted(true);
-      setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
-      setResult({
-        leftPercentage: choice === "left" ? 71 : 29,
-        rightPercentage: choice === "right" ? 71 : 29,
-        coinsLocked: pred.coinStake || 25,
-      });
+      const computed = calcPredictionResult(choice);
+      setStoredVote(
+        "pred",
+        item.id,
+        {
+          choice,
+          coinsLocked: pred.coinStake || 25,
+          leftPercentage: computed.leftPercentage,
+          rightPercentage: computed.rightPercentage,
+        },
+        userId
+      );
+      setResult(computed);
+    } else if (isExpired && !selectedChoice) {
+      const finalResult = calcPredictionResult(null);
+      setResult(finalResult);
     }
 
     if (userId) {
@@ -1655,12 +1866,23 @@ function DynamicPredictionCard({
             const choice = res.selectedOptionId as "left" | "right";
             setSelectedChoice(choice);
             setPredicted(true);
-            setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
-            setResult({
-              leftPercentage: choice === "left" ? 71 : 29,
-              rightPercentage: choice === "right" ? 71 : 29,
-              coinsLocked: pred.coinStake || 25,
-            });
+            const computed = calcPredictionResult(
+              choice,
+              res.leftPercentage,
+              res.rightPercentage
+            );
+            setStoredVote(
+              "pred",
+              item.id,
+              {
+                choice,
+                coinsLocked: pred.coinStake || 25,
+                leftPercentage: computed.leftPercentage,
+                rightPercentage: computed.rightPercentage,
+              },
+              userId
+            );
+            setResult(computed);
           }
           if (res.isCorrect !== undefined) {
             setServerIsCorrect(res.isCorrect);
@@ -1682,7 +1904,7 @@ function DynamicPredictionCard({
         })
         .catch(() => { });
     }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, pred.coinStake, bonusClaimKey, onToast]);
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, pred.coinStake, bonusClaimKey, onToast, calcPredictionResult, isExpired, selectedChoice]);
 
   // Evaluate & Claim +10 Bonus after Timer Ends (strictly once per item/user)
   const predBonusClaimTriggeredRef = useRef(false);
@@ -1765,13 +1987,27 @@ function DynamicPredictionCard({
     setTotalEngaged((prev) => prev + 1);
 
     try {
-      const res: any = await engagementService.voteEngagement(item.id, choice, userId, undefined, { userName, userAvatar, userEmail });
-      const computedResult = {
-        leftPercentage: res?.leftPercentage ?? (choice === "left" ? 71 : 29),
-        rightPercentage: res?.rightPercentage ?? (choice === "right" ? 71 : 29),
-        coinsLocked: res?.coinsLocked || pred.coinStake || 25,
-      };
+      const res: any = await engagementService.voteEngagement(item.id, choice, userId);
+      const computedResult = calcPredictionResult(
+        choice,
+        res?.leftPercentage,
+        res?.rightPercentage
+      );
+      if (res?.coinsLocked) {
+        computedResult.coinsLocked = res.coinsLocked;
+      }
       setResult(computedResult);
+      setStoredVote(
+        "pred",
+        item.id,
+        {
+          choice,
+          coinsLocked: computedResult.coinsLocked,
+          leftPercentage: computedResult.leftPercentage,
+          rightPercentage: computedResult.rightPercentage,
+        },
+        userId
+      );
       onToast(`+${PARTICIPATION_POINTS} SXPs earned for prediction! 🎯`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
@@ -1781,11 +2017,19 @@ function DynamicPredictionCard({
     } catch (err: any) {
       const prevChoice = (err?.response?.data?.selectedOptionId || choice) as "left" | "right";
       setSelectedChoice(prevChoice);
-      setResult({
-        leftPercentage: prevChoice === "left" ? 71 : 29,
-        rightPercentage: prevChoice === "right" ? 71 : 29,
-        coinsLocked: pred.coinStake || 25,
-      });
+      const fallbackResult = calcPredictionResult(prevChoice);
+      setResult(fallbackResult);
+      setStoredVote(
+        "pred",
+        item.id,
+        {
+          choice: prevChoice,
+          coinsLocked: fallbackResult.coinsLocked,
+          leftPercentage: fallbackResult.leftPercentage,
+          rightPercentage: fallbackResult.rightPercentage,
+        },
+        userId
+      );
     } finally {
       setLoading(false);
       isPredictingRef.current = false;
@@ -1809,7 +2053,7 @@ function DynamicPredictionCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    setTotalEngaged((prev) => prev + 1);
+    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
@@ -1830,7 +2074,7 @@ function DynamicPredictionCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-amber-500 shadow-[0_0_35px_rgba(245,158,11,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -1889,10 +2133,10 @@ function DynamicPredictionCard({
             onClick={() => handlePredict("left")}
             disabled={predicted || isExpired || loading}
             className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "left"
-                ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-                : predicted || isExpired
-                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+              ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+              : predicted || isExpired
+                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
               }`}
           >
             <span className="text-xs font-black">{pred.leftChoice.text}</span>
@@ -1906,10 +2150,10 @@ function DynamicPredictionCard({
             onClick={() => handlePredict("right")}
             disabled={predicted || isExpired || loading}
             className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "right"
-                ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-                : predicted || isExpired
-                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+              ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+              : predicted || isExpired
+                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
               }`}
           >
             <span className="text-xs font-black">{pred.rightChoice.text}</span>
@@ -1937,7 +2181,7 @@ function DynamicPredictionCard({
             ) : (
               <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
                 <span>
-                  Prediction closed 
+                  Prediction closed
                   {/* <strong className="text-amber-400">{winningTarget || "Ended"}</strong> */}
                 </span>
                 <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
@@ -1970,7 +2214,19 @@ function DynamicPredictionCard({
             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
           </button>
         </div>
-        <span>{totalEngaged.toLocaleString()} engaged</span>
+        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
+        <button
+          onClick={() => onOpenEngagedModal?.(item)}
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
+        >
+          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
+        </button>
       </div>
     </motion.div>
   );
@@ -1988,6 +2244,8 @@ function DynamicMemeCard({
   onEdit,
   onDelete,
   isHighlighted = false,
+  onOpenEngagedModal,
+  isEngagedExpanded = false,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -1999,6 +2257,8 @@ function DynamicMemeCard({
   onEdit?: (item: EngagementItem) => void;
   onDelete?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
+  onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
 }) {
   const { user } = useAuth();
   const currentUserId = userId || user?.userId || (user as any)?.actualUserId || user?.email;
@@ -2161,7 +2421,7 @@ function DynamicMemeCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    setTotalEngaged((prev) => prev + 1);
+    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
@@ -2224,7 +2484,7 @@ function DynamicMemeCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-3.5 sm:p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-3.5 sm:p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-orange-500 shadow-[0_0_35px_rgba(249,115,22,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -2393,8 +2653,8 @@ function DynamicMemeCard({
           onClick={() => handleRateMeme(selectedRating)}
           disabled={voted || loading}
           className={`${voted ? "w-full" : "col-span-2"} py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95 ${voted
-              ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400"
-              : "bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] hover:opacity-95 text-white shadow-orange-500/20"
+            ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400"
+            : "bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] hover:opacity-95 text-white shadow-orange-500/20"
             }`}
         >
           {voted ? (
@@ -2429,11 +2689,389 @@ function DynamicMemeCard({
             <Share2 size={13} />
           </button>
         </div>
-        <span>{totalEngaged.toLocaleString()} engaged</span>
+        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
+        <button
+          onClick={() => onOpenEngagedModal?.(item)}
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
+        >
+          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
+        </button>
       </div>
     </motion.div>
   );
 }
+
+
+// ─── Engaged Users Dialog Modal ──────────────────────────────────────────────
+interface EngagedOptionData {
+  id: string;
+  text: string;
+  count: number;
+  voters: Array<{
+    userId: string;
+    userName: string;
+    userAvatar?: string | null;
+    selectedOptionId: string;
+    votedAt?: number;
+  }>;
+}
+
+function EngagedUsersInlineList({
+  item,
+  questionId,
+  questionIndex,
+}: {
+  item: EngagementItem | null;
+  questionId?: string;
+  questionIndex?: number;
+}) {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [options, setOptions] = useState<EngagedOptionData[]>([]);
+  const [totalVoters, setTotalVoters] = useState(0);
+  const [userAvatarMap, setUserAvatarMap] = useState<Map<string, string>>(new Map());
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    if (!item) return;
+
+    setLoading(true);
+    setPage(1); // Reset page on new item or question
+    const qParam = questionId ? `?questionId=${encodeURIComponent(questionId)}` : "";
+    axios
+      .get(`/api/engagements/${item.id}/voters${qParam}`)
+      .then((res) => {
+        if (res.data?.success) {
+          let opts: EngagedOptionData[] = [];
+          if (res.data.questions && Array.isArray(res.data.questions)) {
+            const targetQ = questionId
+              ? res.data.questions.find((q: any) => q.questionId === questionId || q.id === questionId)
+              : res.data.questions[questionIndex || 0] || res.data.questions[0];
+            opts = targetQ?.options || [];
+          } else if (res.data.options) {
+            if (questionId && res.data.options.some((o: any) => o.questionId)) {
+              opts = res.data.options.filter((o: any) => o.questionId === questionId);
+            } else {
+              opts = res.data.options || [];
+            }
+          }
+          setOptions(opts);
+          const total = opts.reduce((acc, o) => acc + (o.voters?.length || o.count || 0), 0);
+          setTotalVoters(total || res.data.totalVoters || 0);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load voters:", err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [item, questionId, questionIndex]);
+
+  // Fetch fresh user avatars from /api/users
+  useEffect(() => {
+    if (!item) return;
+
+    const buildMap = (list: any[]) => {
+      const map = new Map<string, string>();
+      const add = (key: any, img: any) => {
+        if (!key || !img || typeof img !== "string") return;
+        const clean = img.trim();
+        if (!clean || clean === "null" || clean === "undefined") return;
+        if (clean.includes("dicebear.com")) return;
+        const k = String(key).trim().toLowerCase();
+        const noPrefix = k.replace(/^user#/i, "");
+        map.set(k, clean);
+        map.set(noPrefix, clean);
+        if (k.includes("@")) map.set(k.replace(/@/g, "_"), clean);
+      };
+
+      list.forEach((u) => {
+        if (!u) return;
+        const img =
+          u.avatarUrl || u.photoURL || u.picture || u.image ||
+          u.avatar || u.profilePicture || u.userAvatar;
+        if (!img) return;
+        add(u.userId, img);
+        add(u.actualUserId, img);
+        add(u.id, img);
+        add(u.email, img);
+        add(u.userEmail, img);
+        add(u.username, img);
+        add(u.userName, img);
+        add(u.name, img);
+      });
+      return map;
+    };
+
+    const fetchAvatars = async () => {
+      try {
+        const res = await axios.get("/api/users", { withCredentials: true });
+        const list =
+          res.data?.users ||
+          res.data?.data?.users ||
+          res.data?.data ||
+          res.data?.allUsers ||
+          (Array.isArray(res.data) ? res.data : []);
+        setUserAvatarMap(buildMap(list));
+      } catch {
+        // silent fail
+      }
+    };
+    fetchAvatars();
+  }, [item]);
+
+  if (!item) return null;
+
+  // Resolve the freshest avatar for a voter
+  const resolveAvatar = (voter: EngagedOptionData["voters"][number]): string => {
+    const isMe =
+      user?.userId === voter.userId ||
+      (user as any)?.actualUserId === voter.userId ||
+      (user?.email && voter.userId === user.email);
+
+    if (isMe && typeof window !== "undefined") {
+      const local = localStorage.getItem("roar_avatar_url");
+      if (local && !local.includes("dicebear.com")) return local;
+    }
+    if (voter.userAvatar) return voter.userAvatar;
+
+    const candidates = [
+      voter.userId,
+      voter.userName,
+      (voter as any).userEmail,
+    ].filter(Boolean) as string[];
+
+    for (const c of candidates) {
+      const k = String(c).trim().toLowerCase();
+      const found =
+        userAvatarMap.get(k) ||
+        userAvatarMap.get(k.replace(/^user#/i, "")) ||
+        userAvatarMap.get(k.replace(/@/g, "_"));
+      if (found) return found;
+    }
+    return "";
+  };
+
+  const flattenedVoters = options.flatMap((opt) =>
+    (opt.voters || []).map((v) => ({ ...v, optionId: opt.id, optionText: opt.text }))
+  );
+
+  const displayedVoters = flattenedVoters.slice(0, page * itemsPerPage);
+  const hasMore = displayedVoters.length < flattenedVoters.length;
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight + 50 && hasMore) {
+      setPage((p) => p + 1);
+    }
+  };
+
+  const getBadgeColor = (id: string) => {
+    const upper = id.toUpperCase();
+    if (upper === "A" || upper === "LEFT" || upper === "1") return "text-purple-400 border-purple-400/60 bg-purple-500/10";
+    if (upper === "B" || upper === "RIGHT" || upper === "2") return "text-emerald-400 border-emerald-400/60 bg-emerald-500/10";
+    if (upper === "C" || upper === "3") return "text-blue-400 border-blue-400/60 bg-blue-500/10";
+    if (upper === "D" || upper === "4") return "text-[#FF3D57] border-[#FF3D57]/60 bg-[#FF3D57]/10";
+    return "text-amber-400 border-amber-400/60 bg-amber-500/10";
+  };
+
+  // Accurately resolve chosen option for a voter (e.g. D for option D)
+  const resolveVoterOption = (voter: any): { id: string; badgeClasses: string } => {
+    const isMe =
+      user?.userId === voter.userId ||
+      (user as any)?.actualUserId === voter.userId ||
+      (user?.email && voter.userId === user.email);
+
+    let chosen = "";
+    if (isMe) {
+      if (item.type === "quiz") {
+        const qId = questionId || item.quizData?.questions?.[questionIndex || 0]?.id || `q_${questionIndex || 0}`;
+        const stored = getStoredVote(`quiz_q_${qId}`, item.id, user?.userId || (user as any)?.actualUserId || user?.email);
+        if (stored?.selectedId) chosen = stored.selectedId;
+      } else if (item.type === "fan_battle") {
+        const stored = getStoredVote("fb", item.id, user?.userId);
+        if (stored?.side) chosen = stored.side;
+      } else if (item.type === "poll") {
+        const stored = getStoredVote("poll", item.id, user?.userId);
+        if (stored?.selectedId) chosen = stored.selectedId;
+      } else if (item.type === "prediction") {
+        const stored = getStoredVote("pred", item.id, user?.userId);
+        if (stored?.choice) chosen = stored.choice;
+      }
+    }
+
+    if (!chosen) {
+      chosen = voter.selectedOptionId || voter.optionId || voter.choice || voter.side || "";
+    }
+
+    // Match text to option ID if needed
+    if (chosen && item.type === "quiz" && item.quizData?.questions) {
+      const qObj = questionId
+        ? item.quizData.questions.find((q: any) => q.id === questionId || q.questionId === questionId)
+        : item.quizData.questions[questionIndex || 0] || item.quizData.questions[0];
+      if (qObj?.options) {
+        const matched = qObj.options.find(
+          (o: any) =>
+            o.text?.trim().toLowerCase() === chosen.trim().toLowerCase() ||
+            o.id?.trim().toLowerCase() === chosen.trim().toLowerCase()
+        );
+        if (matched?.id) chosen = matched.id;
+      }
+    }
+
+    const displayId = (chosen || "A").trim().charAt(0).toUpperCase();
+    
+    // In quiz, correct option is green, remaining options are red
+    let badgeClasses = "";
+    if (item.type === "quiz") {
+      const qObj = questionId
+        ? item.quizData?.questions?.find((q: any) => q.id === questionId || q.questionId === questionId)
+        : item.quizData?.questions?.[questionIndex || 0] || item.quizData?.questions?.[0];
+      
+      const correctTarget = (
+        qObj?.correctOptionId ||
+        (qObj as any)?.answer ||
+        item.quizData?.correctOptionId ||
+        ""
+      ).trim().toUpperCase();
+
+      const isThisOptionCorrect =
+        displayId === correctTarget ||
+        Boolean(
+          qObj?.options &&
+          qObj.options.some(
+            (o: any) =>
+              o.id?.trim().toUpperCase() === displayId &&
+              (o.isCorrect === true || o.text?.trim().toUpperCase() === correctTarget)
+          )
+        );
+
+      if (isThisOptionCorrect) {
+        badgeClasses = "text-emerald-400 border-emerald-400/60 bg-emerald-500/10";
+      } else {
+        badgeClasses = "text-[#FF3D57] border-[#FF3D57]/60 bg-[#FF3D57]/10";
+      }
+    } else {
+      badgeClasses = getBadgeColor(displayId);
+    }
+
+    return {
+      id: displayId,
+      badgeClasses,
+    };
+  };
+
+  const totalQuestions = item.quizData?.questions?.length || 1;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: "auto" }}
+        exit={{ opacity: 0, height: 0 }}
+        className="w-full max-w-lg mx-auto bg-gradient-to-b from-[#24131c]/90 to-[#0d111c]/95 rounded-2xl overflow-hidden mt-2 mb-2 border border-white/10 shadow-2xl relative"
+      >
+        {/* Header */}
+        <div className="px-5 py-3 flex items-center justify-between border-b border-white/[0.04]">
+          <h3 className="text-sm font-black text-white/80 flex items-center gap-1.5">
+            <span>{totalVoters} engaged</span>
+            {item.type === "quiz" && totalQuestions > 1 && (
+              <span className="text-[10px] text-[#FF8A00] font-extrabold bg-[#FF8A00]/15 px-2 py-0.5 rounded-full border border-[#FF8A00]/30">
+                Q{(questionIndex ?? 0) + 1}/{totalQuestions}
+              </span>
+            )}
+          </h3>
+        </div>
+
+        {/* Voters List Body - Dynamic max-height so 1 voter only takes required height, capped at max-h-[250px] for multiple voters */}
+        <div
+          className="max-h-[250px] overflow-y-auto px-5 pb-4 space-y-0"
+          onScroll={handleScroll}
+        >
+          {loading ? (
+            <div className="py-6 flex flex-col items-center justify-center gap-2 text-white/40 text-xs font-bold">
+              <div className="w-6 h-6 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
+              <span>Loading...</span>
+            </div>
+          ) : flattenedVoters.length === 0 ? (
+            <div className="py-6 flex flex-col items-center justify-center text-center text-xs font-bold text-white/40 space-y-1">
+              <Users size={20} className="mx-auto text-white/20 mb-2" />
+              <p>No fans opted yet.</p>
+            </div>
+          ) : (
+            <>
+              {displayedVoters.map((voter, idx) => {
+                const initialLetter = voter.userName ? voter.userName.charAt(0).toUpperCase() : "F";
+                const avatarUrl = resolveAvatar(voter);
+                const { id: displayId, badgeClasses } = resolveVoterOption(voter);
+
+                return (
+                  <div
+                    key={`${voter.userId}-${idx}`}
+                    onClick={() => {
+                      window.location.href = `/MainModules/Profile?userId=${encodeURIComponent(
+                        voter.userId
+                      )}`;
+                    }}
+                    className="py-2.5 border-b border-white/[0.05] flex items-center justify-between transition-all cursor-pointer group last:border-0"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          alt={voter.userName}
+                          referrerPolicy="no-referrer"
+                          crossOrigin="anonymous"
+                          className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
+                          onError={(e: any) => {
+                            e.target.style.display = "none";
+                            e.target.nextSibling.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        style={{ display: avatarUrl ? "none" : "flex" }}
+                        className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 border border-white/10 items-center justify-center text-white font-black text-xs shrink-0"
+                      >
+                        {initialLetter}
+                      </div>
+
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors truncate">
+                          {voter.userName}
+                        </h4>
+                      </div>
+                    </div>
+
+                    <div className={`w-6 h-6 flex items-center justify-center rounded-md border ${badgeClasses} text-xs font-black`}>
+                      {displayId}
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {hasMore && (
+                <div className="py-3 flex flex-col items-center justify-center gap-1 text-white/40 text-[10px] font-bold">
+                  <div className="w-4 h-4 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
+                  <span>Loading more...</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 
 // ─── Main FlipArena Component ───────────────────────────────────────────────
 export default function FlipArena({
@@ -2450,6 +3088,26 @@ export default function FlipArena({
   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction" | "meme">("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+  const [engagedModalItem, setEngagedModalItem] = useState<EngagementItem | null>(null);
+  const [quizActiveQuestion, setQuizActiveQuestion] = useState<Record<string, { index: number; id: string }>>({});
+
+  const handleQuizQuestionChange = useCallback((itemId: string, index: number, id: string) => {
+    setQuizActiveQuestion((prev) => {
+      if (prev[itemId]?.index === index && prev[itemId]?.id === id) return prev;
+      return {
+        ...prev,
+        [itemId]: { index, id },
+      };
+    });
+  }, []);
+
+  const handleOpenEngagedModal = (item: EngagementItem) => {
+    if (engagedModalItem?.id === item.id) {
+      setEngagedModalItem(null); // Toggle off if already open
+    } else {
+      setEngagedModalItem(item); // Open new
+    }
+  };
 
   // 1-second live clock for all countdowns and frequency unlocks
   const [now, setNow] = useState<number>(Date.now());
@@ -2809,32 +3467,7 @@ export default function FlipArena({
         </div>
       </div>
 
-      <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full">
-        {/* Dedicated Meme Arena Header Banner */}
-        {filter === "meme" && (
-          <div className="w-full max-w-lg bg-gradient-to-r from-orange-500/10 via-pink-500/10 to-purple-500/10 border border-orange-500/25 rounded-2xl p-4 flex items-center justify-between shadow-lg backdrop-blur-sm">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-white flex items-center gap-1.5">
-                  <Flame size={16} className="text-orange-400 animate-pulse" />
-                  <span>Meme Arena</span>
-                </span>
-                <span className="flex items-center gap-1 text-[9px] font-black bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Live Now
-                </span>
-              </div>
-              <p className="text-[10px] text-white/50 mt-0.5">Funniest memes. Hottest takes. Only on SportsFan360.</p>
-            </div>
-            <button
-              onClick={() => handleOpenCreate("meme")}
-              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-600 hover:opacity-95 text-white font-extrabold text-[11px] flex items-center gap-1 shadow-lg shadow-orange-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
-            >
-              <Plus size={13} /> Add Meme
-            </button>
-          </div>
-        )}
-
+      <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full max-w-lg mx-auto">
         {loadingEngagements && engagements.length === 0 ? (
           <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/40 text-xs font-bold">
             <div className="w-6 h-6 border-2 border-[#FF3D57] border-t-transparent rounded-full animate-spin" />
@@ -2863,93 +3496,56 @@ export default function FlipArena({
             </button>
           </div>
         ) : (
-          <AnimatePresence mode="popLayout">
-            {filteredEngagements.map((item) => {
-              const isItemHighlighted = highlightedItemId === item.id;
-              if (item.type === "fan_battle") {
+          <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-4">
+            <AnimatePresence mode="popLayout">
+              {filteredEngagements.map((item) => {
+                const isItemHighlighted = highlightedItemId === item.id;
+                
+                // Determine the correct Card Component
+                let CardComponent = null;
+                if (item.type === "fan_battle") CardComponent = DynamicFanBattleCard;
+                else if (item.type === "quiz") CardComponent = DynamicQuizCard;
+                else if (item.type === "poll") CardComponent = DynamicPollCard;
+                else if (item.type === "prediction") CardComponent = DynamicPredictionCard;
+                else if (item.type === "meme") CardComponent = DynamicMemeCard;
+
+                if (!CardComponent) return null;
+
                 return (
-                  <DynamicFanBattleCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    isHighlighted={isItemHighlighted}
-                  />
+                  <motion.div 
+                    layout
+                    key={item.id} 
+                    className="w-full max-w-lg mx-auto flex flex-col items-center"
+                  >
+                    <CardComponent
+                      item={item}
+                      userId={activeUserId}
+                      userName={currentUser.userName}
+                      userAvatar={currentUser.userAvatar}
+                      userEmail={currentUser.userEmail}
+                      now={now}
+                      onToast={showToast}
+                      onEdit={handleOpenEdit}
+                      onDelete={item.type === "meme" ? handleDeleteEngagement : undefined}
+                      isHighlighted={isItemHighlighted}
+                      onOpenEngagedModal={handleOpenEngagedModal}
+                      isEngagedExpanded={engagedModalItem?.id === item.id}
+                      onQuestionChange={item.type === "quiz" ? (index: number, qId: string) => handleQuizQuestionChange(item.id, index, qId) : undefined}
+                    />
+                    
+                    {/* Inline Engaged Users List */}
+                    {engagedModalItem?.id === item.id && (
+                      <EngagedUsersInlineList
+                        item={engagedModalItem}
+                        questionId={quizActiveQuestion[item.id]?.id}
+                        questionIndex={quizActiveQuestion[item.id]?.index}
+                      />
+                    )}
+                  </motion.div>
                 );
-              }
-              if (item.type === "quiz") {
-                return (
-                  <DynamicQuizCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    isHighlighted={isItemHighlighted}
-                  />
-                );
-              }
-              if (item.type === "poll") {
-                return (
-                  <DynamicPollCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    isHighlighted={isItemHighlighted}
-                  />
-                );
-              }
-              if (item.type === "prediction") {
-                return (
-                  <DynamicPredictionCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    isHighlighted={isItemHighlighted}
-                  />
-                );
-              }
-              if (item.type === "meme") {
-                return (
-                  <DynamicMemeCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    onDelete={handleDeleteEngagement}
-                    isHighlighted={isItemHighlighted}
-                  />
-                );
-              }
-              return null;
-            })}
-          </AnimatePresence>
+              })}
+            </AnimatePresence>
+          </div>
         )}
 
         {isPreview && (
@@ -2969,7 +3565,7 @@ export default function FlipArena({
                   color: "rgba(255,255,255,0.55)",
                 }}
               >
-                View Full Flip Arena
+                View Full FlipARENA
               </span>
               <svg
                 width="11"
@@ -3001,6 +3597,9 @@ export default function FlipArena({
         onSaved={handleItemSaved}
         onToast={showToast}
       />
+
+      {/* Engaged Users Modal was here, now moved inline below each card */}
+
     </div>
   );
 }
