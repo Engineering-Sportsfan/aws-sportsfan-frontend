@@ -148,14 +148,19 @@ function setStoredVote(type: string, itemId: string, data: any, userId?: string)
   } catch { }
 }
 
+// ─── Quiz Per-Question Answer Key (collision-proof) ──────────────────────────
+function quizAnswerKey(index: number, questionId?: string) {
+  return `quiz_ans_${index}_${questionId ?? ""}`;
+}
+
 // ─── Direct Engagement Share URL Generator ───────────────────────────────────
 function getEngagementShareUrl(item: EngagementItem): string {
   if (typeof window === "undefined") return "";
   const origin = window.location.origin;
   const itemType = item.type || "quiz";
-  return `${origin}/MainModules/FlipArena?itemId=${encodeURIComponent(item.id)}&type=${encodeURIComponent(itemType)}`;
+  const targetId = (item as any)._parentEngagementId || item.id;
+  return `${origin}/MainModules/FlipArena?itemId=${encodeURIComponent(targetId)}&type=${encodeURIComponent(itemType)}`;
 }
-
 
 // ─── Current User Identity Helper (Zero Hardcoding) ──────────────────────────
 function resolveCurrentUser(user: any) {
@@ -214,12 +219,13 @@ function DynamicFanBattleCard({
   onOpenEngagedModal,
   isEngagedExpanded = false,
   totalEngagedOverride,
+  onSyncEngagedCount,
 }: {
   item: EngagementItem;
   userId?: string;
-    userName?: string;
-    userAvatar?: string;
-    userEmail?: string;
+  userName?: string;
+  userAvatar?: string;
+  userEmail?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
@@ -227,6 +233,7 @@ function DynamicFanBattleCard({
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
   totalEngagedOverride?: number;
+  onSyncEngagedCount?: (count: number) => void;
 }) {
   const initialStored = getStoredVote("fb", item.id, userId);
   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(
@@ -238,14 +245,18 @@ function DynamicFanBattleCard({
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
   const [totalEngaged, setTotalEngaged] = useState<number>(() => {
-    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+    const raw = totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+    return (selectedSide !== null || initialStored || item.userVoted) ? Math.max(1, raw) : raw;
   });
 
   useEffect(() => {
     if (totalEngagedOverride !== undefined) {
-      setTotalEngaged(totalEngagedOverride);
+      setTotalEngaged((prev) => {
+        const nextVal = (selectedSide !== null || item.userVoted) ? Math.max(1, totalEngagedOverride) : totalEngagedOverride;
+        return Math.max(prev, nextVal);
+      });
     }
-  }, [totalEngagedOverride]);
+  }, [totalEngagedOverride, selectedSide, item.userVoted]);
 
   const left = item.fanBattleData?.leftCompetitor || {
     code: "IN",
@@ -353,7 +364,9 @@ function DynamicFanBattleCard({
     setSelectedSide(side);
     setLoading(true);
     setStoredVote("fb", item.id, { side }, userId);
-    setTotalEngaged((prev) => prev + 1);
+    const nextCount = Math.max(1, totalEngaged + 1);
+    setTotalEngaged(nextCount);
+    onSyncEngagedCount?.(nextCount);
 
     try {
       const res: any = await engagementService.voteEngagement(item.id, side, userId, undefined, { userName, userAvatar, userEmail });
@@ -363,7 +376,6 @@ function DynamicFanBattleCard({
         totalVotes: res?.totalVotes ?? (left.votes + right.votes + 1),
       };
       setResult(calculatedResult);
-      onToast(`+${PARTICIPATION_POINTS} SXPs earned for voting in Fan Battle! ⚔️`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
@@ -403,7 +415,6 @@ function DynamicFanBattleCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
@@ -441,8 +452,6 @@ function DynamicFanBattleCard({
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
         <div className="flex items-center gap-1.5">
           <span className="text-[#FF3D57]">⚔️ FAN BATTLE</span>
-          {/* <span>•</span> */}
-          {/* <span className="text-[#FF7B02] flex items-center gap-0.5">🔥 +2 SXPs / VOTE</span> */}
           {isScheduled && (
             <>
               <span>•</span>
@@ -554,12 +563,17 @@ function DynamicFanBattleCard({
             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
           </button>
         </div>
-        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
           className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
-          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <span className="group-hover:underline">
+            {Math.max(
+              (selectedSide !== null || initialStored || item.userVoted) ? 1 : 0,
+              totalEngaged,
+              totalEngagedOverride || 0
+            ).toLocaleString()} engaged
+          </span>
           <ChevronRight
             size={12}
             className={`text-[#FF8A00] transition-transform duration-200 ${
@@ -567,7 +581,6 @@ function DynamicFanBattleCard({
             }`}
           />
         </button>
-
       </div>
     </motion.div>
   );
@@ -606,6 +619,7 @@ function DynamicQuizCard({
   onQuestionChange,
   totalEngagedOverride,
   onOpenLeaderboard,
+  onSyncEngagedCount,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -621,24 +635,43 @@ function DynamicQuizCard({
   onQuestionChange?: (index: number, questionId: string) => void;
   totalEngagedOverride?: number;
   onOpenLeaderboard?: () => void;
+  onSyncEngagedCount?: (count: number) => void;
 }) {
-  const rawQuestions =
-    item.quizData?.questions && item.quizData.questions.length > 0
-      ? item.quizData.questions
-      : [
-        {
-          id: "q_1",
-          question: item.quizData?.question || item.title || "Live Cricket Quiz",
-          options: item.quizData?.options || [
+  const rawQuestions = useMemo(() => {
+    if (item.quizData?.questions && Array.isArray(item.quizData.questions) && item.quizData.questions.length > 0) {
+      return item.quizData.questions.map((q: any, idx: number) => {
+        const fallbackId = `q_${idx + 1}`;
+        const normalizedId = q?.id || q?._id || q?.questionId || fallbackId;
+        return {
+          ...q,
+          id: String(normalizedId),
+          question: q.question || q.title || `Question ${idx + 1}`,
+          options: q.options || [
             { id: "A", text: "Option A" },
             { id: "B", text: "Option B" },
             { id: "C", text: "Option C" },
             { id: "D", text: "Option D" },
           ],
-          correctOptionId: item.quizData?.correctOptionId || "A",
-          explanation: item.quizData?.explanation || "SportsFan360 Quiz",
-        },
-      ];
+          correctOptionId: q.correctOptionId || q.answer || "A",
+          explanation: q.explanation || "SportsFan360 Quiz",
+        };
+      });
+    }
+    return [
+      {
+        id: (item as any)._subQuestionId || "q_1",
+        question: item.quizData?.question || item.title || "Live Cricket Quiz",
+        options: item.quizData?.options || [
+          { id: "A", text: "Option A" },
+          { id: "B", text: "Option B" },
+          { id: "C", text: "Option C" },
+          { id: "D", text: "Option D" },
+        ],
+        correctOptionId: item.quizData?.correctOptionId || (item.quizData as any)?.answer || "A",
+        explanation: item.quizData?.explanation || "SportsFan360 Quiz",
+      },
+    ];
+  }, [item.quizData, item.title, (item as any)._subQuestionId]);
 
   const totalQuestions = rawQuestions.length;
 
@@ -653,15 +686,19 @@ function DynamicQuizCard({
   }, []);
 
   const getStoredQuizAnswer = useCallback((q: any, index: number) => {
-    if (!q && index === undefined) return null;
-    const qId = q?.id;
-    let ans = qId ? getStoredVote(`quiz_q_${qId}`, item.id, userId) : null;
-    if (!ans) ans = getStoredVote(`quiz_q_${index}`, item.id, userId);
-    if (!ans && qId) ans = getStoredVote(`quiz_${qId}`, item.id, userId);
-    if (!ans) ans = getStoredVote(`quiz_${index}`, item.id, userId);
-    if (!ans && (totalQuestions === 1 || index === 0)) ans = getStoredVote(`quiz`, item.id, userId);
+    if (!q) return null;
+    const parentId = (item as any)._parentEngagementId || item.id;
+    const subIdx = (item as any)._subQuestionIndex ?? index;
+    const subId = (item as any)._subQuestionId || q.id;
+
+    let ans = getStoredVote(quizAnswerKey(index, q.id), item.id, userId) ||
+              getStoredVote(`quiz`, item.id, userId);
+
+    if (!ans && (item as any)._parentEngagementId) {
+      ans = getStoredVote(quizAnswerKey(subIdx, subId), parentId, userId);
+    }
     return ans;
-  }, [item.id, userId, totalQuestions]);
+  }, [item.id, userId, (item as any)._parentEngagementId, (item as any)._subQuestionIndex, (item as any)._subQuestionId]);
 
   const initialFinish = getStoredVote("quiz_finish", item.id, userId);
   const [quizFinished, setQuizFinished] = useState<boolean>(Boolean(initialFinish?.finished));
@@ -682,9 +719,10 @@ function DynamicQuizCard({
 
   useEffect(() => {
     if (currentQ) {
-      onQuestionChange?.(currentQIndex, currentQ.id || `q_${currentQIndex}`);
+      onQuestionChange?.(currentQIndex, currentQ.id || `q_${currentQIndex + 1}`);
     }
   }, [currentQIndex, currentQ?.id, onQuestionChange]);
+
   const correctOptionId = currentQ?.correctOptionId || (currentQ as any)?.answer || "A";
   const frequencyMinutes = Number(
     item.quizData?.frequencyMinutes !== undefined && item.quizData?.frequencyMinutes !== null
@@ -722,13 +760,13 @@ function DynamicQuizCard({
   }, [rawQuestions, totalQuestions, getStoredQuizAnswer]);
 
   const [selectedId, setSelectedId] = useState<string | null>(
-    initialQ?.selectedId || (item.userVoted && item.userVote ? item.userVote : null)
+    initialQ?.selectedId || (totalQuestions === 1 && item.userVoted && item.userVote ? item.userVote : null)
   );
-  const [answered, setAnswered] = useState<boolean>(Boolean(initialQ || item.userVoted));
+  const [answered, setAnswered] = useState<boolean>(Boolean(initialQ || (totalQuestions === 1 && item.userVoted)));
   const [isCorrect, setIsCorrect] = useState<boolean | null>(
     initialQ
       ? initialQ.isCorrect
-      : item.userVoted && item.userVote
+      : totalQuestions === 1 && item.userVoted && item.userVote
         ? checkIsOptionCorrect(item.userVote, currentQ)
         : null
   );
@@ -739,11 +777,11 @@ function DynamicQuizCard({
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
 
   const hasAlreadyEngaged = useMemo(() => {
-    if (item.userVoted) return true;
+    if (totalQuestions === 1 && item.userVoted) return true;
     if (getStoredVote("quiz_engaged", item.id, userId)) return true;
     if (getStoredVote("quiz_finish", item.id, userId)) return true;
     return rawQuestions.some((q, idx) => Boolean(getStoredQuizAnswer(q, idx)));
-  }, [item.id, item.userVoted, userId, rawQuestions, getStoredQuizAnswer]);
+  }, [item.id, item.userVoted, userId, rawQuestions, getStoredQuizAnswer, totalQuestions]);
 
   const hasEngagedRef = useRef<boolean>(hasAlreadyEngaged);
 
@@ -754,14 +792,18 @@ function DynamicQuizCard({
   }, [hasAlreadyEngaged]);
 
   const [totalEngaged, setTotalEngaged] = useState<number>(() => {
-    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+    const raw = totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+    return (hasAlreadyEngaged || answered || selectedId) ? Math.max(1, raw) : raw;
   });
 
   useEffect(() => {
     if (totalEngagedOverride !== undefined) {
-      setTotalEngaged(totalEngagedOverride);
+      setTotalEngaged((prev) => {
+        const nextVal = (hasAlreadyEngaged || answered || selectedId) ? Math.max(1, totalEngagedOverride) : totalEngagedOverride;
+        return Math.max(prev, nextVal);
+      });
     }
-  }, [totalEngagedOverride]);
+  }, [totalEngagedOverride, hasAlreadyEngaged, answered, selectedId]);
 
   const startTime = getEngagementStartTime(item);
   const isScheduled = startTime > now;
@@ -810,6 +852,7 @@ function DynamicQuizCard({
     }
   }, [isExpired, hasAlreadyEngaged, quizFinished, calculateQuizProgress, totalQuestions, item.id]);
 
+  // Initial like & finish sync on mount
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
@@ -824,8 +867,21 @@ function DynamicQuizCard({
       setQuizFinished(true);
       if (finish.score !== undefined) setTotalScore(Number(finish.score));
     }
+  }, [item.id, userId, item.userLiked]);
 
-    const ans = getStoredQuizAnswer(currentQ, currentQIndex);
+  // Active question answer restoration (strictly isolated per question)
+  useEffect(() => {
+    const parentId = (item as any)._parentEngagementId || item.id;
+    const subIdx = (item as any)._subQuestionIndex ?? currentQIndex;
+    const subId = (item as any)._subQuestionId || currentQ?.id;
+
+    let ans = getStoredVote(quizAnswerKey(currentQIndex, currentQ?.id), item.id, userId) ||
+              getStoredVote(`quiz`, item.id, userId);
+
+    if (!ans && (item as any)._parentEngagementId) {
+      ans = getStoredVote(quizAnswerKey(subIdx, subId), parentId, userId);
+    }
+
     if (ans) {
       setSelectedId(ans.selectedId);
       setAnswered(true);
@@ -834,59 +890,19 @@ function DynamicQuizCard({
           ? ans.isCorrect
           : checkIsOptionCorrect(ans.selectedId, currentQ)
       );
-    } else if (item.userVoted && item.userVote && (totalQuestions === 1 || currentQIndex === 0)) {
+    } else if (totalQuestions === 1 && item.userVoted && item.userVote) {
       setSelectedId(item.userVote);
       setAnswered(true);
       const isRight = checkIsOptionCorrect(item.userVote, currentQ);
       setIsCorrect(isRight);
-      setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: item.userVote, isCorrect: isRight }, userId);
+      const payload = { selectedId: item.userVote, isCorrect: isRight };
+      setStoredVote(quizAnswerKey(currentQIndex, currentQ?.id), item.id, payload, userId);
     } else {
       setSelectedId(null);
       setAnswered(false);
       setIsCorrect(null);
     }
-
-    // Always sync with server checkVoteStatus if userId exists
-    if (userId) {
-      engagementService
-        .checkVoteStatus(item.id, userId)
-        .then((res) => {
-          if (res.hasVoted) {
-            const answersMap = (res.vote as any)?.answers || (res as any)?.answers || {};
-            let hasMatched = false;
-
-            rawQuestions.forEach((q, idx) => {
-              const opt = answersMap[q?.id] || answersMap[idx] || (idx === 0 && res.selectedOptionId ? res.selectedOptionId : null);
-              if (opt) {
-                hasMatched = true;
-                const isRight = checkIsOptionCorrect(opt, q);
-                setStoredVote(`quiz_q_${q?.id || idx}`, item.id, { selectedId: opt, isCorrect: isRight }, userId);
-                if (idx === currentQIndex) {
-                  setSelectedId(opt);
-                  setAnswered(true);
-                  setIsCorrect(isRight);
-                }
-              }
-            });
-
-            if (!hasMatched && res.selectedOptionId) {
-              const isRight = checkIsOptionCorrect(res.selectedOptionId, currentQ);
-              setSelectedId(res.selectedOptionId);
-              setAnswered(true);
-              setIsCorrect(isRight);
-              setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: res.selectedOptionId, isCorrect: isRight }, userId);
-            }
-
-            setStoredVote("quiz_engaged", item.id, true, userId);
-            if (totalQuestions === 1) {
-              setQuizFinished(true);
-              setStoredVote("quiz_finish", item.id, { finished: true }, userId);
-            }
-          }
-        })
-        .catch(() => { });
-    }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, checkIsOptionCorrect, currentQ, currentQIndex, totalQuestions, getStoredQuizAnswer, rawQuestions]);
+  }, [currentQIndex, currentQ, item.id, userId, totalQuestions, checkIsOptionCorrect, getStoredQuizAnswer, item.userVoted, item.userVote, (item as any)._parentEngagementId, (item as any)._subQuestionIndex, (item as any)._subQuestionId]);
 
   const handleOptionSelect = async (optId: string) => {
     if (!userId || String(userId).toLowerCase().startsWith("anon")) {
@@ -895,7 +911,6 @@ function DynamicQuizCard({
     }
     if (answered || isScheduled || isAnsweringRef.current) return;
     isAnsweringRef.current = true;
-    const qKey = `quiz_q_${currentQ?.id || currentQIndex}`;
     const existing = getStoredQuizAnswer(currentQ, currentQIndex);
     if (existing) {
       isAnsweringRef.current = false;
@@ -906,11 +921,11 @@ function DynamicQuizCard({
     setAnswered(true);
 
     const isFirstQuizEngagement = !hasEngagedRef.current;
-    if (isFirstQuizEngagement) {
-      hasEngagedRef.current = true;
-      setStoredVote("quiz_engaged", item.id, true, userId);
-      setTotalEngaged((prev) => prev + 1);
-    }
+    hasEngagedRef.current = true;
+    setStoredVote("quiz_engaged", item.id, true, userId);
+    const nextCount = isFirstQuizEngagement ? Math.max(1, totalEngaged + 1) : Math.max(1, totalEngaged);
+    setTotalEngaged(nextCount);
+    onSyncEngagedCount?.(nextCount);
 
     const isRight = checkIsOptionCorrect(optId, currentQ);
     setIsCorrect(isRight);
@@ -920,18 +935,17 @@ function DynamicQuizCard({
     const nextTotal = totalScore + earnedPoints;
     setTotalScore(nextTotal);
 
-    setStoredVote(
-      qKey,
-      item.id,
-      { selectedId: optId, isCorrect: isRight, earnedPoints },
-      userId
-    );
-    if (currentQ?.id) {
-      setStoredVote(`quiz_${currentQ.id}`, item.id, { selectedId: optId, isCorrect: isRight, earnedPoints }, userId);
-    }
-    setStoredVote(`quiz_q_${currentQIndex}`, item.id, { selectedId: optId, isCorrect: isRight, earnedPoints }, userId);
-    if (totalQuestions === 1) {
-      setStoredVote(`quiz`, item.id, { selectedId: optId, isCorrect: isRight, earnedPoints }, userId);
+    // Save this answer under unique keys so it never collides
+    const answerPayload = { selectedId: optId, isCorrect: isRight, earnedPoints };
+    setStoredVote(quizAnswerKey(currentQIndex, currentQ?.id), item.id, answerPayload, userId);
+    setStoredVote(`quiz`, item.id, answerPayload, userId);
+
+    const parentId = (item as any)._parentEngagementId || item.id;
+    const subIdx = (item as any)._subQuestionIndex ?? currentQIndex;
+    const subId = (item as any)._subQuestionId || currentQ?.id;
+    if ((item as any)._parentEngagementId) {
+      setStoredVote(quizAnswerKey(subIdx, subId), parentId, answerPayload, userId);
+      setStoredVote("quiz_engaged", parentId, true, userId);
     }
 
     const currentAnsweredCount = rawQuestions.filter((q, idx) => {
@@ -946,8 +960,7 @@ function DynamicQuizCard({
 
     const totalPossible = totalQuestions * (PARTICIPATION_POINTS + CORRECT_OPTION_BONUS);
 
-    // Multi-quiz full completion check
-    if (totalQuestions === 1 || currentQIndex === totalQuestions - 1 || currentAnsweredCount >= totalQuestions) {
+    if (totalQuestions === 1 || currentAnsweredCount >= totalQuestions) {
       setQuizFinished(true);
       setStoredVote("quiz_finish", item.id, {
         finished: true,
@@ -958,7 +971,6 @@ function DynamicQuizCard({
       }, userId);
       setStoredVote("quiz_engaged", item.id, true, userId);
 
-      // Single summary push notification on completion
       const summaryMsg = `Quiz Completed! You scored ${nextTotal}/${totalPossible} SXPs (${currentCorrectCount}/${totalQuestions} correct). Check your rank on the Leaderboard!`;
       if (typeof window !== "undefined") {
         window.dispatchEvent(
@@ -967,7 +979,7 @@ function DynamicQuizCard({
               title: "FlipARENA",
               body: summaryMsg,
               ctaLabel: "View Leaderboard",
-              ctaTarget: `/MainModules/FlipArena?itemId=${item.id}&type=quiz&tab=leaderboard`,
+              ctaTarget: `/MainModules/FlipArena?itemId=${parentId}&type=quiz&tab=leaderboard`,
               type: "fliparena.quiz_completed",
             },
           })
@@ -977,11 +989,18 @@ function DynamicQuizCard({
 
     try {
       const res: any = await engagementService.voteEngagement(
-        item.id,
+        parentId,
         optId,
         userId,
-        currentQ?.id,
-        { isFirstQuizEngagement, questionIndex: currentQIndex, totalQuestions }
+        subId,
+        {
+          isFirstQuizEngagement,
+          questionIndex: subIdx,
+          totalQuestions: (item as any)._parentEngagementId ? 1 : totalQuestions,
+          userName,
+          userAvatar,
+          userEmail,
+        }
       );
       const earned = Number(res?.pointsAwarded ?? earnedPoints);
       if (typeof window !== "undefined" && earned > 0) {
@@ -989,11 +1008,6 @@ function DynamicQuizCard({
           new CustomEvent("sf360:points-updated", { detail: { points: earned } })
         );
       }
-      onToast(
-        isRight
-          ? `🎉 Correct! +${earned} SXPs (+${PARTICIPATION_POINTS} played, +${CORRECT_OPTION_BONUS} bonus)`
-          : `💡 +${earned} SXPs for participating!`
-      );
     } catch (err: any) {
       const prevOpt = err?.response?.data?.selectedOptionId || optId;
       const right = checkIsOptionCorrect(prevOpt, currentQ);
@@ -1011,10 +1025,10 @@ function DynamicQuizCard({
     }
     if (currentQIndex < totalQuestions - 1) {
       const nextIdx = currentQIndex + 1;
-      setCurrentQIndex(nextIdx);
       const nextQ = rawQuestions[nextIdx];
-      onQuestionChange?.(nextIdx, nextQ?.id || `q_${nextIdx}`);
       const ans = getStoredQuizAnswer(nextQ, nextIdx);
+      setCurrentQIndex(nextIdx);
+      onQuestionChange?.(nextIdx, nextQ?.id || `q_${nextIdx + 1}`);
       if (ans) {
         setSelectedId(ans.selectedId);
         setAnswered(true);
@@ -1034,10 +1048,10 @@ function DynamicQuizCard({
   const handlePrevQuestion = () => {
     if (currentQIndex > 0) {
       const prevIdx = currentQIndex - 1;
-      setCurrentQIndex(prevIdx);
       const prevQ = rawQuestions[prevIdx];
-      onQuestionChange?.(prevIdx, prevQ?.id || `q_${prevIdx}`);
       const ans = getStoredQuizAnswer(prevQ, prevIdx);
+      setCurrentQIndex(prevIdx);
+      onQuestionChange?.(prevIdx, prevQ?.id || `q_${prevIdx + 1}`);
       if (ans) {
         setSelectedId(ans.selectedId);
         setAnswered(true);
@@ -1120,8 +1134,8 @@ function DynamicQuizCard({
         </div>
       </div>
 
-      {/* Quiz Header & Completion summary banner */}
-      {quizFinished && (
+      {/* Completion summary banner for multi-question if finished */}
+      {quizFinished && totalQuestions > 1 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1133,31 +1147,16 @@ function DynamicQuizCard({
           </div>
           <p className="text-[11.5px] text-purple-200 font-medium leading-snug">
             You scored <strong className="text-amber-400 font-extrabold">{totalScore}/{currentProgress.possibleScore} SXPs</strong> ({currentProgress.correctCount}/{totalQuestions} correct).</p>
-          {/* <div className="flex items-center justify-center gap-2 pt-1">
-            <button
-              onClick={() => onOpenLeaderboard?.()}
-              className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-[11px] flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
-            >
-              <Trophy size={13} className="text-black" />
-              <span>Leaderboard</span>
-            </button>
-            <button
-              onClick={() => setCurrentQIndex(0)}
-              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/20 text-white font-bold text-[11px] active:scale-95 transition-all cursor-pointer"
-            >
-              Review Questions
-            </button>
-          </div> */}
         </motion.div>
       )}
 
-      <div className="flex items-center justify-between gap-2 mb-1.5">
-        {totalQuestions > 1 && (
+      {totalQuestions > 1 && (
+        <div className="flex items-center justify-between gap-2 mb-1.5">
           <span className="text-[10px] font-extrabold bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full shrink-0">
             Q {currentQIndex + 1}/{totalQuestions}
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       {totalQuestions > 1 && (
         <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mb-3">
@@ -1303,7 +1302,13 @@ function DynamicQuizCard({
           onClick={() => onOpenEngagedModal?.(item)}
           className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
-          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <span className="group-hover:underline">
+            {Math.max(
+              (hasAlreadyEngaged || answered || selectedId !== null) ? 1 : 0,
+              totalEngaged,
+              totalEngagedOverride || 0
+            ).toLocaleString()} engaged
+          </span>
           <ChevronRight
             size={12}
             className={`text-[#FF8A00] transition-transform duration-200 ${
@@ -1330,12 +1335,13 @@ function DynamicPollCard({
   onOpenEngagedModal,
   isEngagedExpanded = false,
   totalEngagedOverride,
+  onSyncEngagedCount,
 }: {
   item: EngagementItem;
   userId?: string;
-    userName?: string;
-    userAvatar?: string;
-    userEmail?: string;
+  userName?: string;
+  userAvatar?: string;
+  userEmail?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
@@ -1343,6 +1349,7 @@ function DynamicPollCard({
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
   totalEngagedOverride?: number;
+  onSyncEngagedCount?: (count: number) => void;
 }) {
   const initialVote = getStoredVote("poll", item.id, userId);
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -1352,7 +1359,6 @@ function DynamicPollCard({
   const [loading, setLoading] = useState(false);
   const isVotingRef = useRef(false);
 
-  // Bonus awarded state backed by localStorage
   const bonusClaimKey = `sf_poll_bonus_claimed_${item.id}_${userId || "anon"}`;
   const [bonusAwarded, setBonusAwarded] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -1370,15 +1376,20 @@ function DynamicPollCard({
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const hasUserParticipated = Boolean(voted || selectedId !== null || item.userVoted || initialVote);
   const [totalEngaged, setTotalEngaged] = useState<number>(() => {
-    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+    const raw = totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+    return hasUserParticipated ? Math.max(1, raw) : raw;
   });
 
   useEffect(() => {
     if (totalEngagedOverride !== undefined) {
-      setTotalEngaged(totalEngagedOverride);
+      setTotalEngaged((prev) => {
+        const nextVal = (voted || selectedId !== null || item.userVoted) ? Math.max(1, totalEngagedOverride) : totalEngagedOverride;
+        return Math.max(prev, nextVal);
+      });
     }
-  }, [totalEngagedOverride]);
+  }, [totalEngagedOverride, voted, selectedId, item.userVoted]);
 
   const startTime = getEngagementStartTime(item);
   const isScheduled = startTime > now;
@@ -1396,22 +1407,34 @@ function DynamicPollCard({
     (opt: any) => {
       if (!correctAnswer || !opt) return false;
       const ca = correctAnswer.trim().toLowerCase();
-      const optText = String(opt.text || opt.label || "").trim().toLowerCase();
       const optId = String(opt.id || "").trim().toLowerCase();
-      return (
-        optText === ca ||
-        optId === ca ||
-        (optText && ca && (optText.includes(ca) || ca.includes(optText))) ||
-        opt.isCorrect === true
-      );
+      const optText = String(opt.text || "").trim().toLowerCase();
+      return ca === optId || ca === optText;
     },
     [correctAnswer]
   );
 
-  const chosenOpt = options.find((o) => o.id === selectedId || o.text === selectedId);
-  const userWon = Boolean(chosenOpt && checkIsOptionWinner(chosenOpt));
+  const userWon = useMemo(() => {
+    if (!voted || !selectedId || !correctAnswer) return false;
+    const selectedOpt = options.find((o) => o.id === selectedId || o.text === selectedId);
+    return checkIsOptionWinner(selectedOpt);
+  }, [voted, selectedId, correctAnswer, options, checkIsOptionWinner]);
 
-  // Sync vote status on mount
+  useEffect(() => {
+    if (isExpired && (userWon || serverIsCorrect) && !bonusAwarded && userId) {
+      setBonusAwarded(true);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(bonusClaimKey, "true");
+        window.dispatchEvent(
+          new CustomEvent("sf360:points-updated", {
+            detail: { points: CORRECT_OPTION_BONUS },
+          })
+        );
+      }
+      onToast(`🏆 Poll Ended! You won +${CORRECT_OPTION_BONUS} SXPs bonus for picking the correct answer!`);
+    }
+  }, [isExpired, userWon, serverIsCorrect, bonusAwarded, bonusClaimKey, onToast, userId]);
+
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
@@ -1425,103 +1448,23 @@ function DynamicPollCard({
     if (stored?.selectedId) {
       setSelectedId(stored.selectedId);
       setVoted(true);
+      if (stored.options) setOptions(stored.options);
     }
 
     if (item.userVoted && item.userVote) {
       setSelectedId(item.userVote);
       setVoted(true);
       setStoredVote("poll", item.id, { selectedId: item.userVote }, userId);
+    } else if (userId) {
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res.hasVoted && res.selectedOptionId) {
+          setSelectedId(res.selectedOptionId);
+          setVoted(true);
+          setStoredVote("poll", item.id, { selectedId: res.selectedOptionId }, userId);
+        }
+      });
     }
-
-    if (userId) {
-      engagementService
-        .checkVoteStatus(item.id, userId)
-        .then((res) => {
-          if (res.hasVoted && res.selectedOptionId) {
-            setSelectedId(res.selectedOptionId);
-            setVoted(true);
-            setStoredVote("poll", item.id, { selectedId: res.selectedOptionId }, userId);
-          }
-          if (res.isCorrect !== undefined) {
-            setServerIsCorrect(res.isCorrect);
-          }
-          if (res.accuracyBonusAwarded || res.wonBonusPoints === 10) {
-            setServerIsCorrect(true);
-            setBonusAwarded(true);
-            localStorage.setItem(bonusClaimKey, "true");
-          }
-          // Only dispatch points if newly awarded right now by the server
-          if (res.newlyAwarded === true) {
-            onToast(`🏆 Correct Answer! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🎉`);
-            if (typeof window !== "undefined") {
-              window.dispatchEvent(
-                new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
-              );
-            }
-          }
-        })
-        .catch(() => { });
-    }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, bonusClaimKey, onToast]);
-
-  // Evaluate & Claim +10 Bonus after Timer Ends (strictly once per item/user)
-  const bonusClaimTriggeredRef = useRef(false);
-  useEffect(() => {
-    if (!isExpired || !voted || bonusAwarded || bonusClaimTriggeredRef.current) return;
-    if (localStorage.getItem(bonusClaimKey) === "true") {
-      setBonusAwarded(true);
-      return;
-    }
-
-    if (userId) {
-      bonusClaimTriggeredRef.current = true;
-      engagementService
-        .checkVoteStatus(item.id, userId)
-        .then((res) => {
-          if (res?.newlyAwarded === true || (res?.accuracyBonusAwarded && !bonusAwarded)) {
-            setBonusAwarded(true);
-            setServerIsCorrect(true);
-            localStorage.setItem(bonusClaimKey, "true");
-            if (res?.newlyAwarded === true) {
-              onToast(`🏆 Correct Answer! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🎉`);
-              if (typeof window !== "undefined") {
-                window.dispatchEvent(
-                  new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
-                );
-              }
-            }
-          } else if (res?.isCorrect && !res?.accuracyBonusAwarded) {
-            fetch(`/api/engagements/${item.id}/vote`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "claim_bonus",
-                userId,
-                selectedOptionId: selectedId,
-              }),
-            })
-              .then((r) => r.json())
-              .then((claimRes) => {
-                if (claimRes?.newlyAwarded === true || claimRes?.wonBonusPoints === 10) {
-                  setBonusAwarded(true);
-                  setServerIsCorrect(true);
-                  localStorage.setItem(bonusClaimKey, "true");
-                  if (claimRes?.newlyAwarded === true) {
-                    onToast(`🏆 Correct Answer! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🎉`);
-                    if (typeof window !== "undefined") {
-                      window.dispatchEvent(
-                        new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
-                      );
-                    }
-                  }
-                }
-              })
-              .catch(() => { });
-          }
-        })
-        .catch(() => { });
-    }
-  }, [isExpired, voted, bonusAwarded, item.id, userId, selectedId, bonusClaimKey, onToast]);
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
 
   const handleVote = async (optId: string) => {
     if (!userId || String(userId).toLowerCase().startsWith("anon")) {
@@ -1529,7 +1472,7 @@ function DynamicPollCard({
       return;
     }
     if (isScheduled) {
-      onToast(`Poll unlocks in ${formatCountdown(timeToStartMs)}!`);
+      onToast(`This poll opens in ${formatCountdown(timeToStartMs)}!`);
       return;
     }
     if (isExpired) {
@@ -1537,7 +1480,7 @@ function DynamicPollCard({
       return;
     }
     if (voted || loading || isVotingRef.current || getStoredVote("poll", item.id, userId)) {
-      onToast("You have already voted on this poll!");
+      onToast("You have already voted in this poll!");
       return;
     }
 
@@ -1545,30 +1488,38 @@ function DynamicPollCard({
     setSelectedId(optId);
     setVoted(true);
     setLoading(true);
-    setStoredVote("poll", item.id, { selectedId: optId }, userId);
-    setTotalEngaged((prev) => prev + 1);
+    const nextCount = Math.max(1, totalEngaged + 1);
+    setTotalEngaged(nextCount);
+    onSyncEngagedCount?.(nextCount);
+
+    const nextOptions = options.map((opt) =>
+      opt.id === optId ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
+    );
+    setOptions(nextOptions);
+    setStoredVote("poll", item.id, { selectedId: optId, options: nextOptions }, userId);
 
     try {
       const res: any = await engagementService.voteEngagement(item.id, optId, userId, undefined, { userName, userAvatar, userEmail });
-      if (res?.success && res.options) {
+      if (res?.options && Array.isArray(res.options)) {
         setOptions(res.options);
-      } else {
-        setOptions((prev) =>
-          prev.map((o) => (o.id === optId ? { ...o, votes: (o.votes || 0) + 1 } : o))
-        );
+        setStoredVote("poll", item.id, { selectedId: optId, options: res.options }, userId);
       }
-      onToast(`+${PARTICIPATION_POINTS} SXPs earned for voting! 📊`);
+      if (res?.isCorrect !== undefined) {
+        setServerIsCorrect(Boolean(res.isCorrect));
+      }
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
         );
       }
     } catch (err: any) {
-      const prevOpt = err?.response?.data?.selectedOptionId || optId;
-      setSelectedId(prevOpt);
-      setOptions((prev) =>
-        prev.map((o) => (o.id === prevOpt ? { ...o, votes: (o.votes || 0) + 1 } : o))
+      const prevOption = err?.response?.data?.selectedOptionId || optId;
+      setSelectedId(prevOption);
+      const reverted = options.map((opt) =>
+        opt.id === prevOption ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
       );
+      setOptions(reverted);
+      setStoredVote("poll", item.id, { selectedId: prevOption, options: reverted }, userId);
     } finally {
       setLoading(false);
       isVotingRef.current = false;
@@ -1592,11 +1543,10 @@ function DynamicPollCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
-    const text = `📊 Vote on this poll: "${item.pollData?.question || item.title}" on SportsFan360:`;
+    const text = `📊 Poll: "${item.title}" — Cast your vote on SportsFan360:`;
     if (navigator.share) {
       navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
     } else {
@@ -1613,23 +1563,23 @@ function DynamicPollCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
-        ? "ring-2 ring-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.35)] scale-[1.01]"
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-emerald-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+        ? "ring-2 ring-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.35)] scale-[1.01]"
         : ""
         }`}
     >
       {isHighlighted && (
-        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/40 text-[10px] font-black text-blue-300 flex items-center justify-between">
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 text-[10px] font-black text-emerald-300 flex items-center justify-between">
           <span className="flex items-center gap-1.5">
-            <Sparkles size={11} className="text-blue-400 animate-pulse" />
+            <Sparkles size={11} className="text-emerald-400 animate-pulse" />
             <span>SHARED POLL</span>
           </span>
           <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
         </div>
       )}
-      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-        <div className="flex items-center gap-1.5 uppercase">
-          <span className="text-blue-400 font-black">📊 POLL</span>
+      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
+        <div className="flex items-center gap-1.5">
+          <span className="text-emerald-400">📊 LIVE POLL</span>
           {isScheduled ? (
             <>
               <span>•</span>
@@ -1656,105 +1606,114 @@ function DynamicPollCard({
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{item.pollData?.question || item.title}</p>
+      <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{item.title}</p>
 
       {isScheduled ? (
-        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center my-2 space-y-1">
-          <Clock size={20} className="mx-auto text-blue-400 animate-pulse" />
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center my-2 space-y-1">
+          <Clock size={20} className="mx-auto text-emerald-400 animate-pulse" />
           <h4 className="text-xs font-black text-white">Poll Scheduled</h4>
           <p className="text-[11px] text-white/60">
             Voting opens in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
           </p>
         </div>
       ) : (
-        <div className="space-y-3 mb-4">
-          {/* Winner Celebration Status Banner */}
-          {isExpired && voted && (
-            <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
-              {userWon || bonusAwarded || serverIsCorrect ? (
-                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
-                  <span className="flex items-center gap-1.5">
-                    <span>🎉</span>
-                    <span>Correct Answer! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
-                  </span>
-                  <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                    +10 SXPs
-                  </span>
-                </div>
-              ) : correctAnswer ? (
-                <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
-                  <span>
-                    Poll closed
-                    {/* Winning answer: <strong className="text-emerald-400">{correctAnswer}</strong> */}
-                  </span>
-                  <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
-                </div>
-              ) : null}
-            </motion.div>
-          )}
-
-          {/* Active Poll Participation Notice */}
-          {voted && !isExpired && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-[11px] font-black text-center text-blue-400 bg-blue-500/10 border border-blue-500/20 p-2.5 rounded-xl mb-3 flex items-center justify-center gap-1.5"
-            >
-              <span>🔒</span>
-              <span>+2 SXPs earned!</span>
-            </motion.div>
-          )}
-
+        <div className="space-y-2 mb-4">
           {options.map((opt) => {
+            const pct = Math.round(((opt.votes || 0) / totalVotes) * 100);
             const isSelected = selectedId === opt.id || selectedId === opt.text;
-            const percentage =
-              opt.percentage !== undefined
-                ? opt.percentage
-                : Math.round(((opt.votes || 0) / totalVotes) * 100);
-
             const isWinner = checkIsOptionWinner(opt);
+
+            let borderStyle = "border-white/[0.06] bg-white/[0.02]";
+            if (isExpired && isWinner) {
+              borderStyle = "border-emerald-500/70 bg-emerald-500/15";
+            } else if (isSelected) {
+              borderStyle = "border-emerald-500 bg-emerald-500/10";
+            }
 
             return (
               <button
                 key={opt.id}
                 onClick={() => handleVote(opt.id)}
                 disabled={voted || isExpired || loading}
-                className={`w-full relative rounded-xl border overflow-hidden p-3.5 flex items-center justify-between text-xs font-extrabold text-left transition-all cursor-pointer ${isWinner && isExpired
-                  ? "border-emerald-500/80 bg-emerald-500/[0.1] shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-                  : isSelected
-                    ? "border-blue-500/60 bg-blue-500/[0.07]"
-                    : isExpired
-                      ? "opacity-60 border-white/[0.05] bg-white/[0.01]"
-                      : "border-white/[0.06] bg-white/[0.01] hover:bg-white/[0.03]"
+                className={`w-full rounded-xl p-3 border text-left transition-all cursor-pointer relative overflow-hidden group ${borderStyle} ${voted || isExpired ? "cursor-default" : "hover:bg-white/[0.04] active:scale-[0.99]"
                   }`}
               >
                 {(voted || isExpired) && (
                   <motion.div
                     initial={{ width: 0 }}
-                    animate={{ width: `${percentage}%` }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    className={`absolute left-0 top-0 bottom-0 z-0 ${isWinner && isExpired ? "bg-emerald-500/20" : isSelected ? "bg-blue-500/20" : "bg-white/[0.04]"
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    className={`absolute inset-y-0 left-0 ${isExpired && isWinner
+                      ? "bg-emerald-500/25"
+                      : isSelected
+                        ? "bg-emerald-500/20"
+                        : "bg-white/[0.04]"
                       }`}
                   />
                 )}
-                <span className="relative z-10 text-white/90 font-bold flex items-center gap-1.5">
-                  {opt.text}
-                  {isWinner && isExpired && (
-                    <span className="text-emerald-400 text-[10px] font-black">🏆 Correct Answer</span>
+
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-bold ${isExpired && isWinner
+                        ? "text-emerald-300 font-black"
+                        : isSelected
+                          ? "text-emerald-400 font-black"
+                          : "text-white/80"
+                        }`}
+                    >
+                      {opt.text}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                        <Check size={11} /> You voted
+                      </span>
+                    )}
+                    {isExpired && isWinner && (
+                      <span className="text-[10px] text-emerald-300 font-extrabold bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 rounded">
+                        ✓ Correct Option
+                      </span>
+                    )}
+                  </div>
+                  {(voted || isExpired) && (
+                    <span className="text-xs font-black font-mono text-white/50">{pct}%</span>
                   )}
-                </span>
-                {(voted || isExpired) && (
-                  <span
-                    className={`relative z-10 text-[11px] font-black ${isWinner && isExpired ? "text-emerald-400" : isSelected ? "text-blue-400" : "text-white/60"
-                      }`}
-                  >
-                    {percentage}% {isSelected && "✓"}
-                  </span>
-                )}
+                </div>
               </button>
             );
           })}
         </div>
+      )}
+
+      {voted && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
+          {isExpired ? (
+            userWon || bonusAwarded || serverIsCorrect ? (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                <span className="flex items-center gap-1.5">
+                  <span>🎉</span>
+                  <span>Correct Option! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
+                </span>
+                <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                  +10 SXPs
+                </span>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
+                <span>
+                  Poll ended {correctAnswer ? `· Winner: ` : ""}
+                  {correctAnswer && <strong className="text-emerald-400">{correctAnswer}</strong>}
+                </span>
+                <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
+              </div>
+            )
+          ) : (
+            <div className="text-[11px] font-black text-center text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
+              <span>🔒</span>
+              <span>Vote submitted · +2 SXPs earned!</span>
+            </div>
+          )}
+        </motion.div>
       )}
 
       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
@@ -1775,12 +1734,17 @@ function DynamicPollCard({
             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
           </button>
         </div>
-        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
           className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
-          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <span className="group-hover:underline">
+            {Math.max(
+              hasUserParticipated ? 1 : 0,
+              totalEngaged,
+              totalEngagedOverride || 0
+            ).toLocaleString()} engaged
+          </span>
           <ChevronRight
             size={12}
             className={`text-[#FF8A00] transition-transform duration-200 ${
@@ -1807,12 +1771,13 @@ function DynamicPredictionCard({
   onOpenEngagedModal,
   isEngagedExpanded = false,
   totalEngagedOverride,
+  onSyncEngagedCount,
 }: {
   item: EngagementItem;
   userId?: string;
-    userName?: string;
-    userAvatar?: string;
-    userEmail?: string;
+  userName?: string;
+  userAvatar?: string;
+  userEmail?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
@@ -1820,14 +1785,18 @@ function DynamicPredictionCard({
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
   totalEngagedOverride?: number;
+  onSyncEngagedCount?: (count: number) => void;
 }) {
   const pred = item.predictionData || {
-    question: "India win the 1st Galle Test?",
-    leftChoice: { id: "left", text: "Yes, India win", code: "IN", votes: 640 },
-    rightChoice: { id: "right", text: "SL hold / win", code: "LK", votes: 260 },
+    question: item.title || "Will India score > 350 runs?",
+    category: "cricket",
+    leftChoice: { text: "Yes (> 350)", multiplier: 2.1, votes: 310 },
+    rightChoice: { text: "No (<= 350)", multiplier: 1.8, votes: 450 },
     coinStake: 25,
-    totalVotes: 900,
-    status: "open",
+    timerMinutes: 10,
+    startTime: Date.now(),
+    expiresAt: Date.now() + 600000,
+    winningTarget: "",
   };
 
   const initialVote = getStoredVote("pred", item.id, userId);
@@ -1838,7 +1807,6 @@ function DynamicPredictionCard({
   const [loading, setLoading] = useState(false);
   const isPredictingRef = useRef(false);
 
-  // Bonus awarded state backed by localStorage
   const bonusClaimKey = `sf_pred_bonus_claimed_${item.id}_${userId || "anon"}`;
   const [bonusAwarded, setBonusAwarded] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
@@ -1849,187 +1817,100 @@ function DynamicPredictionCard({
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const hasUserParticipated = Boolean(predicted || selectedChoice !== null || item.userVoted || initialVote);
   const [totalEngaged, setTotalEngaged] = useState<number>(() => {
-    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+    const raw = totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+    return hasUserParticipated ? Math.max(1, raw) : raw;
   });
 
   useEffect(() => {
     if (totalEngagedOverride !== undefined) {
-      setTotalEngaged(totalEngagedOverride);
+      setTotalEngaged((prev) => {
+        const nextVal = (predicted || selectedChoice !== null || item.userVoted) ? Math.max(1, totalEngagedOverride) : totalEngagedOverride;
+        return Math.max(prev, nextVal);
+      });
     }
-  }, [totalEngagedOverride]);
+  }, [totalEngagedOverride, predicted, selectedChoice, item.userVoted]);
+
+  const calcPredictionResult = useCallback(
+    (
+      choice: "left" | "right",
+      overrideLeftPct?: number,
+      overrideRightPct?: number
+    ) => {
+      const leftVotes = pred.leftChoice.votes || 0;
+      const rightVotes = pred.rightChoice.votes || 0;
+      const total = leftVotes + rightVotes + 1;
+      const leftPct =
+        overrideLeftPct !== undefined
+          ? Math.round(overrideLeftPct)
+          : Math.round(((leftVotes + (choice === "left" ? 1 : 0)) / total) * 100);
+      const rightPct =
+        overrideRightPct !== undefined ? Math.round(overrideRightPct) : 100 - leftPct;
+      return {
+        coinsLocked: pred.coinStake || 25,
+        leftPercentage: leftPct,
+        rightPercentage: rightPct,
+      };
+    },
+    [pred.coinStake, pred.leftChoice.votes, pred.rightChoice.votes]
+  );
+
+  const [result, setResult] = useState<{
+    coinsLocked: number;
+    leftPercentage: number;
+    rightPercentage: number;
+  } | null>(() => {
+    const c = initialVote?.choice || (item.userVote as "left" | "right");
+    if (!c) return null;
+    return calcPredictionResult(c, initialVote?.leftPercentage, initialVote?.rightPercentage);
+  });
+
   const startTime = getEngagementStartTime(item);
   const isScheduled = startTime > now;
   const timeToStartMs = Math.max(0, startTime - now);
 
-  const durationMins = Number(item.predictionData?.durationMinutes || item.predictionData?.timerMinutes || 30);
-  const expiresAt = item.predictionData?.expiresAt || (startTime + durationMins * 60 * 1000);
+  const durationMins = Number(pred.timerMinutes || 10);
+  const expiresAt = pred.expiresAt || (startTime + durationMins * 60 * 1000);
   const isExpired = now >= expiresAt;
   const timeRemainingMs = Math.max(0, expiresAt - now);
 
-  const calcPredictionResult = useCallback(
-    (
-      choice?: "left" | "right" | string | null,
-      serverLeftPct?: number,
-      serverRightPct?: number
-    ) => {
-      // 1. If server explicitly returned valid percentages, respect them
-      if (
-        typeof serverLeftPct === "number" &&
-        typeof serverRightPct === "number" &&
-        !isNaN(serverLeftPct) &&
-        !isNaN(serverRightPct)
-      ) {
-        return {
-          leftPercentage: Math.round(serverLeftPct),
-          rightPercentage: Math.round(serverRightPct),
-          coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
-        };
-      }
-
-      // 2. If prediction data explicitly specifies percentages
-      if (
-        typeof (pred as any).leftPercentage === "number" &&
-        typeof (pred as any).rightPercentage === "number" &&
-        !isNaN((pred as any).leftPercentage) &&
-        !isNaN((pred as any).rightPercentage)
-      ) {
-        return {
-          leftPercentage: Math.round((pred as any).leftPercentage),
-          rightPercentage: Math.round((pred as any).rightPercentage),
-          coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
-        };
-      }
-
-      // 3. Calculate dynamically from real vote counts
-      const lVotesRaw = Number(pred.leftChoice?.votes || 0);
-      const rVotesRaw = Number(pred.rightChoice?.votes || 0);
-      const userChoice = choice || selectedChoice;
-
-      const addLeft = userChoice === "left" && !item.userVoted ? 1 : 0;
-      const addRight = userChoice === "right" && !item.userVoted ? 1 : 0;
-
-      const lVotes = lVotesRaw + addLeft;
-      const rVotes = rVotesRaw + addRight;
-      const total = lVotes + rVotes;
-
-      if (total > 0) {
-        const leftPct = Math.round((lVotes / total) * 100);
-        return {
-          leftPercentage: leftPct,
-          rightPercentage: 100 - leftPct,
-          coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
-        };
-      }
-
-      return {
-        leftPercentage: 50,
-        rightPercentage: 50,
-        coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
-      };
-    },
-    [pred, initialVote?.coinsLocked, item.userVoted, selectedChoice]
-  );
-
-  const [result, setResult] = useState<{
-    leftPercentage: number;
-    rightPercentage: number;
-    coinsLocked: number;
-  } | null>(() => {
-    const c = initialVote?.choice || (item.userVote as "left" | "right");
-    if (!c && !isExpired) return null;
-
-    if (
-      typeof initialVote?.leftPercentage === "number" &&
-      typeof initialVote?.rightPercentage === "number"
-    ) {
-      return {
-        leftPercentage: Math.round(initialVote.leftPercentage),
-        rightPercentage: Math.round(initialVote.rightPercentage),
-        coinsLocked: initialVote.coinsLocked || pred.coinStake || 25,
-      };
-    }
-
-    if (
-      typeof (pred as any).leftPercentage === "number" &&
-      typeof (pred as any).rightPercentage === "number"
-    ) {
-      return {
-        leftPercentage: Math.round((pred as any).leftPercentage),
-        rightPercentage: Math.round((pred as any).rightPercentage),
-        coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
-      };
-    }
-
-    const lVotes = Number(pred.leftChoice?.votes || 0) + (c === "left" && !item.userVoted ? 1 : 0);
-    const rVotes = Number(pred.rightChoice?.votes || 0) + (c === "right" && !item.userVoted ? 1 : 0);
-    const total = lVotes + rVotes;
-    if (total > 0) {
-      const leftPct = Math.round((lVotes / total) * 100);
-      return {
-        leftPercentage: leftPct,
-        rightPercentage: 100 - leftPct,
-        coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
-      };
-    }
-
-    return {
-      leftPercentage: 50,
-      rightPercentage: 50,
-      coinsLocked: initialVote?.coinsLocked || pred.coinStake || 25,
-    };
-  });
-
-  const winningTarget =
-    pred.winningChoiceId ||
-    pred.correctAnswer ||
-    pred.answer ||
-    item.predictionData?.correctAnswer ||
-    item.predictionData?.winningChoiceId ||
-    "";
+  const winningTarget = (pred as any).winningTarget || (pred as any).correctAnswer || "";
 
   const checkIsChoiceWinner = useCallback(
-    (choice: "left" | "right" | string | null): boolean => {
+    (choice: "left" | "right" | null) => {
       if (!choice || !winningTarget) return false;
-      const target = winningTarget.trim().toLowerCase();
-      const c = String(choice).trim().toLowerCase();
-      const leftText = String(pred.leftChoice?.text || "").trim().toLowerCase();
-      const leftCode = String(pred.leftChoice?.code || "").trim().toLowerCase();
-      const rightText = String(pred.rightChoice?.text || "").trim().toLowerCase();
-      const rightCode = String(pred.rightChoice?.code || "").trim().toLowerCase();
-
-      const isTargetLeft =
-        target === "left" ||
-        (!!leftText && target === leftText) ||
-        (!!leftCode && target === leftCode) ||
-        (!!leftText && leftText.includes(target) && target.length > 2);
-
-      const isTargetRight =
-        target === "right" ||
-        (!!rightText && target === rightText) ||
-        (!!rightCode && target === rightCode) ||
-        (!!rightText && rightText.includes(target) && target.length > 2);
-
-      const isUserLeft =
-        c === "left" ||
-        (!!leftText && c === leftText) ||
-        (!!leftCode && c === leftCode);
-
-      const isUserRight =
-        c === "right" ||
-        (!!rightText && c === rightText) ||
-        (!!rightCode && c === rightCode);
-
-      if (isTargetLeft && isUserLeft) return true;
-      if (isTargetRight && isUserRight) return true;
-      return c === target;
+      const wt = winningTarget.trim().toLowerCase();
+      if (wt === "left" && choice === "left") return true;
+      if (wt === "right" && choice === "right") return true;
+      const chosenText =
+        choice === "left"
+          ? pred.leftChoice.text.trim().toLowerCase()
+          : pred.rightChoice.text.trim().toLowerCase();
+      return wt === chosenText;
     },
-    [winningTarget, pred.leftChoice?.text, pred.leftChoice?.code, pred.rightChoice?.text, pred.rightChoice?.code]
+    [winningTarget, pred.leftChoice.text, pred.rightChoice.text]
   );
 
-  const userWon = Boolean(predicted && checkIsChoiceWinner(selectedChoice));
+  const userWon = useMemo(() => {
+    return checkIsChoiceWinner(selectedChoice);
+  }, [selectedChoice, checkIsChoiceWinner]);
 
-  // Sync vote status on mount
+  useEffect(() => {
+    if (isExpired && (userWon || serverIsCorrect) && !bonusAwarded && userId) {
+      setBonusAwarded(true);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(bonusClaimKey, "true");
+        window.dispatchEvent(
+          new CustomEvent("sf360:points-updated", {
+            detail: { points: CORRECT_OPTION_BONUS },
+          })
+        );
+      }
+      onToast(`🏆 Prediction Ended! You won +${CORRECT_OPTION_BONUS} SXPs bonus for your correct prediction!`);
+    }
+  }, [isExpired, userWon, serverIsCorrect, bonusAwarded, bonusClaimKey, onToast, userId]);
+
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
@@ -2043,142 +1924,27 @@ function DynamicPredictionCard({
     if (stored?.choice) {
       setSelectedChoice(stored.choice);
       setPredicted(true);
-      const computed = calcPredictionResult(
-        stored.choice,
-        stored.leftPercentage,
-        stored.rightPercentage
-      );
-      setResult(computed);
+      setResult(calcPredictionResult(stored.choice, stored.leftPercentage, stored.rightPercentage));
     }
 
     if (item.userVoted && item.userVote) {
       const choice = item.userVote as "left" | "right";
       setSelectedChoice(choice);
       setPredicted(true);
-      const computed = calcPredictionResult(choice);
-      setStoredVote(
-        "pred",
-        item.id,
-        {
-          choice,
-          coinsLocked: pred.coinStake || 25,
-          leftPercentage: computed.leftPercentage,
-          rightPercentage: computed.rightPercentage,
-        },
-        userId
-      );
-      setResult(computed);
-    } else if (isExpired && !selectedChoice) {
-      const finalResult = calcPredictionResult(null);
-      setResult(finalResult);
+      setResult(calcPredictionResult(choice));
+      setStoredVote("pred", item.id, { choice }, userId);
+    } else if (userId) {
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res.hasVoted && res.selectedOptionId) {
+          const choice = res.selectedOptionId as "left" | "right";
+          setSelectedChoice(choice);
+          setPredicted(true);
+          setResult(calcPredictionResult(choice));
+          setStoredVote("pred", item.id, { choice }, userId);
+        }
+      });
     }
-
-    if (userId) {
-      engagementService
-        .checkVoteStatus(item.id, userId)
-        .then((res) => {
-          if (res.hasVoted && res.selectedOptionId) {
-            const choice = res.selectedOptionId as "left" | "right";
-            setSelectedChoice(choice);
-            setPredicted(true);
-            const computed = calcPredictionResult(
-              choice,
-              res.leftPercentage,
-              res.rightPercentage
-            );
-            setStoredVote(
-              "pred",
-              item.id,
-              {
-                choice,
-                coinsLocked: pred.coinStake || 25,
-                leftPercentage: computed.leftPercentage,
-                rightPercentage: computed.rightPercentage,
-              },
-              userId
-            );
-            setResult(computed);
-          }
-          if (res.isCorrect !== undefined) {
-            setServerIsCorrect(res.isCorrect);
-          }
-          if (res.accuracyBonusAwarded || res.wonBonusPoints === 10) {
-            setServerIsCorrect(true);
-            setBonusAwarded(true);
-            localStorage.setItem(bonusClaimKey, "true");
-          }
-          // Only dispatch points if newly awarded right now by the server
-          if (res.newlyAwarded === true) {
-            onToast(`🎯 Prediction Won! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🏆`);
-            if (typeof window !== "undefined") {
-              window.dispatchEvent(
-                new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
-              );
-            }
-          }
-        })
-        .catch(() => { });
-    }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, pred.coinStake, bonusClaimKey, onToast, calcPredictionResult, isExpired, selectedChoice]);
-
-  // Evaluate & Claim +10 Bonus after Timer Ends (strictly once per item/user)
-  const predBonusClaimTriggeredRef = useRef(false);
-  useEffect(() => {
-    if (!isExpired || !predicted || bonusAwarded || predBonusClaimTriggeredRef.current) return;
-    if (localStorage.getItem(bonusClaimKey) === "true") {
-      setBonusAwarded(true);
-      return;
-    }
-
-    if (userId) {
-      predBonusClaimTriggeredRef.current = true;
-      engagementService
-        .checkVoteStatus(item.id, userId)
-        .then((res) => {
-          if (res?.newlyAwarded === true || (res?.accuracyBonusAwarded && !bonusAwarded)) {
-            setBonusAwarded(true);
-            setServerIsCorrect(true);
-            localStorage.setItem(bonusClaimKey, "true");
-            if (res?.newlyAwarded === true) {
-              onToast(`🎯 Prediction Won! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🏆`);
-              if (typeof window !== "undefined") {
-                window.dispatchEvent(
-                  new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
-                );
-              }
-            }
-          } else if (res?.isCorrect && !res?.accuracyBonusAwarded) {
-            fetch(`/api/engagements/${item.id}/vote`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "claim_bonus",
-                userId,
-                selectedOptionId: selectedChoice,
-              }),
-            })
-              .then((r) => r.json())
-              .then((claimRes) => {
-                if (claimRes?.newlyAwarded === true || claimRes?.wonBonusPoints === 10) {
-                  setBonusAwarded(true);
-                  setServerIsCorrect(true);
-                  localStorage.setItem(bonusClaimKey, "true");
-                  if (claimRes?.newlyAwarded === true) {
-                    onToast(`🎯 Prediction Won! +${CORRECT_OPTION_BONUS} SXPs Accuracy Bonus Awarded! 🏆`);
-                    if (typeof window !== "undefined") {
-                      window.dispatchEvent(
-                        new CustomEvent("sf360:points-updated", { detail: { points: CORRECT_OPTION_BONUS } })
-                      );
-                    }
-                  }
-                }
-              })
-              .catch(() => { });
-          }
-        })
-        .catch(() => { });
-    }
-  }, [isExpired, predicted, bonusAwarded, item.id, userId, selectedChoice, bonusClaimKey, onToast]);
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, calcPredictionResult]);
 
   const handlePredict = async (choice: "left" | "right") => {
     if (!userId || String(userId).toLowerCase().startsWith("anon")) {
@@ -2186,15 +1952,15 @@ function DynamicPredictionCard({
       return;
     }
     if (isScheduled) {
-      onToast(`Prediction unlocks in ${formatCountdown(timeToStartMs)}!`);
+      onToast(`This prediction opens in ${formatCountdown(timeToStartMs)}!`);
       return;
     }
     if (isExpired) {
-      onToast("This prediction has closed!");
+      onToast("This prediction has ended!");
       return;
     }
     if (predicted || loading || isPredictingRef.current || getStoredVote("pred", item.id, userId)) {
-      onToast("You have already made your prediction!");
+      onToast("You have already placed your prediction!");
       return;
     }
 
@@ -2203,10 +1969,12 @@ function DynamicPredictionCard({
     setPredicted(true);
     setLoading(true);
     setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
-    setTotalEngaged((prev) => prev + 1);
+    const nextCount = Math.max(1, totalEngaged + 1);
+    setTotalEngaged(nextCount);
+    onSyncEngagedCount?.(nextCount);
 
     try {
-      const res: any = await engagementService.voteEngagement(item.id, choice, userId);
+      const res: any = await engagementService.voteEngagement(item.id, choice, userId, undefined, { userName, userAvatar, userEmail });
       const computedResult = calcPredictionResult(
         choice,
         res?.leftPercentage,
@@ -2227,7 +1995,6 @@ function DynamicPredictionCard({
         },
         userId
       );
-      onToast(`+${PARTICIPATION_POINTS} SXPs earned for prediction! 🎯`);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
@@ -2272,7 +2039,6 @@ function DynamicPredictionCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
@@ -2360,7 +2126,6 @@ function DynamicPredictionCard({
           >
             <span className="text-xs font-black">{pred.leftChoice.text}</span>
             <span className="text-[10px] font-black mt-1 text-white/50">
-              {/* {result ? `${result.leftPercentage}%` : "2X multiplier"} */}
               {result ? `${result.leftPercentage}%` : null}
             </span>
           </button>
@@ -2377,7 +2142,6 @@ function DynamicPredictionCard({
           >
             <span className="text-xs font-black">{pred.rightChoice.text}</span>
             <span className="text-[10px] font-black mt-1 text-white/50">
-              {/* {result ? `${result.rightPercentage}%` : "5X multiplier"} */}
               {result ? `${result.rightPercentage}%` : null}
             </span>
           </button>
@@ -2401,7 +2165,6 @@ function DynamicPredictionCard({
               <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
                 <span>
                   Prediction closed
-                  {/* <strong className="text-amber-400">{winningTarget || "Ended"}</strong> */}
                 </span>
                 <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
               </div>
@@ -2433,12 +2196,17 @@ function DynamicPredictionCard({
             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
           </button>
         </div>
-        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
           className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
-          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <span className="group-hover:underline">
+            {Math.max(
+              hasUserParticipated ? 1 : 0,
+              totalEngaged,
+              totalEngagedOverride || 0
+            ).toLocaleString()} engaged
+          </span>
           <ChevronRight
             size={12}
             className={`text-[#FF8A00] transition-transform duration-200 ${
@@ -2466,12 +2234,13 @@ function DynamicMemeCard({
   onOpenEngagedModal,
   isEngagedExpanded = false,
   totalEngagedOverride,
+  onSyncEngagedCount,
 }: {
   item: EngagementItem;
   userId?: string;
-    userName?: string;
-    userAvatar?: string;
-    userEmail?: string;
+  userName?: string;
+  userAvatar?: string;
+  userEmail?: string;
   now: number;
   onToast: (msg: string) => void;
   onEdit?: (item: EngagementItem) => void;
@@ -2480,6 +2249,7 @@ function DynamicMemeCard({
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
   totalEngagedOverride?: number;
+  onSyncEngagedCount?: (count: number) => void;
 }) {
   const { user } = useAuth();
   const currentUserId = userId || user?.userId || (user as any)?.actualUserId || user?.email;
@@ -2496,144 +2266,134 @@ function DynamicMemeCard({
     totalVotes: 0,
     reactions: { mild: 0, funny: 0, hot: 0, fire: 0, nuclear: 0 },
     commentsCount: 0,
-    sharesCount: 0,
   };
 
-  // Check if current user is the author who posted this meme
-  const isAuthor = Boolean(
-    (currentUserId && (
-      item.creatorId === currentUserId ||
-      (item as any).userId === currentUserId ||
-      (item as any).creatorId === currentUserId
-    )) ||
-    (currentUserEmail && (
-      (item.creatorEmail && item.creatorEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
-      ((item as any).userEmail && (item as any).userEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
-      ((item as any).creatorEmail && (item as any).creatorEmail.toLowerCase() === currentUserEmail.toLowerCase())
-    )) ||
-    (currentUserName && (
-      (item.creatorName && item.creatorName.toLowerCase() === currentUserName.toLowerCase()) ||
-      (meme.authorName && meme.authorName.toLowerCase() === currentUserName.toLowerCase())
-    )) ||
-    (user as any)?.role === "admin"
+  const initialStored = getStoredVote("meme", item.id, currentUserId);
+  const [selectedRating, setSelectedRating] = useState<MemeReactionType | null>(
+    initialStored?.reaction || (item.userVote as MemeReactionType) || null
   );
-
-  const initialStored = getStoredVote("meme", item.id, userId);
-  const [selectedRating, setSelectedRating] = useState<MemeReactionType>(
-    (initialStored?.reaction as MemeReactionType) || (item.userVote as MemeReactionType) || "hot"
-  );
-  const [voted, setVoted] = useState<boolean>(Boolean(initialStored || item.userVoted));
-  const [loading, setLoading] = useState(false);
-  const isRatingRef = useRef(false);
-  const [liked, setLiked] = useState(false);
+  const [hasVoted, setHasVoted] = useState(Boolean(initialStored || item.userVoted));
+  const [loadingVote, setLoadingVote] = useState(false);
+  const [liked, setLiked] = useState(Boolean(item.userLiked));
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || Number(meme.sharesCount) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const hasUserParticipated = Boolean(hasVoted || selectedRating !== null || item.userVoted || initialStored);
   const [totalEngaged, setTotalEngaged] = useState<number>(() => {
-    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || Number(meme.totalVotes) || 0);
+    const raw = totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+    return hasUserParticipated ? Math.max(1, raw) : raw;
   });
 
   useEffect(() => {
     if (totalEngagedOverride !== undefined) {
-      setTotalEngaged(totalEngagedOverride);
+      setTotalEngaged((prev) => {
+        const nextVal = (hasVoted || selectedRating !== null || item.userVoted) ? Math.max(1, totalEngagedOverride) : totalEngagedOverride;
+        return Math.max(prev, nextVal);
+      });
     }
-  }, [totalEngagedOverride]);
-  const [heatPct, setHeatPct] = useState<number>(meme.heatPercentage !== undefined ? Number(meme.heatPercentage) : (Number(item.memeData?.heatPercentage) || 0));
-  const [totalMemeVotes, setTotalMemeVotes] = useState<number>(meme.totalVotes !== undefined ? Number(meme.totalVotes) : (Number(item.memeData?.totalVotes) || 0));
-  const [reactions, setReactions] = useState(meme.reactions || { mild: 0, funny: 0, hot: 0, fire: 0, nuclear: 0 });
-  const [menuOpen, setMenuOpen] = useState(false);
+  }, [totalEngagedOverride, hasVoted, selectedRating, item.userVoted]);
+
+  const [reactions, setReactions] = useState<{
+    mild: number;
+    funny: number;
+    hot: number;
+    fire: number;
+    nuclear: number;
+  }>({
+    mild: Number(meme.reactions?.mild) || 0,
+    funny: Number(meme.reactions?.funny) || 0,
+    hot: Number(meme.reactions?.hot) || 0,
+    fire: Number(meme.reactions?.fire) || 0,
+    nuclear: Number(meme.reactions?.nuclear) || 0,
+  });
+
+  const totalHeatVotes =
+    reactions.mild + reactions.funny + reactions.hot + reactions.fire + reactions.nuclear;
+
+  const calculateHeatPct = useCallback(
+    (r: typeof reactions) => {
+      const sum = r.mild + r.funny + r.hot + r.fire + r.nuclear;
+      if (sum === 0) return 0;
+      const score = r.mild * 20 + r.funny * 40 + r.hot * 65 + r.fire * 85 + r.nuclear * 100;
+      return Math.round(score / sum);
+    },
+    []
+  );
+
+  const [heatPercentage, setHeatPercentage] = useState<number>(
+    meme.heatPercentage || calculateHeatPct(reactions)
+  );
 
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
-    } else if (userId) {
-      engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+    } else if (currentUserId) {
+      engagementService.checkLikeStatus(item.id, currentUserId).then((isLiked) => {
         if (isLiked) setLiked(true);
       });
     }
 
-    const stored = getStoredVote("meme", item.id, userId);
+    const stored = getStoredVote("meme", item.id, currentUserId);
     if (stored?.reaction) {
       setSelectedRating(stored.reaction);
-      setVoted(true);
-    }
-
-    if (item.userVoted && item.userVote) {
+      setHasVoted(true);
+    } else if (item.userVoted && item.userVote) {
       setSelectedRating(item.userVote as MemeReactionType);
-      setVoted(true);
-      setStoredVote("meme", item.id, { reaction: item.userVote }, userId);
+      setHasVoted(true);
+      setStoredVote("meme", item.id, { reaction: item.userVote }, currentUserId);
     }
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, currentUserId]);
 
-    if (userId) {
-      engagementService
-        .checkVoteStatus(item.id, userId)
-        .then((res) => {
-          if (res.hasVoted && res.selectedOptionId) {
-            setSelectedRating(res.selectedOptionId as MemeReactionType);
-            setVoted(true);
-            setStoredVote("meme", item.id, { reaction: res.selectedOptionId }, userId);
-          }
-        })
-        .catch(() => { });
-    }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
+  const handleSelectRating = (tier: MemeReactionType) => {
+    if (hasVoted) return;
+    setSelectedRating(tier);
+  };
 
-  useEffect(() => {
-    if (item.memeData?.reactions) {
-      setReactions(item.memeData.reactions);
-    }
-    if (item.memeData?.heatPercentage !== undefined) {
-      setHeatPct(Number(item.memeData.heatPercentage));
-    }
-    if (item.memeData?.totalVotes !== undefined) {
-      setTotalMemeVotes(Number(item.memeData.totalVotes));
-    }
-  }, [item.memeData]);
-
-  const handleRateMeme = async (ratingToSubmit?: MemeReactionType) => {
+  const handleSubmitVote = async () => {
     if (!currentUserId || String(currentUserId).toLowerCase().startsWith("anon")) {
-      onToast("Please sign in to participate and earn SXPs!");
+      onToast("Please sign in to vote and earn SXPs!");
       return;
     }
-    const finalRating = ratingToSubmit || selectedRating || "hot";
-    if (voted || loading || isRatingRef.current || getStoredVote("meme", item.id, userId)) {
-      onToast("You already voted on this meme!");
-      return;
-    }
+    if (!selectedRating || hasVoted || loadingVote) return;
 
-    isRatingRef.current = true;
-    setSelectedRating(finalRating);
-    setVoted(true);
-    setLoading(true);
-    setStoredVote("meme", item.id, { reaction: finalRating }, userId);
-    setTotalMemeVotes((prev) => prev + 1);
-    setTotalEngaged((prev) => prev + 1);
+    setLoadingVote(true);
+    setHasVoted(true);
+    setStoredVote("meme", item.id, { reaction: selectedRating }, currentUserId);
+    const nextCount = Math.max(1, totalEngaged + 1);
+    setTotalEngaged(nextCount);
+    onSyncEngagedCount?.(nextCount);
 
-    setReactions((prev) => {
-      const updated = { ...prev, [finalRating]: (prev[finalRating] || 0) + 1 };
-      const sum = Object.values(updated).reduce((a, b) => a + b, 0);
-      const score = updated.mild * 20 + updated.funny * 40 + updated.hot * 60 + updated.fire * 80 + updated.nuclear * 100;
-      if (sum > 0) setHeatPct(Math.min(100, Math.max(10, Math.round(score / sum))));
-      return updated;
-    });
+    const nextReactions = {
+      ...reactions,
+      [selectedRating]: (reactions[selectedRating] || 0) + 1,
+    };
+    setReactions(nextReactions);
+    const nextHeat = calculateHeatPct(nextReactions);
+    setHeatPercentage(nextHeat);
 
     try {
-      const res: any = await engagementService.voteEngagement(item.id, finalRating, userId, undefined, { userName, userAvatar, userEmail });
-      if (res?.heatPercentage !== undefined) setHeatPct(res.heatPercentage);
-      if (res?.totalVotes !== undefined) setTotalMemeVotes(res.totalVotes);
-      if (res?.reactions) setReactions(res.reactions);
-
-      onToast(`🔥 Voted ${finalRating.toUpperCase()}! +${PARTICIPATION_POINTS} SXPs earned!`);
+      const res: any = await engagementService.voteEngagement(
+        item.id,
+        selectedRating,
+        currentUserId,
+        undefined,
+        {
+          userName: currentUserName,
+          userAvatar,
+          userEmail: currentUserEmail,
+        }
+      );
+      if (res?.reactions) {
+        setReactions(res.reactions);
+        setHeatPercentage(res.heatPercentage || calculateHeatPct(res.reactions));
+      }
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
         );
       }
-    } catch (err: any) {
-      const prevOption = err?.response?.data?.selectedOptionId || finalRating;
-      setSelectedRating(prevOption as MemeReactionType);
+    } catch {
     } finally {
-      setLoading(false);
-      isRatingRef.current = false;
+      setLoadingVote(false);
     }
   };
 
@@ -2644,7 +2404,11 @@ function DynamicMemeCard({
     setLikesCount(nextCount);
 
     try {
-      const res = await engagementService.toggleLikeEngagement(item.id, userId, { userName, userAvatar, userEmail });
+      const res = await engagementService.toggleLikeEngagement(item.id, currentUserId, {
+        userName: currentUserName,
+        userAvatar,
+        userEmail: currentUserEmail,
+      });
       if (res?.likesCount !== undefined) {
         setLikesCount(res.likesCount);
         setLiked(res.liked);
@@ -2654,61 +2418,32 @@ function DynamicMemeCard({
 
   const handleShare = async () => {
     setSharesCount((prev) => prev + 1);
-    // setTotalEngaged((prev) => prev + 1);
     engagementService.shareEngagement(item.id).catch(() => { });
 
     const shareUrl = getEngagementShareUrl(item);
-    const text = `🔥 Check out this meme: "${item.title}" on SportsFan360 Meme Arena:`;
+    const text = `🔥 Meme: "${meme.caption}" — Rate the matchday heat on SportsFan360:`;
     if (navigator.share) {
-      navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
+      navigator.share({ title: item.title || "Matchday Meme", text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
     } else {
       await navigator.clipboard.writeText(shareUrl);
       onToast("Meme link copied to clipboard! 📋");
     }
   };
 
-  const ratingTiers: {
+  const formattedTime = formatEngagementPostingTime(item);
+
+  const RATING_TIERS: Array<{
     id: MemeReactionType;
     label: string;
     flameColor: string;
-    bgSelected: string;
-    borderSelected: string;
-  }[] = [
-      {
-        id: "mild",
-        label: "Mild",
-        flameColor: "text-slate-400",
-        bgSelected: "bg-slate-500/20",
-        borderSelected: "border-slate-400",
-      },
-      {
-        id: "funny",
-        label: "Funny",
-        flameColor: "text-pink-400",
-        bgSelected: "bg-pink-500/25",
-        borderSelected: "border-pink-500",
-      },
-      {
-        id: "hot",
-        label: "Hot",
-        flameColor: "text-amber-400",
-        bgSelected: "bg-amber-500/25",
-        borderSelected: "border-amber-500",
-      },
-      {
-        id: "fire",
-        label: "Fire",
-        flameColor: "text-orange-500",
-        bgSelected: "bg-gradient-to-b from-orange-500/30 to-red-500/20",
-        borderSelected: "border-orange-500",
-      },
-      {
-        id: "nuclear",
-        label: "Nuclear",
-        flameColor: "text-fuchsia-400",
-        bgSelected: "bg-gradient-to-b from-fuchsia-500/35 to-pink-500/25",
-        borderSelected: "border-fuchsia-500",
-      },
+    bgHover: string;
+    activeBorder: string;
+  }> = [
+      { id: "mild", label: "Mild", flameColor: "text-slate-400", bgHover: "hover:bg-slate-500/10", activeBorder: "border-slate-400 bg-slate-500/20" },
+      { id: "funny", label: "Funny", flameColor: "text-pink-400", bgHover: "hover:bg-pink-500/10", activeBorder: "border-pink-500 bg-pink-500/20" },
+      { id: "hot", label: "Hot", flameColor: "text-amber-400", bgHover: "hover:bg-amber-500/10", activeBorder: "border-amber-500 bg-amber-500/20" },
+      { id: "fire", label: "Fire", flameColor: "text-orange-500", bgHover: "hover:bg-orange-500/10", activeBorder: "border-orange-500 bg-orange-500/20" },
+      { id: "nuclear", label: "Nuclear", flameColor: "text-fuchsia-400", bgHover: "hover:bg-fuchsia-500/10", activeBorder: "border-fuchsia-500 bg-fuchsia-500/20" },
     ];
 
   return (
@@ -2717,13 +2452,13 @@ function DynamicMemeCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-3.5 sm:p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-orange-500 shadow-[0_0_35px_rgba(249,115,22,0.35)] scale-[1.01]"
         : ""
         }`}
     >
       {isHighlighted && (
-        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/40 text-[10px] font-black text-orange-300 flex items-center justify-between">
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-orange-500/20 to-rose-500/20 border border-orange-500/40 text-[10px] font-black text-orange-300 flex items-center justify-between">
           <span className="flex items-center gap-1.5">
             <Sparkles size={11} className="text-orange-400 animate-pulse" />
             <span>SHARED MEME</span>
@@ -2731,170 +2466,128 @@ function DynamicMemeCard({
           <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
         </div>
       )}
-      {/* Standard Header Row */}
+
+      {/* Header */}
       <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
         <div className="flex items-center gap-1.5 uppercase">
-          <span className="text-orange-400 flex items-center gap-1">🔥 MEME</span>
+          <span className="text-orange-400 flex items-center gap-1">
+            <Flame size={11} className="text-orange-400" />
+            <span>FAN MEME</span>
+          </span>
         </div>
         <div className="flex items-center gap-2">
-          <span>{formatEngagementPostingTime(item)}</span>
-          {isAuthor && (onEdit || onDelete) && (
-            <div className="relative">
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="w-6 h-6 rounded-md flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                title="Meme options"
-              >
-                <MoreVertical size={13} />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 top-7 w-36 bg-[#161a26] border border-white/10 rounded-xl py-1 shadow-2xl z-30 text-xs">
-                  {onEdit && (
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onEdit(item);
-                      }}
-                      className="w-full px-3 py-1.5 text-left text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-2 font-bold cursor-pointer"
-                    >
-                      <Pencil size={12} /> Edit Meme
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onDelete(item);
-                      }}
-                      className="w-full px-3 py-1.5 text-left text-rose-400 hover:bg-rose-500/15 hover:text-rose-300 flex items-center gap-2 font-bold cursor-pointer"
-                    >
-                      <Trash2 size={12} /> Delete Meme
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+          <span>{formattedTime}</span>
         </div>
       </div>
 
-      {/* Meme Title / Headline */}
-      {item.title && (
-        <p className="text-xs font-semibold text-white/80 mb-2 leading-relaxed">
-          {item.title}
-        </p>
-      )}
+      {/* Author Info */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2.5">
+          <img
+            src={meme.authorAvatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"}
+            alt={meme.authorName || "User"}
+            className="w-8 h-8 rounded-full object-cover border border-white/10"
+            onError={(e: any) => {
+              e.target.src = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80";
+            }}
+          />
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-white leading-none">{meme.authorName || "SportsFan"}</span>
+              <CheckCircle2 size={11} className="text-[#FF8A00]" />
+            </div>
+            <span className="text-[10px] text-white/40 font-mono">{meme.authorHandle || "@fan"}</span>
+          </div>
+        </div>
+      </div>
 
-      {/* Meme Visual Image Frame */}
-      <div className="relative w-full rounded-xl overflow-hidden border border-white/[0.08] mb-3.5 bg-black/60 shadow-inner group">
+      {/* Caption */}
+      <p className="text-xs font-semibold text-white/90 mb-3 leading-relaxed">
+        {meme.caption}
+      </p>
+
+      {/* Meme Image */}
+      <div className="w-full rounded-xl overflow-hidden bg-black/40 border border-white/[0.08] mb-3 relative group">
         <img
           src={meme.imageUrl}
-          alt={item.title || "Sports meme"}
-          className="w-full max-h-[380px] object-contain mx-auto transition-transform duration-300 group-hover:scale-[1.01]"
+          alt={meme.caption || "Meme"}
+          className="w-full h-auto max-h-[360px] object-cover mx-auto"
           onError={(e: any) => {
             e.target.src = "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80";
           }}
         />
-        {meme.caption && meme.caption !== item.title && (
-          <div className="p-2.5 bg-[#0a0d16]/95 border-t border-white/[0.06] text-[11px] font-bold text-white/80 text-center">
-            {meme.caption}
-          </div>
-        )}
       </div>
 
-      {/* "How Hot Is This Meme?" Section */}
-      <div className="mb-3.5">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-black text-white flex items-center gap-1.5">
-            <span>How Hot Is This Meme?</span>
+      {/* Dynamic Heat Gauge Meter */}
+      <div className="p-3 rounded-xl bg-gradient-to-r from-orange-500/10 via-rose-500/10 to-purple-500/10 border border-orange-500/20 mb-3">
+        <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+          <span className="flex items-center gap-1.5 text-orange-400 font-black">
+            <Flame size={14} className="animate-pulse" />
+            <span>Heat Meter</span>
           </span>
-          {voted && (
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-              <Check size={10} /> Vote Recorded
-            </span>
-          )}
+          <span className="font-mono font-black text-amber-300 text-xs">
+            {heatPercentage}% Heat ({totalHeatVotes} {totalHeatVotes === 1 ? "vote" : "votes"})
+          </span>
+        </div>
+        <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${heatPercentage}%` }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500"
+          />
+        </div>
+      </div>
+
+      {/* 5-Flame Rating Selection */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-[10px] font-bold text-white/50 px-1">
+          <span>{hasVoted ? "Your locked rating:" : "Rate how funny/hot this is:"}</span>
+          <span className="text-orange-400 font-mono">+2 SXPs participation</span>
         </div>
 
-        {/* 5-Tier Flame Reaction Selector */}
-        <div className="grid grid-cols-5 gap-1 sm:gap-1.5 p-1 sm:p-1.5 bg-black/40 border border-white/[0.06] rounded-xl w-full">
-          {ratingTiers.map((tier) => {
+        <div className="grid grid-cols-5 gap-1.5">
+          {RATING_TIERS.map((tier) => {
             const isSelected = selectedRating === tier.id;
-            const tierVotes = Number(reactions?.[tier.id] || 0);
-            const tierPct = totalMemeVotes > 0 ? Math.round((tierVotes / totalMemeVotes) * 100) : 0;
-
             return (
               <button
                 key={tier.id}
-                type="button"
-                disabled={voted || loading}
-                onClick={() => {
-                  if (voted || loading) return;
-                  setSelectedRating(tier.id);
-                }}
-                className={`py-1.5 sm:py-2 px-0.5 sm:px-1 rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all border min-w-0 w-full relative overflow-hidden ${voted ? "cursor-default" : "cursor-pointer hover:bg-white/[0.05]"
-                  } ${isSelected
-                    ? `${tier.bgSelected} ${tier.borderSelected} shadow-md scale-[1.02] sm:scale-[1.03]`
-                    : "bg-white/[0.02] border-transparent text-white/50"
-                  }`}
+                onClick={() => handleSelectRating(tier.id)}
+                disabled={hasVoted}
+                className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer ${isSelected
+                  ? tier.activeBorder + " shadow-md"
+                  : "border-white/[0.06] bg-white/[0.02] " + tier.bgHover
+                  } ${hasVoted ? "cursor-default opacity-80" : "active:scale-95"}`}
               >
-                <Flame
-                  size={16}
-                  className={`w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 ${tier.flameColor} transition-transform duration-200 ${isSelected ? "scale-110 sm:scale-125 animate-bounce" : "opacity-60"
-                    }`}
-                  fill={isSelected ? "currentColor" : "none"}
-                />
-                <span
-                  className={`text-[8.5px] xs:text-[9.5px] sm:text-[10px] font-black tracking-tight text-center leading-tight whitespace-nowrap overflow-hidden text-ellipsis max-w-full px-0.5 ${isSelected ? tier.flameColor : "text-white/70"
-                    }`}
-                  title={tier.label}
-                >
-                  {tier.label}
-                </span>
-
-                {/* Vote Count & Percentage Badge after voting */}
-                {voted && (
-                  <div className="flex flex-col items-center w-full mt-0.5">
-                    <span
-                      className={`text-[8px] xs:text-[8.5px] sm:text-[9px] font-black px-1 leading-none text-center truncate max-w-full ${isSelected ? "text-white font-extrabold" : "text-white/60"
-                        }`}
-                    >
-                      {tierVotes.toLocaleString()}
-                    </span>
-                    <span className={`text-[7px] xs:text-[7.5px] sm:text-[8px] font-bold leading-none mt-0.5 ${isSelected ? tier.flameColor : "text-white/40"}`}>
-                      {tierPct}%
-                    </span>
-                    {/* Visual mini vote share indicator */}
-                    <div className="w-full bg-white/[0.08] h-1 rounded-full overflow-hidden mt-1 px-0.5">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${isSelected ? "bg-orange-500" : "bg-white/30"
-                          }`}
-                        style={{ width: `${tierPct}%` }}
-                      />
-                    </div>
-                  </div>
+                <Flame size={16} className={`${tier.flameColor} ${isSelected ? "animate-bounce" : ""}`} fill={isSelected ? "currentColor" : "none"} />
+                <span className="text-[10px] font-black text-white/90 mt-1">{tier.label}</span>
+                {hasVoted && (
+                  <span className="text-[9px] font-mono text-white/40 mt-0.5">
+                    {reactions[tier.id] || 0}
+                  </span>
                 )}
               </button>
             );
           })}
         </div>
-      </div>
 
-
-      {/* Action Buttons Row */}
-      <div className={voted ? "w-full" : "grid grid-cols-3 gap-2"}>
         <button
-          onClick={() => handleRateMeme(selectedRating)}
-          disabled={voted || loading}
-          className={`${voted ? "w-full" : "col-span-2"} py-2.5 px-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95 ${voted
-            ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400"
-            : "bg-gradient-to-r from-[#FF3D57] to-[#FF7B02] hover:opacity-95 text-white shadow-orange-500/20"
+          onClick={handleSubmitVote}
+          disabled={!selectedRating || hasVoted || loadingVote}
+          className={`w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${hasVoted
+            ? "bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 cursor-default"
+            : selectedRating
+              ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-lg shadow-orange-500/20 active:scale-98 cursor-pointer"
+              : "bg-white/5 border border-white/10 text-white/30 cursor-not-allowed"
             }`}
         >
-          {voted ? (
+          {hasVoted ? (
             <>
-              <Check size={14} className="text-emerald-400" />
-              <span>Voted {selectedRating.toUpperCase()} (+2 SXPs)</span>
+              <Check size={14} />
+              <span>Rating Locked · +2 SXPs Earned</span>
             </>
+          ) : !selectedRating ? (
+            <span>Select a rating above</span>
           ) : (
             <>
               <Flame size={14} className="animate-pulse" />
@@ -2922,12 +2615,17 @@ function DynamicMemeCard({
             <Share2 size={13} />
           </button>
         </div>
-        {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
           className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
-          <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
+          <span className="group-hover:underline">
+            {Math.max(
+              hasUserParticipated ? 1 : 0,
+              totalEngaged,
+              totalEngagedOverride || 0
+            ).toLocaleString()} engaged
+          </span>
           <ChevronRight
             size={12}
             className={`text-[#FF8A00] transition-transform duration-200 ${
@@ -2939,7 +2637,6 @@ function DynamicMemeCard({
     </motion.div>
   );
 }
-
 
 // ─── Engaged Users Dialog Modal ──────────────────────────────────────────────
 interface EngagedOptionData {
@@ -2997,20 +2694,23 @@ function EngagedUsersInlineList({
 
     setLoading(true);
     setPage(1); // Reset page on new item or question
-    const qParam = questionId ? `?questionId=${encodeURIComponent(questionId)}` : "";
+    const parentId = (item as any)._parentEngagementId || item.id;
+    const targetQId = (item as any)._subQuestionId || questionId;
+    const qParam = targetQId ? `?questionId=${encodeURIComponent(targetQId)}` : "";
+    
     axios
-      .get(`/api/engagements/${item.id}/voters${qParam}`)
+      .get(`/api/engagements/${parentId}/voters${qParam}`)
       .then((res) => {
         if (res.data?.success) {
           let opts: EngagedOptionData[] = [];
           if (res.data.questions && Array.isArray(res.data.questions)) {
-            const targetQ = questionId
-              ? res.data.questions.find((q: any) => q.questionId === questionId || q.id === questionId)
-              : res.data.questions[questionIndex || 0] || res.data.questions[0];
+            const targetQ = targetQId
+              ? res.data.questions.find((q: any) => q.questionId === targetQId || q.id === targetQId)
+              : res.data.questions[(item as any)._subQuestionIndex ?? questionIndex ?? 0] || res.data.questions[0];
             opts = targetQ?.options || [];
           } else if (res.data.options) {
-            if (questionId && res.data.options.some((o: any) => o.questionId)) {
-              opts = res.data.options.filter((o: any) => o.questionId === questionId);
+            if (targetQId && res.data.options.some((o: any) => o.questionId)) {
+              opts = res.data.options.filter((o: any) => o.questionId === targetQId);
             } else {
               opts = res.data.options || [];
             }
@@ -3098,9 +2798,18 @@ function EngagedUsersInlineList({
     const uid = user.userId || (user as any)?.actualUserId || user.email;
     if (!uid || String(uid).toLowerCase().startsWith("anon")) return false;
 
+    const parentId = (item as any)._parentEngagementId || item.id;
+    const subIdx = (item as any)._subQuestionIndex ?? questionIndex ?? 0;
+    const qId = (item as any)._subQuestionId || questionId || item.quizData?.questions?.[subIdx]?.id || `q_${subIdx + 1}`;
+
     if (item.type === "quiz") {
-      const qId = questionId || item.quizData?.questions?.[questionIndex || 0]?.id || `q_${questionIndex || 0}`;
-      return Boolean(getStoredVote(`quiz_q_${qId}`, item.id, uid) || getStoredVote("quiz_engaged", item.id, uid));
+      return Boolean(
+        getStoredVote(quizAnswerKey(subIdx, qId), item.id, uid) ||
+        getStoredVote(quizAnswerKey(subIdx, qId), parentId, uid) ||
+        getStoredVote("quiz", item.id, uid) ||
+        getStoredVote("quiz_engaged", item.id, uid) ||
+        getStoredVote("quiz_engaged", parentId, uid)
+      );
     } else if (item.type === "fan_battle") {
       return Boolean(getStoredVote("fb", item.id, uid));
     } else if (item.type === "poll") {
@@ -3235,13 +2944,13 @@ function EngagedUsersInlineList({
     let chosen = "";
     if (isMe) {
       if (item.type === "quiz") {
-        const qId = questionId || item.quizData?.questions?.[questionIndex || 0]?.id || `q_${questionIndex || 0}`;
+        const parentId = (item as any)._parentEngagementId || item.id;
+        const subIdx = (item as any)._subQuestionIndex ?? questionIndex ?? 0;
+        const qId = (item as any)._subQuestionId || questionId || item.quizData?.questions?.[subIdx]?.id || `q_${subIdx + 1}`;
         const uid = user?.userId || (user as any)?.actualUserId || user?.email;
         const stored =
-          getStoredVote(`quiz_q_${qId}`, item.id, uid) ||
-          getStoredVote(`quiz_q_${questionIndex || 0}`, item.id, uid) ||
-          getStoredVote(`quiz_${qId}`, item.id, uid) ||
-          getStoredVote(`quiz_${questionIndex || 0}`, item.id, uid) ||
+          getStoredVote(quizAnswerKey(subIdx, qId), item.id, uid) ||
+          getStoredVote(quizAnswerKey(subIdx, qId), parentId, uid) ||
           getStoredVote("quiz", item.id, uid);
         if (stored?.selectedId) chosen = stored.selectedId;
       } else if (item.type === "fan_battle") {
@@ -3276,9 +2985,10 @@ function EngagedUsersInlineList({
 
     // Match text to option ID if needed
     if (chosen && item.type === "quiz" && item.quizData?.questions) {
-      const qObj = questionId
-        ? item.quizData.questions.find((q: any) => q.id === questionId || q.questionId === questionId)
-        : item.quizData.questions[questionIndex || 0] || item.quizData.questions[0];
+      const targetQId = (item as any)._subQuestionId || questionId;
+      const qObj = targetQId
+        ? item.quizData.questions.find((q: any) => q.id === targetQId || q.questionId === targetQId)
+        : item.quizData.questions[(item as any)._subQuestionIndex ?? questionIndex ?? 0] || item.quizData.questions[0];
       if (qObj?.options) {
         const matched = qObj.options.find(
           (o: any) =>
@@ -3294,9 +3004,10 @@ function EngagedUsersInlineList({
     // In quiz, correct option is green, remaining options are red
     let badgeClasses = "";
     if (item.type === "quiz") {
-      const qObj = questionId
-        ? item.quizData?.questions?.find((q: any) => q.id === questionId || q.questionId === questionId)
-        : item.quizData?.questions?.[questionIndex || 0] || item.quizData?.questions?.[0];
+      const targetQId = (item as any)._subQuestionId || questionId;
+      const qObj = targetQId
+        ? item.quizData?.questions?.find((q: any) => q.id === targetQId || q.questionId === targetQId)
+        : item.quizData?.questions?.[(item as any)._subQuestionIndex ?? questionIndex ?? 0] || item.quizData?.questions?.[0];
       
       const correctTarget = (
         qObj?.correctOptionId ||
@@ -3347,7 +3058,7 @@ function EngagedUsersInlineList({
             <span>{loading ? (Number(item.totalEngaged) || finalVotersCount) : finalVotersCount} engaged</span>
             {item.type === "quiz" && totalQuestions > 1 && (
               <span className="text-[9px] text-[#FF8A00] font-extrabold bg-[#FF8A00]/15 px-1.5 py-0.5 rounded-full border border-[#FF8A00]/30">
-                Q{(questionIndex ?? 0) + 1}/{totalQuestions}
+                Q{((item as any)._subQuestionIndex ?? questionIndex ?? 0) + 1}/{totalQuestions}
               </span>
             )}
           </h3>
@@ -3446,7 +3157,6 @@ function EngagedUsersInlineList({
   );
 }
 
-
 // ─── Main FlipArena Component ───────────────────────────────────────────────
 export default function FlipArena({
   selectedSport,
@@ -3468,8 +3178,10 @@ export default function FlipArena({
 
   const handleSyncEngagedCount = useCallback((itemId: string, count: number) => {
     setSyncedEngagedCounts((prev) => {
-      if (prev[itemId] === count) return prev;
-      return { ...prev, [itemId]: count };
+      const current = prev[itemId] || 0;
+      const nextVal = Math.max(current, count);
+      if (prev[itemId] === nextVal) return prev;
+      return { ...prev, [itemId]: nextVal };
     });
   }, []);
 
@@ -3570,7 +3282,9 @@ export default function FlipArena({
                 });
 
                 const count = uniqueVoters.size > 0 ? uniqueVoters.size : allRegisteredVoters.length;
-                handleSyncEngagedCount(it.id, count);
+                if (count > 0) {
+                  handleSyncEngagedCount(it.id, count);
+                }
               }
             })
             .catch(() => { });
@@ -3585,7 +3299,7 @@ export default function FlipArena({
       setLoadingEngagements(false);
       isFetchingEngagementsRef.current = false;
     }
-  }, [selectedSport, activeUserId]);
+  }, [selectedSport, activeUserId, handleSyncEngagedCount]);
 
   useEffect(() => {
     fetchEngagements();
@@ -3616,12 +3330,13 @@ export default function FlipArena({
   const handleDeleteEngagement = async (item: EngagementItem) => {
     const isMeme = item.type === "meme";
     const label = isMeme ? "meme" : "event";
+    const targetId = (item as any)._parentEngagementId || item.id;
     if (!confirm(`Are you sure you want to delete this ${label} "${item.title || item.subtitle || "Untitled"}"?`)) {
       return;
     }
     try {
-      await engagementService.deleteEngagement(item.id);
-      setEngagements((prev) => prev.filter((it) => it.id !== item.id));
+      await engagementService.deleteEngagement(targetId);
+      setEngagements((prev) => prev.filter((it) => it.id !== targetId));
       showToast(`${isMeme ? "Meme" : "Event"} deleted successfully! 🗑️`);
       engagementService.invalidateCache();
     } catch (err) {
@@ -3649,11 +3364,17 @@ export default function FlipArena({
     }
 
     if (!isEdit) {
-      showToast(
-        savedItem.type === "meme"
-          ? `Meme dropped into the Arena! 🔥 +${PARTICIPATION_POINTS} SXPs earned`
-          : `Event published! +${PARTICIPATION_POINTS} SXPs earned 🚀`
-      );
+      const typeLabel =
+        savedItem.type === "quiz"
+          ? "Quiz Question"
+          : savedItem.type === "poll"
+            ? "Poll"
+            : savedItem.type === "prediction"
+              ? "Prediction"
+              : savedItem.type === "fan_battle"
+                ? "Fan Battle"
+                : "Meme";
+      showToast(`${typeLabel} Created Successfully! +${PARTICIPATION_POINTS} SXPs earned 🚀`);
     } else {
       showToast("Event updated successfully!");
     }
@@ -3752,13 +3473,53 @@ export default function FlipArena({
     return () => clearInterval(interval);
   }, [highlightedItemId, engagements]);
 
+  // Unbundle multi-question quizzes into independent standalone cards
   const filteredEngagements = useMemo(() => {
-    return engagements
+    const unbundledList: EngagementItem[] = [];
+
+    for (const item of engagements) {
+      if (
+        item.type === "quiz" &&
+        item.quizData?.questions &&
+        Array.isArray(item.quizData.questions) &&
+        item.quizData.questions.length > 1
+      ) {
+        item.quizData.questions.forEach((q: any, idx: number) => {
+          const fallbackId = `q_${idx + 1}`;
+          const qId = q.id || q._id || q.questionId || fallbackId;
+          unbundledList.push({
+            ...item,
+            id: `${item.id}_q${idx + 1}`,
+            title: q.question || item.title || `Question ${idx + 1}`,
+            quizData: {
+              ...item.quizData,
+              question: q.question,
+              options: q.options,
+              correctOptionId: q.correctOptionId || q.answer,
+              explanation: q.explanation,
+              questions: undefined,
+            },
+            _parentEngagementId: item.id,
+            _subQuestionIndex: idx,
+            _subQuestionId: String(qId),
+          } as any);
+        });
+      } else {
+        unbundledList.push(item);
+      }
+    }
+
+    return unbundledList
       .filter((item) => {
         if (!item || !item.title || !item.type) return false;
 
         // Always include the highlighted shared item even if filter differs
-        if (highlightedItemId && item.id === highlightedItemId) return true;
+        if (
+          highlightedItemId &&
+          (item.id === highlightedItemId || (item as any)._parentEngagementId === highlightedItemId)
+        ) {
+          return true;
+        }
 
         const itemType = (item.type || "").toLowerCase().trim();
         if (filter === "all") return true;
@@ -3773,8 +3534,8 @@ export default function FlipArena({
       .sort((a, b) => {
         // Highlighted shared item always sorted to the very top
         if (highlightedItemId) {
-          if (a.id === highlightedItemId) return -1;
-          if (b.id === highlightedItemId) return 1;
+          if (a.id === highlightedItemId || (a as any)._parentEngagementId === highlightedItemId) return -1;
+          if (b.id === highlightedItemId || (b as any)._parentEngagementId === highlightedItemId) return 1;
         }
 
         return getEngagementPostingTime(b) - getEngagementPostingTime(a);
@@ -3786,12 +3547,14 @@ export default function FlipArena({
       <AnimatePresence>
         {toastMessage && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#161e2e] border border-white/20 text-white text-xs font-extrabold px-4 py-2.5 rounded-full shadow-2xl flex items-center gap-2 backdrop-blur-lg"
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-5 left-1/2 -translate-x-1/2 z-[100005] bg-gradient-to-r from-[#161e2e] via-[#1a2234] to-[#161e2e] border-2 border-emerald-500/50 text-white text-xs font-black px-5 py-3 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.9)] flex items-center gap-2.5 backdrop-blur-xl pointer-events-none"
           >
-            <Zap size={14} className="text-amber-400" />
+            <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <CheckCircle2 size={14} />
+            </div>
             <span>{toastMessage}</span>
           </motion.div>
         )}
@@ -3880,8 +3643,6 @@ export default function FlipArena({
               </button>
             ))}
           </div>
-
-
         </div>
       </div>
 
@@ -3917,7 +3678,7 @@ export default function FlipArena({
           <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-4">
             <AnimatePresence mode="popLayout">
               {filteredEngagements.map((item) => {
-                const isItemHighlighted = highlightedItemId === item.id;
+                const isItemHighlighted = Boolean(highlightedItemId && (item.id === highlightedItemId || (item as any)._parentEngagementId === highlightedItemId));
                 
                 // Determine the correct Card Component
                 let CardComponent = null;
@@ -3948,17 +3709,23 @@ export default function FlipArena({
                       isHighlighted={isItemHighlighted}
                       onOpenEngagedModal={handleOpenEngagedModal}
                       isEngagedExpanded={engagedModalItem?.id === item.id}
-                      totalEngagedOverride={syncedEngagedCounts[item.id]}
+                      totalEngagedOverride={syncedEngagedCounts[item.id] ?? syncedEngagedCounts[(item as any)._parentEngagementId]}
                       onQuestionChange={item.type === "quiz" ? (index: number, qId: string) => handleQuizQuestionChange(item.id, index, qId) : undefined}
                       onOpenLeaderboard={() => setShowLeaderboardModal(true)}
+                      onSyncEngagedCount={(count) => {
+                        handleSyncEngagedCount(item.id, count);
+                        if ((item as any)._parentEngagementId) {
+                          handleSyncEngagedCount((item as any)._parentEngagementId, count);
+                        }
+                      }}
                     />
                     
                     {/* Inline Engaged Users List */}
                     {engagedModalItem?.id === item.id && (
                       <EngagedUsersInlineList
                         item={engagedModalItem}
-                        questionId={quizActiveQuestion[item.id]?.id}
-                        questionIndex={quizActiveQuestion[item.id]?.index}
+                        questionId={(engagedModalItem as any)._subQuestionId || quizActiveQuestion[item.id]?.id}
+                        questionIndex={(engagedModalItem as any)._subQuestionIndex ?? quizActiveQuestion[item.id]?.index}
                         onSyncCount={(count) => handleSyncEngagedCount(item.id, count)}
                       />
                     )}
@@ -4018,9 +3785,6 @@ export default function FlipArena({
         onSaved={handleItemSaved}
         onToast={showToast}
       />
-
-      {/* Engaged Users Modal was here, now moved inline below each card */}
-
     </div>
   );
 }
