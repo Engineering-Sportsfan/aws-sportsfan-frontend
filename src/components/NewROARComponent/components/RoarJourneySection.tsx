@@ -113,9 +113,8 @@ export function RoarJourneySection({
         return () => window.removeEventListener("resize", check);
     }, []);
 
-    // Preload bg image for mobile canvas (only on mobile)
+    // Preload bg image for canvas
     useEffect(() => {
-        if (!isMobile) return;
         const img = new window.Image();
         img.crossOrigin = "anonymous";
         img.onload = () => {
@@ -126,7 +125,7 @@ export function RoarJourneySection({
             setBgFailed(true);
         };
         img.src = "/images/profilecard.png";
-    }, [isMobile]);
+    }, []);
 
     // Lock body scroll when desktop modal is open
     useEffect(() => {
@@ -220,45 +219,146 @@ export function RoarJourneySection({
         return files;
     };
 
-    // ── Mobile share handler ──
-    const generateShareCard = (): Promise<Blob | null> => {
+    const loadCanvasImage = (src: string): Promise<HTMLImageElement | null> => {
         return new Promise((resolve) => {
-            const bg = bgImageRef.current;
-            if (!bg) return resolve(null);
+            const img = new window.Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = src;
+        });
+    };
 
-            const canvas = document.createElement("canvas");
-            canvas.width = 1340;
-            canvas.height = 752;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) return resolve(null);
+    // ── Share Card Generator (Draws FlipARENA, ROAR, & Badges on the white card) ──
+    const generateShareCard = async (): Promise<Blob | null> => {
+        let bg = bgImageRef.current;
+        if (!bg) {
+            bg = await loadCanvasImage("/images/profilecard.png");
+        }
+        if (!bg) return null;
 
-            try {
-                ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
-            } catch (e) {
-                console.error("[RoarJourneySection] Canvas draw failed:", e);
-                return resolve(null);
+        const canvas = document.createElement("canvas");
+        canvas.width = 1340;
+        canvas.height = 752;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+
+        try {
+            ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+        } catch (e) {
+            console.error("[RoarJourneySection] Canvas draw failed:", e);
+            return null;
+        }
+
+        // Draw crisp white rounded card over the template area
+        const cardX = 105;
+        const cardY = 412;
+        const cardW = 1130;
+        const cardH = 192;
+        const cardR = 24;
+
+        ctx.fillStyle = "#FFFFFF";
+        if (typeof ctx.roundRect === "function") {
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardW, cardH, cardR);
+            ctx.fill();
+        } else {
+            ctx.fillRect(cardX, cardY, cardW, cardH);
+        }
+
+        // ── 1. Row 1: FlipARENA Tabs Data (5 columns) ──
+        const arenaStats = [
+            { label: "POLLS", value: polls, color: "#E91E8C" },
+            { label: "PREDICTIONS", value: arenaPredictions, color: "#F59E0B" },
+            { label: "FAN BATTLES", value: fanBattles, color: "#8B5CF6" },
+            { label: "QUIZZES", value: quiz, color: "#06B6D4" },
+            { label: "MEMES", value: meme, color: "#10B981" },
+        ];
+
+        const arenaColW = cardW / arenaStats.length;
+        arenaStats.forEach((stat, idx) => {
+            const cx = cardX + (idx + 0.5) * arenaColW;
+
+            // Value (minimized & crisp)
+            ctx.font = "bold 26px Arial, sans-serif";
+            ctx.fillStyle = stat.color;
+            ctx.textAlign = "center";
+            ctx.fillText(String(stat.value), cx, 444);
+
+            // Label
+            ctx.font = "bold 9.5px Arial, sans-serif";
+            ctx.fillStyle = "#64748B";
+            ctx.textAlign = "center";
+            ctx.fillText(stat.label, cx, 458);
+        });
+
+        // Subtle divider between Row 1 and Row 2
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.05)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cardX + 30, 468);
+        ctx.lineTo(cardX + cardW - 30, 468);
+        ctx.stroke();
+
+        // ── 2. Row 2: ROAR Tabs Data (3 columns) ──
+        const roarStats = [
+            { label: "ROAR PREDICTIONS", value: predictions, color: "#9333EA" },
+            { label: "ROAR DEBATES", value: debates, color: "#FF6B35" },
+            { label: "ROAR POSTS", value: posts, color: "#14B8A6" },
+        ];
+
+        const roarColW = cardW / roarStats.length;
+        roarStats.forEach((stat, idx) => {
+            const cx = cardX + (idx + 0.5) * roarColW;
+
+            // Value (minimized & crisp)
+            ctx.font = "bold 25px Arial, sans-serif";
+            ctx.fillStyle = stat.color;
+            ctx.textAlign = "center";
+            ctx.fillText(String(stat.value), cx, 498);
+
+            // Label
+            ctx.font = "bold 9.5px Arial, sans-serif";
+            ctx.fillStyle = "#64748B";
+            ctx.textAlign = "center";
+            ctx.fillText(stat.label, cx, 511);
+        });
+
+        // ── 3. Row 3: Badges below tabs data (Direct Badge Images) ──
+        const validBadgeSrcs = badgeSrcs.filter(Boolean).slice(0, 8);
+        if (validBadgeSrcs.length > 0) {
+            const loadedBadgeImages = await Promise.all(
+                validBadgeSrcs.map((src) => loadCanvasImage(src))
+            );
+            const validImages = loadedBadgeImages.filter((img): img is HTMLImageElement => img !== null);
+
+            if (validImages.length > 0) {
+                const badgeSize = 40;
+                const badgeGap = 14;
+                const totalWidth = validImages.length * badgeSize + (validImages.length - 1) * badgeGap;
+                let startX = cardX + (cardW - totalWidth) / 2;
+                const badgeY = 535;
+
+                validImages.forEach((img) => {
+                    // Soft circular background for badge icon
+                    ctx.fillStyle = "rgba(241, 245, 249, 0.95)";
+                    ctx.beginPath();
+                    ctx.arc(startX + badgeSize / 2, badgeY + badgeSize / 2, badgeSize / 2 + 2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Subtle border around badge icon circle
+                    ctx.strokeStyle = "rgba(203, 213, 225, 0.7)";
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    // Draw badge image
+                    ctx.drawImage(img, startX, badgeY, badgeSize, badgeSize);
+                    startX += badgeSize + badgeGap;
+                });
             }
+        }
 
-            const stats = [
-                { label: "PREDICTIONS", value: predictions, x: 220 },
-                { label: "DEBATES", value: debates, x: 490 },
-                { label: "POSTS", value: posts, x: 760 },
-                { label: "BADGES EARNED", value: badgeSrcs.length, x: 1030 },
-            ];
-
-            stats.forEach(({ label, value, x }) => {
-                const y = 530;
-
-                ctx.font = "bold 88px Arial";
-                ctx.fillStyle =
-                    label === "PREDICTIONS" ? "#9333EA"
-                        : label === "DEBATES" ? "#F97316"
-                            : label === "POSTS" ? "#14B8A6"
-                                : "#F97316";
-                ctx.textAlign = "center";
-                ctx.fillText(String(value), x + 50, y);
-            });
-
+        return new Promise((resolve) => {
             canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
         });
     };
