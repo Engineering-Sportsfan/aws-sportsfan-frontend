@@ -213,6 +213,7 @@ function DynamicFanBattleCard({
   isHighlighted = false,
   onOpenEngagedModal,
   isEngagedExpanded = false,
+  totalEngagedOverride,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -225,6 +226,7 @@ function DynamicFanBattleCard({
   isHighlighted?: boolean;
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
+  totalEngagedOverride?: number;
 }) {
   const initialStored = getStoredVote("fb", item.id, userId);
   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(
@@ -235,7 +237,15 @@ function DynamicFanBattleCard({
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(() => {
+    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+  });
+
+  useEffect(() => {
+    if (totalEngagedOverride !== undefined) {
+      setTotalEngaged(totalEngagedOverride);
+    }
+  }, [totalEngagedOverride]);
 
   const left = item.fanBattleData?.leftCompetitor || {
     code: "IN",
@@ -443,7 +453,7 @@ function DynamicFanBattleCard({
         </div>
       </div>
 
-      <h3 className="text-sm font-black mb-4">{item.title}</h3>
+      <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{item.title}</p>
 
       {isScheduled && (
         <div className="p-3 mb-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center gap-2 text-xs font-black text-amber-300">
@@ -590,6 +600,7 @@ function DynamicQuizCard({
   onOpenEngagedModal,
   isEngagedExpanded = false,
   onQuestionChange,
+  totalEngagedOverride,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -603,6 +614,7 @@ function DynamicQuizCard({
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
   onQuestionChange?: (index: number, questionId: string) => void;
+  totalEngagedOverride?: number;
 }) {
   const rawQuestions =
     item.quizData?.questions && item.quizData.questions.length > 0
@@ -692,13 +704,17 @@ function DynamicQuizCard({
     }
   }, [hasAlreadyEngaged]);
 
-  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(() => {
+    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+  });
 
   useEffect(() => {
-    if (item.totalEngaged !== undefined) {
+    if (totalEngagedOverride !== undefined) {
+      setTotalEngaged(totalEngagedOverride);
+    } else if (item.totalEngaged !== undefined) {
       setTotalEngaged((prev) => Math.max(prev, Number(item.totalEngaged) || 0));
     }
-  }, [item.totalEngaged]);
+  }, [totalEngagedOverride, item.totalEngaged]);
 
   const startTime = getEngagementStartTime(item);
   const isScheduled = startTime > now;
@@ -1138,6 +1154,7 @@ function DynamicPollCard({
   isHighlighted = false,
   onOpenEngagedModal,
   isEngagedExpanded = false,
+  totalEngagedOverride,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -1150,6 +1167,7 @@ function DynamicPollCard({
   isHighlighted?: boolean;
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
+  totalEngagedOverride?: number;
 }) {
   const initialVote = getStoredVote("poll", item.id, userId);
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -1177,7 +1195,15 @@ function DynamicPollCard({
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(() => {
+    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+  });
+
+  useEffect(() => {
+    if (totalEngagedOverride !== undefined) {
+      setTotalEngaged(totalEngagedOverride);
+    }
+  }, [totalEngagedOverride]);
 
   const startTime = getEngagementStartTime(item);
   const isScheduled = startTime > now;
@@ -1451,7 +1477,7 @@ function DynamicPollCard({
         </div>
       </div>
 
-      <h3 className="text-sm font-black mb-3">{item.pollData?.question || item.title}</h3>
+      <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{item.pollData?.question || item.title}</p>
 
       {isScheduled ? (
         <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-center my-2 space-y-1">
@@ -1601,6 +1627,7 @@ function DynamicPredictionCard({
   isHighlighted = false,
   onOpenEngagedModal,
   isEngagedExpanded = false,
+  totalEngagedOverride,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -1613,6 +1640,7 @@ function DynamicPredictionCard({
   isHighlighted?: boolean;
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
+  totalEngagedOverride?: number;
 }) {
   const pred = item.predictionData || {
     question: "India win the 1st Galle Test?",
@@ -1642,7 +1670,15 @@ function DynamicPredictionCard({
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(() => {
+    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || 0);
+  });
+
+  useEffect(() => {
+    if (totalEngagedOverride !== undefined) {
+      setTotalEngaged(totalEngagedOverride);
+    }
+  }, [totalEngagedOverride]);
   const startTime = getEngagementStartTime(item);
   const isScheduled = startTime > now;
   const timeToStartMs = Math.max(0, startTime - now);
@@ -2117,7 +2153,7 @@ function DynamicPredictionCard({
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-white/70 mb-4">{pred.question}</p>
+      <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{pred.question || item.title}</p>
 
       {isScheduled ? (
         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center my-2 space-y-1">
@@ -2246,6 +2282,7 @@ function DynamicMemeCard({
   isHighlighted = false,
   onOpenEngagedModal,
   isEngagedExpanded = false,
+  totalEngagedOverride,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -2259,6 +2296,7 @@ function DynamicMemeCard({
   isHighlighted?: boolean;
   onOpenEngagedModal?: (item: EngagementItem) => void;
   isEngagedExpanded?: boolean;
+  totalEngagedOverride?: number;
 }) {
   const { user } = useAuth();
   const currentUserId = userId || user?.userId || (user as any)?.actualUserId || user?.email;
@@ -2307,7 +2345,15 @@ function DynamicMemeCard({
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
   const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || Number(meme.sharesCount) || 0);
-  const [totalEngaged, setTotalEngaged] = useState<number>(Number(item.totalEngaged) || Number(meme.totalVotes) || 0);
+  const [totalEngaged, setTotalEngaged] = useState<number>(() => {
+    return totalEngagedOverride !== undefined ? totalEngagedOverride : (Number(item.totalEngaged) || Number(meme.totalVotes) || 0);
+  });
+
+  useEffect(() => {
+    if (totalEngagedOverride !== undefined) {
+      setTotalEngaged(totalEngagedOverride);
+    }
+  }, [totalEngagedOverride]);
   const [heatPct, setHeatPct] = useState<number>(meme.heatPercentage !== undefined ? Number(meme.heatPercentage) : (Number(item.memeData?.heatPercentage) || 0));
   const [totalMemeVotes, setTotalMemeVotes] = useState<number>(meme.totalVotes !== undefined ? Number(meme.totalVotes) : (Number(item.memeData?.totalVotes) || 0));
   const [reactions, setReactions] = useState(meme.reactions || { mild: 0, funny: 0, hot: 0, fire: 0, nuclear: 0 });
@@ -2547,9 +2593,9 @@ function DynamicMemeCard({
 
       {/* Meme Title / Headline */}
       {item.title && (
-        <h3 className="text-sm font-black text-white mb-2 tracking-tight leading-snug">
+        <p className="text-xs font-semibold text-white/80 mb-2 leading-relaxed">
           {item.title}
-        </h3>
+        </p>
       )}
 
       {/* Meme Visual Image Frame */}
@@ -2726,10 +2772,12 @@ function EngagedUsersInlineList({
   item,
   questionId,
   questionIndex,
+  onSyncCount,
 }: {
   item: EngagementItem | null;
   questionId?: string;
   questionIndex?: number;
+  onSyncCount?: (count: number) => void;
 }) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -2828,6 +2876,62 @@ function EngagedUsersInlineList({
     fetchAvatars();
   }, [item]);
 
+  // Check if current user has voted on this item
+  const currentUserVoted = useMemo(() => {
+    if (!user || !item) return false;
+    const uid = user.userId || (user as any)?.actualUserId || user.email;
+    if (item.type === "quiz") {
+      const qId = questionId || item.quizData?.questions?.[questionIndex || 0]?.id || `q_${questionIndex || 0}`;
+      return Boolean(getStoredVote(`quiz_q_${qId}`, item.id, uid) || getStoredVote("quiz_engaged", item.id, uid));
+    } else if (item.type === "fan_battle") {
+      return Boolean(getStoredVote("fb", item.id, uid));
+    } else if (item.type === "poll") {
+      return Boolean(getStoredVote("poll", item.id, uid));
+    } else if (item.type === "prediction") {
+      return Boolean(getStoredVote("pred", item.id, uid));
+    } else if (item.type === "meme") {
+      return Boolean(getStoredVote("meme", item.id, uid));
+    }
+    return Boolean(item.userVoted);
+  }, [item, user, questionId, questionIndex]);
+
+  // Combined list of voters including optimistic current user entry
+  const allVoters = useMemo(() => {
+    const raw = options.flatMap((opt) =>
+      (opt.voters || []).map((v) => ({ ...v, optionId: opt.id, optionText: opt.text }))
+    );
+
+    if (currentUserVoted && user) {
+      const uid = String(user.userId || (user as any)?.actualUserId || user.email || "");
+      const alreadyIn = raw.some(
+        (v) =>
+          v.userId === uid ||
+          (user.email && v.userId?.toLowerCase() === user.email.toLowerCase()) ||
+          (user.name && v.userName?.toLowerCase() === user.name.toLowerCase())
+      );
+
+      if (!alreadyIn && uid) {
+        raw.unshift({
+          userId: uid,
+          userName: user.name || (user as any)?.userName || user.email?.split("@")[0] || "You",
+          userAvatar: (user as any)?.avatarUrl || user.photoURL || (user as any)?.picture || null,
+          selectedOptionId: "",
+          optionId: "",
+          optionText: "",
+          votedAt: Date.now(),
+        });
+      }
+    }
+
+    return raw;
+  }, [options, currentUserVoted, user]);
+
+  const finalVotersCount = Math.max(allVoters.length, totalVoters, Number(item?.totalEngaged) || 0);
+
+  useEffect(() => {
+    onSyncCount?.(finalVotersCount);
+  }, [finalVotersCount, onSyncCount]);
+
   if (!item) return null;
 
   // Resolve the freshest avatar for a voter
@@ -2860,12 +2964,8 @@ function EngagedUsersInlineList({
     return "";
   };
 
-  const flattenedVoters = options.flatMap((opt) =>
-    (opt.voters || []).map((v) => ({ ...v, optionId: opt.id, optionText: opt.text }))
-  );
-
-  const displayedVoters = flattenedVoters.slice(0, page * itemsPerPage);
-  const hasMore = displayedVoters.length < flattenedVoters.length;
+  const displayedVoters = allVoters.slice(0, page * itemsPerPage);
+  const hasMore = displayedVoters.length < allVoters.length;
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
@@ -2883,8 +2983,28 @@ function EngagedUsersInlineList({
     return "text-amber-400 border-amber-400/60 bg-amber-500/10";
   };
 
-  // Accurately resolve chosen option for a voter (e.g. D for option D)
-  const resolveVoterOption = (voter: any): { id: string; badgeClasses: string } => {
+  const getMemeReactionInfo = (reactionStr: string) => {
+    const clean = String(reactionStr || "").trim().toLowerCase();
+    if (clean === "mild" || clean === "m" || clean === "1") {
+      return { id: "mild", label: "Mild", flameColor: "text-slate-400", badgeClasses: "text-slate-400 border-slate-400/40 bg-slate-500/15" };
+    }
+    if (clean === "funny" || clean === "fun" || clean === "f" || clean === "2") {
+      return { id: "funny", label: "Funny", flameColor: "text-pink-400", badgeClasses: "text-pink-400 border-pink-500/40 bg-pink-500/15" };
+    }
+    if (clean === "hot" || clean === "h" || clean === "3") {
+      return { id: "hot", label: "Hot", flameColor: "text-amber-400", badgeClasses: "text-amber-400 border-amber-500/40 bg-amber-500/15" };
+    }
+    if (clean === "fire" || clean === "4") {
+      return { id: "fire", label: "Fire", flameColor: "text-orange-500", badgeClasses: "text-orange-500 border-orange-500/40 bg-orange-500/15" };
+    }
+    if (clean === "nuclear" || clean === "n" || clean === "5") {
+      return { id: "nuclear", label: "Nuclear", flameColor: "text-fuchsia-400", badgeClasses: "text-fuchsia-400 border-fuchsia-500/40 bg-fuchsia-500/15" };
+    }
+    return { id: "hot", label: "Hot", flameColor: "text-amber-400", badgeClasses: "text-amber-400 border-amber-500/40 bg-amber-500/15" };
+  };
+
+  // Accurately resolve chosen option for a voter (e.g. D for option D, or Flame for Meme)
+  const resolveVoterOption = (voter: any): { id: string; badgeClasses: string; isMeme?: boolean; flameColor?: string } => {
     const isMe =
       user?.userId === voter.userId ||
       (user as any)?.actualUserId === voter.userId ||
@@ -2905,11 +3025,25 @@ function EngagedUsersInlineList({
       } else if (item.type === "prediction") {
         const stored = getStoredVote("pred", item.id, user?.userId);
         if (stored?.choice) chosen = stored.choice;
+      } else if (item.type === "meme") {
+        const stored = getStoredVote("meme", item.id, user?.userId);
+        if (stored?.reaction) chosen = stored.reaction;
       }
     }
 
     if (!chosen) {
-      chosen = voter.selectedOptionId || voter.optionId || voter.choice || voter.side || "";
+      chosen = voter.reaction || voter.selectedOptionId || voter.optionId || voter.choice || voter.side || "";
+    }
+
+    // Special handling for memes: return flame icon info
+    if (item.type === "meme") {
+      const memeInfo = getMemeReactionInfo(chosen);
+      return {
+        id: memeInfo.id,
+        isMeme: true,
+        flameColor: memeInfo.flameColor,
+        badgeClasses: memeInfo.badgeClasses,
+      };
     }
 
     // Match text to option ID if needed
@@ -2979,31 +3113,31 @@ function EngagedUsersInlineList({
         exit={{ opacity: 0, height: 0 }}
         className="w-full max-w-lg mx-auto bg-gradient-to-b from-[#24131c]/90 to-[#0d111c]/95 rounded-2xl overflow-hidden mt-2 mb-2 border border-white/10 shadow-2xl relative"
       >
-        {/* Header */}
-        <div className="px-5 py-3 flex items-center justify-between border-b border-white/[0.04]">
-          <h3 className="text-sm font-black text-white/80 flex items-center gap-1.5">
-            <span>{totalVoters} engaged</span>
+        {/* Header - Minimized Text */}
+        <div className="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.04]">
+          <h3 className="text-xs font-bold text-white/80 flex items-center gap-1.5">
+            <span>{finalVotersCount} engaged</span>
             {item.type === "quiz" && totalQuestions > 1 && (
-              <span className="text-[10px] text-[#FF8A00] font-extrabold bg-[#FF8A00]/15 px-2 py-0.5 rounded-full border border-[#FF8A00]/30">
+              <span className="text-[9px] text-[#FF8A00] font-extrabold bg-[#FF8A00]/15 px-1.5 py-0.5 rounded-full border border-[#FF8A00]/30">
                 Q{(questionIndex ?? 0) + 1}/{totalQuestions}
               </span>
             )}
           </h3>
         </div>
 
-        {/* Voters List Body - Dynamic max-height so 1 voter only takes required height, capped at max-h-[250px] for multiple voters */}
+        {/* Voters List Body - Minimized Text & Clean Spacing */}
         <div
-          className="max-h-[250px] overflow-y-auto px-5 pb-4 space-y-0"
+          className="max-h-[220px] overflow-y-auto px-4 pb-2.5 space-y-0"
           onScroll={handleScroll}
         >
           {loading ? (
-            <div className="py-6 flex flex-col items-center justify-center gap-2 text-white/40 text-xs font-bold">
-              <div className="w-6 h-6 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
-              <span>Loading...</span>
+            <div className="py-4 flex flex-col items-center justify-center gap-1.5 text-white/40 text-[11px] font-medium">
+              <div className="w-5 h-5 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
+              <span>Loading fans...</span>
             </div>
-          ) : flattenedVoters.length === 0 ? (
-            <div className="py-6 flex flex-col items-center justify-center text-center text-xs font-bold text-white/40 space-y-1">
-              <Users size={20} className="mx-auto text-white/20 mb-2" />
+          ) : allVoters.length === 0 ? (
+            <div className="py-4 flex flex-col items-center justify-center text-center text-[11px] font-medium text-white/40 space-y-1">
+              <Users size={18} className="mx-auto text-white/20 mb-1" />
               <p>No fans opted yet.</p>
             </div>
           ) : (
@@ -3011,7 +3145,11 @@ function EngagedUsersInlineList({
               {displayedVoters.map((voter, idx) => {
                 const initialLetter = voter.userName ? voter.userName.charAt(0).toUpperCase() : "F";
                 const avatarUrl = resolveAvatar(voter);
-                const { id: displayId, badgeClasses } = resolveVoterOption(voter);
+                const { id: displayId, badgeClasses, isMeme, flameColor } = resolveVoterOption(voter);
+                const rawName = voter.userName || "Fan";
+                const displayName = rawName.includes("_gmail_com")
+                  ? rawName.replace(/_gmail_com/gi, "")
+                  : rawName;
 
                 return (
                   <div
@@ -3021,16 +3159,16 @@ function EngagedUsersInlineList({
                         voter.userId
                       )}`;
                     }}
-                    className="py-2.5 border-b border-white/[0.05] flex items-center justify-between transition-all cursor-pointer group last:border-0"
+                    className="py-1.5 border-b border-white/[0.04] flex items-center justify-between gap-3 transition-all cursor-pointer group last:border-0"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
                       {avatarUrl ? (
                         <img
                           src={avatarUrl}
                           alt={voter.userName}
                           referrerPolicy="no-referrer"
                           crossOrigin="anonymous"
-                          className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
+                          className="w-6.5 h-6.5 rounded-full object-cover border border-white/10 shrink-0"
                           onError={(e: any) => {
                             e.target.style.display = "none";
                             e.target.nextSibling.style.display = "flex";
@@ -3039,28 +3177,36 @@ function EngagedUsersInlineList({
                       ) : null}
                       <div
                         style={{ display: avatarUrl ? "none" : "flex" }}
-                        className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 border border-white/10 items-center justify-center text-white font-black text-xs shrink-0"
+                        className="w-6.5 h-6.5 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 border border-white/10 items-center justify-center text-white font-black text-[10px] shrink-0"
                       >
                         {initialLetter}
                       </div>
 
-                      <div className="min-w-0">
-                        <h4 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors truncate">
-                          {voter.userName}
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-[12px] font-semibold text-white/90 group-hover:text-amber-400 transition-colors break-words break-all whitespace-normal leading-tight">
+                          {displayName}
                         </h4>
                       </div>
                     </div>
 
-                    <div className={`w-6 h-6 flex items-center justify-center rounded-md border ${badgeClasses} text-xs font-black`}>
-                      {displayId}
+                    <div className="shrink-0 flex items-center justify-center">
+                      {isMeme ? (
+                        <div className={`w-6 h-6 flex items-center justify-center rounded-md border ${badgeClasses} shadow-sm shrink-0`}>
+                          <Flame size={13} className={`${flameColor} shrink-0`} fill="currentColor" />
+                        </div>
+                      ) : (
+                        <div className={`w-5.5 h-5.5 flex items-center justify-center rounded border ${badgeClasses} text-[10px] font-black shrink-0`}>
+                          {displayId}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
               })}
               
               {hasMore && (
-                <div className="py-3 flex flex-col items-center justify-center gap-1 text-white/40 text-[10px] font-bold">
-                  <div className="w-4 h-4 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
+                <div className="py-2.5 flex flex-col items-center justify-center gap-1 text-white/40 text-[9px] font-bold">
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
                   <span>Loading more...</span>
                 </div>
               )}
@@ -3090,6 +3236,14 @@ export default function FlipArena({
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [engagedModalItem, setEngagedModalItem] = useState<EngagementItem | null>(null);
   const [quizActiveQuestion, setQuizActiveQuestion] = useState<Record<string, { index: number; id: string }>>({});
+  const [syncedEngagedCounts, setSyncedEngagedCounts] = useState<Record<string, number>>({});
+
+  const handleSyncEngagedCount = useCallback((itemId: string, count: number) => {
+    setSyncedEngagedCounts((prev) => {
+      if (prev[itemId] === count) return prev;
+      return { ...prev, [itemId]: count };
+    });
+  }, []);
 
   const handleQuizQuestionChange = useCallback((itemId: string, index: number, id: string) => {
     setQuizActiveQuestion((prev) => {
@@ -3530,6 +3684,7 @@ export default function FlipArena({
                       isHighlighted={isItemHighlighted}
                       onOpenEngagedModal={handleOpenEngagedModal}
                       isEngagedExpanded={engagedModalItem?.id === item.id}
+                      totalEngagedOverride={syncedEngagedCounts[item.id]}
                       onQuestionChange={item.type === "quiz" ? (index: number, qId: string) => handleQuizQuestionChange(item.id, index, qId) : undefined}
                     />
                     
@@ -3539,6 +3694,7 @@ export default function FlipArena({
                         item={engagedModalItem}
                         questionId={quizActiveQuestion[item.id]?.id}
                         questionIndex={quizActiveQuestion[item.id]?.index}
+                        onSyncCount={(count) => handleSyncEngagedCount(item.id, count)}
                       />
                     )}
                   </motion.div>
