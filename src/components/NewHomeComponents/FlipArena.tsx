@@ -642,14 +642,34 @@ function DynamicQuizCard({
 
   const totalQuestions = rawQuestions.length;
 
+  const checkIsOptionCorrect = useCallback((optId: string, q: any) => {
+    if (!q) return false;
+    const target = String(q.correctOptionId || q.answer || "").trim().toUpperCase();
+    const chosen = q.options?.find((o: any) => o.id === optId || o.text === optId);
+    if (chosen?.isCorrect === true) return true;
+    if (String(optId).trim().toUpperCase() === target) return true;
+    if (chosen && String(chosen.text || "").trim().toUpperCase() === target) return true;
+    return false;
+  }, []);
+
+  const getStoredQuizAnswer = useCallback((q: any, index: number) => {
+    if (!q && index === undefined) return null;
+    const qId = q?.id;
+    let ans = qId ? getStoredVote(`quiz_q_${qId}`, item.id, userId) : null;
+    if (!ans) ans = getStoredVote(`quiz_q_${index}`, item.id, userId);
+    if (!ans && qId) ans = getStoredVote(`quiz_${qId}`, item.id, userId);
+    if (!ans) ans = getStoredVote(`quiz_${index}`, item.id, userId);
+    if (!ans && (totalQuestions === 1 || index === 0)) ans = getStoredVote(`quiz`, item.id, userId);
+    return ans;
+  }, [item.id, userId, totalQuestions]);
+
   const initialFinish = getStoredVote("quiz_finish", item.id, userId);
   const [quizFinished, setQuizFinished] = useState<boolean>(Boolean(initialFinish?.finished));
   const [totalScore, setTotalScore] = useState<number>(() => {
     if (initialFinish?.score !== undefined) return Number(initialFinish.score);
     let sum = 0;
     rawQuestions.forEach((q, idx) => {
-      const qK = `quiz_q_${q?.id || idx}`;
-      const ans = getStoredVote(qK, item.id, userId);
+      const ans = getStoredQuizAnswer(q, idx);
       if (ans) {
         sum += (ans.earnedPoints || (PARTICIPATION_POINTS + (ans.isCorrect ? CORRECT_OPTION_BONUS : 0)));
       }
@@ -673,19 +693,7 @@ function DynamicQuizCard({
   );
   const frequencyMs = frequencyMinutes * 60 * 1000;
 
-  // Key uniquely per question ID to avoid state leaks
-  const currentQKey = `quiz_q_${currentQ?.id || currentQIndex}`;
-  const initialQ = getStoredVote(currentQKey, item.id, userId);
-
-  const checkIsOptionCorrect = useCallback((optId: string, q: any) => {
-    if (!q) return false;
-    const target = String(q.correctOptionId || q.answer || "").trim().toUpperCase();
-    const chosen = q.options?.find((o: any) => o.id === optId || o.text === optId);
-    if (chosen?.isCorrect === true) return true;
-    if (String(optId).trim().toUpperCase() === target) return true;
-    if (chosen && String(chosen.text || "").trim().toUpperCase() === target) return true;
-    return false;
-  }, []);
+  const initialQ = getStoredQuizAnswer(currentQ, currentQIndex);
 
   const calculateQuizProgress = useCallback(() => {
     let answeredQCount = 0;
@@ -693,8 +701,7 @@ function DynamicQuizCard({
     let earnedSum = 0;
 
     rawQuestions.forEach((q, idx) => {
-      const qK = `quiz_q_${q?.id || idx}`;
-      const ans = getStoredVote(qK, item.id, userId);
+      const ans = getStoredQuizAnswer(q, idx);
       if (ans) {
         answeredQCount++;
         if (ans.isCorrect) {
@@ -712,16 +719,16 @@ function DynamicQuizCard({
       possibleScore: maxPossible,
       isFullyCompleted: answeredQCount >= totalQuestions,
     };
-  }, [rawQuestions, item.id, userId, totalQuestions]);
+  }, [rawQuestions, totalQuestions, getStoredQuizAnswer]);
 
   const [selectedId, setSelectedId] = useState<string | null>(
-    initialQ?.selectedId || (totalQuestions === 1 && item.userVoted && item.userVote ? item.userVote : null)
+    initialQ?.selectedId || (item.userVoted && item.userVote ? item.userVote : null)
   );
-  const [answered, setAnswered] = useState<boolean>(Boolean(initialQ || (totalQuestions === 1 && item.userVoted)));
+  const [answered, setAnswered] = useState<boolean>(Boolean(initialQ || item.userVoted));
   const [isCorrect, setIsCorrect] = useState<boolean | null>(
     initialQ
       ? initialQ.isCorrect
-      : totalQuestions === 1 && item.userVoted && item.userVote
+      : item.userVoted && item.userVote
         ? checkIsOptionCorrect(item.userVote, currentQ)
         : null
   );
@@ -735,10 +742,8 @@ function DynamicQuizCard({
     if (item.userVoted) return true;
     if (getStoredVote("quiz_engaged", item.id, userId)) return true;
     if (getStoredVote("quiz_finish", item.id, userId)) return true;
-    return rawQuestions.some((q, idx) =>
-      Boolean(getStoredVote(`quiz_q_${q?.id || idx}`, item.id, userId))
-    );
-  }, [item.id, item.userVoted, userId, rawQuestions]);
+    return rawQuestions.some((q, idx) => Boolean(getStoredQuizAnswer(q, idx)));
+  }, [item.id, item.userVoted, userId, rawQuestions, getStoredQuizAnswer]);
 
   const hasEngagedRef = useRef<boolean>(hasAlreadyEngaged);
 
@@ -755,10 +760,8 @@ function DynamicQuizCard({
   useEffect(() => {
     if (totalEngagedOverride !== undefined) {
       setTotalEngaged(totalEngagedOverride);
-    } else if (item.totalEngaged !== undefined) {
-      setTotalEngaged((prev) => Math.max(prev, Number(item.totalEngaged) || 0));
     }
-  }, [totalEngagedOverride, item.totalEngaged]);
+  }, [totalEngagedOverride]);
 
   const startTime = getEngagementStartTime(item);
   const isScheduled = startTime > now;
@@ -822,8 +825,7 @@ function DynamicQuizCard({
       if (finish.score !== undefined) setTotalScore(Number(finish.score));
     }
 
-    const qKey = `quiz_q_${currentQ?.id || currentQIndex}`;
-    const ans = getStoredVote(qKey, item.id, userId);
+    const ans = getStoredQuizAnswer(currentQ, currentQIndex);
     if (ans) {
       setSelectedId(ans.selectedId);
       setAnswered(true);
@@ -832,18 +834,59 @@ function DynamicQuizCard({
           ? ans.isCorrect
           : checkIsOptionCorrect(ans.selectedId, currentQ)
       );
-    } else if (totalQuestions === 1 && item.userVoted && item.userVote) {
+    } else if (item.userVoted && item.userVote && (totalQuestions === 1 || currentQIndex === 0)) {
       setSelectedId(item.userVote);
       setAnswered(true);
       const isRight = checkIsOptionCorrect(item.userVote, currentQ);
       setIsCorrect(isRight);
-      setStoredVote(qKey, item.id, { selectedId: item.userVote, isCorrect: isRight }, userId);
+      setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: item.userVote, isCorrect: isRight }, userId);
     } else {
       setSelectedId(null);
       setAnswered(false);
       setIsCorrect(null);
     }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, checkIsOptionCorrect, currentQ, currentQIndex, totalQuestions]);
+
+    // Always sync with server checkVoteStatus if userId exists
+    if (userId) {
+      engagementService
+        .checkVoteStatus(item.id, userId)
+        .then((res) => {
+          if (res.hasVoted) {
+            const answersMap = (res.vote as any)?.answers || (res as any)?.answers || {};
+            let hasMatched = false;
+
+            rawQuestions.forEach((q, idx) => {
+              const opt = answersMap[q?.id] || answersMap[idx] || (idx === 0 && res.selectedOptionId ? res.selectedOptionId : null);
+              if (opt) {
+                hasMatched = true;
+                const isRight = checkIsOptionCorrect(opt, q);
+                setStoredVote(`quiz_q_${q?.id || idx}`, item.id, { selectedId: opt, isCorrect: isRight }, userId);
+                if (idx === currentQIndex) {
+                  setSelectedId(opt);
+                  setAnswered(true);
+                  setIsCorrect(isRight);
+                }
+              }
+            });
+
+            if (!hasMatched && res.selectedOptionId) {
+              const isRight = checkIsOptionCorrect(res.selectedOptionId, currentQ);
+              setSelectedId(res.selectedOptionId);
+              setAnswered(true);
+              setIsCorrect(isRight);
+              setStoredVote(`quiz_q_${currentQ?.id || currentQIndex}`, item.id, { selectedId: res.selectedOptionId, isCorrect: isRight }, userId);
+            }
+
+            setStoredVote("quiz_engaged", item.id, true, userId);
+            if (totalQuestions === 1) {
+              setQuizFinished(true);
+              setStoredVote("quiz_finish", item.id, { finished: true }, userId);
+            }
+          }
+        })
+        .catch(() => { });
+    }
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, checkIsOptionCorrect, currentQ, currentQIndex, totalQuestions, getStoredQuizAnswer, rawQuestions]);
 
   const handleOptionSelect = async (optId: string) => {
     if (!userId || String(userId).toLowerCase().startsWith("anon")) {
@@ -853,7 +896,7 @@ function DynamicQuizCard({
     if (answered || isScheduled || isAnsweringRef.current) return;
     isAnsweringRef.current = true;
     const qKey = `quiz_q_${currentQ?.id || currentQIndex}`;
-    const existing = getStoredVote(qKey, item.id, userId);
+    const existing = getStoredQuizAnswer(currentQ, currentQIndex);
     if (existing) {
       isAnsweringRef.current = false;
       return;
@@ -883,15 +926,22 @@ function DynamicQuizCard({
       { selectedId: optId, isCorrect: isRight, earnedPoints },
       userId
     );
+    if (currentQ?.id) {
+      setStoredVote(`quiz_${currentQ.id}`, item.id, { selectedId: optId, isCorrect: isRight, earnedPoints }, userId);
+    }
+    setStoredVote(`quiz_q_${currentQIndex}`, item.id, { selectedId: optId, isCorrect: isRight, earnedPoints }, userId);
+    if (totalQuestions === 1) {
+      setStoredVote(`quiz`, item.id, { selectedId: optId, isCorrect: isRight, earnedPoints }, userId);
+    }
 
     const currentAnsweredCount = rawQuestions.filter((q, idx) => {
       if (idx === currentQIndex) return true;
-      return Boolean(getStoredVote(`quiz_q_${q?.id || idx}`, item.id, userId));
+      return Boolean(getStoredQuizAnswer(q, idx));
     }).length;
 
     const currentCorrectCount = rawQuestions.filter((q, idx) => {
       if (idx === currentQIndex) return isRight;
-      return Boolean(getStoredVote(`quiz_q_${q?.id || idx}`, item.id, userId)?.isCorrect);
+      return Boolean(getStoredQuizAnswer(q, idx)?.isCorrect);
     }).length;
 
     const totalPossible = totalQuestions * (PARTICIPATION_POINTS + CORRECT_OPTION_BONUS);
@@ -964,11 +1014,11 @@ function DynamicQuizCard({
       setCurrentQIndex(nextIdx);
       const nextQ = rawQuestions[nextIdx];
       onQuestionChange?.(nextIdx, nextQ?.id || `q_${nextIdx}`);
-      const ans = getStoredVote(`quiz_q_${nextQ?.id || nextIdx}`, item.id, userId);
+      const ans = getStoredQuizAnswer(nextQ, nextIdx);
       if (ans) {
         setSelectedId(ans.selectedId);
         setAnswered(true);
-        setIsCorrect(ans.isCorrect);
+        setIsCorrect(ans.isCorrect !== undefined ? ans.isCorrect : checkIsOptionCorrect(ans.selectedId, nextQ));
       } else {
         setSelectedId(null);
         setAnswered(false);
@@ -987,11 +1037,11 @@ function DynamicQuizCard({
       setCurrentQIndex(prevIdx);
       const prevQ = rawQuestions[prevIdx];
       onQuestionChange?.(prevIdx, prevQ?.id || `q_${prevIdx}`);
-      const ans = getStoredVote(`quiz_q_${prevQ?.id || prevIdx}`, item.id, userId);
+      const ans = getStoredQuizAnswer(prevQ, prevIdx);
       if (ans) {
         setSelectedId(ans.selectedId);
         setAnswered(true);
-        setIsCorrect(ans.isCorrect);
+        setIsCorrect(ans.isCorrect !== undefined ? ans.isCorrect : checkIsOptionCorrect(ans.selectedId, prevQ));
       } else {
         setSelectedId(null);
         setAnswered(false);
@@ -1082,9 +1132,8 @@ function DynamicQuizCard({
             <h4 className="text-sm font-black text-white">Quiz Completed!</h4>
           </div>
           <p className="text-[11.5px] text-purple-200 font-medium leading-snug">
-            You scored <strong className="text-amber-400 font-extrabold">{totalScore}/{currentProgress.possibleScore} SXPs</strong> ({currentProgress.correctCount}/{totalQuestions} correct). Check your rank on the Leaderboard!
-          </p>
-          <div className="flex items-center justify-center gap-2 pt-1">
+            You scored <strong className="text-amber-400 font-extrabold">{totalScore}/{currentProgress.possibleScore} SXPs</strong> ({currentProgress.correctCount}/{totalQuestions} correct).</p>
+          {/* <div className="flex items-center justify-center gap-2 pt-1">
             <button
               onClick={() => onOpenLeaderboard?.()}
               className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-black text-[11px] flex items-center gap-1.5 shadow-md active:scale-95 transition-all cursor-pointer"
@@ -1098,7 +1147,7 @@ function DynamicQuizCard({
             >
               Review Questions
             </button>
-          </div>
+          </div> */}
         </motion.div>
       )}
 
@@ -3187,7 +3236,13 @@ function EngagedUsersInlineList({
     if (isMe) {
       if (item.type === "quiz") {
         const qId = questionId || item.quizData?.questions?.[questionIndex || 0]?.id || `q_${questionIndex || 0}`;
-        const stored = getStoredVote(`quiz_q_${qId}`, item.id, user?.userId || (user as any)?.actualUserId || user?.email);
+        const uid = user?.userId || (user as any)?.actualUserId || user?.email;
+        const stored =
+          getStoredVote(`quiz_q_${qId}`, item.id, uid) ||
+          getStoredVote(`quiz_q_${questionIndex || 0}`, item.id, uid) ||
+          getStoredVote(`quiz_${qId}`, item.id, uid) ||
+          getStoredVote(`quiz_${questionIndex || 0}`, item.id, uid) ||
+          getStoredVote("quiz", item.id, uid);
         if (stored?.selectedId) chosen = stored.selectedId;
       } else if (item.type === "fan_battle") {
         const stored = getStoredVote("fb", item.id, user?.userId);
@@ -3489,6 +3544,37 @@ export default function FlipArena({
 
       if (liveItems && liveItems.length > 0) {
         setEngagements(liveItems);
+
+        // Pre-fetch accurate registered voter counts for all loaded items on feed load
+        liveItems.forEach((it) => {
+          axios
+            .get(`/api/engagements/${it.id}/voters`)
+            .then((votersRes) => {
+              if (votersRes.data?.success) {
+                let opts: any[] = [];
+                if (votersRes.data.questions && Array.isArray(votersRes.data.questions)) {
+                  opts = votersRes.data.questions[0]?.options || [];
+                } else if (votersRes.data.options) {
+                  opts = votersRes.data.options;
+                }
+
+                const allRegisteredVoters = opts
+                  .flatMap((o: any) => o.voters || [])
+                  .filter((v: any) => isValidRegisteredVoter(v));
+
+                // Deduplicate unique voters
+                const uniqueVoters = new Set<string>();
+                allRegisteredVoters.forEach((v: any) => {
+                  const key = String(v.userId || v.actualUserId || v.userName || "").trim().toLowerCase();
+                  if (key) uniqueVoters.add(key);
+                });
+
+                const count = uniqueVoters.size > 0 ? uniqueVoters.size : allRegisteredVoters.length;
+                handleSyncEngagedCount(it.id, count);
+              }
+            })
+            .catch(() => { });
+        });
       } else {
         setEngagements([]);
       }
