@@ -3652,6 +3652,17 @@ function resolveUsername(userObj: any, fallbackName?: string): string {
   return fallbackName || "Fan";
 }
 
+// Shared in-memory cache for own profile so switching tabs renders immediately without loading screen
+let cachedOwnProfileMetadata: any = null;
+let cachedOwnActivities: any[] = [];
+let cachedOwnActivityCounts: Record<string, number> = {};
+
+export function invalidateProfileCache() {
+  cachedOwnProfileMetadata = null;
+  cachedOwnActivities = [];
+  cachedOwnActivityCounts = {};
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function Profile({
   userBadge, setUserBadge, onCompose, onToast, setOnboarded, onNavigateTab,
@@ -3935,13 +3946,13 @@ export default function Profile({
     },
   ];
 
-  const [profileMetadata, setProfileMetadata] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [profileMetadata, setProfileMetadata] = useState<any>(() => isOtherProfile ? null : cachedOwnProfileMetadata);
+  const [loading, setLoading] = useState(() => isOtherProfile ? true : !cachedOwnProfileMetadata);
   const [editShowActivity, setEditShowActivity] = useState(true);
 
-  const [fetchedActivities, setFetchedActivities] = useState<any[]>([]);
+  const [fetchedActivities, setFetchedActivities] = useState<any[]>(() => isOtherProfile ? [] : cachedOwnActivities);
   const [fetchedActivitiesLoading, setFetchedActivitiesLoading] = useState(false);
-  const [activityCounts, setActivityCounts] = useState<Record<string, number>>({});
+  const [activityCounts, setActivityCounts] = useState<Record<string, number>>(() => isOtherProfile ? {} : cachedOwnActivityCounts);
 
   // Activity pagination: fetch in rolling 7-day windows
   const ACTIVITY_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -4094,7 +4105,13 @@ export default function Profile({
       const actRes = await axios.get(url);
       if (actRes.data?.success) {
         if (actRes.data.counts) {
-          setActivityCounts((prev) => ({ ...prev, ...actRes.data.counts }));
+          setActivityCounts((prev) => {
+            const updated = { ...prev, ...actRes.data.counts };
+            if (!isOtherProfile) {
+              cachedOwnActivityCounts = updated;
+            }
+            return updated;
+          });
         }
         const rawItems: any[] = actRes.data.activities || [];
 
@@ -4109,7 +4126,13 @@ export default function Profile({
         const deduped = newItems.filter((a: any) => a?.id != null && !activityIdsRef.current.has(a.id));
         deduped.forEach((a: any) => activityIdsRef.current.add(a.id));
 
-        setFetchedActivities((prev) => (isAppend ? [...prev, ...deduped] : deduped));
+        setFetchedActivities((prev) => {
+          const updated = isAppend ? [...prev, ...deduped] : deduped;
+          if (!isOtherProfile && isInitial) {
+            cachedOwnActivities = updated;
+          }
+          return updated;
+        });
         setActivityHasMore(rawItems.length > 0);
         setActivityWindowStart(startDate);
         setActivityUserId(actualUserId);
@@ -4130,15 +4153,18 @@ export default function Profile({
 
   useEffect(() => {
     const fetchProfileData = async () => {
-      setLoading(true);
-      setFetchedActivities([]);
-      setActivityWindowStart(Date.now() - ACTIVITY_WINDOW_MS);
-      setActivityHasMore(true);
-      setActivityUserId(null);
-      activityIdsRef.current = new Set();
-      setCoverPhoto(null);
-      if (isOtherProfile) {
-        setSelectedAvatar(null);
+      const hasCached = !isOtherProfile && !!cachedOwnProfileMetadata;
+      if (!hasCached) {
+        setLoading(true);
+        setFetchedActivities([]);
+        setActivityWindowStart(Date.now() - ACTIVITY_WINDOW_MS);
+        setActivityHasMore(true);
+        setActivityUserId(null);
+        activityIdsRef.current = new Set();
+        setCoverPhoto(null);
+        if (isOtherProfile) {
+          setSelectedAvatar(null);
+        }
       }
       try {
         // ── 0. Check if viewing a bot profile ───────────────────────────
@@ -4380,7 +4406,7 @@ export default function Profile({
               authUser?.photoURL;
             const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
 
-            setProfileMetadata({
+            const newMeta = {
               user: {
                 ...apiUser,
                 avatarUrl: backendAvatar || apiUser.avatarUrl || null,
@@ -4391,7 +4417,11 @@ export default function Profile({
               hotTakes: res.data.hotTakes || apiUser.hotTakes || [],
               debates: res.data.debates || apiUser.debates || [],
               posts: res.data.posts || apiUser.posts || [],
-            });
+            };
+            setProfileMetadata(newMeta);
+            if (!isOtherProfile) {
+              cachedOwnProfileMetadata = newMeta;
+            }
             if (res.data.user?.badge) setUserBadge(res.data.user.badge);
             if (initialName) setEditName(initialName);
             setEditUniversity(res.data.user?.university ?? res.data.user?.institution ?? "");
@@ -4821,36 +4851,93 @@ export default function Profile({
     );
   }, [targetKeys]);
 
- 
-    const statPolls = useMemo(() => {
-    const created = userEngagements.filter((e) => (e.type === "poll" || (e as any).type === "POLL") && isTargetCreator(e)).length;
-    const participated = userEngagements.filter((e) => (e.type === "poll" || (e as any).type === "POLL") && (e.userVoted || (e as any).hasVoted)).length;
-    return Math.max(created + participated, user?.pollCount ?? 0, isOtherProfile ? 0 : (activityCounts.ROAR_POLL ?? 0));
-  }, [userEngagements, isTargetCreator, user?.pollCount, isOtherProfile, activityCounts]);
+  const statPolls = useMemo(() => {
+    const isPoll = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "poll" || t === "polls";
+    };
+    const matching = userEngagements.filter(
+      (e) => isPoll(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote)
+    );
+    return Math.max(
+      matching.length,
+      user?.pollCount ?? 0,
+      (user as any)?.pollsCount ?? 0,
+      (user as any)?.stats?.pollCount ?? 0,
+      (user as any)?.stats?.polls ?? 0,
+      isOtherProfile ? 0 : (activityCounts.ROAR_POLL ?? 0)
+    );
+  }, [userEngagements, isTargetCreator, user, isOtherProfile, activityCounts]);
 
   const statArenaPredictions = useMemo(() => {
-    const created = userEngagements.filter((e) => (e.type === "prediction" || (e as any).type === "PREDICTION") && isTargetCreator(e)).length;
-    const participated = userEngagements.filter((e) => (e.type === "prediction" || (e as any).type === "PREDICTION") && (e.userVoted || (e as any).hasVoted)).length;
-    return Math.max(created + participated, user?.arenaPredictionCount ?? 0);
-  }, [userEngagements, isTargetCreator, user?.arenaPredictionCount]);
+    const isPred = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "prediction" || t === "predictions";
+    };
+    const matching = userEngagements.filter(
+      (e) => isPred(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote)
+    );
+    return Math.max(
+      matching.length,
+      user?.arenaPredictionCount ?? 0,
+      (user as any)?.arenaPredictionsCount ?? 0,
+      (user as any)?.stats?.arenaPredictionCount ?? 0,
+      (user as any)?.stats?.arenaPredictions ?? 0
+    );
+  }, [userEngagements, isTargetCreator, user]);
 
   const statFanBattles = useMemo(() => {
-    const created = userEngagements.filter((e) => (e.type === "fan_battle" || (e as any).type === "battle" || (e as any).type === "FAN_BATTLE") && isTargetCreator(e)).length;
-    const participated = userEngagements.filter((e) => (e.type === "fan_battle" || (e as any).type === "battle" || (e as any).type === "FAN_BATTLE") && (e.userVoted || (e as any).hasVoted)).length;
-    return Math.max(created + participated, user?.fanBattleCount ?? 0);
-  }, [userEngagements, isTargetCreator, user?.fanBattleCount]);
+    const isBattle = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "fan_battle" || t === "battle" || t === "fan_battles" || t === "battles";
+    };
+    const matching = userEngagements.filter(
+      (e) => isBattle(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote)
+    );
+    return Math.max(
+      matching.length,
+      user?.fanBattleCount ?? 0,
+      (user as any)?.fanBattlesCount ?? 0,
+      (user as any)?.stats?.fanBattleCount ?? 0,
+      (user as any)?.stats?.fanBattles ?? 0
+    );
+  }, [userEngagements, isTargetCreator, user]);
 
   const statQuiz = useMemo(() => {
-    const created = userEngagements.filter((e) => (e.type === "quiz" || (e as any).type === "QUIZ") && isTargetCreator(e)).length;
-    const participated = userEngagements.filter((e) => (e.type === "quiz" || (e as any).type === "QUIZ") && (e.userVoted || (e as any).hasVoted)).length;
-    return Math.max(created + participated, user?.quizCount ?? 0, user?.triviaCount ?? 0, isOtherProfile ? 0 : (activityCounts.ROAR_QUIZ ?? 0));
-  }, [userEngagements, isTargetCreator, user?.quizCount, user?.triviaCount, isOtherProfile, activityCounts]);
+    const isQuiz = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "quiz" || t === "quizzes" || t === "trivia";
+    };
+    const matching = userEngagements.filter(
+      (e) => isQuiz(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote || (e as any).userAnswer)
+    );
+    return Math.max(
+      matching.length,
+      user?.quizCount ?? 0,
+      (user as any)?.quizzesCount ?? 0,
+      user?.triviaCount ?? 0,
+      (user as any)?.stats?.quizCount ?? 0,
+      (user as any)?.stats?.quizzes ?? 0,
+      isOtherProfile ? 0 : (activityCounts.ROAR_QUIZ ?? 0)
+    );
+  }, [userEngagements, isTargetCreator, user, isOtherProfile, activityCounts]);
 
   const statMeme = useMemo(() => {
-    const created = userEngagements.filter((e) => (e.type === "meme" || (e as any).type === "MEME") && isTargetCreator(e)).length;
-    const participated = userEngagements.filter((e) => (e.type === "meme" || (e as any).type === "MEME") && (e.userVoted || (e as any).hasVoted)).length;
-    return Math.max(created + participated, user?.memeCount ?? 0);
-  }, [userEngagements, isTargetCreator, user?.memeCount]);
+    const isMeme = (e: any) => {
+      const t = String(e?.type || "").toLowerCase();
+      return t === "meme" || t === "memes";
+    };
+    const matching = userEngagements.filter(
+      (e) => isMeme(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userReaction || e.userLiked)
+    );
+    return Math.max(
+      matching.length,
+      user?.memeCount ?? 0,
+      (user as any)?.memesCount ?? 0,
+      (user as any)?.stats?.memeCount ?? 0,
+      (user as any)?.stats?.memes ?? 0
+    );
+  }, [userEngagements, isTargetCreator, user]);
 
 
 
@@ -4903,8 +4990,35 @@ export default function Profile({
 
   if (loading || !profileMetadata) {
     return (
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", color: "var(--text-muted)" }}>
-        Loading profile...
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "60vh",
+          height: "100%",
+          width: "100%",
+        }}
+      >
+        <div
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: "50%",
+            border: "3px solid rgba(255, 255, 255, 0.15)",
+            borderTopColor: "var(--accent-magenta, #e91e8c)",
+            animation: "roar-profile-spin 0.8s linear infinite",
+          }}
+        />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @keyframes roar-profile-spin {
+                to { transform: rotate(360deg); }
+              }
+            `,
+          }}
+        />
       </div>
     );
   }
@@ -5756,6 +5870,14 @@ export default function Profile({
                   if (isRookie) return "/images/badges/rookiefan.png";
                   return b.iconSrc || toBadgeImageSrc(b.icon || b.imageUrl || "/images/badges/rookiefan.png");
                 }),
+            ]}
+            badgeNames={[
+              ...effectiveFeatureBadges
+                .filter((fb) => fb.level > 0)
+                .map((fb) => fb.labels?.[Math.max(0, fb.level - 1)] || fb.label || `${fb.feature} (Lvl ${fb.level})`),
+              ...specialBadges
+                .filter((b) => b.unlocked !== false)
+                .map((b: any) => b.name || b.title || "Special Badge"),
             ]}
             onToast={onToast}
           />
