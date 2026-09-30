@@ -212,6 +212,7 @@ function DynamicFanBattleCard({
   onEdit,
   isHighlighted = false,
   onOpenEngagedModal,
+  isEngagedExpanded = false,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -223,6 +224,7 @@ function DynamicFanBattleCard({
   onEdit?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
   onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
 }) {
   const initialStored = getStoredVote("fb", item.id, userId);
   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(
@@ -408,7 +410,7 @@ function DynamicFanBattleCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative group transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-[#FF3D57] border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative group transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-[#FF3D57] shadow-[0_0_35px_rgba(255,61,87,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -541,10 +543,15 @@ function DynamicFanBattleCard({
         {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
-          className="hover:text-white transition-colors cursor-pointer flex items-center gap-1 group"
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
           <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
-          <ChevronRight size={12} className="opacity-40 group-hover:opacity-100 transition-opacity" />
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
         </button>
 
       </div>
@@ -581,6 +588,8 @@ function DynamicQuizCard({
   onEdit,
   isHighlighted = false,
   onOpenEngagedModal,
+  isEngagedExpanded = false,
+  onQuestionChange,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -592,6 +601,8 @@ function DynamicQuizCard({
   onEdit?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
   onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
+  onQuestionChange?: (index: number, questionId: string) => void;
 }) {
   const rawQuestions =
     item.quizData?.questions && item.quizData.questions.length > 0
@@ -619,6 +630,12 @@ function DynamicQuizCard({
 
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const currentQ = rawQuestions[Math.min(currentQIndex, totalQuestions - 1)];
+
+  useEffect(() => {
+    if (currentQ) {
+      onQuestionChange?.(currentQIndex, currentQ.id || `q_${currentQIndex}`);
+    }
+  }, [currentQIndex, currentQ?.id, onQuestionChange]);
   const correctOptionId = currentQ?.correctOptionId || (currentQ as any)?.answer || "A";
   const frequencyMinutes = Number(
     item.quizData?.frequencyMinutes !== undefined && item.quizData?.frequencyMinutes !== null
@@ -642,13 +659,13 @@ function DynamicQuizCard({
   }, []);
 
   const [selectedId, setSelectedId] = useState<string | null>(
-    initialQ?.selectedId || (item.userVoted && item.userVote ? item.userVote : null)
+    initialQ?.selectedId || (totalQuestions === 1 && item.userVoted && item.userVote ? item.userVote : null)
   );
   const [answered, setAnswered] = useState<boolean>(Boolean(initialQ || (totalQuestions === 1 && item.userVoted)));
   const [isCorrect, setIsCorrect] = useState<boolean | null>(
     initialQ
       ? initialQ.isCorrect
-      : item.userVoted && item.userVote
+      : totalQuestions === 1 && item.userVoted && item.userVote
         ? checkIsOptionCorrect(item.userVote, currentQ)
         : null
   );
@@ -734,6 +751,10 @@ function DynamicQuizCard({
       const isRight = checkIsOptionCorrect(item.userVote, currentQ);
       setIsCorrect(isRight);
       setStoredVote(qKey, item.id, { selectedId: item.userVote, isCorrect: isRight }, userId);
+    } else {
+      setSelectedId(null);
+      setAnswered(false);
+      setIsCorrect(null);
     }
   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, checkIsOptionCorrect, currentQ, currentQIndex, totalQuestions]);
 
@@ -820,6 +841,7 @@ function DynamicQuizCard({
       const nextIdx = currentQIndex + 1;
       setCurrentQIndex(nextIdx);
       const nextQ = rawQuestions[nextIdx];
+      onQuestionChange?.(nextIdx, nextQ?.id || `q_${nextIdx}`);
       const ans = getStoredVote(`quiz_q_${nextQ?.id || nextIdx}`, item.id, userId);
       if (ans) {
         setSelectedId(ans.selectedId);
@@ -833,6 +855,25 @@ function DynamicQuizCard({
     } else {
       setQuizFinished(true);
       setStoredVote("quiz_finish", item.id, { finished: true, score: totalScore }, userId);
+    }
+  };
+
+  const handlePrevQuestion = () => {
+    if (currentQIndex > 0) {
+      const prevIdx = currentQIndex - 1;
+      setCurrentQIndex(prevIdx);
+      const prevQ = rawQuestions[prevIdx];
+      onQuestionChange?.(prevIdx, prevQ?.id || `q_${prevIdx}`);
+      const ans = getStoredVote(`quiz_q_${prevQ?.id || prevIdx}`, item.id, userId);
+      if (ans) {
+        setSelectedId(ans.selectedId);
+        setAnswered(true);
+        setIsCorrect(ans.isCorrect);
+      } else {
+        setSelectedId(null);
+        setAnswered(false);
+        setIsCorrect(null);
+      }
     }
   };
 
@@ -875,7 +916,7 @@ function DynamicQuizCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-purple-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-purple-500 shadow-[0_0_35px_rgba(168,85,247,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -926,7 +967,7 @@ function DynamicQuizCard({
       {totalQuestions > 1 && (
         <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mb-3">
           <div
-            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
+            className="h-full bg-white transition-all duration-300"
             style={{ width: `${((currentQIndex + (answered ? 1 : 0)) / totalQuestions) * 100}%` }}
           />
         </div>
@@ -1007,27 +1048,41 @@ function DynamicQuizCard({
                 </span>
               </div>
 
-              {totalQuestions > 1 && currentQIndex < totalQuestions - 1 && (
-                <>
-                  {isNextQuestionLocked ? (
-                    <div className="p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl flex items-center justify-between text-xs font-bold text-white/80">
-                      <span className="flex items-center gap-1.5 text-purple-300">
-                        <Clock size={13} /> Next Question #{currentQIndex + 2} in:
-                      </span>
-                      <span className="font-mono text-amber-400 font-extrabold text-sm">
-                        {formatCountdown(msToNextQuestionSlot)}
-                      </span>
-                    </div>
-                  ) : (
+              {totalQuestions > 1 && (
+                <div className={`grid ${currentQIndex > 0 && currentQIndex < totalQuestions - 1 ? "grid-cols-2" : "grid-cols-1"} gap-2.5 w-full mt-2`}>
+                  {currentQIndex > 0 && (
                     <button
-                      onClick={handleNextQuestion}
-                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:opacity-95 text-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-purple-600/20"
+                      onClick={handlePrevQuestion}
+                      className="w-full py-2.5 rounded-xl bg-black text-white hover:bg-white/10 border border-white/20 font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:scale-95"
                     >
-                      <span>Next Question</span>
-                      <ChevronRight size={14} />
+                      <ArrowLeft size={13} />
+                      <span>Previous</span>
                     </button>
                   )}
-                </>
+
+                  {currentQIndex < totalQuestions - 1 && (
+                    <>
+                      {isNextQuestionLocked ? (
+                        <div className="p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl flex items-center justify-between text-xs font-bold text-white/80">
+                          <span className="flex items-center gap-1.5 text-purple-300">
+                            <Clock size={13} /> Next #{currentQIndex + 2} in:
+                          </span>
+                          <span className="font-mono text-amber-400 font-extrabold text-sm">
+                            {formatCountdown(msToNextQuestionSlot)}
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={handleNextQuestion}
+                          className="w-full py-2.5 rounded-xl bg-white text-black hover:bg-neutral-200 border border-white font-black text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-lg active:scale-95"
+                        >
+                          <span>Next</span>
+                          <ChevronRight size={14} />
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
             </motion.div>
           )}
@@ -1055,10 +1110,15 @@ function DynamicQuizCard({
         {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
-          className="hover:text-white transition-colors cursor-pointer flex items-center gap-1 group"
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
           <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
-          <ChevronRight size={12} className="opacity-40 group-hover:opacity-100 transition-opacity" />
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
         </button>
       </div>
     </motion.div>
@@ -1077,6 +1137,7 @@ function DynamicPollCard({
   onEdit,
   isHighlighted = false,
   onOpenEngagedModal,
+  isEngagedExpanded = false,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -1088,6 +1149,7 @@ function DynamicPollCard({
   onEdit?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
   onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
 }) {
   const initialVote = getStoredVote("poll", item.id, userId);
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -1346,7 +1408,7 @@ function DynamicPollCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-blue-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-blue-500 shadow-[0_0_35px_rgba(59,130,246,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -1511,10 +1573,15 @@ function DynamicPollCard({
         {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
-          className="hover:text-white transition-colors cursor-pointer flex items-center gap-1 group"
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
           <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
-          <ChevronRight size={12} className="opacity-40 group-hover:opacity-100 transition-opacity" />
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
         </button>
       </div>
     </motion.div>
@@ -1533,6 +1600,7 @@ function DynamicPredictionCard({
   onEdit,
   isHighlighted = false,
   onOpenEngagedModal,
+  isEngagedExpanded = false,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -1544,6 +1612,7 @@ function DynamicPredictionCard({
   onEdit?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
   onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
 }) {
   const pred = item.predictionData || {
     question: "India win the 1st Galle Test?",
@@ -2005,7 +2074,7 @@ function DynamicPredictionCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-amber-500 shadow-[0_0_35px_rgba(245,158,11,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -2148,10 +2217,15 @@ function DynamicPredictionCard({
         {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
-          className="hover:text-white transition-colors cursor-pointer flex items-center gap-1 group"
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
           <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
-          <ChevronRight size={12} className="opacity-40 group-hover:opacity-100 transition-opacity" />
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
         </button>
       </div>
     </motion.div>
@@ -2171,6 +2245,7 @@ function DynamicMemeCard({
   onDelete,
   isHighlighted = false,
   onOpenEngagedModal,
+  isEngagedExpanded = false,
 }: {
   item: EngagementItem;
   userId?: string;
@@ -2183,6 +2258,7 @@ function DynamicMemeCard({
   onDelete?: (item: EngagementItem) => void;
   isHighlighted?: boolean;
   onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
 }) {
   const { user } = useAuth();
   const currentUserId = userId || user?.userId || (user as any)?.actualUserId || user?.email;
@@ -2408,7 +2484,7 @@ function DynamicMemeCard({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-3.5 sm:p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-3.5 sm:p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
         ? "ring-2 ring-orange-500 shadow-[0_0_35px_rgba(249,115,22,0.35)] scale-[1.01]"
         : ""
         }`}
@@ -2616,10 +2692,15 @@ function DynamicMemeCard({
         {/* <span>{totalEngaged.toLocaleString()} engaged</span> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
-          className="hover:text-white transition-colors cursor-pointer flex items-center gap-1 group"
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
           <span className="group-hover:underline">{totalEngaged.toLocaleString()} engaged</span>
-          <ChevronRight size={12} className="opacity-40 group-hover:opacity-100 transition-opacity" />
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${
+              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+            }`}
+          />
         </button>
       </div>
     </motion.div>
@@ -2641,36 +2722,49 @@ interface EngagedOptionData {
   }>;
 }
 
-function EngagedUsersModal({
-  isOpen,
-  onClose,
+function EngagedUsersInlineList({
   item,
+  questionId,
+  questionIndex,
 }: {
-  isOpen: boolean;
-  onClose: () => void;
   item: EngagementItem | null;
+  questionId?: string;
+  questionIndex?: number;
 }) {
-   const { user } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [options, setOptions] = useState<EngagedOptionData[]>([]);
-  const [activeOptionId, setActiveOptionId] = useState<string>("");
   const [totalVoters, setTotalVoters] = useState(0);
   const [userAvatarMap, setUserAvatarMap] = useState<Map<string, string>>(new Map());
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
-    if (!isOpen || !item) return;
+    if (!item) return;
 
     setLoading(true);
+    setPage(1); // Reset page on new item or question
+    const qParam = questionId ? `?questionId=${encodeURIComponent(questionId)}` : "";
     axios
-      .get(`/api/engagements/${item.id}/voters`)
+      .get(`/api/engagements/${item.id}/voters${qParam}`)
       .then((res) => {
         if (res.data?.success) {
-          const opts: EngagedOptionData[] = res.data.options || [];
-          setOptions(opts);
-          setTotalVoters(res.data.totalVoters || 0);
-          if (opts.length > 0) {
-            setActiveOptionId(opts[0].id);
+          let opts: EngagedOptionData[] = [];
+          if (res.data.questions && Array.isArray(res.data.questions)) {
+            const targetQ = questionId
+              ? res.data.questions.find((q: any) => q.questionId === questionId || q.id === questionId)
+              : res.data.questions[questionIndex || 0] || res.data.questions[0];
+            opts = targetQ?.options || [];
+          } else if (res.data.options) {
+            if (questionId && res.data.options.some((o: any) => o.questionId)) {
+              opts = res.data.options.filter((o: any) => o.questionId === questionId);
+            } else {
+              opts = res.data.options || [];
+            }
           }
+          setOptions(opts);
+          const total = opts.reduce((acc, o) => acc + (o.voters?.length || o.count || 0), 0);
+          setTotalVoters(total || res.data.totalVoters || 0);
         }
       })
       .catch((err) => {
@@ -2679,11 +2773,11 @@ function EngagedUsersModal({
       .finally(() => {
         setLoading(false);
       });
-  }, [isOpen, item]);
+  }, [item, questionId, questionIndex]);
 
-  // Fetch fresh user avatars from /api/users (same source as LeaderboardOverlayModal)
+  // Fetch fresh user avatars from /api/users
   useEffect(() => {
-    if (!isOpen) return;
+    if (!item) return;
 
     const buildMap = (list: any[]) => {
       const map = new Map<string, string>();
@@ -2728,13 +2822,13 @@ function EngagedUsersModal({
           (Array.isArray(res.data) ? res.data : []);
         setUserAvatarMap(buildMap(list));
       } catch {
-        // silent fail — fall back to voter.userAvatar
+        // silent fail
       }
     };
     fetchAvatars();
-  }, [isOpen]);
+  }, [item]);
 
-  if (!isOpen || !item) return null;
+  if (!item) return null;
 
   // Resolve the freshest avatar for a voter
   const resolveAvatar = (voter: EngagedOptionData["voters"][number]): string => {
@@ -2743,16 +2837,12 @@ function EngagedUsersModal({
       (user as any)?.actualUserId === voter.userId ||
       (user?.email && voter.userId === user.email);
 
-    // 1. Current user's local override
     if (isMe && typeof window !== "undefined") {
       const local = localStorage.getItem("roar_avatar_url");
       if (local && !local.includes("dicebear.com")) return local;
     }
-
-    // 2. Voter's own avatar from the voters API
     if (voter.userAvatar) return voter.userAvatar;
 
-    // 3. Lookup in the freshly-fetched /api/users map
     const candidates = [
       voter.userId,
       voter.userName,
@@ -2770,113 +2860,177 @@ function EngagedUsersModal({
     return "";
   };
 
-  const currentOption = options.find((o) => o.id === activeOptionId) || options[0];
-  const votersList = currentOption?.voters || [];
+  const flattenedVoters = options.flatMap((opt) =>
+    (opt.voters || []).map((v) => ({ ...v, optionId: opt.id, optionText: opt.text }))
+  );
 
-  const typeConfig: Record<string, { label: string; icon: string }> = {
-    poll: { label: "Poll Voters", icon: "📊" },
-    fan_battle: { label: "Battle Contenders", icon: "⚔️" },
-    prediction: { label: "Predictions", icon: "🎯" },
-    quiz: { label: "Quiz Answers", icon: "🧠" },
-    meme: { label: "Meme Voters", icon: "🔥" },
+  const displayedVoters = flattenedVoters.slice(0, page * itemsPerPage);
+  const hasMore = displayedVoters.length < flattenedVoters.length;
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight + 50 && hasMore) {
+      setPage((p) => p + 1);
+    }
   };
 
-  const currentType = typeConfig[item.type] || { label: "Engaged Fans", icon: "👥" };
+  const getBadgeColor = (id: string) => {
+    const upper = id.toUpperCase();
+    if (upper === "A" || upper === "LEFT" || upper === "1") return "text-purple-400 border-purple-400/60 bg-purple-500/10";
+    if (upper === "B" || upper === "RIGHT" || upper === "2") return "text-emerald-400 border-emerald-400/60 bg-emerald-500/10";
+    if (upper === "C" || upper === "3") return "text-blue-400 border-blue-400/60 bg-blue-500/10";
+    if (upper === "D" || upper === "4") return "text-[#FF3D57] border-[#FF3D57]/60 bg-[#FF3D57]/10";
+    return "text-amber-400 border-amber-400/60 bg-amber-500/10";
+  };
+
+  // Accurately resolve chosen option for a voter (e.g. D for option D)
+  const resolveVoterOption = (voter: any): { id: string; badgeClasses: string } => {
+    const isMe =
+      user?.userId === voter.userId ||
+      (user as any)?.actualUserId === voter.userId ||
+      (user?.email && voter.userId === user.email);
+
+    let chosen = "";
+    if (isMe) {
+      if (item.type === "quiz") {
+        const qId = questionId || item.quizData?.questions?.[questionIndex || 0]?.id || `q_${questionIndex || 0}`;
+        const stored = getStoredVote(`quiz_q_${qId}`, item.id, user?.userId || (user as any)?.actualUserId || user?.email);
+        if (stored?.selectedId) chosen = stored.selectedId;
+      } else if (item.type === "fan_battle") {
+        const stored = getStoredVote("fb", item.id, user?.userId);
+        if (stored?.side) chosen = stored.side;
+      } else if (item.type === "poll") {
+        const stored = getStoredVote("poll", item.id, user?.userId);
+        if (stored?.selectedId) chosen = stored.selectedId;
+      } else if (item.type === "prediction") {
+        const stored = getStoredVote("pred", item.id, user?.userId);
+        if (stored?.choice) chosen = stored.choice;
+      }
+    }
+
+    if (!chosen) {
+      chosen = voter.selectedOptionId || voter.optionId || voter.choice || voter.side || "";
+    }
+
+    // Match text to option ID if needed
+    if (chosen && item.type === "quiz" && item.quizData?.questions) {
+      const qObj = questionId
+        ? item.quizData.questions.find((q: any) => q.id === questionId || q.questionId === questionId)
+        : item.quizData.questions[questionIndex || 0] || item.quizData.questions[0];
+      if (qObj?.options) {
+        const matched = qObj.options.find(
+          (o: any) =>
+            o.text?.trim().toLowerCase() === chosen.trim().toLowerCase() ||
+            o.id?.trim().toLowerCase() === chosen.trim().toLowerCase()
+        );
+        if (matched?.id) chosen = matched.id;
+      }
+    }
+
+    const displayId = (chosen || "A").trim().charAt(0).toUpperCase();
+    
+    // In quiz, correct option is green, remaining options are red
+    let badgeClasses = "";
+    if (item.type === "quiz") {
+      const qObj = questionId
+        ? item.quizData?.questions?.find((q: any) => q.id === questionId || q.questionId === questionId)
+        : item.quizData?.questions?.[questionIndex || 0] || item.quizData?.questions?.[0];
+      
+      const correctTarget = (
+        qObj?.correctOptionId ||
+        (qObj as any)?.answer ||
+        item.quizData?.correctOptionId ||
+        ""
+      ).trim().toUpperCase();
+
+      const isThisOptionCorrect =
+        displayId === correctTarget ||
+        Boolean(
+          qObj?.options &&
+          qObj.options.some(
+            (o: any) =>
+              o.id?.trim().toUpperCase() === displayId &&
+              (o.isCorrect === true || o.text?.trim().toUpperCase() === correctTarget)
+          )
+        );
+
+      if (isThisOptionCorrect) {
+        badgeClasses = "text-emerald-400 border-emerald-400/60 bg-emerald-500/10";
+      } else {
+        badgeClasses = "text-[#FF3D57] border-[#FF3D57]/60 bg-[#FF3D57]/10";
+      }
+    } else {
+      badgeClasses = getBadgeColor(displayId);
+    }
+
+    return {
+      id: displayId,
+      badgeClasses,
+    };
+  };
+
+  const totalQuestions = item.quizData?.questions?.length || 1;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="w-full max-w-md bg-[#0e111a] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]"
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: "auto" }}
+        exit={{ opacity: 0, height: 0 }}
+        className="w-full max-w-lg mx-auto bg-gradient-to-b from-[#24131c]/90 to-[#0d111c]/95 rounded-2xl overflow-hidden mt-2 mb-2 border border-white/10 shadow-2xl relative"
+      >
+        {/* Header */}
+        <div className="px-5 py-3 flex items-center justify-between border-b border-white/[0.04]">
+          <h3 className="text-sm font-black text-white/80 flex items-center gap-1.5">
+            <span>{totalVoters} engaged</span>
+            {item.type === "quiz" && totalQuestions > 1 && (
+              <span className="text-[10px] text-[#FF8A00] font-extrabold bg-[#FF8A00]/15 px-2 py-0.5 rounded-full border border-[#FF8A00]/30">
+                Q{(questionIndex ?? 0) + 1}/{totalQuestions}
+              </span>
+            )}
+          </h3>
+        </div>
+
+        {/* Voters List Body - Dynamic max-height so 1 voter only takes required height, capped at max-h-[250px] for multiple voters */}
+        <div
+          className="max-h-[250px] overflow-y-auto px-5 pb-4 space-y-0"
+          onScroll={handleScroll}
         >
-          {/* Header */}
-          <div className="p-4 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
-            <div className="flex items-center gap-2">
-              <span className="text-base">{currentType.icon}</span>
-              <div>
-                <h3 className="text-sm font-black text-white flex items-center gap-2">
-                  <span>{currentType.label}</span>
-                  <span className="text-[11px] font-bold text-white/40 font-mono">({totalVoters})</span>
-                </h3>
-                <p className="text-[11px] text-white/50 truncate max-w-[280px]">
-                  {item.title || item.subtitle || "Engagement"}
-                </p>
-              </div>
+          {loading ? (
+            <div className="py-6 flex flex-col items-center justify-center gap-2 text-white/40 text-xs font-bold">
+              <div className="w-6 h-6 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
+              <span>Loading...</span>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 rounded-full bg-white/[0.05] hover:bg-white/[0.1] text-white/60 hover:text-white flex items-center justify-center transition-all cursor-pointer"
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          {/* Options Tab Selector */}
-          {options.length > 0 && (
-            <div className="p-3 border-b border-white/[0.06] bg-[#070b14]/50">
-              <div className="flex gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                {options.map((opt) => {
-                  const isActive = opt.id === activeOptionId;
-                  return (
-                    <button
-                      key={opt.id}
-                      onClick={() => setActiveOptionId(opt.id)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shrink-0 cursor-pointer border ${isActive
-                        ? "bg-white text-black border-white shadow-md"
-                        : "bg-white/[0.04] text-white/60 border-white/[0.08] hover:bg-white/[0.08] hover:text-white"
-                        }`}
-                    >
-                      <span className="truncate max-w-[140px]">{opt.text}</span>
-                      <span
-                        className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${isActive ? "bg-black/15 text-black" : "bg-white/10 text-white/80"
-                          }`}
-                      >
-                        {opt.count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
+          ) : flattenedVoters.length === 0 ? (
+            <div className="py-6 flex flex-col items-center justify-center text-center text-xs font-bold text-white/40 space-y-1">
+              <Users size={20} className="mx-auto text-white/20 mb-2" />
+              <p>No fans opted yet.</p>
             </div>
-          )}
-
-          {/* Voters List Body */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-[220px]">
-            {loading ? (
-              <div className="py-12 flex flex-col items-center justify-center gap-2 text-white/40 text-xs font-bold">
-                <RefreshCw size={20} className="animate-spin text-white/60" />
-                <span>Loading fans...</span>
-              </div>
-            ) : votersList.length === 0 ? (
-              <div className="py-12 text-center text-xs font-bold text-white/40 space-y-1">
-                <Users size={28} className="mx-auto text-white/20 mb-2" />
-                <p>No fans opted for this option yet.</p>
-                <p className="text-[10px] text-white/30">Be the first to vote!</p>
-              </div>
-            ) : (
-              votersList.map((voter, idx) => {
+          ) : (
+            <>
+              {displayedVoters.map((voter, idx) => {
                 const initialLetter = voter.userName ? voter.userName.charAt(0).toUpperCase() : "F";
                 const avatarUrl = resolveAvatar(voter);
+                const { id: displayId, badgeClasses } = resolveVoterOption(voter);
+
                 return (
                   <div
                     key={`${voter.userId}-${idx}`}
                     onClick={() => {
-                      onClose();
-                      window.location.href = `/MainModules/Profile?userId=${encodeURIComponent(voter.userId)}`;
+                      window.location.href = `/MainModules/Profile?userId=${encodeURIComponent(
+                        voter.userId
+                      )}`;
                     }}
-                    className="p-2.5 rounded-xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/[0.05] hover:border-white/[0.12] flex items-center justify-between transition-all cursor-pointer group"
+                    className="py-2.5 border-b border-white/[0.05] flex items-center justify-between transition-all cursor-pointer group last:border-0"
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
                       {avatarUrl ? (
                         <img
                           src={avatarUrl}
                           alt={voter.userName}
                           referrerPolicy="no-referrer"
                           crossOrigin="anonymous"
-                          className="w-8 h-8 rounded-full object-cover border border-white/20 shrink-0"
+                          className="w-8 h-8 rounded-full object-cover border border-white/10 shrink-0"
                           onError={(e: any) => {
                             e.target.style.display = "none";
                             e.target.nextSibling.style.display = "flex";
@@ -2885,40 +3039,35 @@ function EngagedUsersModal({
                       ) : null}
                       <div
                         style={{ display: avatarUrl ? "none" : "flex" }}
-                        className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 border border-white/20 items-center justify-center text-white font-black text-xs shrink-0"
+                        className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 border border-white/10 items-center justify-center text-white font-black text-xs shrink-0"
                       >
                         {initialLetter}
                       </div>
 
                       <div className="min-w-0">
-                        <h4 className="text-xs font-black text-white group-hover:text-amber-400 transition-colors truncate">
+                        <h4 className="text-sm font-bold text-white group-hover:text-amber-400 transition-colors truncate">
                           {voter.userName}
                         </h4>
-                        {/* <span className="text-[10px] text-white/40 font-mono block">
-                          @{voter.userId.replace(/^USER#/i, "").split("@")[0]}
-                        </span> */}
                       </div>
                     </div>
 
-                    <ChevronRight size={14} className="text-white/30 group-hover:text-white group-hover:translate-x-0.5 transition-all" />
+                    <div className={`w-6 h-6 flex items-center justify-center rounded-md border ${badgeClasses} text-xs font-black`}>
+                      {displayId}
+                    </div>
                   </div>
                 );
-              })
-            )}
-          </div>
-
-          {/* Footer */}
-          {/* <div className="p-3 border-t border-white/[0.06] bg-white/[0.02] flex items-center justify-between text-[11px] text-white/40">
-            <span>Click any fan to view profile</span>
-            <button
-              onClick={onClose}
-              className="px-3 py-1 bg-white/10 hover:bg-white/20 text-white rounded-lg font-bold text-xs transition-all cursor-pointer"
-            >
-              Close
-            </button>
-          </div> */}
-        </motion.div>
-      </div>
+              })}
+              
+              {hasMore && (
+                <div className="py-3 flex flex-col items-center justify-center gap-1 text-white/40 text-[10px] font-bold">
+                  <div className="w-4 h-4 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
+                  <span>Loading more...</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </motion.div>
     </AnimatePresence>
   );
 }
@@ -2940,9 +3089,24 @@ export default function FlipArena({
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [engagedModalItem, setEngagedModalItem] = useState<EngagementItem | null>(null);
+  const [quizActiveQuestion, setQuizActiveQuestion] = useState<Record<string, { index: number; id: string }>>({});
+
+  const handleQuizQuestionChange = useCallback((itemId: string, index: number, id: string) => {
+    setQuizActiveQuestion((prev) => {
+      if (prev[itemId]?.index === index && prev[itemId]?.id === id) return prev;
+      return {
+        ...prev,
+        [itemId]: { index, id },
+      };
+    });
+  }, []);
 
   const handleOpenEngagedModal = (item: EngagementItem) => {
-    setEngagedModalItem(item);
+    if (engagedModalItem?.id === item.id) {
+      setEngagedModalItem(null); // Toggle off if already open
+    } else {
+      setEngagedModalItem(item); // Open new
+    }
   };
 
   // 1-second live clock for all countdowns and frequency unlocks
@@ -3303,32 +3467,7 @@ export default function FlipArena({
         </div>
       </div>
 
-      <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full">
-        {/* Dedicated Meme Arena Header Banner */}
-        {/* {filter === "meme" && (
-          <div className="w-full max-w-lg bg-gradient-to-r from-orange-500/10 via-pink-500/10 to-purple-500/10 border border-orange-500/25 rounded-2xl p-4 flex items-center justify-between shadow-lg backdrop-blur-sm">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-black text-white flex items-center gap-1.5">
-                  <Flame size={16} className="text-orange-400 animate-pulse" />
-                  <span>Meme Arena</span>
-                </span>
-                <span className="flex items-center gap-1 text-[9px] font-black bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-full">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Live Now
-                </span>
-              </div>
-              <p className="text-[10px] text-white/50 mt-0.5">Funniest memes. Hottest takes. Only on SportsFan360.</p>
-            </div>
-            <button
-              onClick={() => handleOpenCreate("meme")}
-              className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-pink-600 hover:opacity-95 text-white font-extrabold text-[11px] flex items-center gap-1 shadow-lg shadow-orange-500/20 transition-all active:scale-95 cursor-pointer shrink-0"
-            >
-              <Plus size={13} /> Add Meme
-            </button>
-          </div>
-        )} */}
-
+      <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full max-w-lg mx-auto">
         {loadingEngagements && engagements.length === 0 ? (
           <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/40 text-xs font-bold">
             <div className="w-6 h-6 border-2 border-[#FF3D57] border-t-transparent rounded-full animate-spin" />
@@ -3357,98 +3496,56 @@ export default function FlipArena({
             </button>
           </div>
         ) : (
-          <AnimatePresence mode="popLayout">
-            {filteredEngagements.map((item) => {
-              const isItemHighlighted = highlightedItemId === item.id;
-              if (item.type === "fan_battle") {
+          <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-4">
+            <AnimatePresence mode="popLayout">
+              {filteredEngagements.map((item) => {
+                const isItemHighlighted = highlightedItemId === item.id;
+                
+                // Determine the correct Card Component
+                let CardComponent = null;
+                if (item.type === "fan_battle") CardComponent = DynamicFanBattleCard;
+                else if (item.type === "quiz") CardComponent = DynamicQuizCard;
+                else if (item.type === "poll") CardComponent = DynamicPollCard;
+                else if (item.type === "prediction") CardComponent = DynamicPredictionCard;
+                else if (item.type === "meme") CardComponent = DynamicMemeCard;
+
+                if (!CardComponent) return null;
+
                 return (
-                  <DynamicFanBattleCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    isHighlighted={isItemHighlighted}
-                    onOpenEngagedModal={handleOpenEngagedModal}
-                  />
+                  <motion.div 
+                    layout
+                    key={item.id} 
+                    className="w-full max-w-lg mx-auto flex flex-col items-center"
+                  >
+                    <CardComponent
+                      item={item}
+                      userId={activeUserId}
+                      userName={currentUser.userName}
+                      userAvatar={currentUser.userAvatar}
+                      userEmail={currentUser.userEmail}
+                      now={now}
+                      onToast={showToast}
+                      onEdit={handleOpenEdit}
+                      onDelete={item.type === "meme" ? handleDeleteEngagement : undefined}
+                      isHighlighted={isItemHighlighted}
+                      onOpenEngagedModal={handleOpenEngagedModal}
+                      isEngagedExpanded={engagedModalItem?.id === item.id}
+                      onQuestionChange={item.type === "quiz" ? (index: number, qId: string) => handleQuizQuestionChange(item.id, index, qId) : undefined}
+                    />
+                    
+                    {/* Inline Engaged Users List */}
+                    {engagedModalItem?.id === item.id && (
+                      <EngagedUsersInlineList
+                        item={engagedModalItem}
+                        questionId={quizActiveQuestion[item.id]?.id}
+                        questionIndex={quizActiveQuestion[item.id]?.index}
+                      />
+                    )}
+                  </motion.div>
                 );
-              }
-              if (item.type === "quiz") {
-                return (
-                  <DynamicQuizCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    isHighlighted={isItemHighlighted}
-                    onOpenEngagedModal={handleOpenEngagedModal}
-                  />
-                );
-              }
-              if (item.type === "poll") {
-                return (
-                  <DynamicPollCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    isHighlighted={isItemHighlighted}
-                    onOpenEngagedModal={handleOpenEngagedModal}
-                  />
-                );
-              }
-              if (item.type === "prediction") {
-                return (
-                  <DynamicPredictionCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    isHighlighted={isItemHighlighted}
-                    onOpenEngagedModal={handleOpenEngagedModal}
-                  />
-                );
-              }
-              if (item.type === "meme") {
-                return (
-                  <DynamicMemeCard
-                    key={item.id}
-                    item={item}
-                    userId={activeUserId}
-                    userName={currentUser.userName}
-                    userAvatar={currentUser.userAvatar}
-                    userEmail={currentUser.userEmail}
-                    now={now}
-                    onToast={showToast}
-                    onEdit={handleOpenEdit}
-                    onDelete={handleDeleteEngagement}
-                    isHighlighted={isItemHighlighted}
-                    onOpenEngagedModal={handleOpenEngagedModal}
-                  />
-                );
-              }
-              return null;
-            })}
-          </AnimatePresence>
+              })}
+            </AnimatePresence>
+          </div>
         )}
 
         {isPreview && (
@@ -3501,12 +3598,7 @@ export default function FlipArena({
         onToast={showToast}
       />
 
-      {/* Engaged Users Dialog Modal */}
-      <EngagedUsersModal
-        isOpen={Boolean(engagedModalItem)}
-        onClose={() => setEngagedModalItem(null)}
-        item={engagedModalItem}
-      />
+      {/* Engaged Users Modal was here, now moved inline below each card */}
 
     </div>
   );

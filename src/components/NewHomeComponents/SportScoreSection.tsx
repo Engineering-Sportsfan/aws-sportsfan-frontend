@@ -1478,30 +1478,31 @@ function IndiaStatsBar({
   if (isLoading || !data) {
     return (
       <div className="w-full max-w-lg md:max-w-xl mx-auto rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06] animate-pulse">
-        <div className="flex items-center justify-between px-4 py-4">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between px-4 py-3.5 sm:py-4">
+          <div className="flex flex-col items-center gap-1 shrink-0">
+            <div className="w-10 h-3 rounded bg-white/10" />
             <div className="w-9 h-6 rounded bg-white/10" />
-            <div className="flex flex-col gap-1.5">
-              <div className="w-16 h-2 rounded bg-white/10" />
-              <div className="w-20 h-3.5 rounded bg-white/10" />
-            </div>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col items-center gap-1">
+          <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
+            <div className="flex flex-col items-center gap-1.5 min-w-[28px]">
               <div className="w-5 h-5 rounded-full bg-white/10" />
-              <div className="w-5 h-3.5 rounded bg-white/10" />
+              <div className="w-4 h-4 rounded bg-white/10" />
             </div>
-            <div className="flex flex-col items-center gap-1">
+            <div className="flex flex-col items-center gap-1.5 min-w-[28px]">
               <div className="w-5 h-5 rounded-full bg-white/10" />
-              <div className="w-5 h-3.5 rounded bg-white/10" />
+              <div className="w-4 h-4 rounded bg-white/10" />
             </div>
-            <div className="flex flex-col items-center gap-1">
+            <div className="flex flex-col items-center gap-1.5 min-w-[28px]">
               <div className="w-5 h-5 rounded-full bg-white/10" />
-              <div className="w-5 h-3.5 rounded bg-white/10" />
+              <div className="w-4 h-4 rounded bg-white/10" />
             </div>
-            <div className="flex flex-col items-end gap-1 pl-1">
-              <div className="w-14 h-2 rounded bg-white/10" />
-              <div className="w-8 h-5 rounded bg-white/10" />
+            <div className="flex flex-col items-center gap-1.5 min-w-[32px]">
+              <div className="w-7 h-3 rounded bg-white/10" />
+              <div className="w-4 h-4 rounded bg-white/10" />
+            </div>
+            <div className="flex flex-col items-end gap-1.5 pl-1">
+              <div className="w-14 h-3 rounded bg-white/10" />
+              <div className="w-8 h-6 rounded bg-white/10" />
             </div>
           </div>
         </div>
@@ -1509,12 +1510,17 @@ function IndiaStatsBar({
     );
   }
 
+  const totalMedals = Number(data.medals.gold || 0) + Number(data.medals.silver || 0) + Number(data.medals.bronze || 0);
+
   return (
     <div className="w-full max-w-lg md:max-w-xl mx-auto rounded-2xl overflow-hidden bg-[#0e0a16] border border-white/[0.06]">
-      <div className="flex items-center justify-between px-4 py-4">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-center justify-between px-4 py-3.5 sm:py-4">
+        <div className="flex flex-col items-center justify-center shrink-0">
+          <p className="text-xs sm:text-sm font-black text-white leading-tight mb-1 text-center">
+            {data.country || "India"}
+          </p>
           {data.flagUrl ? (
-            <img src={data.flagUrl} alt={data.country || "India"} className="w-9 h-6 rounded object-cover" />
+            <img src={data.flagUrl} alt={data.country || "India"} className="w-9 h-6 rounded object-cover shadow-sm" />
           ) : data.flag ? (
             <span className="text-2xl leading-none">{data.flag}</span>
           ) : (
@@ -1524,38 +1530,50 @@ function IndiaStatsBar({
               <div className="flex-1 bg-green-600" />
             </div>
           )}
-          <div>
-            <p className="text-[10px] font-bold text-white/40 uppercase tracking-wide">
-              {data.label || `${data.country || "India"} Today`}
-            </p>
-            <p className="text-[15px] font-extrabold text-white">{data.eventsToday} Events</p>
-          </div>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-center">
-            <span className="text-lg">🥇</span>
-            <p className="text-lg font-black text-amber-400 leading-none mt-0.5">
+        <div className="flex items-center gap-3 sm:gap-4 md:gap-5">
+          <div className="flex flex-col items-center justify-between text-center min-w-[28px]">
+            <div className="h-5 sm:h-6 flex items-center justify-center">
+              <span className="text-base sm:text-lg leading-none">🥇</span>
+            </div>
+            <p className="text-base sm:text-lg font-black text-amber-400 leading-none mt-1">
               {data.medals.gold}
             </p>
           </div>
-          <div className="text-center">
-            <span className="text-lg">🥈</span>
-            <p className="text-lg font-black text-slate-300 leading-none mt-0.5">
+          <div className="flex flex-col items-center justify-between text-center min-w-[28px]">
+            <div className="h-5 sm:h-6 flex items-center justify-center">
+              <span className="text-base sm:text-lg leading-none">🥈</span>
+            </div>
+            <p className="text-base sm:text-lg font-black text-slate-300 leading-none mt-1">
               {data.medals.silver}
             </p>
           </div>
-          <div className="text-center">
-            <span className="text-lg">🥉</span>
-            <p className="text-lg font-black text-orange-400 leading-none mt-0.5">
+          <div className="flex flex-col items-center justify-between text-center min-w-[28px]">
+            <div className="h-5 sm:h-6 flex items-center justify-center">
+              <span className="text-base sm:text-lg leading-none">🥉</span>
+            </div>
+            <p className="text-base sm:text-lg font-black text-orange-400 leading-none mt-1">
               {data.medals.bronze}
             </p>
           </div>
-          <div className="text-right pl-1">
-            <p className="text-[9px] font-bold text-white/40 uppercase tracking-wide">
-              {data.rankLabel || "India Rank"}
+          <div className="flex flex-col items-center justify-between text-center min-w-[32px]">
+            <div className="h-5 sm:h-6 flex items-center justify-center">
+              <span className="text-[9px] sm:text-[10px] font-bold text-white/50 uppercase tracking-wide leading-none">
+                TOTAL
+              </span>
+            </div>
+            <p className="text-base sm:text-lg font-black text-white leading-none mt-1">
+              {totalMedals}
             </p>
-            <p className="text-2xl font-black text-emerald-400 leading-none">
+          </div>
+          <div className="flex flex-col items-end justify-between text-right pl-1 sm:pl-2">
+            <div className="h-5 sm:h-6 flex items-center justify-end">
+              <span className="text-[9px] sm:text-[10px] font-bold text-white/50 uppercase tracking-wide leading-none">
+                {data.rankLabel || "India Rank"}
+              </span>
+            </div>
+            <p className="text-xl sm:text-2xl font-black text-emerald-400 leading-none mt-1">
               #{String(data.countryRank).replace("#", "")}
             </p>
           </div>

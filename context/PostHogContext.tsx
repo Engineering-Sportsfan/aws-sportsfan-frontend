@@ -44,6 +44,10 @@ function PostHogPageView() {
         '/MainModules/FlipLine': 'FlipLine',
         '/MainModules/FlipArena': 'FlipArena',
           '/MainModules/FlipLong': 'FlipLong',
+        '/MainModules/AudioDrop': 'AudioDrop',
+        '/MainModules/FlipCards': 'FlipCards',
+        '/MainModules/Prediction': 'Prediction',
+        '/MainModules/Leaderboard': 'Leaderboard',
       };
 
       const lowerPath = pathname.toLowerCase();
@@ -79,3 +83,4 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     </PHProvider>
   );
 }
+
