@@ -336,6 +336,10 @@ function DynamicFanBattleCard({
   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, left.votes, right.votes]);
 
   const handleVote = async (side: "left" | "right") => {
+    if (!userId || String(userId).toLowerCase().startsWith("anon")) {
+      onToast("Please sign in to participate and earn SXPs!");
+      return;
+    }
     if (isScheduled) {
       onToast(`This battle starts in ${formatCountdown(timeToStartMs)}!`);
       return;
@@ -842,6 +846,10 @@ function DynamicQuizCard({
   }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, checkIsOptionCorrect, currentQ, currentQIndex, totalQuestions]);
 
   const handleOptionSelect = async (optId: string) => {
+    if (!userId || String(userId).toLowerCase().startsWith("anon")) {
+      onToast("Please sign in to participate and earn SXPs!");
+      return;
+    }
     if (answered || isScheduled || isAnsweringRef.current) return;
     isAnsweringRef.current = true;
     const qKey = `quiz_q_${currentQ?.id || currentQIndex}`;
@@ -1467,6 +1475,10 @@ function DynamicPollCard({
   }, [isExpired, voted, bonusAwarded, item.id, userId, selectedId, bonusClaimKey, onToast]);
 
   const handleVote = async (optId: string) => {
+    if (!userId || String(userId).toLowerCase().startsWith("anon")) {
+      onToast("Please sign in to participate and earn SXPs!");
+      return;
+    }
     if (isScheduled) {
       onToast(`Poll unlocks in ${formatCountdown(timeToStartMs)}!`);
       return;
@@ -2120,6 +2132,10 @@ function DynamicPredictionCard({
   }, [isExpired, predicted, bonusAwarded, item.id, userId, selectedChoice, bonusClaimKey, onToast]);
 
   const handlePredict = async (choice: "left" | "right") => {
+    if (!userId || String(userId).toLowerCase().startsWith("anon")) {
+      onToast("Please sign in to participate and earn SXPs!");
+      return;
+    }
     if (isScheduled) {
       onToast(`Prediction unlocks in ${formatCountdown(timeToStartMs)}!`);
       return;
@@ -2525,6 +2541,10 @@ function DynamicMemeCard({
   }, [item.memeData]);
 
   const handleRateMeme = async (ratingToSubmit?: MemeReactionType) => {
+    if (!currentUserId || String(currentUserId).toLowerCase().startsWith("anon")) {
+      onToast("Please sign in to participate and earn SXPs!");
+      return;
+    }
     const finalRating = ratingToSubmit || selectedRating || "hot";
     if (voted || loading || isRatingRef.current || getStoredVote("meme", item.id, userId)) {
       onToast("You already voted on this meme!");
@@ -2886,6 +2906,24 @@ interface EngagedOptionData {
   }>;
 }
 
+// Filter helper to strictly exclude unregistered/anonymous IP-based voters
+function isValidRegisteredVoter(voter: any): boolean {
+  if (!voter) return false;
+  const id = String(voter.userId || voter.actualUserId || voter.id || "").trim().toLowerCase();
+  const name = String(voter.userName || voter.username || voter.name || "").trim().toLowerCase();
+  const email = String((voter as any).userEmail || voter.email || "").trim().toLowerCase();
+
+  // Exclude anonymous / unregistered tokens
+  if (id.startsWith("anon_") || id.startsWith("anon-") || id.startsWith("anon") || id === "anonymous") return false;
+  if (name.startsWith("anon_") || name.startsWith("anon-") || name.startsWith("anon") || name === "anonymous") return false;
+  if (email.startsWith("anon_") || email.startsWith("anon-") || email.startsWith("anon") || email === "anonymous") return false;
+
+  // Exclude raw IP strings (e.g. IPv6 colons or proxy commas)
+  if (id.includes(":") || name.includes(":") || id.includes(",") || name.includes(",")) return false;
+
+  return true;
+}
+
 function EngagedUsersInlineList({
   item,
   questionId,
@@ -2928,9 +2966,20 @@ function EngagedUsersInlineList({
               opts = res.data.options || [];
             }
           }
-          setOptions(opts);
-          const total = opts.reduce((acc, o) => acc + (o.voters?.length || o.count || 0), 0);
-          setTotalVoters(total || res.data.totalVoters || 0);
+
+          // Filter out unregistered/anonymous voters from each option
+          const cleanOpts = opts.map((opt) => {
+            const validVoters = (opt.voters || []).filter((v: any) => isValidRegisteredVoter(v));
+            return {
+              ...opt,
+              voters: validVoters,
+              count: validVoters.length,
+            };
+          });
+
+          setOptions(cleanOpts);
+          const total = cleanOpts.reduce((acc, o) => acc + (o.voters?.length || 0), 0);
+          setTotalVoters(total);
         }
       })
       .catch((err) => {
@@ -2998,6 +3047,8 @@ function EngagedUsersInlineList({
   const currentUserVoted = useMemo(() => {
     if (!user || !item) return false;
     const uid = user.userId || (user as any)?.actualUserId || user.email;
+    if (!uid || String(uid).toLowerCase().startsWith("anon")) return false;
+
     if (item.type === "quiz") {
       const qId = questionId || item.quizData?.questions?.[questionIndex || 0]?.id || `q_${questionIndex || 0}`;
       return Boolean(getStoredVote(`quiz_q_${qId}`, item.id, uid) || getStoredVote("quiz_engaged", item.id, uid));
@@ -3013,42 +3064,46 @@ function EngagedUsersInlineList({
     return Boolean(item.userVoted);
   }, [item, user, questionId, questionIndex]);
 
-  // Combined list of voters including optimistic current user entry
+  // Combined list of voters strictly filtering out anonymous entries
   const allVoters = useMemo(() => {
-    const raw = options.flatMap((opt) =>
-      (opt.voters || []).map((v) => ({ ...v, optionId: opt.id, optionText: opt.text }))
-    );
+    const raw = options
+      .flatMap((opt) => (opt.voters || []).map((v) => ({ ...v, optionId: opt.id, optionText: opt.text })))
+      .filter((v) => isValidRegisteredVoter(v));
 
     if (currentUserVoted && user) {
       const uid = String(user.userId || (user as any)?.actualUserId || user.email || "");
-      const alreadyIn = raw.some(
-        (v) =>
-          v.userId === uid ||
-          (user.email && v.userId?.toLowerCase() === user.email.toLowerCase()) ||
-          (user.name && v.userName?.toLowerCase() === user.name.toLowerCase())
-      );
+      if (isValidRegisteredVoter({ userId: uid, userName: user.name, userEmail: user.email })) {
+        const alreadyIn = raw.some(
+          (v) =>
+            v.userId === uid ||
+            (user.email && v.userId?.toLowerCase() === user.email.toLowerCase()) ||
+            (user.name && v.userName?.toLowerCase() === user.name.toLowerCase())
+        );
 
-      if (!alreadyIn && uid) {
-        raw.unshift({
-          userId: uid,
-          userName: user.name || (user as any)?.userName || user.email?.split("@")[0] || "You",
-          userAvatar: (user as any)?.avatarUrl || user.photoURL || (user as any)?.picture || null,
-          selectedOptionId: "",
-          optionId: "",
-          optionText: "",
-          votedAt: Date.now(),
-        });
+        if (!alreadyIn && uid) {
+          raw.unshift({
+            userId: uid,
+            userName: user.name || (user as any)?.userName || user.email?.split("@")[0] || "You",
+            userAvatar: (user as any)?.avatarUrl || user.photoURL || (user as any)?.picture || null,
+            selectedOptionId: "",
+            optionId: "",
+            optionText: "",
+            votedAt: Date.now(),
+          });
+        }
       }
     }
 
     return raw;
   }, [options, currentUserVoted, user]);
 
-  const finalVotersCount = Math.max(allVoters.length, totalVoters, Number(item?.totalEngaged) || 0);
+  const finalVotersCount = allVoters.length;
 
   useEffect(() => {
-    onSyncCount?.(finalVotersCount);
-  }, [finalVotersCount, onSyncCount]);
+    if (!loading) {
+      onSyncCount?.(finalVotersCount);
+    }
+  }, [finalVotersCount, loading, onSyncCount]);
 
   if (!item) return null;
 
@@ -3234,7 +3289,7 @@ function EngagedUsersInlineList({
         {/* Header - Minimized Text */}
         <div className="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.04]">
           <h3 className="text-xs font-bold text-white/80 flex items-center gap-1.5">
-            <span>{finalVotersCount} engaged</span>
+            <span>{loading ? (Number(item.totalEngaged) || finalVotersCount) : finalVotersCount} engaged</span>
             {item.type === "quiz" && totalQuestions > 1 && (
               <span className="text-[9px] text-[#FF8A00] font-extrabold bg-[#FF8A00]/15 px-1.5 py-0.5 rounded-full border border-[#FF8A00]/30">
                 Q{(questionIndex ?? 0) + 1}/{totalQuestions}
