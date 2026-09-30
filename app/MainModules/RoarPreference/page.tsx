@@ -447,16 +447,6 @@ export default function RoarPreferencesPage() {
 
     setSaveState("saving");
     try {
-      trackFanDNACompleted({
-        tags: sports,
-        sportStyle: "Active",
-        notificationsEnabled: true
-      });
-      if (sports && sports.length > 0) {
-        trackInterestFollowed("sports", sports.join(", "), sports.length);
-      }
-    } catch (e) {}
-    try {
       const res = await axios.patch("/api/roar/onboarding", {
         sports,
         followEntities,
@@ -464,6 +454,16 @@ export default function RoarPreferencesPage() {
         requestedSport,
       });
       if (res.data?.success) {
+        try {
+          trackFanDNACompleted({
+            tags: sports,
+            sportStyle: "Active",
+            notificationsEnabled: true
+          });
+          if (sports && sports.length > 0) {
+            trackInterestFollowed("sports", sports.join(", "), sports.length);
+          }
+        } catch (e) {}
         setInitial({ sports, followEntities, engagementPrefs, requestedSport });
         setSaveState("saved");
         setTimeout(() => router.push("/MainModules/HomePage"), 600);
@@ -826,3 +826,4 @@ export default function RoarPreferencesPage() {
     </div>
   );
 }
+

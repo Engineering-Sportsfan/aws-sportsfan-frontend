@@ -154,8 +154,8 @@ export function trackFanDNACompleted(data: {
 
   // Prevent double-firing Fan DNA
   if (typeof window !== "undefined") {
-    if (localStorage.getItem("sf_fan_dna_tracked") === "true") return;
-    localStorage.setItem("sf_fan_dna_tracked", "true");
+    if (localStorage.getItem("sf_fan_dna_tracked_" + ph.get_distinct_id()) === "true") return;
+    localStorage.setItem("sf_fan_dna_tracked_" + ph.get_distinct_id(), "true");
   }
 
   try {
@@ -323,3 +323,4 @@ export function trackAdvocacy(
     console.warn('[Analytics] Failed to track advocacy action:', err);
   }
 }
+
