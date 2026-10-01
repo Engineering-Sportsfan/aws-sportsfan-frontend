@@ -759,6 +759,12 @@ function HomePageInner() {
   // handleSchemaCtaClick). On mount, if those params are present, open the
   // Dolly panel and jump straight to that session's replies.
   useEffect(() => {
+    const profileParam = searchParams.get("profile") || searchParams.get("profileUserId");
+    if (profileParam) {
+      router.replace(`/MainModules/Profile?userId=${encodeURIComponent(profileParam)}`);
+      return;
+    }
+
     const shouldOpen = searchParams.get("openDolly") === "1";
     const sessionId = searchParams.get("dollySessionId");
     if (!shouldOpen || !sessionId) return;
