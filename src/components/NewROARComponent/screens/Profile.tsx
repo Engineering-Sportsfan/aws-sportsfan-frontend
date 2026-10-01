@@ -13,7 +13,7 @@
 // import ActivityFeed from "../components/ActivityFeed";
 // import { BADGE_CONFIG, BADGE_DETAIL, BADGE_LABELS, BADGES_LIST, RIVAL, CURRENT_USER } from "../constants";
 // import { fmt } from "../utils";
-// import BackButton from "../../ReusableComponent/BackButton";
+// import { handleGoBack } from "@/utils/backButton";
 // import { useActivity } from "@/context/ActivityContext";
 // import { useAuth } from "@/context/AuthContext";
 // import Link from "next/link";
@@ -3274,7 +3274,7 @@ import AvatarWithBadge, { sanitizeAvatarUrl } from "../components/AvatarWithBadg
 import ActivityFeed from "../components/ActivityFeed";
 import { BADGE_CONFIG, BADGE_DETAIL, BADGE_LABELS, BADGES_LIST, RIVAL, CURRENT_USER } from "../constants";
 import { fmt } from "../utils";
-import BackButton from "../../ReusableComponent/BackButton";
+import { handleGoBack } from "@/utils/backButton";
 import { useActivity } from "@/context/ActivityContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -4531,7 +4531,8 @@ export default function Profile({
         if (err.response?.status === 404) {
           if (isOtherProfile) {
             onToast("User not found");
-            handleBack?.();
+            if (handleBack) handleBack();
+            else handleGoBack(router, "/MainModules/HomePage");
           } else {
             try { localStorage.removeItem("roar_v2_complete"); } catch { }
             setOnboarded?.(false);
@@ -5273,11 +5274,13 @@ export default function Profile({
         position: "sticky", top: 0, zIndex: 50,
       }}>
         <button
+          type="button"
           onClick={() => {
             if (handleBack) handleBack();
-            else if (isOtherProfile) router.back();
-            else router.push("/MainModules/HomePage");
+            else handleGoBack(router, "/MainModules/HomePage");
           }}
+          aria-label="Go back"
+          data-nav="back"
           style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
