@@ -10,7 +10,7 @@ export default function BackButton() {
     return (
         <motion.button
             whileTap={{ scale: 0.88 }}
-            onClick={() => handleGoBack(router, "/MainModules/ROAR")}
+            onClick={() => handleGoBack(router, "/MainModules/HomePage")}
             aria-label="Go back"
             data-nav="back"
             style={{
