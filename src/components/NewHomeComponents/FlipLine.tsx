@@ -585,6 +585,9 @@ function FlipLineSection({
         setAskOpen={setAskOpen}
         onCardUpdate={onCardUpdate}
         highlightedCardId={highlightedCardId}
+        activeFilter={activeFilter}
+        onSelectFilter={setActiveFilter}
+        allCards={baseCards}
       />
 
       {/* View Full FlipLINE Button (Figma Spec) */}
@@ -777,16 +780,21 @@ export function FlipLineFullScreen({
             setAskOpen={setAskOpen}
             onCardUpdate={onCardUpdate}
             highlightedCardId={highlightedCardId}
+            activeFilter={activeFilter}
+            onSelectFilter={setActiveFilter}
+            allCards={baseCards}
           />
-          {/* Start-of-coverage marker */}
-          <div className="pl-4 pt-4 flex items-center">
-            <div className="w-[50px] shrink-0 flex justify-center">
-              <div className="w-2.5 h-2.5 rounded-full bg-[#15181D] border-2 border-[#2A2F36]" />
+          {/* Start-of-coverage marker (Only when cards exist) */}
+          {displayCards.length > 0 && (
+            <div className="pl-4 pt-4 flex items-center">
+              <div className="w-[50px] shrink-0 flex justify-center">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#15181D] border-2 border-[#2A2F36]" />
+              </div>
+              <span className="pl-2.5 text-[11px] text-[#9AA3AF] font-bold tracking-wide">
+                Start of coverage
+              </span>
             </div>
-            <span className="pl-2.5 text-[11px] text-[#9AA3AF] font-bold tracking-wide">
-              Start of coverage
-            </span>
-          </div>
+          )}
         </div>
       </div>
     </div>
@@ -800,6 +808,9 @@ interface FlipTimelineProps {
   setAskOpen: (id: number | string | null) => void;
   onCardUpdate?: (updatedCard: FlipCard) => void;
   highlightedCardId?: string | null;
+  activeFilter?: string;
+  onSelectFilter?: (filterId: string) => void;
+  allCards?: FlipCard[];
 }
 
 /* ─── FlipCardItem Component ────────────────────────────────────────── */
@@ -2302,6 +2313,106 @@ export function FlipCardItem({
   );
 }
 
+/* ─── FlipLine Empty State matching Figma Specs ───────────────────────── */
+export function FlipLineEmptyState({
+  activeFilter = 'all',
+  onSelectFilter,
+  allCards = [],
+}: {
+  activeFilter?: string;
+  onSelectFilter?: (filterId: string) => void;
+  allCards?: FlipCard[];
+}) {
+  const sportOptions = [
+    { id: 'cricket', label: 'Cricket', emoji: '🏏' },
+    { id: 'athletics', label: 'Athletics', emoji: '👟' },
+    { id: 'football', label: 'Football', emoji: '⚽' },
+    { id: 'expert', label: 'Expert', emoji: '🎯' },
+    { id: 'analysts', label: 'Analysts', emoji: '🎙' },
+  ];
+
+  // Exclude current filter
+  const alternateOptions = sportOptions.filter(
+    (opt) => opt.id.toLowerCase() !== activeFilter.toLowerCase()
+  );
+
+  // Check which alternate sports have cards in allCards
+  const optionsWithCards = alternateOptions.filter((opt) =>
+    allCards.some((c) => matchesChannelFilter(c, opt.id))
+  );
+
+  // Select top 2 suggestions
+  const suggested = (
+    optionsWithCards.length >= 2
+      ? optionsWithCards.slice(0, 2)
+      : optionsWithCards.length === 1
+      ? [
+          optionsWithCards[0],
+          alternateOptions.find((o) => o.id !== optionsWithCards[0].id) || alternateOptions[0],
+        ]
+      : alternateOptions.slice(0, 2)
+  ).filter(Boolean);
+
+  const suggestedText =
+    suggested.length === 2
+      ? `${suggested[0].label} & ${suggested[1].label}`
+      : suggested.length === 1
+      ? suggested[0].label
+      : 'Cricket & Athletics';
+
+  return (
+    <div className="w-full max-w-[680px] mx-auto px-2 sm:px-4 my-3 sm:my-4 animate-in fade-in duration-300">
+      <div className="w-full rounded-2xl bg-[#111418] border border-[#2A2F36] p-5 sm:p-6 shadow-2xl relative overflow-hidden">
+        {/* Top Header */}
+        <div className="flex items-start gap-3.5 sm:gap-4">
+          <div className="shrink-0 mt-0.5">
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="#FF2D8A"
+              className="shrink-0 drop-shadow-[0_0_12px_rgba(255,45,138,0.4)]"
+            >
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-[17px] sm:text-[19px] font-black text-[#FFFFFF] tracking-tight leading-snug">
+              The next big moment is loading up!
+            </h3>
+            <p className="text-[13px] sm:text-[14px] text-[#9AA3AF] font-medium mt-1 leading-snug">
+              Meanwhile, explore what’s happening in{' '}
+              <strong className="text-[#FFFFFF] font-bold">{suggestedText}</strong>.
+            </p>
+          </div>
+        </div>
+
+        {/* CTA Buttons Grid */}
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3 mt-4 sm:mt-5 pt-1">
+          {suggested.map((sport) => (
+            <button
+              key={sport.id}
+              onClick={() => onSelectFilter?.(sport.id)}
+              className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl bg-[#15181D] hover:bg-[#1C2027] border border-[#2A2F36] hover:border-[#FF2D8A]/50 flex items-center justify-between gap-2 transition-all duration-200 active:scale-[0.98] cursor-pointer group shadow-sm"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-base sm:text-lg shrink-0">{sport.emoji}</span>
+                <span className="text-white text-[12.5px] sm:text-[14px] font-extrabold truncate">
+                  {sport.label}
+                </span>
+              </div>
+              <ChevronRight
+                size={16}
+                className="text-[#9AA3AF] group-hover:text-[#FFFFFF] group-hover:translate-x-0.5 transition-all shrink-0 stroke-[2.5]"
+              />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ─── FlipTimeline (Timeline List + Date Separators) ────────────────── */
 export function FlipTimeline({
   cards,
@@ -2310,6 +2421,9 @@ export function FlipTimeline({
   setAskOpen,
   onCardUpdate,
   highlightedCardId,
+  activeFilter = 'all',
+  onSelectFilter,
+  allCards = [],
 }: FlipTimelineProps) {
   const router = useRouter();
 
@@ -2352,6 +2466,16 @@ export function FlipTimeline({
     return timeB - timeA;
   });
   const finalCards = previewLimit ? displayList.slice(0, previewLimit) : displayList;
+
+  if (finalCards.length === 0) {
+    return (
+      <FlipLineEmptyState
+        activeFilter={activeFilter}
+        onSelectFilter={onSelectFilter}
+        allCards={allCards}
+      />
+    );
+  }
 
   const typeColorMap = {
     analyst: '#A855F7',
