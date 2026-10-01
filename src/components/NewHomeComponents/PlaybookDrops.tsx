@@ -128,6 +128,32 @@ function mapCloudinaryToDrop(item: MediaItem, index: number): PlaybookDrop {
   };
 }
 
+const HIDDEN_VIDEO_IDENTIFIERS = [
+  "WhatsApp_Video_2026-10-01_at_15.41.31_pd50ji",
+];
+
+function isHiddenMedia(item: any): boolean {
+  if (!item) return false;
+  const checkString = (val?: string) => {
+    if (!val || typeof val !== "string") return false;
+    return HIDDEN_VIDEO_IDENTIFIERS.some((hidden) =>
+      val.toLowerCase().includes(hidden.toLowerCase())
+    );
+  };
+
+  return (
+    checkString(item.id) ||
+    checkString(item.videoId) ||
+    checkString(item.publicId) ||
+    checkString(item.public_id) ||
+    checkString(item.title) ||
+    checkString(item.url) ||
+    checkString(item.videoUrl) ||
+    checkString(item.mediaUrl) ||
+    checkString(item.thumbnailUrl)
+  );
+}
+
 export default function PlaybookDrops() {
   const router = useRouter();
   const [drops, setDrops] = useState<PlaybookDrop[]>([]);
@@ -147,8 +173,9 @@ export default function PlaybookDrops() {
       // 1. Add FlipLong videos (user uploaded)
       if (flipLongRes.status === "fulfilled" && flipLongRes.value?.success && Array.isArray(flipLongRes.value.videos)) {
         flipLongRes.value.videos.forEach((video: FlipLongVideoItem, idx: number) => {
+          if (isHiddenMedia(video)) return;
           const drop = mapFlipLongToDrop(video, idx);
-          if (drop.mediaUrl && !seenUrls.has(drop.mediaUrl)) {
+          if (drop.mediaUrl && !seenUrls.has(drop.mediaUrl) && !isHiddenMedia(drop)) {
             seenUrls.add(drop.mediaUrl);
             allDrops.push(drop);
           }
@@ -158,8 +185,9 @@ export default function PlaybookDrops() {
       // 2. Add Cloudinary cricket media
       if (cloudinaryRes.status === "fulfilled" && cloudinaryRes.value?.success && Array.isArray(cloudinaryRes.value.mediaFiles)) {
         cloudinaryRes.value.mediaFiles.forEach((item: MediaItem, idx: number) => {
+          if (isHiddenMedia(item)) return;
           const drop = mapCloudinaryToDrop(item, allDrops.length + idx);
-          if (drop.mediaUrl && !seenUrls.has(drop.mediaUrl)) {
+          if (drop.mediaUrl && !seenUrls.has(drop.mediaUrl) && !isHiddenMedia(drop)) {
             seenUrls.add(drop.mediaUrl);
             allDrops.push(drop);
           }
