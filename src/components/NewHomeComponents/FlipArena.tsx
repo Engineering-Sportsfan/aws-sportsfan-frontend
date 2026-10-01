@@ -32,6 +32,8 @@ import {
   MoreVertical,
   Info,
   Users,
+  LayoutGrid,
+  ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LeaderboardOverlayModal from "@/src/components/NewHomeComponents/LeaderboardOverlayModal";
@@ -3157,7 +3159,15 @@ function EngagedUsersInlineList({
   );
 }
 
-// ─── Main FlipArena Component ───────────────────────────────────────────────
+const ARENA_FILTER_CHIPS = [
+  { id: "all", label: "All", isHash: true },
+  { id: "quiz", label: "Quiz", isHash: false },
+  { id: "poll", label: "Poll", isHash: false },
+  { id: "battle", label: "Battle", isHash: false },
+  { id: "prediction", label: "Prediction", isHash: false },
+  { id: "meme", label: "Meme", isHash: false },
+] as const;
+
 export default function FlipArena({
   selectedSport,
   activeTab = "fliparena",
@@ -3170,6 +3180,46 @@ export default function FlipArena({
   const [engagements, setEngagements] = useState<EngagementItem[]>([]);
   const [loadingEngagements, setLoadingEngagements] = useState(true);
   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction" | "meme">("all");
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
+
+  const toggleMoreMenu = () => {
+    if (!showMoreMenu && moreButtonRef.current) {
+      const rect = moreButtonRef.current.getBoundingClientRect();
+      const left = Math.max(12, Math.min(window.innerWidth - 170, rect.left));
+      setDropdownPos({
+        top: rect.bottom + 6,
+        left,
+      });
+      setShowMoreMenu(true);
+    } else {
+      setShowMoreMenu(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!showMoreMenu) return;
+    const handleReposition = () => {
+      if (moreButtonRef.current) {
+        const rect = moreButtonRef.current.getBoundingClientRect();
+        const left = Math.max(12, Math.min(window.innerWidth - 170, rect.left));
+        setDropdownPos({
+          top: rect.bottom + 6,
+          left,
+        });
+      }
+    };
+    window.addEventListener("scroll", handleReposition, true);
+    window.addEventListener("resize", handleReposition);
+    return () => {
+      window.removeEventListener("scroll", handleReposition, true);
+      window.removeEventListener("resize", handleReposition);
+    };
+  }, [showMoreMenu]);
+
+  const mobilePrimaryChips = ARENA_FILTER_CHIPS.slice(0, 3); // All, Quiz
+  const extraChips = ARENA_FILTER_CHIPS.slice(2); // Poll, Battle, Prediction, Meme
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [engagedModalItem, setEngagedModalItem] = useState<EngagementItem | null>(null);
@@ -3613,38 +3663,156 @@ export default function FlipArena({
         </div>
       )}
 
-      <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2 gap-2 flex-wrap">
+      <div className="px-4 py-3 flex flex-col md:flex-row md:items-center justify-between border-t border-white/[0.05] mt-2 gap-3">
         <div>
-          <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
+          <div className="flex justify-between items-center w-full">
+            <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
+            <button
+              onClick={() => setShowLeaderboardModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
+              title="Open Leaderboards"
+            >
+              <Trophy size={13} className="text-amber-400" />
+              <span>Leaderboard</span>
+            </button>
+          </div>
           <p className="text-[10px] text-white/35 mt-0.5">Earn +2 SXPs participation · +10 SXPs for correct answers</p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setShowLeaderboardModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
-            title="Open Leaderboards"
-          >
-            <Trophy size={13} className="text-amber-400" />
-            <span>Leaderboard</span>
-          </button>
-          <div className="flex gap-1 bg-white/[0.03] p-1 rounded-xl border border-white/[0.05] overflow-x-auto">
-            {(["all", "quiz", "poll", "battle", "prediction", "meme"] as const).map((tab) => (
+        {/* Filter Chips Bar */}
+        <div
+          className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
+          {/* Mobile & Desktop: Primary Chips (All, Quiz) */}
+          {mobilePrimaryChips.map((chip) => {
+            const isActive = filter === chip.id;
+            return (
               <button
-                key={tab}
-                onClick={() => setFilter(tab)}
-                className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold uppercase tracking-wider transition-all cursor-pointer shrink-0"
+                key={chip.id}
+                onClick={() => setFilter(chip.id)}
+                className="relative px-3.5 py-1.5 rounded-lg bg-[#15181D] border border-[#2A2F36] flex items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer shrink-0 overflow-hidden"
+              >
+                {chip.isHash && (
+                  <span className="text-[#FF2D8A] font-black text-xs">#</span>
+                )}
+                <span
+                  style={{
+                    color: isActive ? "#FFFFFF" : "#E4E8EE",
+                    fontWeight: isActive ? 800 : 600,
+                  }}
+                >
+                  {chip.label}
+                </span>
+                {isActive && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF2D8A]" />
+                )}
+              </button>
+            );
+          })}
+
+          {/* Desktop Only: Remaining chips (Poll, Battle, Prediction, Meme) */}
+          {extraChips.map((chip) => {
+            const isActive = filter === chip.id;
+            return (
+              <button
+                key={chip.id}
+                onClick={() => setFilter(chip.id)}
+                className="hidden md:flex relative px-3.5 py-1.5 rounded-lg bg-[#15181D] border border-[#2A2F36] items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer shrink-0 overflow-hidden"
+              >
+                <span
+                  style={{
+                    color: isActive ? "#FFFFFF" : "#E4E8EE",
+                    fontWeight: isActive ? 800 : 600,
+                  }}
+                >
+                  {chip.label}
+                </span>
+                {isActive && (
+                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF2D8A]" />
+                )}
+              </button>
+            );
+          })}
+
+          {/* Mobile Only: More Dropdown Button */}
+          <div className="flex md:hidden relative shrink-0">
+            <button
+              ref={moreButtonRef}
+              onClick={toggleMoreMenu}
+              className="relative px-3.5 py-1.5 rounded-lg bg-[#15181D] border border-[#2A2F36] flex items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer overflow-hidden"
+            >
+              <LayoutGrid size={13} className="text-[#9AA3AF]" />
+              <span
                 style={{
-                  backgroundColor: filter === tab ? "rgba(255,255,255,0.08)" : "transparent",
-                  color: filter === tab ? "#fff" : "rgba(255,255,255,0.45)",
+                  color: extraChips.some((c) => c.id === filter) ? "#FFFFFF" : "#E4E8EE",
+                  fontWeight: extraChips.some((c) => c.id === filter) ? 800 : 600,
                 }}
               >
-                {tab === "all" ? "All" : tab === "meme" ? "Meme" : tab}
-              </button>
-            ))}
+                {extraChips.find((c) => c.id === filter)?.label || "More"}
+              </span>
+              <ChevronDown
+                size={13}
+                className={`text-[#9AA3AF] transition-transform duration-200 ${showMoreMenu ? "rotate-180" : ""}`}
+              />
+              {extraChips.some((c) => c.id === filter) && (
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF2D8A]" />
+              )}
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Fixed Dropdown Menu for More Options (Rendered outside scroll container to prevent clipping) */}
+      <AnimatePresence>
+        {showMoreMenu && dropdownPos && (
+          <>
+            {/* Backdrop to close when clicking outside */}
+            <div
+              className="fixed inset-0 z-[99998] bg-transparent"
+              onClick={() => setShowMoreMenu(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -4, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -4, scale: 0.95 }}
+              transition={{ duration: 0.15 }}
+              style={{
+                position: "fixed",
+                top: `${dropdownPos.top}px`,
+                left: `${dropdownPos.left}px`,
+                zIndex: 99999,
+              }}
+              className="min-w-[155px] p-1.5 rounded-xl bg-[#15181D] border border-[#2A2F36] shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1 backdrop-blur-xl"
+            >
+              <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#9AA3AF]">
+                More Arena Types
+              </div>
+              {extraChips.map((chip) => {
+                const isSelected = filter === chip.id;
+                return (
+                  <button
+                    key={chip.id}
+                    onClick={() => {
+                      setFilter(chip.id);
+                      setShowMoreMenu(false);
+                    }}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${isSelected
+                      ? "bg-[#111418] text-white border border-[#FF2D8A]/50 shadow-sm"
+                      : "text-[#E4E8EE] hover:bg-[#111418] hover:text-white"
+                      }`}
+                  >
+                    <span className="flex-1">{chip.label}</span>
+                    {isSelected && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF2D8A]" />
+                    )}
+                  </button>
+                );
+              })}
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full max-w-lg mx-auto">
         {loadingEngagements && engagements.length === 0 ? (

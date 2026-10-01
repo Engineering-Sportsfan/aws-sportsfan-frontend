@@ -287,8 +287,8 @@ function matchesSportFilter(card: FlipCard, target: string): boolean {
 const FILTER_CHIPS = [
   { id: 'all', label: 'All', emoji: '', isHash: true },
   { id: 'cricket', label: 'Cricket', emoji: '🏏', isHash: false },
-  { id: 'football', label: 'Football', emoji: '⚽', isHash: false },
   { id: 'athletics', label: 'Athletics', emoji: '🏃', isHash: false },
+  { id: 'football', label: 'Football', emoji: '⚽', isHash: false },
   { id: 'expert', label: 'Expert', emoji: '🎯', isHash: false },
   { id: 'analysts', label: 'Analysts', emoji: '🎙', isHash: false },
 ];
