@@ -415,14 +415,6 @@ function HomePageInner() {
   const pendingFlipAskRef = useRef<string | null>(null);
   const justCompletedRef = useRef(false);
 
-  // Ensure roar_v2_complete is set so new users don't get blocked anywhere
-  useEffect(() => {
-    try {
-      localStorage.setItem("roar_v2_complete", "1");
-    } catch {}
-  }, []);
-
-  
   // Redirect to login if user is not authenticated
   useEffect(() => {
     if (!authReady) return;
