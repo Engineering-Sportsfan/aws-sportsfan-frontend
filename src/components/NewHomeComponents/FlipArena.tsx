@@ -2472,7 +2472,7 @@ function DynamicMemeCard({
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-orange-400 flex items-center gap-1">
             <Flame size={11} className="text-orange-400" />
-            <span>FAN MEME</span>
+            <span>MEME</span>
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -2481,7 +2481,7 @@ function DynamicMemeCard({
       </div>
 
       {/* Author Info */}
-      <div className="flex items-center justify-between mb-3">
+      {/* <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5">
           <img
             src={meme.authorAvatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"}
@@ -2499,7 +2499,7 @@ function DynamicMemeCard({
             <span className="text-[10px] text-white/40 font-mono">{meme.authorHandle || "@fan"}</span>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Caption */}
       <p className="text-xs font-semibold text-white/90 mb-3 leading-relaxed">

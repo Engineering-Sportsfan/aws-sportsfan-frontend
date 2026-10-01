@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Check, Circle, AlertCircle, Info, Star, Swords, MessageSquare, Flame, Trophy, Sparkles, RefreshCw } from "lucide-react";
+import { Check, Circle, AlertCircle, Info, Star, Swords, MessageSquare, Flame, Trophy, Sparkles, RefreshCw, ArrowLeft } from "lucide-react";
+import { handleGoBack } from "@/utils/backButton";
 
 const TOKENS = {
   bg: "#0b0b0f",
@@ -92,6 +94,7 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
 }
 
 export default function NotificationCenter() {
+  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
   // Local storage cached user fallback for instant hydration
@@ -307,6 +310,29 @@ export default function NotificationCenter() {
           style={{ borderBottom: `1px solid ${TOKENS.border}` }}
         >
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => handleGoBack(router)}
+              data-nav="back"
+              aria-label="Go back"
+              title="Go back"
+              className="flex items-center justify-center w-8 h-8 rounded-lg transition-all active:scale-95 cursor-pointer shrink-0"
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: `1px solid ${TOKENS.border}`,
+                color: TOKENS.textMuted,
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.12)";
+                e.currentTarget.style.color = TOKENS.textPrimary;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(255,255,255,0.06)";
+                e.currentTarget.style.color = TOKENS.textMuted;
+              }}
+            >
+              <ArrowLeft size={16} />
+            </button>
+
             <span
               className="uppercase text-xs font-black tracking-widest"
               style={{

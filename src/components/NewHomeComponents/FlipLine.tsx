@@ -1713,9 +1713,7 @@ export function FlipCardItem({
                   title={copiedState ? 'Link Copied!' : 'Share Post'}
                 >
                   {copiedState ? <CheckCircle2 size={15} className="text-emerald-400" /> : <Share2 size={15} />}
-                  <span className="text-[12px] font-bold leading-none">
-                    {copiedState ? 'Copied!' : formatCount(Number(card.fomoCount) || 124)}
-                  </span>
+
                 </button>
 
                 {/* Floating Share Toast */}
