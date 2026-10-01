@@ -15,9 +15,82 @@ interface RoarJourneySectionProps {
     debates: number;
     posts: number;
 
+    userId?: string | null;
+    username?: string | null;
     badgeSrcs: string[];
     badgeNames?: string[];
     onToast: (m: string) => void;
+}
+
+function resolveProfileShareUrl(propUserId?: string | null, propUsername?: string | null): string {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://sportsfan-frontend.vercel.app";
+
+    const sanitize = (id: any): string | null => {
+        if (!id) return null;
+        const s = String(id).trim();
+        if (!s || s === "undefined" || s === "null") return null;
+        return s.replace(/^@/, "");
+    };
+
+    // 1. Explicit propUserId passed from parent (e.g. Profile.tsx)
+    const fromProp = sanitize(propUserId);
+    if (fromProp) {
+        return `${origin}/MainModules/Profile?userId=${encodeURIComponent(fromProp)}&profile=${encodeURIComponent(fromProp)}`;
+    }
+
+    if (typeof window !== "undefined") {
+        // 2. Query params in current URL (if already on a profile page with query params)
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const queryId = sanitize(
+                params.get("userId") ||
+                params.get("profile") ||
+                params.get("profileUserId") ||
+                params.get("id") ||
+                params.get("username")
+            );
+            if (queryId) {
+                return `${origin}/MainModules/Profile?userId=${encodeURIComponent(queryId)}&profile=${encodeURIComponent(queryId)}`;
+            }
+        } catch { }
+
+        // 3. Stored auth user in localStorage
+        try {
+            const stored = localStorage.getItem("auth_user");
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                const authId = sanitize(parsed?.actualUserId || parsed?.userId || parsed?.email);
+                if (authId) {
+                    return `${origin}/MainModules/Profile?userId=${encodeURIComponent(authId)}&profile=${encodeURIComponent(authId)}`;
+                }
+            }
+        } catch { }
+
+        // 4. Stored userId in localStorage
+        try {
+            const storedUid = sanitize(localStorage.getItem("userId"));
+            if (storedUid) {
+                return `${origin}/MainModules/Profile?userId=${encodeURIComponent(storedUid)}&profile=${encodeURIComponent(storedUid)}`;
+            }
+        } catch { }
+
+        // 5. Stored username in localStorage (if not generic placeholder)
+        try {
+            const storedUsername = sanitize(localStorage.getItem("roar_username"));
+            if (storedUsername && !["Fan", "RoarUser", "ROARFAN", "ROAR fan", "ROAR Fan"].includes(storedUsername)) {
+                return `${origin}/MainModules/Profile?userId=${encodeURIComponent(storedUsername)}&profile=${encodeURIComponent(storedUsername)}`;
+            }
+        } catch { }
+    }
+
+    // 6. Fallback to propUsername if valid
+    const fromUsername = sanitize(propUsername);
+    if (fromUsername && !["Fan", "RoarUser", "ROARFAN", "ROAR fan", "ROAR Fan"].includes(fromUsername)) {
+        return `${origin}/MainModules/Profile?userId=${encodeURIComponent(fromUsername)}&profile=${encodeURIComponent(fromUsername)}`;
+    }
+
+    // 7. Ultimate fallback
+    return `${origin}/MainModules/Profile`;
 }
 
 function buildShareText(
@@ -31,10 +104,12 @@ function buildShareText(
     quiz: number = 0,
     meme: number = 0,
     badgeNames: string[] = [],
-    badgeSrcs: string[] = []
+    badgeSrcs: string[] = [],
+    shareUrl?: string | null,
+    username?: string | null
 ) {
     const origin = typeof window !== "undefined" ? window.location.origin : "https://sportsfan-frontend.vercel.app";
-    const url = typeof window !== "undefined" ? window.location.href : "https://sportsfan-frontend.vercel.app/MainModules/ROAR";
+    const url = shareUrl || `${origin}/MainModules/Profile`;
     
     const badgesSection = badgeNames.length > 0
         ? [
@@ -49,8 +124,10 @@ function buildShareText(
         ? [`🏅 Badges Earned: ${badgeCount}`]
         : [];
 
+    const titleLine = username ? `🔥 ${username}'s Sportsfan360 Journey` : "🔥 My Sportsfan360 Journey";
+
     return [
-        "🔥 My Sportsfan360 Journey",
+        titleLine,
         "",
         "⚔️ FlipARENA:",
         `  📊 Polls: ${polls}`,
@@ -65,7 +142,7 @@ function buildShareText(
         `  ✏️ Posts: ${posts}`,
         ...badgesSection,
         "",
-        `Join us 👉 ${url}`,
+        `Check out my profile 👉 ${url}`,
         "#StartRoaring #Sportsfan360",
     ]
         .filter((l) => l !== null)
@@ -92,6 +169,8 @@ export function RoarJourneySection({
     posts = 0,
     badgeSrcs = [],
     badgeNames = [],
+    userId,
+    username,
     onToast,
 }: RoarJourneySectionProps) {
     const [isMobile, setIsMobile] = useState(false);
@@ -104,6 +183,8 @@ export function RoarJourneySection({
     const [sharing, setSharing] = useState(false);
     const bgImageRef = useRef<HTMLImageElement | null>(null);
     const [bgFailed, setBgFailed] = useState(false);
+
+    const shareUrl = resolveProfileShareUrl(userId, username);
 
     // Detect mobile
     useEffect(() => {
@@ -147,7 +228,9 @@ export function RoarJourneySection({
         quiz,
         meme,
         badgeNames,
-        badgeSrcs
+        badgeSrcs,
+        shareUrl,
+        username
     );
 
     const handleWhatsApp = () =>
@@ -164,9 +247,8 @@ export function RoarJourneySection({
         window.open("https://www.instagram.com/", "_blank");
     };
     const handleLinkedIn = () => {
-        const currentUrl = typeof window !== "undefined" ? window.location.href : "https://sportsfan-frontend.vercel.app/MainModules/ROAR";
         window.open(
-            `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(currentUrl)}`,
+            `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}`,
             "_blank"
         );
     };
@@ -383,11 +465,10 @@ export function RoarJourneySection({
                 navigator.canShare?.({ files: shareFiles })
             ) {
                 try {
-                    const currentUrl = typeof window !== "undefined" ? window.location.href : "https://sportsfan-frontend.vercel.app/MainModules/ROAR";
                     await navigator.share({
                         files: shareFiles,
                         title: "My Sportsfan Journey",
-                        text: `Hey! Check out my journey on Sportsfan360 👉 ${currentUrl}`,
+                        text: `Hey! Check out my journey on Sportsfan360 👉 ${shareUrl}`,
                     });
                     return;
                 } catch (shareErr: any) {

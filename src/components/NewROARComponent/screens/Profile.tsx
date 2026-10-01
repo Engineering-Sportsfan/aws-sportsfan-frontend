@@ -5846,6 +5846,21 @@ export default function Profile({
 
           {/* ── Roar Journey ── */}
           <RoarJourneySection
+            userId={
+              isOtherProfile
+                ? (profileMetadata?.user?.actualUserId ||
+                   profileMetadata?.user?.userId ||
+                   (typeof viewingProfile === "string" ? viewingProfile : null) ||
+                   fanData?.actualUserId ||
+                   fanData?.userId)
+                : (profileMetadata?.user?.actualUserId ||
+                   profileMetadata?.user?.userId ||
+                   loggedInUserId ||
+                   authUser?.actualUserId ||
+                   authUser?.userId ||
+                   authUser?.email)
+            }
+            username={effectiveUsername || user?.username || user?.displayName || user?.name}
             polls={statPolls}
             arenaPredictions={statArenaPredictions}
             fanBattles={statFanBattles}
