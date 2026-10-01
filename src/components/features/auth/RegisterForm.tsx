@@ -511,7 +511,7 @@ export default function RegisterPage() {
         const loginRes = await axios.post('/api/auth/login', { email, password });
         if (loginRes.data?.success) {
           try {
-            localStorage.setItem("roar_v2_complete", "1");
+            localStorage.removeItem("roar_v2_complete");
             if (loginRes.data.user) {
               const u = loginRes.data.user;
               const fullName =
