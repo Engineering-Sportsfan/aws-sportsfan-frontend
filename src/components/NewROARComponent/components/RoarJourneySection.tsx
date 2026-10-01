@@ -113,9 +113,8 @@ export function RoarJourneySection({
         return () => window.removeEventListener("resize", check);
     }, []);
 
-    // Preload bg image for mobile canvas (only on mobile)
+    // Preload bg image for canvas
     useEffect(() => {
-        if (!isMobile) return;
         const img = new window.Image();
         img.crossOrigin = "anonymous";
         img.onload = () => {
@@ -126,7 +125,7 @@ export function RoarJourneySection({
             setBgFailed(true);
         };
         img.src = "/images/profilecard.png";
-    }, [isMobile]);
+    }, []);
 
     // Lock body scroll when desktop modal is open
     useEffect(() => {
@@ -196,69 +195,169 @@ export function RoarJourneySection({
         Copy: handleCopy,
     };
 
-    // Helper to fetch actual badge image files
-    const fetchBadgeImageFiles = async (): Promise<File[]> => {
-        const files: File[] = [];
-        const origin = typeof window !== "undefined" ? window.location.origin : "";
-        for (let i = 0; i < badgeSrcs.length; i++) {
-            const src = badgeSrcs[i];
-            if (!src) continue;
-            try {
-                const fullUrl = src.startsWith("http") ? src : `${origin}${src.startsWith("/") ? "" : "/"}${src}`;
-                const res = await fetch(fullUrl);
-                if (res.ok) {
-                    const blob = await res.blob();
-                    const name = badgeNames[i]
-                        ? `${badgeNames[i].toLowerCase().replace(/[^a-z0-9]/g, "_")}.png`
-                        : `badge_${i + 1}.png`;
-                    files.push(new File([blob], name, { type: blob.type || "image/png" }));
-                }
-            } catch (e) {
-                console.error("[RoarJourneySection] Could not fetch badge image:", src, e);
-            }
-        }
-        return files;
+    const loadCanvasImage = (src: string): Promise<HTMLImageElement | null> => {
+        return new Promise((resolve) => {
+            const img = new window.Image();
+            img.crossOrigin = "anonymous";
+            img.onload = () => resolve(img);
+            img.onerror = () => resolve(null);
+            img.src = src;
+        });
     };
 
-    // ── Mobile share handler ──
-    const generateShareCard = (): Promise<Blob | null> => {
-        return new Promise((resolve) => {
-            const bg = bgImageRef.current;
-            if (!bg) return resolve(null);
+    // ── Share Card Generator (Draws FlipARENA, ROAR, & Badges on the white card) ──
+    const generateShareCard = async (): Promise<Blob | null> => {
+        let bg = bgImageRef.current;
+        if (!bg) {
+            bg = await loadCanvasImage("/images/profilecard.png");
+        }
+        if (!bg) return null;
 
-            const canvas = document.createElement("canvas");
-            canvas.width = 1340;
-            canvas.height = 752;
-            const ctx = canvas.getContext("2d");
-            if (!ctx) return resolve(null);
+        const canvas = document.createElement("canvas");
+        canvas.width = 1340;
+        canvas.height = 752;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
 
-            try {
-                ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
-            } catch (e) {
-                console.error("[RoarJourneySection] Canvas draw failed:", e);
-                return resolve(null);
+        try {
+            ctx.drawImage(bg, 0, 0, canvas.width, canvas.height);
+        } catch (e) {
+            console.error("[RoarJourneySection] Canvas draw failed:", e);
+            return null;
+        }
+
+        // Draw crisp white rounded card covering the full template area including bottom labels
+        const cardX = 96;
+        const cardY = 448;
+        const cardW = 1148;
+        const cardH = 208;
+        const cardR = 24;
+
+        ctx.fillStyle = "#FFFFFF";
+        if (typeof ctx.roundRect === "function") {
+            ctx.beginPath();
+            ctx.roundRect(cardX, cardY, cardW, cardH, cardR);
+            ctx.fill();
+        } else {
+            ctx.fillRect(cardX, cardY, cardW, cardH);
+        }
+
+        // ── 1. Section 1: FlipARENA Title & Tabs Data ──
+        ctx.font = "900 10.5px Arial, sans-serif";
+        ctx.fillStyle = "#E91E8C";
+        ctx.textAlign = "center";
+        ctx.fillText("FLIPARENA", cardX + cardW / 2, cardY + 16);
+
+        const arenaStats = [
+            { label: "POLLS", value: polls, color: "#38BDF8" },
+            { label: "PREDICTIONS", value: arenaPredictions, color: "#A855F7" },
+            { label: "FAN BATTLES", value: fanBattles, color: "#EF4444" },
+            { label: "QUIZZES", value: quiz, color: "#F59E0B" },
+            { label: "MEMES", value: meme, color: "#10B981" },
+        ];
+
+        const arenaColW = cardW / arenaStats.length;
+        arenaStats.forEach((stat, idx) => {
+            const cx = cardX + (idx + 0.5) * arenaColW;
+
+            // Value
+            ctx.font = "bold 20px Arial, sans-serif";
+            ctx.fillStyle = stat.color;
+            ctx.textAlign = "center";
+            ctx.fillText(String(stat.value), cx, cardY + 38);
+
+            // Label
+            ctx.font = "bold 8px Arial, sans-serif";
+            ctx.fillStyle = "#64748B";
+            ctx.textAlign = "center";
+            ctx.fillText(stat.label, cx, cardY + 50);
+        });
+
+        // Subtle divider between FlipARENA and ROAR
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.06)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cardX + 40, cardY + 59);
+        ctx.lineTo(cardX + cardW - 40, cardY + 59);
+        ctx.stroke();
+
+        // ── 2. Section 2: ROAR Title & Tabs Data ──
+        ctx.font = "900 10.5px Arial, sans-serif";
+        ctx.fillStyle = "#FF6B35";
+        ctx.textAlign = "center";
+        ctx.fillText("ROAR", cardX + cardW / 2, cardY + 74);
+
+        const roarStats = [
+            { label: "PREDICTIONS", value: predictions, color: "#9333EA" },
+            { label: "DEBATES", value: debates, color: "#FF6B35" },
+            { label: "POSTS", value: posts, color: "#14B8A6" },
+        ];
+
+        const roarColW = cardW / roarStats.length;
+        roarStats.forEach((stat, idx) => {
+            const cx = cardX + (idx + 0.5) * roarColW;
+
+            // Value
+            ctx.font = "bold 20px Arial, sans-serif";
+            ctx.fillStyle = stat.color;
+            ctx.textAlign = "center";
+            ctx.fillText(String(stat.value), cx, cardY + 96);
+
+            // Label
+            ctx.font = "bold 8px Arial, sans-serif";
+            ctx.fillStyle = "#64748B";
+            ctx.textAlign = "center";
+            ctx.fillText(stat.label, cx, cardY + 108);
+        });
+
+        // Subtle divider between ROAR and Badges
+        ctx.strokeStyle = "rgba(0, 0, 0, 0.06)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cardX + 40, cardY + 117);
+        ctx.lineTo(cardX + cardW - 40, cardY + 117);
+        ctx.stroke();
+
+        // ── 3. Section 3: Badges Earned Title & Direct Badge Images ──
+        ctx.font = "900 10.5px Arial, sans-serif";
+        ctx.fillStyle = "#475569";
+        ctx.textAlign = "center";
+        ctx.fillText("BADGES EARNED", cardX + cardW / 2, cardY + 132);
+
+        const validBadgeSrcs = badgeSrcs.filter(Boolean).slice(0, 8);
+        if (validBadgeSrcs.length > 0) {
+            const loadedBadgeImages = await Promise.all(
+                validBadgeSrcs.map((src) => loadCanvasImage(src))
+            );
+            const validImages = loadedBadgeImages.filter((img): img is HTMLImageElement => img !== null);
+
+            if (validImages.length > 0) {
+                const badgeSize = 42;
+                const badgeGap = 16;
+                const totalWidth = validImages.length * badgeSize + (validImages.length - 1) * badgeGap;
+                let startX = cardX + (cardW - totalWidth) / 2;
+                const badgeY = cardY + 144;
+
+                validImages.forEach((img) => {
+                    // Soft circular background for badge icon
+                    ctx.fillStyle = "rgba(241, 245, 249, 0.95)";
+                    ctx.beginPath();
+                    ctx.arc(startX + badgeSize / 2, badgeY + badgeSize / 2, badgeSize / 2 + 2, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Subtle border around badge icon circle
+                    ctx.strokeStyle = "rgba(203, 213, 225, 0.7)";
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    // Draw badge image
+                    ctx.drawImage(img, startX, badgeY, badgeSize, badgeSize);
+                    startX += badgeSize + badgeGap;
+                });
             }
+        }
 
-            const stats = [
-                { label: "PREDICTIONS", value: predictions, x: 220 },
-                { label: "DEBATES", value: debates, x: 490 },
-                { label: "POSTS", value: posts, x: 760 },
-                { label: "BADGES EARNED", value: badgeSrcs.length, x: 1030 },
-            ];
-
-            stats.forEach(({ label, value, x }) => {
-                const y = 530;
-
-                ctx.font = "bold 88px Arial";
-                ctx.fillStyle =
-                    label === "PREDICTIONS" ? "#9333EA"
-                        : label === "DEBATES" ? "#F97316"
-                            : label === "POSTS" ? "#14B8A6"
-                                : "#F97316";
-                ctx.textAlign = "center";
-                ctx.fillText(String(value), x + 50, y);
-            });
-
+        return new Promise((resolve) => {
             canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
         });
     };
@@ -267,20 +366,17 @@ export function RoarJourneySection({
         if (sharing) return;
         setSharing(true);
         try {
-            // 1. Fetch direct badge image files
-            const badgeFiles = await fetchBadgeImageFiles();
-            const shareFiles: File[] = [...badgeFiles];
-
-            // 2. Also generate summary card if available
+            // Generate single summary card with FlipARENA, ROAR, and Badges drawn directly
             const cardBlob = await generateShareCard();
+            const shareFiles: File[] = [];
             if (cardBlob) {
-                const cardFile = new File([cardBlob], "my-roar-journey.png", {
+                const cardFile = new File([cardBlob], "my-sportsfan-journey.png", {
                     type: "image/png",
                 });
-                shareFiles.unshift(cardFile);
+                shareFiles.push(cardFile);
             }
 
-            // 3. Share files directly via native share
+            // Share single journey card directly via native share
             if (
                 shareFiles.length > 0 &&
                 typeof navigator !== "undefined" &&
@@ -290,8 +386,8 @@ export function RoarJourneySection({
                     const currentUrl = typeof window !== "undefined" ? window.location.href : "https://sportsfan-frontend.vercel.app/MainModules/ROAR";
                     await navigator.share({
                         files: shareFiles,
-                        title: "My Sportsfan Journey & Badges",
-                        text: `Hey! Check out my journey & badges on Sportsfan360 👉 ${currentUrl}`,
+                        title: "My Sportsfan Journey",
+                        text: `Hey! Check out my journey on Sportsfan360 👉 ${currentUrl}`,
                     });
                     return;
                 } catch (shareErr: any) {
@@ -300,26 +396,7 @@ export function RoarJourneySection({
                 }
             }
 
-            // 4. Fallback for single file share if multiple files not supported
-            if (
-                shareFiles.length > 0 &&
-                typeof navigator !== "undefined" &&
-                navigator.canShare?.({ files: [shareFiles[0]] })
-            ) {
-                try {
-                    const currentUrl = typeof window !== "undefined" ? window.location.href : "https://sportsfan-frontend.vercel.app/MainModules/ROAR";
-                    await navigator.share({
-                        files: [shareFiles[0]],
-                        title: "My Sportsfan Journey",
-                        text: `Hey! Check out my journey on Sportsfan360 👉 ${currentUrl}`,
-                    });
-                    return;
-                } catch (shareErr: any) {
-                    if (shareErr?.name === "AbortError") return;
-                }
-            }
-
-            // 5. Fallback download
+            // Fallback download if single file share not supported
             if (shareFiles.length > 0) {
                 const url = URL.createObjectURL(shareFiles[0]);
                 const a = document.createElement("a");
@@ -327,10 +404,10 @@ export function RoarJourneySection({
                 a.download = shareFiles[0].name;
                 a.click();
                 URL.revokeObjectURL(url);
-                onToast("Badge image saved! Share it from your gallery.");
+                onToast("Journey image saved! Share it from your gallery.");
             } else {
                 if (bgFailed) {
-                    onToast("Couldn't load share images.");
+                    onToast("Couldn't load share image.");
                 } else {
                     await navigator.clipboard?.writeText(text);
                     onToast("Copied to clipboard!");

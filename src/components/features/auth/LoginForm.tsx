@@ -414,7 +414,6 @@ export default function LoginCard() {
                     }
 
                     try {
-                        localStorage.setItem("roar_v2_complete", "1");
                         if (response.data.user) {
                             const u = response.data.user;
                             const fullName =
