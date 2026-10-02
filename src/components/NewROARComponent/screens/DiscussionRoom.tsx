@@ -3332,7 +3332,7 @@ import { trackMeaningfulInteraction, trackAdvocacy } from "@/lib/analytics";
 import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { useUserProfile } from "@/context/UserProfileContext";
 import axios from "axios";
-import AvatarWithBadge from "../components/AvatarWithBadge";
+import AvatarWithBadge, { sanitizeAvatarUrl } from "../components/AvatarWithBadge";
 import ReactionPicker, { type Reaction } from "../components/ReactionPicker";
 import ReactionsDialog from "../components/ReactionsDialog";
 import ActiveFansDialog from "../components/ActiveFansDialog";
@@ -4858,6 +4858,7 @@ export default function DiscussionRoom({
       });
   }, [roomBotConfig, botDefs]);
 
+  const { userProfile } = useUserProfile();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
@@ -4868,8 +4869,27 @@ export default function DiscussionRoom({
   const [uploading, setUploading] = useState(false);
   const [attachedUrl, setAttachedUrl] = useState<string | null>(null);
   const [attachedType, setAttachedType] = useState<"image" | "video" | null>(null);
-  const [userUsername, setUserUsername] = useState("RoarUser");
-  const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>(currentAvatarUrl);
+  const [userUsername, setUserUsername] = useState(() => {
+    try {
+      return userProfile?.username || localStorage.getItem("roar_username") || "RoarUser";
+    } catch {
+      return "RoarUser";
+    }
+  });
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>(() => {
+    try {
+      const stored = localStorage.getItem("roar_avatar_url");
+      return sanitizeAvatarUrl(currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || stored) || undefined;
+    } catch {
+      return sanitizeAvatarUrl(currentAvatarUrl) || undefined;
+    }
+  });
+
+  const getEffectiveUserAvatar = useCallback(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null;
+    const raw = userAvatarUrl || currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || (userProfile as any)?.photoURL || (userProfile as any)?.picture || (userProfile as any)?.image || stored;
+    return sanitizeAvatarUrl(raw) || undefined;
+  }, [userAvatarUrl, currentAvatarUrl, userProfile]);
   const [selectedActionId, setSelectedActionId] = useState("post");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dollyActiveSessionIdRef = useRef<string | undefined>(undefined);
@@ -4878,7 +4898,6 @@ export default function DiscussionRoom({
   const [totalJoinCount, setTotalJoinCount] = useState<number>(0);
   const [sharePost, setSharePost] = useState<ShareableRoarPost | null>(null);
   const [copied, setCopied] = useState(false);
-  const { userProfile } = useUserProfile();
   const [roomCounts, setRoomCounts] = useState({ post: 0, debate: 0, prediction: 0, trivia: 0, battle: 0 });
   const [activeFilter, setActiveFilter] = useState<"all" | "post" | "debate" | "prediction" | "trivia" | "battle">("all");
   const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
@@ -4994,18 +5013,41 @@ export default function DiscussionRoom({
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const currentUserId = propCurrentUserId || userProfile?.actualUserId;
-  const currentUserIdCandidates = [
-    currentUserId,
-    userProfile?.actualUserId,
-    (userProfile as { userId?: string })?.userId,
-    (userProfile as { uid?: string })?.uid,
-    (userProfile as { email?: string })?.email,
-  ].filter(Boolean).map(String);
+  // ── AUTHOR CHECK (for delete & avatar matching) ──
+  const currentUserIdCandidates = React.useMemo(() => {
+    const storedActual = typeof window !== "undefined" ? localStorage.getItem("roar_actual_user_id") : null;
+    const storedUid = typeof window !== "undefined" ? localStorage.getItem("roar_user_id") : null;
+    const list = [
+      currentUserId,
+      userProfile?.actualUserId,
+      (userProfile as { userId?: string })?.userId,
+      (userProfile as { uid?: string })?.uid,
+      (userProfile as { email?: string })?.email,
+      storedActual,
+      storedUid,
+    ].filter(Boolean).map(v => String(v).trim().toLowerCase());
+    return new Set(list);
+  }, [currentUserId, userProfile]);
 
-  const isCurrentUserAuthor = (post: { authorUid?: unknown; authorEmail?: unknown; fan?: { authorUid?: unknown } }) => {
-    const authorCandidates = [post.authorUid, post.fan?.authorUid, post.authorEmail].filter(Boolean).map(String);
-    return authorCandidates.some(id => currentUserIdCandidates.includes(id));
-  };
+  const isCurrentUserAuthor = useCallback((post: { authorUid?: unknown; authorEmail?: unknown; authorUsername?: unknown; fan?: { authorUid?: unknown; username?: unknown } }) => {
+    const authorCandidates = [
+      post.authorUid,
+      post.fan?.authorUid,
+      post.authorEmail,
+    ].filter(Boolean).map(v => String(v).trim().toLowerCase());
+
+    if (authorCandidates.some(id => currentUserIdCandidates.has(id) || currentUserIdCandidates.has(id.replace(/[@.]/g, "_")))) {
+      return true;
+    }
+
+    const effectiveMyUsername = String(userUsername || userProfile?.username || (typeof window !== "undefined" ? localStorage.getItem("roar_username") : "") || "").trim().toLowerCase();
+    const postUsername = String(post.authorUsername || post.fan?.username || "").trim().toLowerCase();
+    if (effectiveMyUsername && postUsername && effectiveMyUsername === postUsername) {
+      return true;
+    }
+
+    return false;
+  }, [currentUserIdCandidates, userUsername, userProfile?.username]);
 
   const detectNewJoiners = useCallback((fans: { uid: string; username: string }[]) => {
     if (!knownFanUidsRef.current) {
@@ -5102,6 +5144,12 @@ export default function DiscussionRoom({
 
   const mapMessage = useCallback((m: any, existing?: any) => {
     const isPending = pendingReactRef.current[m.msgId];
+    const isMine = isCurrentUserAuthor(m);
+    const myEffectiveAvatar = getEffectiveUserAvatar();
+
+    const rawAuthorAvatar = m.authorAvatarUrl || m.avatarUrl || m.userAvatar || m.avatar || m.image || m.user?.avatarUrl || m.user?.avatar || m.user?.image || m.fan?.avatarUrl || m.fan?.avatar;
+    const sanitizedAuthorAvatar = sanitizeAvatarUrl(rawAuthorAvatar);
+
     return {
       id: m.msgId, authorUid: m.authorUid, authorEmail: m.authorEmail,
       fan: {
@@ -5109,9 +5157,9 @@ export default function DiscussionRoom({
         email: m.authorEmail,
         avatarUrl:
           getKnownBotAvatarUrl(m.authorUsername) ??
-          (m.authorUid === currentUserId
-            ? (userAvatarUrl || m.authorAvatarUrl || m.avatarUrl)
-            : (m.authorAvatarUrl || m.avatarUrl))
+          (isMine
+            ? (myEffectiveAvatar || sanitizedAuthorAvatar || undefined)
+            : (sanitizedAuthorAvatar || undefined))
       },
 
       text: m.text,
@@ -5150,7 +5198,7 @@ export default function DiscussionRoom({
       battleVoteCounts: m.battleVoteCounts ?? {},
       userPredictionVotes: m.userPredictionVotes ?? {},
     };
-  }, [currentUserId, userAvatarUrl]);
+  }, [isCurrentUserAuthor, getEffectiveUserAvatar, currentUserId]);
 
   useEffect(() => {
     if (!pendingScrollRestoreRef.current) return;
@@ -5238,14 +5286,39 @@ export default function DiscussionRoom({
       } catch { return false; }
     }
   };
-  const handleShareToWhatsApp = () => { if (!sharePost) return; window.open(`https://wa.me/?text=${encodeURIComponent(buildRoarPostShareText(sharePost))}`, "_blank"); };
-  const handleShareToThreads = () => { if (!sharePost) return; window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(buildRoarPostShareText(sharePost))}`, "_blank"); };
-  const handleShareToInstagram = async () => { if (!sharePost) return; await copyToClipboard(buildRoarPostShareText(sharePost)); setCopied(true); setTimeout(() => setCopied(false), 1600); window.open("https://www.instagram.com/", "_blank"); };
-  const handleShareToLinkedIn = () => { if (!sharePost) return; window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(buildRoarPostShareUrl(sharePost))}`, "_blank"); };
-  const handleShareToX = () => { if (!sharePost) return; window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(buildRoarPostShareText(sharePost))}`, "_blank"); };
+  const handleShareToWhatsApp = () => {
+    if (!sharePost) return;
+    const text = buildRoarPostShareText(sharePost);
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
+  const handleShareToThreads = () => {
+    if (!sharePost) return;
+    const text = buildRoarPostShareText(sharePost);
+    window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(text)}`, "_blank");
+  };
+  const handleShareToInstagram = async () => {
+    if (!sharePost) return;
+    const text = buildRoarPostShareText(sharePost);
+    await copyToClipboard(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+    onToast("Caption copied to clipboard!");
+    window.open("https://www.instagram.com/", "_blank");
+  };
+  const handleShareToLinkedIn = () => {
+    if (!sharePost) return;
+    const url = buildRoarPostShareUrl(sharePost);
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, "_blank");
+  };
+  const handleShareToX = () => {
+    if (!sharePost) return;
+    const text = buildRoarPostShareText(sharePost);
+    window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
+  };
   const handleCopyLink = async () => {
     if (!sharePost) return;
-    const ok = await copyToClipboard(buildRoarPostShareText(sharePost));
+    const text = buildRoarPostShareText(sharePost);
+    const ok = await copyToClipboard(text);
     if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1600); onToast("Link copied to clipboard!"); }
   };
 
@@ -5259,8 +5332,8 @@ export default function DiscussionRoom({
         { handler: handleShareToX, src: "/images/Share_X.png", alt: "X" },
         { handler: handleCopyLink, src: "/images/share_copy_link.png", alt: "Copy" },
       ].map(({ handler, src, alt }) => (
-        <button key={alt} onClick={handler} className={`${size} shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center`} type="button">
-          <img src={src} alt={alt} width={36} height={36} className="w-full h-full object-cover rounded-full" />
+        <button key={alt} onClick={handler} className={`${size} shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer p-0`} type="button" title={alt}>
+          <img src={src} alt={alt} width={36} height={36} className="w-full h-full object-cover rounded-full pointer-events-none" />
         </button>
       ))}
     </>
@@ -5412,10 +5485,31 @@ export default function DiscussionRoom({
   }, [roomId, applyPresenceResponse, refreshActiveFans]);
 
   useEffect(() => {
-    try {
-      setUserUsername(userProfile?.username || localStorage.getItem("roar_username") || "RoarUser");
-      setUserAvatarUrl(currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || localStorage.getItem("roar_avatar_url") || undefined);
-    } catch { }
+    const updateAvatar = () => {
+      try {
+        const storedUsername = localStorage.getItem("roar_username");
+        if (userProfile?.username || storedUsername) {
+          setUserUsername(userProfile?.username || storedUsername || "RoarUser");
+        }
+        const storedAvatar = localStorage.getItem("roar_avatar_url");
+        const resolved = sanitizeAvatarUrl(currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || (userProfile as any)?.photoURL || (userProfile as any)?.picture || storedAvatar) || undefined;
+        if (resolved) {
+          setUserAvatarUrl(resolved);
+        }
+      } catch { }
+    };
+
+    updateAvatar();
+    window.addEventListener("storage", updateAvatar);
+    window.addEventListener("roar-profile-updated", updateAvatar);
+    window.addEventListener("roar:avatar-updated", updateAvatar);
+    window.addEventListener("visibilitychange", updateAvatar);
+    return () => {
+      window.removeEventListener("storage", updateAvatar);
+      window.removeEventListener("roar-profile-updated", updateAvatar);
+      window.removeEventListener("roar:avatar-updated", updateAvatar);
+      window.removeEventListener("visibilitychange", updateAvatar);
+    };
   }, [currentAvatarUrl, userProfile]);
 
   const renameDollySession = useCallback(async (sessionId: string, newTitle: string) => {
@@ -5923,8 +6017,11 @@ export default function DiscussionRoom({
     try {
       trackAdvocacy("content_shared", { room_id: roomId, room_name: roomName || "", type: "room_link" });
     } catch (e) {}
-    if (typeof navigator !== "undefined" && navigator.share) navigator.share({ title: "SF360 Infinity Room", url: window.location.href });
-    else { copyToClipboard(window.location.href); onToast("Link copied!"); }
+    openShareDialog({
+      id: roomId,
+      text: `🔥 Join the live discussion in ${roomName || "ROAR Room"} on Sportsfan360!`,
+      authorUsername: "Sportsfan",
+    });
   };
 
 
@@ -6214,17 +6311,17 @@ export default function DiscussionRoom({
 
       {sharePost && (
         <>
-          <button type="button" className="fixed inset-0 z-40 bg-black/70 lg:hidden" onClick={closeShareDialog} />
-          <div className="fixed bottom-16 inset-x-4 z-50 mx-auto w-full max-w-[280px] rounded-2xl border border-white/10 bg-[#1a1a1e] p-3 shadow-2xl lg:hidden" onClick={e => e.stopPropagation()}>
+          <button type="button" className="fixed inset-0 z-[200] bg-black/70 lg:hidden" onClick={closeShareDialog} />
+          <div className="fixed bottom-16 inset-x-4 z-[210] mx-auto w-full max-w-[280px] rounded-2xl border border-white/10 bg-[#1a1a1e] p-3 shadow-2xl lg:hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-white text-sm font-semibold">Share</p>
               <button type="button" onClick={closeShareDialog} className="text-gray-400 hover:text-white"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></button>
             </div>
-            <div className="flex flex-row flex-nowrap items-center gap-1.5 mb-2 overflow-x-auto">{shareButtons("w-8 h-8")}</div>
-            {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
+            <div className="flex flex-row flex-nowrap items-center justify-center gap-1.5 mb-2 overflow-x-auto">{shareButtons("w-8 h-8")}</div>
+            {copied && <p className="text-xs text-emerald-400 text-center">Copied to clipboard</p>}
           </div>
-          <div className="hidden lg:flex fixed inset-0 z-50 items-center justify-center bg-black/60" onClick={closeShareDialog}>
-            <div className="bg-[#1a1a1e] rounded-2xl border border-white/10 p-4 w-[300px] shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="hidden lg:flex fixed inset-0 z-[200] items-center justify-center bg-black/60" onClick={closeShareDialog}>
+            <div className="bg-[#1a1a1e] rounded-2xl border border-white/10 p-4 w-[300px] shadow-2xl z-[210]" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-white text-sm font-semibold">Share ROAR Post</p>
                 <button type="button" onClick={closeShareDialog} className="text-gray-400 hover:text-white"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></button>
@@ -6233,8 +6330,8 @@ export default function DiscussionRoom({
                 <p className="text-white text-sm font-semibold line-clamp-2">{sharePost.text || "ROAR Post"}</p>
                 <p className="text-white/45 text-[11px] mt-2 line-clamp-2 break-all">{buildRoarPostShareUrl(sharePost)}</p>
               </div>
-              <div className="flex flex-row flex-nowrap items-center gap-2 mb-2">{shareButtons("w-9 h-9")}</div>
-              {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
+              <div className="flex flex-row flex-nowrap items-center justify-center gap-2 mb-2">{shareButtons("w-9 h-9")}</div>
+              {copied && <p className="text-xs text-emerald-400 text-center">Copied to clipboard</p>}
             </div>
           </div>
         </>

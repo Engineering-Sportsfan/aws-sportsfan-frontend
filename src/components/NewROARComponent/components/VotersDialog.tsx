@@ -395,13 +395,18 @@ export default function VotersDialog({ postId, roomId, isOpen, onClose, mode = "
       if (res.data?.success) {
         // Back-compat: older room-less responses may only send
         // sideA/sideB/voters.agree/disagree — normalize into options[].
-        const options: VoteOption[] = Array.isArray(res.data.options)
+        const rawOptions = Array.isArray(res.data.options)
           ? res.data.options
           : [
               { key: "agree", label: res.data.sideA ?? "Side A", voters: res.data.voters?.agree ?? [] },
               { key: "disagree", label: res.data.sideB ?? "Side B", voters: res.data.voters?.disagree ?? [] },
             ];
-        const totalVotes = res.data.totalVotes ?? options.reduce((sum, o) => sum + o.voters.length, 0);
+        const options: VoteOption[] = rawOptions.map((opt: any) => ({
+          key: opt?.key ?? "",
+          label: opt?.label ?? "",
+          voters: Array.isArray(opt?.voters) ? opt.voters : [],
+        }));
+        const totalVotes = res.data.totalVotes ?? options.reduce((sum, o) => sum + (o.voters?.length ?? 0), 0);
         setData({ sideA: res.data.sideA, sideB: res.data.sideB, options, totalVotes });
       } else {
         setError("Failed to load voters");
@@ -432,13 +437,15 @@ export default function VotersDialog({ postId, roomId, isOpen, onClose, mode = "
   const flatVoters: FlatVoterRow[] = Array.from(
     new Map(
       options.flatMap((opt, idx) =>
-        opt.voters.map((v) => [
-          v.uid,
-          { ...v, optionLabel: opt.label, optionColor: colorFor(idx) } as FlatVoterRow,
+        (opt?.voters ?? []).map((v) => [
+          v?.uid,
+          { ...v, optionLabel: opt?.label ?? "", optionColor: colorFor(idx) } as FlatVoterRow,
         ])
       )
     ).values()
-  ).sort((a, b) => a.username.localeCompare(b.username));
+  )
+    .filter((v): v is FlatVoterRow => Boolean(v && v.uid))
+    .sort((a, b) => (a.username || "").localeCompare(b.username || ""));
 
   if (!mounted) return null;
 
@@ -599,21 +606,6 @@ export default function VotersDialog({ postId, roomId, isOpen, onClose, mode = "
                           {voter.username}
                         </p>
                       </div>
-                      {/* Option they voted for, shown next to the username */}
-                      <span style={{
-                        fontSize: 10, fontWeight: 800,
-                        padding: "2px 8px", borderRadius: 999,
-                        background: `${voter.optionColor}1F`,
-                        color: voter.optionColor,
-                        border: `1px solid ${voter.optionColor}40`,
-                        whiteSpace: "nowrap",
-                        flexShrink: 0,
-                        maxWidth: 140,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}>
-                        {voter.optionLabel}
-                      </span>
                     </motion.div>
                   ))}
                 </div>

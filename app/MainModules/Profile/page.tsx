@@ -120,7 +120,7 @@ function ProfileContent() {
   };
 
   const handleBack = () => {
-    handleGoBack(router, "/MainModules/WatchAlong");
+    handleGoBack(router, "/MainModules/ROAR");
   };
 
   if (effectiveUserId && !profile) {

@@ -1583,6 +1583,123 @@ function IndiaStatsBar({
   );
 }
 
+/* ---------------------------------- Banner Carousel ---------------------------------- */
+
+const BANNER_SLIDES = [
+  {
+    id: "india-vs-pakistan-gold-medal",
+    src: "/images/indiavspakistangoldmedalmatch.png",
+    alt: "India vs Pakistan Gold Medal Match",
+  },
+  {
+    id: "india-vs-malaysia-hockey",
+    src: "/images/indiavsmalaysiahockey.png",
+    alt: "India vs Malaysia Hockey",
+  },
+];
+
+function BannerCarousel() {
+  const router = useRouter();
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    // Preload both banner images so they are cached immediately
+    BANNER_SLIDES.forEach((slide) => {
+      const img = new Image();
+      img.src = slide.src;
+    });
+
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % BANNER_SLIDES.length);
+    }, 4000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="w-full max-w-lg md:max-w-xl mx-auto flex flex-col gap-2 my-1">
+      <div
+        onClick={() => router.push("/MainModules/ROAR")}
+        className="relative w-full aspect-[28/10] min-h-[120px] sm:min-h-[145px] md:min-h-[180px] rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer transition-all duration-300 hover:border-pink-500/40 bg-[#0e0a16] flex items-center justify-center group"
+      >
+        {/* Shimmer skeleton background while images load */}
+        <div className="absolute inset-0 bg-gradient-to-r from-white/[0.02] via-white/[0.05] to-white/[0.02] animate-pulse pointer-events-none" />
+
+        {/* Stacked crossfade slides — ensures container never collapses */}
+        {BANNER_SLIDES.map((slide, idx) => (
+          <motion.img
+            key={slide.id}
+            src={slide.src}
+            alt={slide.alt}
+            initial={false}
+            animate={{
+              opacity: idx === currentIndex ? 1 : 0,
+              scale: idx === currentIndex ? 1 : 0.98,
+            }}
+            transition={{ duration: 0.5, ease: "easeInOut" }}
+            className="absolute inset-0 w-full h-full object-cover select-none pointer-events-none"
+          />
+        ))}
+
+        {/* "JOIN ROAR ROOM" Button */}
+        <motion.button
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            router.push("/MainModules/ROAR");
+          }}
+          className="absolute bottom-5 sm:bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 sm:gap-2.5 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-[0_4px_20px_rgba(255,20,147,0.45)] border border-white/25 hover:brightness-110 transition-all cursor-pointer pointer-events-auto"
+          style={{
+            background: "linear-gradient(90deg, #FF1493 0%, #FF2A85 32%, #FF6B35 75%, #FFA500 100%)",
+          }}
+        >
+          {/* Chat Icon with 3 pink dots */}
+          <div className="relative flex items-center justify-center shrink-0">
+            <svg className="w-5 h-5 sm:w-6 sm:h-6 text-[#0c0f24] fill-[#0c0f24]" viewBox="0 0 24 24">
+              <path d="M20 2H4c-1.1 0-2 .9-2 2v14l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center gap-[2px] pb-1">
+              <span className="w-1 h-1 rounded-full bg-[#FF2A85]" />
+              <span className="w-1 h-1 rounded-full bg-[#FF2A85]" />
+              <span className="w-1 h-1 rounded-full bg-[#FF2A85]" />
+            </div>
+          </div>
+
+          <span className="text-white font-black text-[11px] sm:text-[13px] tracking-wider uppercase drop-shadow whitespace-nowrap">
+            JOIN ROAR ROOM
+          </span>
+
+          {/* White circle with chevron */}
+          <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-white flex items-center justify-center shadow-xs shrink-0">
+            <ChevronRight size={12} className="stroke-[3] text-black" />
+          </div>
+        </motion.button>
+
+        {/* Carousel Indicators */}
+        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-10 px-2 py-0.5 rounded-full bg-black/50 backdrop-blur-xs border border-white/10 pointer-events-auto">
+          {BANNER_SLIDES.map((slide, idx) => (
+            <button
+              key={slide.id}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentIndex(idx);
+              }}
+              aria-label={`Go to slide ${idx + 1}`}
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                idx === currentIndex
+                  ? "w-5 bg-gradient-to-r from-[#E91E8C] to-[#FF6B35]"
+                  : "w-1.5 bg-white/40 hover:bg-white/70"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------------- Default Fallback Stats ---------------------------------- */
 
 const DEFAULT_INDIA_STATS: IndiaStatsData = {
@@ -1785,16 +1902,8 @@ export default function SportScoreSection({
 
   return (
     <div className="w-full relative flex flex-col gap-3">
-      {/* Watch Along Banner */}
-      <div className="w-full max-w-lg md:max-w-xl mx-auto flex flex-col gap-2 my-1">
-        <div className="relative w-full rounded-2xl overflow-hidden border border-white/10 shadow-lg cursor-pointer transition-all duration-300 hover:border-pink-500/40 hover:opacity-95 max-h-[260px] md:max-h-[300px] flex items-center justify-center bg-black/40">
-          <img
-            src="/images/asiangamesbanner.png"
-            alt="Watch Along Banner"
-            className="w-full h-auto max-h-[130px] md:max-h-[200px] object-fit"
-          />
-        </div>
-      </div>
+      {/* Watch Along Banner Carousel */}
+      <BannerCarousel />
 
       {/* Dynamic Medal Tally Bar */}
       <IndiaStatsBar data={indiaStats} isLoading={medalLoading} />

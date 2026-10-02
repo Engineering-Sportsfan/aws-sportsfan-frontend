@@ -517,7 +517,7 @@ export default function MainModulesLayout({
           } : {}}
         > */}
           <div
-            className={`flex-1 min-h-0 overflow-x-hidden roar-content-area ${isROARPath ? "overflow-hidden h-full" : "overflow-y-auto"}`}
+            className={`flex-1 min-h-0 overflow-x-hidden roar-content-area ${isROARPath ? "overflow-hidden flex flex-col" : "overflow-y-auto"}`}
             style={isROARPath ? {
               paddingTop: 0,
               // paddingBottom: "60px", // space for bottom nav normally
