@@ -25,7 +25,7 @@ export const GLOBAL_CSS = `
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 600px;
+  min-height: 0;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: 'DM Sans', sans-serif;
@@ -43,7 +43,7 @@ export const GLOBAL_CSS = `
   .roar-inner {
     width: 100%;
     height: 100%;
-    min-height: 600px;
+    min-height: 0;
     position: relative;
     overflow: hidden;
     background: var(--bg-primary);

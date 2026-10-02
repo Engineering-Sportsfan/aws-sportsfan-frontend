@@ -7844,23 +7844,36 @@ export default function FlipArena({
         </div>
       )}
 
-      <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2 gap-2 flex-wrap">
-        <div>
-          <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
-          <p className="text-[10px] text-white/35 mt-0.5">Earn +2 SXPs participation · +10 SXPs for correct answers</p>
-        </div>
+      <div className="px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between border-t border-white/[0.05] mt-2 gap-3 md:gap-2">
+        <div className="flex items-center justify-between gap-2 w-full md:w-auto">
+          <div>
+            <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
+            <p className="text-[10px] text-white/35 mt-0.5">Earn +2 SXPs participation · +10 SXPs for correct answers</p>
+          </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+          {/* Mobile Leaderboard Button (opposite title) */}
           <button
             onClick={() => setShowLeaderboardModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
+            className="flex md:hidden items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
+            title="Open Leaderboards"
+          >
+            <Trophy size={13} className="text-amber-400" />
+            <span>Leaderboard</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap md:flex-nowrap">
+          {/* Desktop Leaderboard Button */}
+          <button
+            onClick={() => setShowLeaderboardModal(true)}
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
             title="Open Leaderboards"
           >
             <Trophy size={13} className="text-amber-400" />
             <span>Leaderboard</span>
           </button>
           <div
-            className="flex items-center gap-1.5 bg-[#111418] p-1 rounded-xl border border-[#2A2F36] overflow-x-auto no-scrollbar"
+            className="flex items-center gap-1.5 bg-[#111418] p-1 rounded-xl border border-[#2A2F36] overflow-x-auto no-scrollbar w-full md:w-auto"
             style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
             {/* Mobile & Desktop: Primary Chips (All, Quiz, Poll) */}

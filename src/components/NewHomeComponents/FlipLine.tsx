@@ -1337,7 +1337,7 @@ export function FlipCardItem({
   const handleOpenUserProfile = (targetUserId?: string, targetHandle?: string, targetName?: string) => {
     const botCanon = getBotCanonicalName(targetName) || getBotCanonicalName(targetUserId);
     if (botCanon) {
-      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botCanon)}`);
+      router.push(`/MainModules/Profile?userId=${encodeURIComponent(botCanon)}`);
       return;
     }
 
@@ -1348,9 +1348,9 @@ export function FlipCardItem({
       (currentUserEmail || currentUserId);
 
     if (targetUser) {
-      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+      router.push(`/MainModules/Profile?userId=${encodeURIComponent(targetUser)}`);
     } else {
-      router.push('/MainModules/ROAR');
+      router.push('/MainModules/Profile');
     }
   };
 
@@ -1361,7 +1361,7 @@ export function FlipCardItem({
       : getBotCanonicalName(card.author);
 
     if (botCanon) {
-      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(botCanon)}`);
+      router.push(`/MainModules/Profile?userId=${encodeURIComponent(botCanon)}`);
       return;
     }
 
@@ -1373,9 +1373,9 @@ export function FlipCardItem({
       (isCurrentUser ? (currentUserEmail || currentUserId) : null);
 
     if (targetUser) {
-      router.push(`/MainModules/ROAR?profileUserId=${encodeURIComponent(targetUser)}`);
+      router.push(`/MainModules/Profile?userId=${encodeURIComponent(targetUser)}`);
     } else {
-      router.push('/MainModules/ROAR');
+      router.push('/MainModules/Profile');
     }
   };
 

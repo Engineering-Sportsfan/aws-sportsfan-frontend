@@ -112,18 +112,17 @@
 // context/RoarProfileContext.tsx
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
-import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import axios from "axios";
-import { getBotCanonicalName, BOT_AVATARS, BOT_BIOS } from "@/src/constants/bots";
+import { createContext, useContext, useState, ReactNode, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { handleGoBack } from "@/utils/backButton";
 
 export interface ProfileContextType {
-  viewingUserId: string | null;          // ← CHANGED: was viewingUsername
+  viewingUserId: string | null;
   profileData: any | null;
   loading: boolean;
-  openProfile: (userId: string) => void; // ← CHANGED: param renamed for clarity
+  openProfile: (userId: string) => void;
   closeProfile: () => void;
-  setViewingUserId: (userId: string | null) => void; // ← CHANGED: renamed
+  setViewingUserId: (userId: string | null) => void;
   setProfileData: (data: any) => void;
 }
 
@@ -139,96 +138,35 @@ export const useRoarProfileContext = () => {
 
 export const RoarProfileProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
 
-  const [viewingUserId, setViewingUserId] = useState<string | null>(null); // ← CHANGED
+  const [viewingUserId, setViewingUserId] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // Sync state from URL on mount and when URL changes
-  useEffect(() => {
-    const profileUserId = searchParams.get("profileUserId"); // ← CHANGED: param name
-    if (profileUserId) {
-      if (profileUserId !== viewingUserId) {
-        setViewingUserId(profileUserId);
-      }
-    } else {
-      setViewingUserId(null);
-      setProfileData(null);
-    }
-  }, [searchParams]);
-
-  // Fetch data when viewingUserId changes
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!viewingUserId) {
-        setProfileData(null);
-        return;
-      }
-      const botName = getBotCanonicalName(viewingUserId);
-      if (botName) {
-        setProfileData({
-          success: true,
-          user: {
-            username: botName,
-            displayName: botName,
-            avatarUrl: BOT_AVATARS[botName] || "/images/dolly.png",
-            about: BOT_BIOS[botName] || "SportsFan360 bot — automated fan companion.",
-            badge: "BOT",
-            isBot: true,
-          },
-          predictions: [],
-          hotTakes: [],
-          debates: [],
-          posts: [],
-        });
-        return;
-      }
-      setLoading(true);
-      try {
-        // ← CHANGED: roar/fans/[username]/profile → roar/profile?userId=
-        const res = await axios.get(`/api/roar/profile?userId=${encodeURIComponent(viewingUserId)}`);
-
-        if (res.data?.success) {
-          setProfileData(res.data);
-        } else {
-          setProfileData(null);
-        }
-      } catch (err) {
-        console.error("Failed to fetch fan profile:", err);
-        setProfileData(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
-  }, [viewingUserId]);
-
   const openProfile = useCallback(
-    (userId: string) => { // ← CHANGED: param name
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("profileUserId", userId); // ← CHANGED: URL param key
-      router.push(`${pathname}?${params.toString()}`, { scroll: false });
+    (userId: string) => {
+      if (!userId) {
+        router.push("/MainModules/Profile");
+        return;
+      }
+      router.push(`/MainModules/Profile?userId=${encodeURIComponent(userId)}`);
     },
-    [router, pathname, searchParams]
+    [router]
   );
 
   const closeProfile = useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete("profileUserId"); // ← CHANGED
-    router.push(`${pathname}?${params.toString()}`, { scroll: false });
-  }, [router, pathname, searchParams]);
+    handleGoBack(router, "/MainModules/ROAR");
+  }, [router]);
 
   return (
     <RoarProfileContext.Provider
       value={{
-        viewingUserId,      //  CHANGED
+        viewingUserId,
         profileData,
         loading,
         openProfile,
         closeProfile,
-        setViewingUserId,   //  CHANGED
+        setViewingUserId,
         setProfileData,
       }}
     >

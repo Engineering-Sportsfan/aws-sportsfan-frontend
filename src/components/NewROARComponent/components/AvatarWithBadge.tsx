@@ -1,9 +1,15 @@
-import { avatarUrl, BADGE_CONFIG } from "../constants";
+import { useState, useEffect } from "react";
+import { BADGE_CONFIG } from "../constants";
 
 export function sanitizeAvatarUrl(raw: string | null | undefined): string | null {
   if (!raw || typeof raw !== "string") return null;
   let trimmed = raw.trim();
   if (!trimmed || trimmed === "undefined" || trimmed === "null") return null;
+
+  // Ignore dicebear urls so real photo or colorful initials are used instead of cartoon SVGs
+  if (trimmed.includes("dicebear.com") || trimmed.includes("api.dicebear")) {
+    return null;
+  }
 
   if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
     trimmed = trimmed.slice(1, -1).trim();
@@ -38,6 +44,34 @@ export function sanitizeAvatarUrl(raw: string | null | undefined): string | null
   return trimmed;
 }
 
+const AVATAR_GRADIENTS = [
+  "linear-gradient(135deg, #d97706, #ca8a04)",
+  "linear-gradient(135deg, #9333ea, #4f46e5)",
+  "linear-gradient(135deg, #db2777, #e11d48)",
+  "linear-gradient(135deg, #2563eb, #0891b2)",
+  "linear-gradient(135deg, #059669, #0d9488)",
+  "linear-gradient(135deg, #ea580c, #dc2626)",
+];
+
+export function getAvatarGradient(name: string): string {
+  let hash = 0;
+  const str = name || "";
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
+}
+
+export function getInitials(name: string): string {
+  if (!name) return "SF";
+  const clean = name.replace(/[@_.-]/g, " ").trim();
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return (clean.slice(0, 2) || "SF").toUpperCase();
+}
+
 interface Props {
   username: string;
   badge?: string;
@@ -60,6 +94,11 @@ export default function AvatarWithBadge({ username, badge = "RISING_FAN", size =
   const cx = s.outer / 2;
   const circ = 2 * Math.PI * radius;
   const resolvedAvatar = sanitizeAvatarUrl(customAvatarUrl);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [resolvedAvatar]);
 
   return (
     <div
@@ -121,19 +160,34 @@ export default function AvatarWithBadge({ username, badge = "RISING_FAN", size =
           boxShadow: cfg.glow !== "none" ? cfg.glow : undefined,
         }}
       >
-        <img
-          src={resolvedAvatar || avatarUrl(username)}
-          alt={username}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          loading="lazy"
-          onError={(e) => {
-            const target = e.currentTarget as HTMLImageElement;
-            const fallback = avatarUrl(username);
-            if (target.src !== fallback) {
-              target.src = fallback;
-            }
-          }}
-        />
+        {resolvedAvatar && !imgError ? (
+          <img
+            src={resolvedAvatar}
+            alt={username}
+            referrerPolicy="no-referrer"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            loading="lazy"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              background: getAvatarGradient(username),
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontWeight: 800,
+              color: "#ffffff",
+              fontSize: Math.max(8, Math.round(s.avatar * 0.42)),
+              textTransform: "uppercase",
+              userSelect: "none",
+            }}
+          >
+            {getInitials(username)}
+          </div>
+        )}
       </div>
       <div
         style={{

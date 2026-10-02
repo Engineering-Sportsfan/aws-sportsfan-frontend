@@ -33,6 +33,7 @@ export default function ROARPage() {
       style={{
         display: "flex",
         flexDirection: "column",
+        flex: 1,
         width: "100%",
         // Use dvh so mobile Safari's collapsing toolbar is accounted for.
         // On desktop this resolves the same as 100%.

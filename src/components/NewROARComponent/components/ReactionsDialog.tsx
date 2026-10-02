@@ -202,6 +202,7 @@
 // LinkedIn-style modal: shows who reacted, filterable by reaction type.
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import AvatarWithBadge from "./AvatarWithBadge";
@@ -229,28 +230,19 @@ interface Props {
 }
 
 export default function ReactionsDialog({ postId, isOpen, onClose, onFanProfile, roomId, msgId, commentId }: Props) {
+  const [mounted, setMounted] = useState(false);
   const [reactors, setReactors] = useState<Reactor[]>([]);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState<Reaction | "all">("all");
 
-  // useEffect(() => {
-  //   if (!isOpen || !postId) return;
-  //   setLoading(true);
-  //   setFilter("all");
-  //   const url = `/api/roar/posts/${postId}/reactions${roomId ? `?roomId=${encodeURIComponent(roomId)}` : ""}`;
-  //   axios.get(url)
-  //     .then(r => setReactors(r.data?.reactors ?? []))
-  //     .catch(() => setReactors([]))
-  //     .finally(() => setLoading(false));
-  // }, [isOpen, postId, roomId]);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!isOpen || !postId) return;
     setLoading(true);
     setFilter("all");
-    // const url = commentId && roomId && msgId
-    //   ? `/api/roar/rooms/${roomId}/messages/${msgId}/comments/${commentId}/reactions`
-    //   : `/api/roar/posts/${postId}/reactions${roomId ? `?roomId=${encodeURIComponent(roomId)}` : ""}`;
     const url = commentId && roomId && msgId
   ? `/api/roar/rooms/${roomId}/messages/${msgId}/comments/${commentId}/reactions`
   : `/api/roar/rooms/${roomId}/messages/${msgId ?? postId}/reactions`;
@@ -271,7 +263,9 @@ export default function ReactionsDialog({ postId, isOpen, onClose, onFanProfile,
     ...REACTIONS.filter(r => (counts[r.id] ?? 0) > 0),
   ];
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
@@ -280,7 +274,7 @@ export default function ReactionsDialog({ postId, isOpen, onClose, onFanProfile,
             key="backdrop"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
             onClick={onClose}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 300, backdropFilter: "blur(4px)" }}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.72)", zIndex: 9998, backdropFilter: "blur(4px)" }}
           />
 
           {/* Sheet */}
@@ -298,7 +292,7 @@ export default function ReactionsDialog({ postId, isOpen, onClose, onFanProfile,
               border: "1px solid rgba(255,255,255,0.1)",
               borderBottom: "none",
               borderRadius: "20px 20px 0 0",
-              zIndex: 301,
+              zIndex: 9999,
               maxHeight: "72vh",
               display: "flex", flexDirection: "column",
               overflow: "hidden",
@@ -374,7 +368,6 @@ export default function ReactionsDialog({ postId, isOpen, onClose, onFanProfile,
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.025 }}
-                      // onClick={() => { onFanProfile?.({ username: reactor.username, avatarUrl: reactor.avatarUrl, badge: reactor.badge }); onClose(); }}
                       onClick={() => {
                         onFanProfile?.({
                           username: reactor.username,
@@ -423,6 +416,7 @@ export default function ReactionsDialog({ postId, isOpen, onClose, onFanProfile,
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
