@@ -3546,7 +3546,7 @@ function RoomCard({
           </motion.button>
         )}
 
-        <motion.button
+        {/* <motion.button
           whileTap={{ scale: 0.96 }}
           onClick={(e) => {
             e.stopPropagation();
@@ -3554,9 +3554,8 @@ function RoomCard({
           }}
           className="flex-[0.42] py-2.5 rounded-full border border-white/15 bg-[#1a1a1e] text-white/85 text-[12px] font-bold flex items-center justify-center gap-1.5 hover:border-white/30 transition-colors duration-150"
         >
-          {/* <BarChart3 size={13} /> */}
           Recap
-        </motion.button>
+        </motion.button> */}
 
         <motion.button
           whileTap={{ scale: 0.96 }}
