@@ -3981,9 +3981,6 @@ export default function RoomsHome({
     if (cardPreviewUrl) { URL.revokeObjectURL(cardPreviewUrl); setCardPreviewUrl(null); }
   };
 
-  // const shareUrl = shareRoom ? buildRoomShareUrl(shareRoom) : "";
-  // const shareText = shareRoom && shareCounts ? buildRoomShareText(shareRoom, shareCounts, shareUrl) : "";
-
   const shareUrl = shareRoom ? buildRoomShareUrl(shareRoom) : "";
   const shareText =
     shareRoom && shareCounts
@@ -3992,37 +3989,11 @@ export default function RoomsHome({
         : buildRoomShareText(shareRoom, shareCounts, shareUrl)
       : "";
 
-  const handleNativeImageShare = async () => {
-    if (!shareRoom || !cardBlob) return;
-    if (nativeShareBusy) return;
-
-    setNativeShareBusy(true);
-    try {
-      const file = new File([cardBlob], shareFileName(shareRoom), { type: "image/png" });
-
-      if (
-        typeof navigator !== "undefined" &&
-        navigator.canShare?.({ files: [file] })
-      ) {
-        try {
-          await navigator.share({
-            files: [file],
-            title: shareRoom.name,
-            text: `Check out ${shareRoom.name} on Sportsfan360 👉 ${shareUrl}`,
-          });
-          return;
-        } catch (shareErr: any) {
-          if (shareErr?.name === "AbortError") return;
-          console.error("[RoomsHome] navigator.share threw:", shareErr);
-        }
-      }
-
-      downloadBlob(cardBlob, shareFileName(shareRoom));
-      onToast("Image saved! Attach it in your chat to share.");
-    } finally {
-      setNativeShareBusy(false);
-    }
-  };
+  const effectiveShareText =
+    shareText ||
+    (shareRoom
+      ? `🔥 Check out ${shareRoom.name} on Sportsfan360! Join the room 👉 ${shareUrl} #StartRoaring #Sportsfan360`
+      : "Check out Sportsfan360!");
 
   const openPlatformWithTextAndImage = (openUrl: () => void, toastMsg: string) => {
     if (cardBlob && shareRoom) {
@@ -4033,22 +4004,19 @@ export default function RoomsHome({
   };
 
   const handleShareToWhatsApp = () => {
-    if (!shareText) return;
     openPlatformWithTextAndImage(
-      () => window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank"),
+      () => window.open(`https://wa.me/?text=${encodeURIComponent(effectiveShareText)}`, "_blank"),
       "Image saved — attach it in the WhatsApp chat!"
     );
   };
   const handleShareToThreads = () => {
-    if (!shareText) return;
     openPlatformWithTextAndImage(
-      () => window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(shareText)}`, "_blank"),
+      () => window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(effectiveShareText)}`, "_blank"),
       "Image saved — attach it in your Threads post!"
     );
   };
   const handleShareToInstagram = async () => {
-    if (!shareText) return;
-    await copyToClipboard(shareText);
+    await copyToClipboard(effectiveShareText);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
     if (cardBlob && shareRoom) downloadBlob(cardBlob, shareFileName(shareRoom));
@@ -4063,15 +4031,13 @@ export default function RoomsHome({
     );
   };
   const handleShareToX = () => {
-    if (!shareText) return;
     openPlatformWithTextAndImage(
-      () => window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}`, "_blank"),
+      () => window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(effectiveShareText)}`, "_blank"),
       "Image saved — attach it in your post!"
     );
   };
   const handleCopyLink = async () => {
-    if (!shareText) return;
-    const ok = await copyToClipboard(shareText);
+    const ok = await copyToClipboard(effectiveShareText);
     if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
@@ -4384,6 +4350,25 @@ export default function RoomsHome({
                   ))}
                 </div>
               )}
+
+              {/* ── Social Share Platforms Row ── */}
+              <div className="flex items-center justify-center gap-1.5 mb-2 mt-1">
+                {SHARE_ACTIONS.map(({ alt, src }) => (
+                  <motion.button
+                    key={alt}
+                    whileTap={{ scale: 0.9 }}
+                    type="button"
+                    onClick={() => {
+                      const handler = handlerMap[alt];
+                      if (handler) handler();
+                    }}
+                    className="w-7 h-7 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer p-0 shrink-0"
+                    title={alt}
+                  >
+                    <img src={src} alt={alt} width={28} height={28} className="w-full h-full object-cover rounded-full pointer-events-none" />
+                  </motion.button>
+                ))}
+              </div>
 
               {cardBlob && (
                 <motion.button

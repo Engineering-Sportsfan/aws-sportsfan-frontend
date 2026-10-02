@@ -5238,14 +5238,39 @@ export default function DiscussionRoom({
       } catch { return false; }
     }
   };
-  const handleShareToWhatsApp = () => { if (!sharePost) return; window.open(`https://wa.me/?text=${encodeURIComponent(buildRoarPostShareText(sharePost))}`, "_blank"); };
-  const handleShareToThreads = () => { if (!sharePost) return; window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(buildRoarPostShareText(sharePost))}`, "_blank"); };
-  const handleShareToInstagram = async () => { if (!sharePost) return; await copyToClipboard(buildRoarPostShareText(sharePost)); setCopied(true); setTimeout(() => setCopied(false), 1600); window.open("https://www.instagram.com/", "_blank"); };
-  const handleShareToLinkedIn = () => { if (!sharePost) return; window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(buildRoarPostShareUrl(sharePost))}`, "_blank"); };
-  const handleShareToX = () => { if (!sharePost) return; window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(buildRoarPostShareText(sharePost))}`, "_blank"); };
+  const handleShareToWhatsApp = () => {
+    if (!sharePost) return;
+    const text = buildRoarPostShareText(sharePost);
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  };
+  const handleShareToThreads = () => {
+    if (!sharePost) return;
+    const text = buildRoarPostShareText(sharePost);
+    window.open(`https://www.threads.net/intent/post?text=${encodeURIComponent(text)}`, "_blank");
+  };
+  const handleShareToInstagram = async () => {
+    if (!sharePost) return;
+    const text = buildRoarPostShareText(sharePost);
+    await copyToClipboard(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+    onToast("Caption copied to clipboard!");
+    window.open("https://www.instagram.com/", "_blank");
+  };
+  const handleShareToLinkedIn = () => {
+    if (!sharePost) return;
+    const url = buildRoarPostShareUrl(sharePost);
+    window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`, "_blank");
+  };
+  const handleShareToX = () => {
+    if (!sharePost) return;
+    const text = buildRoarPostShareText(sharePost);
+    window.open(`https://x.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
+  };
   const handleCopyLink = async () => {
     if (!sharePost) return;
-    const ok = await copyToClipboard(buildRoarPostShareText(sharePost));
+    const text = buildRoarPostShareText(sharePost);
+    const ok = await copyToClipboard(text);
     if (ok) { setCopied(true); setTimeout(() => setCopied(false), 1600); onToast("Link copied to clipboard!"); }
   };
 
@@ -5259,8 +5284,8 @@ export default function DiscussionRoom({
         { handler: handleShareToX, src: "/images/Share_X.png", alt: "X" },
         { handler: handleCopyLink, src: "/images/share_copy_link.png", alt: "Copy" },
       ].map(({ handler, src, alt }) => (
-        <button key={alt} onClick={handler} className={`${size} shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center`} type="button">
-          <img src={src} alt={alt} width={36} height={36} className="w-full h-full object-cover rounded-full" />
+        <button key={alt} onClick={handler} className={`${size} shrink-0 rounded-full overflow-hidden bg-white/5 hover:bg-white/10 border border-white/10 flex items-center justify-center cursor-pointer p-0`} type="button" title={alt}>
+          <img src={src} alt={alt} width={36} height={36} className="w-full h-full object-cover rounded-full pointer-events-none" />
         </button>
       ))}
     </>
@@ -5923,8 +5948,11 @@ export default function DiscussionRoom({
     try {
       trackAdvocacy("content_shared", { room_id: roomId, room_name: roomName || "", type: "room_link" });
     } catch (e) {}
-    if (typeof navigator !== "undefined" && navigator.share) navigator.share({ title: "SF360 Infinity Room", url: window.location.href });
-    else { copyToClipboard(window.location.href); onToast("Link copied!"); }
+    openShareDialog({
+      id: roomId,
+      text: `🔥 Join the live discussion in ${roomName || "ROAR Room"} on Sportsfan360!`,
+      authorUsername: "Sportsfan",
+    });
   };
 
 
@@ -6214,17 +6242,17 @@ export default function DiscussionRoom({
 
       {sharePost && (
         <>
-          <button type="button" className="fixed inset-0 z-40 bg-black/70 lg:hidden" onClick={closeShareDialog} />
-          <div className="fixed bottom-16 inset-x-4 z-50 mx-auto w-full max-w-[280px] rounded-2xl border border-white/10 bg-[#1a1a1e] p-3 shadow-2xl lg:hidden" onClick={e => e.stopPropagation()}>
+          <button type="button" className="fixed inset-0 z-[200] bg-black/70 lg:hidden" onClick={closeShareDialog} />
+          <div className="fixed bottom-16 inset-x-4 z-[210] mx-auto w-full max-w-[280px] rounded-2xl border border-white/10 bg-[#1a1a1e] p-3 shadow-2xl lg:hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-white text-sm font-semibold">Share</p>
               <button type="button" onClick={closeShareDialog} className="text-gray-400 hover:text-white"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></button>
             </div>
-            <div className="flex flex-row flex-nowrap items-center gap-1.5 mb-2 overflow-x-auto">{shareButtons("w-8 h-8")}</div>
-            {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
+            <div className="flex flex-row flex-nowrap items-center justify-center gap-1.5 mb-2 overflow-x-auto">{shareButtons("w-8 h-8")}</div>
+            {copied && <p className="text-xs text-emerald-400 text-center">Copied to clipboard</p>}
           </div>
-          <div className="hidden lg:flex fixed inset-0 z-50 items-center justify-center bg-black/60" onClick={closeShareDialog}>
-            <div className="bg-[#1a1a1e] rounded-2xl border border-white/10 p-4 w-[300px] shadow-2xl" onClick={e => e.stopPropagation()}>
+          <div className="hidden lg:flex fixed inset-0 z-[200] items-center justify-center bg-black/60" onClick={closeShareDialog}>
+            <div className="bg-[#1a1a1e] rounded-2xl border border-white/10 p-4 w-[300px] shadow-2xl z-[210]" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-white text-sm font-semibold">Share ROAR Post</p>
                 <button type="button" onClick={closeShareDialog} className="text-gray-400 hover:text-white"><svg width="16" height="16" viewBox="0 0 20 20" fill="none"><path d="M15 5L5 15M5 5L15 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg></button>
@@ -6233,8 +6261,8 @@ export default function DiscussionRoom({
                 <p className="text-white text-sm font-semibold line-clamp-2">{sharePost.text || "ROAR Post"}</p>
                 <p className="text-white/45 text-[11px] mt-2 line-clamp-2 break-all">{buildRoarPostShareUrl(sharePost)}</p>
               </div>
-              <div className="flex flex-row flex-nowrap items-center gap-2 mb-2">{shareButtons("w-9 h-9")}</div>
-              {copied && <p className="text-xs text-emerald-400">Copied to clipboard</p>}
+              <div className="flex flex-row flex-nowrap items-center justify-center gap-2 mb-2">{shareButtons("w-9 h-9")}</div>
+              {copied && <p className="text-xs text-emerald-400 text-center">Copied to clipboard</p>}
             </div>
           </div>
         </>
