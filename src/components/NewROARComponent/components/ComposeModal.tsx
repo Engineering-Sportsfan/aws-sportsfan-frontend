@@ -856,9 +856,20 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
 
   const filteredMatches = matchesList.filter((m) => {
     if (m === "None / General") return true;
-    return sport === "football"
-      ? m.toLowerCase().includes("isl") || m.toLowerCase().includes("fc") || m.toLowerCase().includes("fifa") || m.toLowerCase().includes("worldcup")
-      : !(m.toLowerCase().includes("isl") || m.toLowerCase().includes("fc") || m.toLowerCase().includes("fifa") || m.toLowerCase().includes("worldcup"));
+    const mLower = m.toLowerCase();
+    if (sport === "football") {
+      return mLower.includes("isl") || mLower.includes("fc") || mLower.includes("fifa") || mLower.includes("worldcup") || mLower.includes("football") || mLower.includes("soccer");
+    }
+    if (sport === "hockey") {
+      return mLower.includes("hockey") || mLower.includes("fih") || mLower.includes("hil") || mLower.includes("stick");
+    }
+    if (sport === "asian_games" || sport === "asiangames") {
+      return mLower.includes("asian") || mLower.includes("asiad") || mLower.includes("games");
+    }
+    if (sport === "cricket") {
+      return !(mLower.includes("isl") || mLower.includes("fc") || mLower.includes("fifa") || mLower.includes("worldcup") || mLower.includes("hockey") || mLower.includes("fih") || mLower.includes("asian") || mLower.includes("asiad"));
+    }
+    return true;
   });
 
   useEffect(() => {
@@ -1574,22 +1585,29 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
                     {(selected === "hot_take" || selected === "debate" || selected === "memory" || selected === "post") && (
                       <>
                         <label style={{ fontSize: 11, color: "var(--text-muted)", display: "block", marginTop: 16, marginBottom: 4 }}>Sport</label>
-                        <div style={{ display: "flex", gap: 8, marginTop: 4, marginBottom: 12 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginTop: 4, marginBottom: 12 }}>
                           {[
                             { id: "cricket", label: "🏏 Cricket", activeColor: "var(--accent-magenta)", activeBg: "rgba(233,30,140,0.15)", activeBorder: "var(--accent-magenta)" },
                             { id: "football", label: "⚽ Football", activeColor: "#3b82f6", activeBg: "rgba(59,130,246,0.15)", activeBorder: "#3b82f6" },
+                            { id: "hockey", label: "🏑 Hockey", activeColor: "#10b981", activeBg: "rgba(16,185,129,0.15)", activeBorder: "#10b981" },
+                            { id: "asian_games", label: "🥇 Asian Games", activeColor: "#f59e0b", activeBg: "rgba(245,158,11,0.15)", activeBorder: "#f59e0b" },
                           ].map((sp) => {
                             const isActive = sport === sp.id;
                             return (
                               <button
                                 key={sp.id}
                                 type="button"
-                                onClick={() => setSport(sp.id)}
+                                onClick={() => setSport(sport === sp.id ? "" : sp.id)}
                                 style={{
-                                  flex: 1, padding: "8px", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                                  padding: "8px 10px", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer",
                                   border: `1px solid ${isActive ? sp.activeBorder : "var(--border)"}`,
                                   background: isActive ? sp.activeBg : "transparent",
                                   color: isActive ? sp.activeColor : "var(--text-secondary)",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  gap: 6,
+                                  transition: "all 0.15s ease",
                                 }}
                               >
                                 {sp.label}

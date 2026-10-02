@@ -3781,10 +3781,11 @@ export default function Profile({
     iconSrc: "/images/badges/rookiefan.png",
   };
 
-  const normalizeSpecialBadges = (rawBadges: any[] = []): any[] => {
+  const normalizeSpecialBadges = (rawBadges: any[] = [], currentUserBadge?: string): any[] => {
     const list = Array.isArray(rawBadges) ? [...rawBadges] : [];
     let hasRookie = false;
-    const updated = list.map((b: any) => {
+    const updated = list.map((rawItem: any) => {
+      const b = typeof rawItem === "string" ? { id: rawItem, name: rawItem, unlocked: true } : { ...rawItem };
       const isRookieBadge =
         b.id === "ROOKIE_FAN" ||
         b.id === "RISING_FAN" ||
@@ -3807,11 +3808,44 @@ export default function Profile({
           unlocked: true,
         };
       }
-      return b;
+
+      const key = (b.id || b.name || "").toUpperCase().replace(/\s+/g, "_");
+      const detail = BADGE_DETAIL[key] || BADGE_DETAIL[b.id] || {};
+      const config = BADGE_CONFIG[key] || BADGE_CONFIG[b.id] || {};
+
+      return {
+        ...b,
+        id: b.id || key,
+        name: b.name || detail.name || config.name || BADGE_LABELS[key] || key,
+        description: b.description || detail.description || `Special achievement badge earned on SportsFan360.`,
+        rarity: b.rarity || detail.rarity || "Special Achievement",
+        howTo: b.howTo || detail.howTo || "",
+        unlocked: b.unlocked !== false,
+        iconSrc: b.iconSrc || config.iconSrc || (BADGE_ICONS[key] || "/images/badges/rookiefan.png"),
+      };
     });
 
     if (!hasRookie) {
       updated.unshift({ ...DEFAULT_ROOKIE_BADGE });
+    }
+
+    // Include the user's earned badge (e.g., ORACLE, BOLD_CALLER, CRICKET_HEAD, CONTRARIAN, OG_FAN, SEASONED_FAN) if present
+    const badgeKey = (currentUserBadge || userBadge || "").toUpperCase().replace(/\s+/g, "_");
+    if (badgeKey && badgeKey !== "ROOKIE_FAN" && badgeKey !== "RISING_FAN" && badgeKey !== "BOT") {
+      const exists = updated.some((b: any) => b.id?.toUpperCase() === badgeKey || b.name?.toUpperCase()?.replace(/\s+/g, "_") === badgeKey);
+      if (!exists && (BADGE_CONFIG[badgeKey] || BADGE_DETAIL[badgeKey])) {
+        const detail = BADGE_DETAIL[badgeKey] || {};
+        const config = BADGE_CONFIG[badgeKey] || {};
+        updated.push({
+          id: badgeKey,
+          name: detail.name || config.name || BADGE_LABELS[badgeKey] || badgeKey,
+          description: detail.description || `Special achievement badge earned on SportsFan360.`,
+          rarity: detail.rarity || "Special Achievement",
+          howTo: detail.howTo || "",
+          unlocked: true,
+          iconSrc: config.iconSrc || BADGE_ICONS[badgeKey] || "/images/badges/rookiefan.png",
+        });
+      }
     }
 
     return updated;
@@ -4004,10 +4038,19 @@ export default function Profile({
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
   const [selectedAvatar, setSelectedAvatar] = useState<string | null>(() => {
     if (!isOtherProfile && typeof window !== "undefined") {
+      if (localStorage.getItem("roar_avatar_removed") === "true") {
+        return "";
+      }
       return localStorage.getItem("roar_avatar_url");
     }
     return null;
   });
+  const isUploadingRef = useRef(false);
+  const selectedAvatarRef = useRef<string | null>(selectedAvatar);
+  useEffect(() => {
+    selectedAvatarRef.current = selectedAvatar;
+  }, [selectedAvatar]);
+
   const [coverPhoto, setCoverPhoto] = useState<string | null>(null);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -4018,11 +4061,23 @@ export default function Profile({
   const [globalTier, setGlobalTier] = useState<any>(null);
   const [globalTierProgress, setGlobalTierProgress] = useState(0);
   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
-  const [specialBadges, setSpecialBadges] = useState<any[]>([DEFAULT_ROOKIE_BADGE]);
+  const [specialBadges, setSpecialBadges] = useState<any[]>(() =>
+    normalizeSpecialBadges(
+      fanData?.specialBadges ||
+        fanData?.badges ||
+        fanData?.earnedBadges ||
+        cachedOwnProfileMetadata?.specialBadges ||
+        cachedOwnProfileMetadata?.user?.specialBadges ||
+        cachedOwnProfileMetadata?.user?.badges ||
+        [],
+      userBadge || fanData?.badge || cachedOwnProfileMetadata?.user?.badge
+    )
+  );
 
   useEffect(() => {
     const reload = () => {
       if (document.visibilityState !== "visible") return;
+      if (isUploadingRef.current) return;
       refreshActivities();
 
       if (!isOtherProfile) {
@@ -4044,11 +4099,14 @@ export default function Profile({
             const backendAvatar = sanitizeAvatarUrl(rawBackendAvatar);
 
             setProfileMetadata((prev: any) => {
+              const currentAvatar = selectedAvatarRef.current !== undefined && selectedAvatarRef.current !== null
+                ? selectedAvatarRef.current
+                : (backendAvatar || apiUser.avatarUrl || prev?.user?.avatarUrl);
               return {
                 ...prev,
                 user: {
                   ...apiUser,
-                  avatarUrl: backendAvatar || apiUser.avatarUrl || prev?.user?.avatarUrl,
+                  avatarUrl: currentAvatar,
                   username: resolved || apiUser.username,
                   university: apiUser.university || apiUser.institution || prev?.user?.university || prev?.user?.institution || "",
                 },
@@ -4061,13 +4119,25 @@ export default function Profile({
             if (apiUser.university || apiUser.institution) {
               setEditUniversity(apiUser.university || apiUser.institution);
             }
-            if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
-            if (res.data.specialBadges) setSpecialBadges(normalizeSpecialBadges(res.data.specialBadges));
+            if (res.data.featureBadges) {
+              setFeatureBadges(res.data.featureBadges);
+            } else if (apiUser.featureBadges) {
+              setFeatureBadges(apiUser.featureBadges);
+            }
+            const incomingSpecial =
+              res.data.specialBadges ||
+              apiUser.specialBadges ||
+              apiUser.badges ||
+              apiUser.earnedBadges ||
+              [];
+            setSpecialBadges(normalizeSpecialBadges(incomingSpecial, apiUser.badge || res.data.user?.badge || userBadge));
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
             if (backendAvatar) {
-              setSelectedAvatar(backendAvatar);
-              try { localStorage.setItem("roar_avatar_url", backendAvatar); } catch { }
+              const hasExplicitlyRemoved = typeof window !== "undefined" && localStorage.getItem("roar_avatar_removed") === "true";
+              if (!hasExplicitlyRemoved) {
+                setSelectedAvatar((prev) => (prev !== null && prev !== undefined ? prev : backendAvatar));
+              }
             }
 
             const actualUid = res.data.user?.actualUserId || res.data.user?.userId || loggedInUserId;
@@ -4078,10 +4148,8 @@ export default function Profile({
     };
 
     document.addEventListener("visibilitychange", reload);
-    window.addEventListener("focus", reload);
     return () => {
       document.removeEventListener("visibilitychange", reload);
-      window.removeEventListener("focus", reload);
     };
   }, [isOtherProfile, loggedInUserId, authUser]);
 
@@ -4431,11 +4499,24 @@ export default function Profile({
             setEditShowActivity(res.data.user?.showActivity !== false);
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
-            if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
-            if (res.data.specialBadges) setSpecialBadges(normalizeSpecialBadges(res.data.specialBadges));
+            if (res.data.featureBadges) {
+              setFeatureBadges(res.data.featureBadges);
+            } else if (apiUser.featureBadges) {
+              setFeatureBadges(apiUser.featureBadges);
+            }
+            const incomingSpecial =
+              res.data.specialBadges ||
+              apiUser.specialBadges ||
+              apiUser.badges ||
+              apiUser.earnedBadges ||
+              [];
+            setSpecialBadges(normalizeSpecialBadges(incomingSpecial, res.data.user?.badge || userBadge));
             if (backendAvatar) {
-              setSelectedAvatar(backendAvatar);
-              try { localStorage.setItem("roar_avatar_url", backendAvatar); } catch { }
+              const hasExplicitlyRemoved = typeof window !== "undefined" && localStorage.getItem("roar_avatar_removed") === "true";
+              if (!hasExplicitlyRemoved) {
+                setSelectedAvatar(backendAvatar);
+                try { localStorage.setItem("roar_avatar_url", backendAvatar); } catch { }
+              }
             }
             if (res.data.user?.coverPhotoUrl) {
               setCoverPhoto(res.data.user.coverPhotoUrl);
@@ -4477,7 +4558,7 @@ export default function Profile({
           setSelectedAvatar(backendAvatar || null);
           if (fanData.coverPhotoUrl) setCoverPhoto(fanData.coverPhotoUrl);
           setEditUniversity(fanData.university ?? fanData.institution ?? "");
-          setSpecialBadges(normalizeSpecialBadges(fanData.specialBadges || []));
+          setSpecialBadges(normalizeSpecialBadges(fanData.specialBadges || fanData.badges || fanData.earnedBadges || [], fanData.badge));
 
           const uid = fanData.actualUserId || fanData.userId;
           if (uid) await fetchActivities(uid);
@@ -4520,8 +4601,18 @@ export default function Profile({
             setEditUniversity(res.data.user?.university ?? res.data.user?.institution ?? "");
             if (res.data.globalTier) setGlobalTier(res.data.globalTier);
             if (res.data.globalTierProgress !== undefined) setGlobalTierProgress(res.data.globalTierProgress);
-            if (res.data.featureBadges) setFeatureBadges(res.data.featureBadges);
-            if (res.data.specialBadges) setSpecialBadges(normalizeSpecialBadges(res.data.specialBadges));
+            if (res.data.featureBadges) {
+              setFeatureBadges(res.data.featureBadges);
+            } else if (apiUser.featureBadges) {
+              setFeatureBadges(apiUser.featureBadges);
+            }
+            const incomingOtherSpecial =
+              res.data.specialBadges ||
+              apiUser.specialBadges ||
+              apiUser.badges ||
+              apiUser.earnedBadges ||
+              [];
+            setSpecialBadges(normalizeSpecialBadges(incomingOtherSpecial, res.data.user?.badge));
 
             const uid = res.data.user?.actualUserId || res.data.user?.userId || viewingProfile;
             await fetchActivities(uid);
@@ -4708,18 +4799,41 @@ export default function Profile({
     const s = new Set<string>();
     const add = (v: any) => {
       const k = String(v ?? "").trim().toLowerCase();
-      if (k) { s.add(k); s.add(k.replace(/[@.]/g, "_")); }
+      if (k && k !== "undefined" && k !== "null") {
+        s.add(k);
+        s.add(k.replace(/[@.]/g, "_"));
+        s.add(k.replace(/^user#/i, ""));
+      }
     };
     const pu = profileMetadata?.user;
-    if (!isOtherProfile) { add(authUser?.userId); add(authUser?.actualUserId); add(authUser?.email); add(loggedInUserId); }
-    add(pu?.actualUserId); add(pu?.userId); add(pu?.email); add(viewingProfile); add(fanData?.userId);
+    if (!isOtherProfile) {
+      add(authUser?.userId);
+      add(authUser?.actualUserId);
+      add(authUser?.email);
+      add((authUser as any)?.username);
+      add((authUser as any)?.displayName);
+      add(authUser?.name);
+      add(loggedInUserId);
+    }
+    add(pu?.actualUserId);
+    add(pu?.userId);
+    add(pu?.email);
+    add(pu?.username);
+    add(pu?.displayName);
+    add(pu?.name);
+    add(viewingProfile);
+    add(fanData?.userId);
+    add(fanData?.actualUserId);
+    add(fanData?.username);
+    add(fanData?.displayName);
+    add(effectiveUsername);
     return s;
-  }, [isOtherProfile, authUser, loggedInUserId, profileMetadata?.user, viewingProfile, fanData?.userId]);
+  }, [isOtherProfile, authUser, loggedInUserId, profileMetadata?.user, viewingProfile, fanData, effectiveUsername]);
 
   const isTarget = useCallback((e: any) =>
-    [e?.userId, e?.actualUserId, e?.id, e?.userEmail, e?.email].some((v) => {
+    [e?.userId, e?.actualUserId, e?.id, e?.userEmail, e?.email, e?.author, e?.authorUid, e?.username, e?.creatorId, e?.createdBy].some((v) => {
       const k = String(v ?? "").trim().toLowerCase();
-      return !!k && (targetKeys.has(k) || targetKeys.has(k.replace(/[@.]/g, "_")));
+      return !!k && (targetKeys.has(k) || targetKeys.has(k.replace(/[@.]/g, "_")) || targetKeys.has(k.replace(/^user#/i, "")));
     }), [targetKeys]);
 
   const fetchArena = useCallback(async () => {
@@ -4741,15 +4855,21 @@ export default function Profile({
         })
         .sort((a, b) => b.points - a.points);
       const idx = rows.findIndex((r) => isTarget(r.raw));
-      setArenaStats(idx >= 0
-        ? { points: rows[idx].points, rank: idx + 1, accuracy: rows[idx].accuracy, correct: rows[idx].correct, total: rows[idx].total }
-        : null);
+      if (idx >= 0) {
+        setArenaStats({ points: rows[idx].points, rank: idx + 1, accuracy: rows[idx].accuracy, correct: rows[idx].correct, total: rows[idx].total });
+      } else {
+        const u = profileMetadata?.user || user;
+        const fallbackPts = Number(u?.arenaPoints ?? u?.quizPoints ?? 0);
+        setArenaStats(fallbackPts > 0 ? { points: fallbackPts, rank: 0, accuracy: "—", correct: 0, total: 0 } : null);
+      }
     } catch {
-      setArenaStats(null);
+      const u = profileMetadata?.user || user;
+      const fallbackPts = Number(u?.arenaPoints ?? u?.quizPoints ?? 0);
+      setArenaStats(fallbackPts > 0 ? { points: fallbackPts, rank: 0, accuracy: "—", correct: 0, total: 0 } : null);
     } finally {
       setArenaLoading(false);
     }
-  }, [targetKeys, isTarget]);
+  }, [targetKeys, isTarget, profileMetadata?.user, user]);
 
   useEffect(() => {
     fetchArena();
@@ -4765,11 +4885,36 @@ export default function Profile({
     const list = Array.isArray(globalLeaderboard) ? globalLeaderboard : [];
     const idx = list.findIndex(isTarget);
     const entry: any = idx >= 0 ? list[idx] : null;
+
+    const u = profileMetadata?.user || user;
+    const fallbackProfilePoints = Number(
+      u?.totalPoints ??
+      u?.reputationScore ??
+      u?.points ??
+      u?.score ??
+      u?.sxp ??
+      0
+    );
+
     if (!isOtherProfile) {
-      return { points: currentUserPoints ?? entry?.totalPoints ?? 0, rank: currentUserRank || entry?.rank || (idx >= 0 ? idx + 1 : 0) };
+      const bestPoints = Math.max(
+        Number(currentUserPoints ?? 0),
+        Number(entry?.totalPoints ?? 0),
+        Number(entry?.points ?? 0),
+        fallbackProfilePoints
+      );
+      const rank = currentUserRank || entry?.rank || (idx >= 0 ? idx + 1 : 0);
+      return { points: bestPoints, rank };
     }
-    return { points: entry?.totalPoints ?? profileMetadata?.user?.totalPoints ?? 0, rank: entry?.rank ?? (idx >= 0 ? idx + 1 : 0) };
-  }, [globalLeaderboard, isTarget, isOtherProfile, currentUserPoints, currentUserRank, profileMetadata?.user?.totalPoints]);
+
+    const otherPoints = Math.max(
+      Number(entry?.totalPoints ?? 0),
+      Number(entry?.points ?? 0),
+      fallbackProfilePoints
+    );
+    const otherRank = entry?.rank ?? (idx >= 0 ? idx + 1 : 0);
+    return { points: otherPoints, rank: otherRank };
+  }, [globalLeaderboard, isTarget, isOtherProfile, currentUserPoints, currentUserRank, profileMetadata?.user, user]);
 
   const levelInfo = useMemo(() => calculateLevelData(globalStats.points), [globalStats.points]);
 
@@ -4779,78 +4924,214 @@ export default function Profile({
   const apiDebates = profileMetadata?.debates || user?.debates || [];
   const apiPosts = profileMetadata?.posts || user?.posts || [];
 
-  const sourceActivities = fetchedActivities;
+  const sourceActivities = useMemo(() => {
+    const map = new Map<string, any>();
+    (activities || []).forEach((a: any) => {
+      if (a?.id) map.set(String(a.id), a);
+      else map.set(JSON.stringify(a), a);
+    });
+    (fetchedActivities || []).forEach((a: any) => {
+      if (a?.id) map.set(String(a.id), a);
+      else map.set(JSON.stringify(a), a);
+    });
+    return Array.from(map.values());
+  }, [activities, fetchedActivities]);
+
   const isLoadingActivities = fetchedActivitiesLoading;
 
-  const predictionActivities = sourceActivities.filter((a: any) =>
-    a.type === "ROAR_PREDICTION_PARTICIPATE" || a.type === "ROAR_PREDICTION"
-  );
+  const predictionActivities = useMemo(() => {
+    return sourceActivities.filter((a: any) => {
+      const t = String(a?.type || a?.metadata?.type || "").toUpperCase();
+      return (
+        t === "ROAR_PREDICTION_PARTICIPATE" ||
+        t === "ROAR_PREDICTION" ||
+        t.includes("PREDICTION")
+      );
+    });
+  }, [sourceActivities]);
 
-  const debateActivities = sourceActivities.filter((a: any) =>
-    a.type === "ROAR_DEBATE_PARTICIPATE" || a.type === "ROAR_DEBATE"
-  );
+  const debateActivities = useMemo(() => {
+    return sourceActivities.filter((a: any) => {
+      const t = String(a?.type || a?.metadata?.type || "").toUpperCase();
+      return (
+        t === "ROAR_DEBATE_PARTICIPATE" ||
+        t === "ROAR_DEBATE" ||
+        t.includes("DEBATE")
+      );
+    });
+  }, [sourceActivities]);
 
-  const postActivities = sourceActivities.filter((a: any) =>
-    ["ROAR_POST", "ROAR_HOT_TAKE", "ROAR_DEBATE", "ROAR_PREDICTION", "ROAR_RAW_REACTIONS", "ROAR_MEMORY", "ROAR_QUIZ"].includes(a.type)
-  );
+  const postActivities = useMemo(() => {
+    return sourceActivities.filter((a: any) => {
+      const t = String(a?.type || a?.metadata?.type || "").toUpperCase();
+      return (
+        [
+          "ROAR_POST",
+          "ROAR_HOT_TAKE",
+          "ROAR_DEBATE",
+          "ROAR_PREDICTION",
+          "ROAR_RAW_REACTIONS",
+          "ROAR_MEMORY",
+          "ROAR_QUIZ",
+        ].includes(t) ||
+        t.includes("POST") ||
+        t.includes("HOT_TAKE") ||
+        t.includes("HOTTAKE") ||
+        t.includes("REACTION") ||
+        t.includes("MEMORY")
+      );
+    });
+  }, [sourceActivities]);
 
-  const statPosts = Math.max(
-    (actCounts.ROAR_POST ?? 0) +
-    (actCounts.ROAR_DEBATE ?? 0) +
-    (actCounts.ROAR_PREDICTION ?? 0) +
-    (actCounts.ROAR_HOT_TAKE ?? 0),
-    (activityCounts.ROAR_POST ?? 0) +
-    (activityCounts.ROAR_DEBATE ?? 0) +
-    (activityCounts.ROAR_PREDICTION ?? 0) +
-    (activityCounts.ROAR_HOT_TAKE ?? 0),
-    user?.postsCount ?? user?.postCount ?? 0,
-    apiHotTakes.length + apiPosts.length,
-    apiHotTakes.length,
-    apiPosts.length,
-    postActivities.length,
-    profileStats?.posts ?? 0
-  );
+  const isTargetCreator = useCallback((item: any) => {
+    const createdBy = String(
+      item?.createdBy ||
+      item?.creatorId ||
+      item?.author ||
+      item?.userId ||
+      item?.authorUid ||
+      item?.actualUserId ||
+      item?.user?.userId ||
+      item?.user?.username ||
+      item?.fan?.authorUid ||
+      item?.fan?.username ||
+      ""
+    ).trim().toLowerCase();
+    return (
+      !!createdBy &&
+      (targetKeys.has(createdBy) ||
+        targetKeys.has(createdBy.replace(/[@.]/g, "_")) ||
+        targetKeys.has(createdBy.replace(/^user#/i, "")))
+    );
+  }, [targetKeys]);
 
-  const statDebates = Math.max(
-    (actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (actCounts.ROAR_DEBATE ?? 0),
-    (activityCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (activityCounts.ROAR_DEBATE ?? 0),
-    actCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
-    actCounts.ROAR_DEBATE ?? 0,
-    activityCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
-    activityCounts.ROAR_DEBATE ?? 0,
-    user?.debatesCount ?? user?.debateCount ?? 0,
-    apiDebates.length,
-    debateActivities.length,
-    profileStats?.debates ?? 0
-  );
+  const statPosts = useMemo(() => {
+    const isPostType = (e: any) => {
+      const t = String(e?.type || e?.postType || "").toLowerCase();
+      return (
+        t === "post" ||
+        t === "posts" ||
+        t === "hot_take" ||
+        t === "hottake" ||
+        t === "raw_reactions" ||
+        t === "memory" ||
+        t === "roar_post" ||
+        t === "roar_hot_take" ||
+        t === "debate" ||
+        t === "prediction"
+      );
+    };
+    const matchingEngagements = userEngagements.filter(
+      (e) => isPostType(e) && isTargetCreator(e)
+    );
 
-  const statPredictions = Math.max(
-    (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (actCounts.ROAR_PREDICTION ?? 0),
-    (activityCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (activityCounts.ROAR_PREDICTION ?? 0),
-    actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
-    actCounts.ROAR_PREDICTION ?? 0,
-    activityCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
-    activityCounts.ROAR_PREDICTION ?? 0,
-    user?.predictionCount ?? 0,
-    user?.predictionStats?.total ?? user?.predictionStats?.totalPredictions ?? user?.predictionStats?.count ?? 0,
-    apiPredictions.length,
-    predictionActivities.length,
-    profileStats?.predictions ?? 0
-  );
+    const userPosts = Array.isArray(user?.posts) ? user.posts.length : 0;
+    const userHotTakes = Array.isArray(user?.hotTakes) ? user.hotTakes.length : 0;
+
+    return Math.max(
+      matchingEngagements.length,
+      (actCounts.ROAR_POST ?? 0) +
+      (actCounts.ROAR_DEBATE ?? 0) +
+      (actCounts.ROAR_PREDICTION ?? 0) +
+      (actCounts.ROAR_HOT_TAKE ?? 0),
+      (activityCounts.ROAR_POST ?? 0) +
+      (activityCounts.ROAR_DEBATE ?? 0) +
+      (activityCounts.ROAR_PREDICTION ?? 0) +
+      (activityCounts.ROAR_HOT_TAKE ?? 0),
+      user?.postsCount ?? user?.postCount ?? user?.posts_count ?? 0,
+      (user as any)?.stats?.postCount ?? 0,
+      (user as any)?.stats?.postsCount ?? 0,
+      (user as any)?.stats?.posts ?? 0,
+      (user as any)?.roarStats?.posts ?? 0,
+      apiHotTakes.length + apiPosts.length,
+      apiHotTakes.length,
+      apiPosts.length,
+      userPosts + userHotTakes,
+      postActivities.length,
+      profileStats?.posts ?? 0,
+      profileStats?.hotTakes ? (profileStats.hotTakes + (profileStats.posts ?? 0)) : 0
+    );
+  }, [userEngagements, isTargetCreator, actCounts, activityCounts, user, apiHotTakes, apiPosts, postActivities, profileStats]);
+
+  const statDebates = useMemo(() => {
+    const isDeb = (e: any) => {
+      const t = String(e?.type || e?.postType || "").toLowerCase();
+      return (
+        t === "debate" ||
+        t === "debates" ||
+        t === "roar_debate" ||
+        t === "roar_debate_participate"
+      );
+    };
+    const matchingEngagements = userEngagements.filter(
+      (e) => isDeb(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote)
+    );
+
+    const userDebates = Array.isArray(user?.debates) ? user.debates.length : 0;
+
+    return Math.max(
+      matchingEngagements.length,
+      (actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (actCounts.ROAR_DEBATE ?? 0),
+      (activityCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (activityCounts.ROAR_DEBATE ?? 0),
+      actCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
+      actCounts.ROAR_DEBATE ?? 0,
+      activityCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
+      activityCounts.ROAR_DEBATE ?? 0,
+      user?.debatesCount ?? user?.debateCount ?? user?.debates_count ?? 0,
+      (user as any)?.stats?.debateCount ?? 0,
+      (user as any)?.stats?.debatesCount ?? 0,
+      (user as any)?.stats?.debates ?? 0,
+      (user as any)?.roarStats?.debates ?? 0,
+      apiDebates.length,
+      userDebates,
+      debateActivities.length,
+      profileStats?.debates ?? 0
+    );
+  }, [userEngagements, isTargetCreator, actCounts, activityCounts, user, apiDebates, debateActivities, profileStats]);
+
+  const statPredictions = useMemo(() => {
+    const isPred = (e: any) => {
+      const t = String(e?.type || e?.postType || "").toLowerCase();
+      return (
+        t === "prediction" ||
+        t === "predictions" ||
+        t === "predictions_live" ||
+        t === "roar_prediction" ||
+        t === "roar_prediction_participate"
+      );
+    };
+    const matchingEngagements = userEngagements.filter(
+      (e) => isPred(e) && (isTargetCreator(e) || e.userVoted || (e as any).hasVoted || (e as any).userVote)
+    );
+
+    const userPredictions = Array.isArray(user?.predictions) ? user.predictions.length : 0;
+
+    return Math.max(
+      matchingEngagements.length,
+      (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (actCounts.ROAR_PREDICTION ?? 0),
+      (activityCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (activityCounts.ROAR_PREDICTION ?? 0),
+      actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
+      actCounts.ROAR_PREDICTION ?? 0,
+      activityCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
+      activityCounts.ROAR_PREDICTION ?? 0,
+      user?.predictionCount ?? user?.predictionsCount ?? user?.predictions_count ?? 0,
+      (user as any)?.stats?.predictionCount ?? 0,
+      (user as any)?.stats?.predictionsCount ?? 0,
+      (user as any)?.stats?.predictions ?? 0,
+      (user as any)?.roarStats?.predictions ?? 0,
+      user?.predictionStats?.total ?? user?.predictionStats?.totalPredictions ?? user?.predictionStats?.count ?? 0,
+      apiPredictions.length,
+      userPredictions,
+      predictionActivities.length,
+      profileStats?.predictions ?? 0
+    );
+  }, [userEngagements, isTargetCreator, actCounts, activityCounts, user, apiPredictions, predictionActivities, profileStats]);
 
   const statComments = Math.max(
     actCounts.ROAR_COMMENT ?? 0,
     activityCounts.ROAR_COMMENT ?? 0,
     user?.commentsCount ?? user?.commentCount ?? 0
   );
-
-  const isTargetCreator = useCallback((item: any) => {
-    const createdBy = String(item?.createdBy || item?.creatorId || item?.author || item?.userId || "").trim().toLowerCase();
-    return (
-      !!createdBy &&
-      (targetKeys.has(createdBy) || targetKeys.has(createdBy.replace(/[@.]/g, "_")))
-    );
-  }, [targetKeys]);
 
   const statPolls = useMemo(() => {
     const isPoll = (e: any) => {
@@ -5030,22 +5311,30 @@ export default function Profile({
   const isExpertProfile = !!expertCanonicalName;
 
   // ── Guarded Avatar Selection (never leaks viewer's credentials to other profiles)
-  // ── Guarded Avatar Selection
-  const rawAvatar =
-    (isBotProfile && botCanonicalName ? BOT_AVATARS[botCanonicalName] : null) ||
-    (isBotProfile && user?.username && BOT_AVATARS[user.username] ? BOT_AVATARS[user.username] : null) ||
-    (isExpertProfile && expertCanonicalName ? EXPERT_AVATARS[expertCanonicalName] : null) ||
-    user?.avatarUrl ||
-    user?.photoURL ||
-    user?.picture ||
-    user?.image ||
-    user?.profilePicture ||
-    (!isOtherProfile
-      ? (selectedAvatar ||
-        authUser?.avatar ||
-        authUser?.photoURL ||
-        (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null))
-      : null);
+  const rawAvatar = (() => {
+    if (isBotProfile && botCanonicalName) return BOT_AVATARS[botCanonicalName];
+    if (isBotProfile && user?.username && BOT_AVATARS[user.username]) return BOT_AVATARS[user.username];
+    if (isExpertProfile && expertCanonicalName) return EXPERT_AVATARS[expertCanonicalName];
+
+    if (!isOtherProfile) {
+      if (selectedAvatar === "") return null;
+      if (selectedAvatar) return selectedAvatar;
+      if (typeof window !== "undefined" && localStorage.getItem("roar_avatar_removed") === "true") return null;
+    }
+
+    return (
+      user?.avatarUrl ||
+      user?.photoURL ||
+      user?.picture ||
+      user?.image ||
+      user?.profilePicture ||
+      (!isOtherProfile
+        ? (authUser?.avatar ||
+          authUser?.photoURL ||
+          (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null))
+        : null)
+    );
+  })();
 
   const displayAvatar = sanitizeAvatarUrl(rawAvatar);
 
@@ -5104,9 +5393,39 @@ export default function Profile({
     }));
 
   const handleAvatarSelect = async (src: string) => {
+    selectedAvatarRef.current = src;
     setSelectedAvatar(src);
     setAvatarPickerOpen(false);
-    try { localStorage.setItem("roar_avatar_url", src); } catch { }
+    try {
+      localStorage.removeItem("roar_avatar_removed");
+      localStorage.setItem("roar_avatar_url", src);
+    } catch { }
+    setProfileMetadata((prev: any) => ({
+      ...prev,
+      user: {
+        ...(prev?.user ?? {}),
+        avatarUrl: src,
+        avatar: src,
+        photoURL: src,
+        picture: src,
+        image: src,
+        profilePicture: src,
+      },
+    }));
+    if (cachedOwnProfileMetadata) {
+      cachedOwnProfileMetadata = {
+        ...cachedOwnProfileMetadata,
+        user: {
+          ...(cachedOwnProfileMetadata.user ?? {}),
+          avatarUrl: src,
+          avatar: src,
+          photoURL: src,
+          picture: src,
+          image: src,
+          profilePicture: src,
+        },
+      };
+    }
     window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: src } }));
     try {
       trackProfileSignalCreated("avatar", { avatar_url: src });
@@ -5125,7 +5444,13 @@ export default function Profile({
       onToast("Image is too large — please pick one under 4MB.");
       return;
     }
+    isUploadingRef.current = true;
     setUploadingAvatar(true);
+    const previousAvatar =
+      selectedAvatarRef.current ||
+      profileMetadata?.user?.avatarUrl ||
+      (typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null);
+
     try {
       const dataUrl: string = await new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -5133,6 +5458,7 @@ export default function Profile({
         reader.onerror = () => reject(new Error("Could not read file"));
         reader.readAsDataURL(file);
       });
+      selectedAvatarRef.current = dataUrl;
       setSelectedAvatar(dataUrl);
       setProfileMetadata((prev: any) => ({
         ...prev,
@@ -5141,19 +5467,90 @@ export default function Profile({
           avatarUrl: dataUrl,
           avatar: dataUrl,
           photoURL: dataUrl,
+          picture: dataUrl,
+          image: dataUrl,
+          profilePicture: dataUrl,
         },
       }));
+      if (cachedOwnProfileMetadata) {
+        cachedOwnProfileMetadata = {
+          ...cachedOwnProfileMetadata,
+          user: {
+            ...(cachedOwnProfileMetadata.user ?? {}),
+            avatarUrl: dataUrl,
+            avatar: dataUrl,
+            photoURL: dataUrl,
+            picture: dataUrl,
+            image: dataUrl,
+            profilePicture: dataUrl,
+          },
+        };
+      }
       setAvatarPickerOpen(false);
-      try { localStorage.setItem("roar_avatar_url", dataUrl); } catch { }
-      window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: dataUrl } }));
+      try {
+        localStorage.removeItem("roar_avatar_removed");
+        localStorage.setItem("roar_avatar_url", dataUrl);
+      } catch { }
       try {
         trackProfileSignalCreated("avatar", { avatar_url: dataUrl });
       } catch (e) { }
+
+      let activeAvatar = dataUrl;
+      try {
+        const patchRes = await axios.patch("/api/roar/profile", { avatarUrl: dataUrl });
+        const savedAvatarUrl = patchRes.data?.user?.avatarUrl || patchRes.data?.avatarUrl;
+        // Only update if backend returned a brand new CDN URL (http/https)
+        // that is different from both dataUrl and the old previous avatar.
+        // Never overwrite the user's freshly picked photo with an old/stale avatar from the response.
+        const isNewRemoteCdnUrl =
+          typeof savedAvatarUrl === "string" &&
+          savedAvatarUrl.length > 0 &&
+          (savedAvatarUrl.startsWith("http://") || savedAvatarUrl.startsWith("https://")) &&
+          savedAvatarUrl !== previousAvatar &&
+          savedAvatarUrl !== dataUrl;
+
+        if (isNewRemoteCdnUrl) {
+          activeAvatar = savedAvatarUrl;
+          selectedAvatarRef.current = savedAvatarUrl;
+          setSelectedAvatar(savedAvatarUrl);
+          setProfileMetadata((prev: any) => ({
+            ...prev,
+            user: {
+              ...(prev?.user ?? {}),
+              avatarUrl: savedAvatarUrl,
+              avatar: savedAvatarUrl,
+              photoURL: savedAvatarUrl,
+              picture: savedAvatarUrl,
+              image: savedAvatarUrl,
+              profilePicture: savedAvatarUrl,
+            },
+          }));
+          if (cachedOwnProfileMetadata) {
+            cachedOwnProfileMetadata = {
+              ...cachedOwnProfileMetadata,
+              user: {
+                ...(cachedOwnProfileMetadata.user ?? {}),
+                avatarUrl: savedAvatarUrl,
+                avatar: savedAvatarUrl,
+                photoURL: savedAvatarUrl,
+                picture: savedAvatarUrl,
+                image: savedAvatarUrl,
+                profilePicture: savedAvatarUrl,
+              },
+            };
+          }
+          try { localStorage.setItem("roar_avatar_url", savedAvatarUrl); } catch { }
+        }
+      } catch (patchErr) {
+        console.warn("Could not patch avatar to backend, retaining local preview:", patchErr);
+      }
+
+      window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: activeAvatar } }));
       onToast("Profile photo updated!");
-      try { await axios.patch("/api/roar/profile", { avatarUrl: dataUrl }); } catch { }
     } catch {
       onToast("Could not load that image.");
     } finally {
+      isUploadingRef.current = false;
       setUploadingAvatar(false);
     }
   };
@@ -5186,6 +5583,44 @@ export default function Profile({
 
   const handleRemoveCoverPhoto = () => {
     setCoverPhoto(null);
+  };
+
+  const handleRemoveAvatar = async () => {
+    selectedAvatarRef.current = "";
+    setSelectedAvatar("");
+    try {
+      localStorage.removeItem("roar_avatar_url");
+      localStorage.setItem("roar_avatar_removed", "true");
+    } catch { }
+    setProfileMetadata((prev: any) => ({
+      ...prev,
+      user: {
+        ...(prev?.user ?? {}),
+        avatarUrl: null,
+        avatar: null,
+        photoURL: null,
+        picture: null,
+        image: null,
+        profilePicture: null,
+      },
+    }));
+    if (cachedOwnProfileMetadata) {
+      cachedOwnProfileMetadata = {
+        ...cachedOwnProfileMetadata,
+        user: {
+          ...(cachedOwnProfileMetadata.user ?? {}),
+          avatarUrl: null,
+          avatar: null,
+          photoURL: null,
+          picture: null,
+          image: null,
+          profilePicture: null,
+        },
+      };
+    }
+    window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: null } }));
+    onToast("Profile photo removed!");
+    try { await axios.patch("/api/roar/profile", { avatarUrl: "" }); } catch { }
   };
 
   const handleWhatsAppShare = async () => {
@@ -5342,40 +5777,15 @@ export default function Profile({
               <div style={{ position: "absolute", inset: -4, borderRadius: "50%", background: "conic-gradient(#FFD700 0%, #FFA500 40%, #FFD700 70%, #FFA500 100%)", zIndex: 0 }} />
               <div style={{ position: "absolute", inset: -1, borderRadius: "50%", background: "rgba(10,10,16,0.97)", zIndex: 1 }} />
 
-              {/* <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
-                {displayAvatar ? (
-                  <img
-                    src={displayAvatar}
-                    alt="avatar"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLElement).style.display = "none";
-                      const parent = e.currentTarget.parentElement;
-                      const fallback = parent?.querySelector(".avatar-fallback-wrapper") as HTMLElement;
-                      if (fallback) fallback.style.display = "flex";
-                    }}
-                  />
-                ) : null}
-                <div
-                  className="avatar-fallback-wrapper"
-                  style={{
-                    display: displayAvatar ? "none" : "flex",
-                    width: "100%",
-                    height: "100%",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="lg" />
-                </div>
-              </div> */}
+
 
               <div style={{ position: "relative", zIndex: 2, width: "100%", height: "100%", borderRadius: "50%", overflow: "hidden", background: "#1a1a2e" }}>
                 {displayAvatar ? (
                   <img
+                    key={displayAvatar}
                     src={displayAvatar}
                     alt="avatar"
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                     onError={(e) => {
                       (e.currentTarget as HTMLElement).style.display = "none";
                       const parent = e.currentTarget.parentElement;
@@ -6577,12 +6987,39 @@ export default function Profile({
                 <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                   <div style={{ width: 56, height: 56, borderRadius: "50%", overflow: "hidden", background: "#1a1a2e", border: "2px solid rgba(255,255,255,0.12)", flexShrink: 0 }}>
                     {displayAvatar ? (
-                      <img src={displayAvatar} alt="preview" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      <AvatarWithBadge username={effectiveUsername} badge={userBadge} size="md" />
-                    )}
+                      <img
+                        key={displayAvatar}
+                        src={displayAvatar}
+                        alt="preview"
+                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLElement).style.display = "none";
+                          const parent = e.currentTarget.parentElement;
+                          const fallback = parent?.querySelector(".edit-avatar-fallback") as HTMLElement;
+                          if (fallback) fallback.style.display = "flex";
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className="edit-avatar-fallback"
+                      style={{
+                        display: displayAvatar ? "none" : "flex",
+                        width: "100%",
+                        height: "100%",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "linear-gradient(135deg, #9333ea 0%, #4f46e5 100%)",
+                        color: "#ffffff",
+                        fontWeight: 900,
+                        fontSize: 22,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
+                      {effectiveUsername ? effectiveUsername.trim().charAt(0).toUpperCase() : "F"}
+                    </div>
                   </div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                     <button
                       type="button"
                       onClick={() => setAvatarPickerOpen(true)}
@@ -6609,9 +7046,24 @@ export default function Profile({
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) handleAvatarUpload(file);
+                          e.target.value = "";
                         }}
                       />
                     </label>
+                    {displayAvatar && (
+                      <button
+                        type="button"
+                        onClick={handleRemoveAvatar}
+                        style={{
+                          padding: "6px 12px", borderRadius: 16,
+                          background: "rgba(248,113,113,0.25)",
+                          border: "1px solid rgba(248,113,113,0.4)",
+                          color: "#f87171", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                        }}
+                      >
+                        Remove
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -6690,6 +7142,7 @@ export default function Profile({
                 type="button"
                 onClick={async () => {
                   try {
+                    const avatarVal = selectedAvatar === "" ? "" : (selectedAvatar ?? profileMetadata?.user?.avatarUrl ?? "");
                     const payload: any = {
                       username: editName.trim(),
                       university: editUniversity.trim(),
@@ -6699,15 +7152,44 @@ export default function Profile({
                       showPredHistory: editShowPredHistory,
                       showActivity: editShowActivity,
                       coverPhotoUrl: coverPhoto ?? "",
+                      avatarUrl: avatarVal,
                     };
                     await axios.patch("/api/roar/profile", payload);
+                    const updatedUser = {
+                      ...(profileMetadata?.user ?? {}),
+                      ...payload,
+                      avatarUrl: avatarVal || null,
+                      avatar: avatarVal || null,
+                      photoURL: avatarVal || null,
+                    };
                     setProfileMetadata((prev: any) => ({
                       ...prev,
                       user: {
                         ...(prev?.user ?? {}),
                         ...payload,
+                        avatarUrl: avatarVal || null,
+                        avatar: avatarVal || null,
+                        photoURL: avatarVal || null,
                       },
                     }));
+                    if (cachedOwnProfileMetadata) {
+                      cachedOwnProfileMetadata = {
+                        ...cachedOwnProfileMetadata,
+                        user: updatedUser,
+                      };
+                    }
+                    if (avatarVal) {
+                      try {
+                        localStorage.removeItem("roar_avatar_removed");
+                        localStorage.setItem("roar_avatar_url", avatarVal);
+                      } catch { }
+                    } else if (selectedAvatar === "") {
+                      try {
+                        localStorage.removeItem("roar_avatar_url");
+                        localStorage.setItem("roar_avatar_removed", "true");
+                      } catch { }
+                    }
+                    window.dispatchEvent(new CustomEvent("roar-profile-updated", { detail: { avatarUrl: avatarVal || null } }));
                     setEditOpen(false);
                     onToast("Profile updated!");
                   } catch (err: any) {
@@ -6766,7 +7248,7 @@ export default function Profile({
                 ))}
               </div>
 
-              <div style={{ textAlign: "center" }}>
+              <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
                 <label style={{
                   display: "inline-block", padding: "8px 18px", borderRadius: 20,
                   background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
@@ -6780,9 +7262,27 @@ export default function Profile({
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) handleAvatarUpload(file);
+                      e.target.value = "";
                     }}
                   />
                 </label>
+                {displayAvatar && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleRemoveAvatar();
+                      setAvatarPickerOpen(false);
+                    }}
+                    style={{
+                      padding: "6px 16px", borderRadius: 20,
+                      background: "rgba(248,113,113,0.2)",
+                      border: "1px solid rgba(248,113,113,0.4)",
+                      color: "#f87171", fontSize: 12, fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    Remove Photo
+                  </button>
+                )}
               </div>
             </motion.div>
           </motion.div>

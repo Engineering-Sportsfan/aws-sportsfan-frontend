@@ -744,7 +744,7 @@ const openRecapForRoom = useCallback(async (room: Room) => {
   // ── Loading spinner ────────────────────────────────────────────────────────
   if (!mounted || checkingProfile) {
     return (
-      <div className="roar-root" style={{ minHeight: "600px", height: "100%", background: "#050508", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", borderRadius: "24px", border: "1px solid #252538" }}>
+      <div className="roar-root" style={{ minHeight: 0, height: "100%", background: "#050508", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", borderRadius: "24px", border: "1px solid #252538" }}>
         <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
         <div style={{ textAlign: "center", zIndex: 10 }}>
           <div style={{ width: 40, height: 40, border: "3px solid rgba(255,255,255,0.1)", borderTop: "3px solid #E91E8C", borderRadius: "50%", animation: "roar-spin 1s linear infinite", margin: "0 auto 16px" }} />

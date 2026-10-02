@@ -3332,7 +3332,7 @@ import { trackMeaningfulInteraction, trackAdvocacy } from "@/lib/analytics";
 import { motion, AnimatePresence, useAnimationControls } from "framer-motion";
 import { useUserProfile } from "@/context/UserProfileContext";
 import axios from "axios";
-import AvatarWithBadge from "../components/AvatarWithBadge";
+import AvatarWithBadge, { sanitizeAvatarUrl } from "../components/AvatarWithBadge";
 import ReactionPicker, { type Reaction } from "../components/ReactionPicker";
 import ReactionsDialog from "../components/ReactionsDialog";
 import ActiveFansDialog from "../components/ActiveFansDialog";
@@ -4858,6 +4858,7 @@ export default function DiscussionRoom({
       });
   }, [roomBotConfig, botDefs]);
 
+  const { userProfile } = useUserProfile();
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [input, setInput] = useState("");
@@ -4868,8 +4869,27 @@ export default function DiscussionRoom({
   const [uploading, setUploading] = useState(false);
   const [attachedUrl, setAttachedUrl] = useState<string | null>(null);
   const [attachedType, setAttachedType] = useState<"image" | "video" | null>(null);
-  const [userUsername, setUserUsername] = useState("RoarUser");
-  const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>(currentAvatarUrl);
+  const [userUsername, setUserUsername] = useState(() => {
+    try {
+      return userProfile?.username || localStorage.getItem("roar_username") || "RoarUser";
+    } catch {
+      return "RoarUser";
+    }
+  });
+  const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>(() => {
+    try {
+      const stored = localStorage.getItem("roar_avatar_url");
+      return sanitizeAvatarUrl(currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || stored) || undefined;
+    } catch {
+      return sanitizeAvatarUrl(currentAvatarUrl) || undefined;
+    }
+  });
+
+  const getEffectiveUserAvatar = useCallback(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null;
+    const raw = userAvatarUrl || currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || (userProfile as any)?.photoURL || (userProfile as any)?.picture || (userProfile as any)?.image || stored;
+    return sanitizeAvatarUrl(raw) || undefined;
+  }, [userAvatarUrl, currentAvatarUrl, userProfile]);
   const [selectedActionId, setSelectedActionId] = useState("post");
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dollyActiveSessionIdRef = useRef<string | undefined>(undefined);
@@ -4878,7 +4898,6 @@ export default function DiscussionRoom({
   const [totalJoinCount, setTotalJoinCount] = useState<number>(0);
   const [sharePost, setSharePost] = useState<ShareableRoarPost | null>(null);
   const [copied, setCopied] = useState(false);
-  const { userProfile } = useUserProfile();
   const [roomCounts, setRoomCounts] = useState({ post: 0, debate: 0, prediction: 0, trivia: 0, battle: 0 });
   const [activeFilter, setActiveFilter] = useState<"all" | "post" | "debate" | "prediction" | "trivia" | "battle">("all");
   const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
@@ -4994,18 +5013,41 @@ export default function DiscussionRoom({
   const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const currentUserId = propCurrentUserId || userProfile?.actualUserId;
-  const currentUserIdCandidates = [
-    currentUserId,
-    userProfile?.actualUserId,
-    (userProfile as { userId?: string })?.userId,
-    (userProfile as { uid?: string })?.uid,
-    (userProfile as { email?: string })?.email,
-  ].filter(Boolean).map(String);
+  // ── AUTHOR CHECK (for delete & avatar matching) ──
+  const currentUserIdCandidates = React.useMemo(() => {
+    const storedActual = typeof window !== "undefined" ? localStorage.getItem("roar_actual_user_id") : null;
+    const storedUid = typeof window !== "undefined" ? localStorage.getItem("roar_user_id") : null;
+    const list = [
+      currentUserId,
+      userProfile?.actualUserId,
+      (userProfile as { userId?: string })?.userId,
+      (userProfile as { uid?: string })?.uid,
+      (userProfile as { email?: string })?.email,
+      storedActual,
+      storedUid,
+    ].filter(Boolean).map(v => String(v).trim().toLowerCase());
+    return new Set(list);
+  }, [currentUserId, userProfile]);
 
-  const isCurrentUserAuthor = (post: { authorUid?: unknown; authorEmail?: unknown; fan?: { authorUid?: unknown } }) => {
-    const authorCandidates = [post.authorUid, post.fan?.authorUid, post.authorEmail].filter(Boolean).map(String);
-    return authorCandidates.some(id => currentUserIdCandidates.includes(id));
-  };
+  const isCurrentUserAuthor = useCallback((post: { authorUid?: unknown; authorEmail?: unknown; authorUsername?: unknown; fan?: { authorUid?: unknown; username?: unknown } }) => {
+    const authorCandidates = [
+      post.authorUid,
+      post.fan?.authorUid,
+      post.authorEmail,
+    ].filter(Boolean).map(v => String(v).trim().toLowerCase());
+
+    if (authorCandidates.some(id => currentUserIdCandidates.has(id) || currentUserIdCandidates.has(id.replace(/[@.]/g, "_")))) {
+      return true;
+    }
+
+    const effectiveMyUsername = String(userUsername || userProfile?.username || (typeof window !== "undefined" ? localStorage.getItem("roar_username") : "") || "").trim().toLowerCase();
+    const postUsername = String(post.authorUsername || post.fan?.username || "").trim().toLowerCase();
+    if (effectiveMyUsername && postUsername && effectiveMyUsername === postUsername) {
+      return true;
+    }
+
+    return false;
+  }, [currentUserIdCandidates, userUsername, userProfile?.username]);
 
   const detectNewJoiners = useCallback((fans: { uid: string; username: string }[]) => {
     if (!knownFanUidsRef.current) {
@@ -5102,6 +5144,12 @@ export default function DiscussionRoom({
 
   const mapMessage = useCallback((m: any, existing?: any) => {
     const isPending = pendingReactRef.current[m.msgId];
+    const isMine = isCurrentUserAuthor(m);
+    const myEffectiveAvatar = getEffectiveUserAvatar();
+
+    const rawAuthorAvatar = m.authorAvatarUrl || m.avatarUrl || m.userAvatar || m.avatar || m.image || m.user?.avatarUrl || m.user?.avatar || m.user?.image || m.fan?.avatarUrl || m.fan?.avatar;
+    const sanitizedAuthorAvatar = sanitizeAvatarUrl(rawAuthorAvatar);
+
     return {
       id: m.msgId, authorUid: m.authorUid, authorEmail: m.authorEmail,
       fan: {
@@ -5109,9 +5157,9 @@ export default function DiscussionRoom({
         email: m.authorEmail,
         avatarUrl:
           getKnownBotAvatarUrl(m.authorUsername) ??
-          (m.authorUid === currentUserId
-            ? (userAvatarUrl || m.authorAvatarUrl || m.avatarUrl)
-            : (m.authorAvatarUrl || m.avatarUrl))
+          (isMine
+            ? (myEffectiveAvatar || sanitizedAuthorAvatar || undefined)
+            : (sanitizedAuthorAvatar || undefined))
       },
 
       text: m.text,
@@ -5150,7 +5198,7 @@ export default function DiscussionRoom({
       battleVoteCounts: m.battleVoteCounts ?? {},
       userPredictionVotes: m.userPredictionVotes ?? {},
     };
-  }, [currentUserId, userAvatarUrl]);
+  }, [isCurrentUserAuthor, getEffectiveUserAvatar, currentUserId]);
 
   useEffect(() => {
     if (!pendingScrollRestoreRef.current) return;
@@ -5412,10 +5460,31 @@ export default function DiscussionRoom({
   }, [roomId, applyPresenceResponse, refreshActiveFans]);
 
   useEffect(() => {
-    try {
-      setUserUsername(userProfile?.username || localStorage.getItem("roar_username") || "RoarUser");
-      setUserAvatarUrl(currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || localStorage.getItem("roar_avatar_url") || undefined);
-    } catch { }
+    const updateAvatar = () => {
+      try {
+        const storedUsername = localStorage.getItem("roar_username");
+        if (userProfile?.username || storedUsername) {
+          setUserUsername(userProfile?.username || storedUsername || "RoarUser");
+        }
+        const storedAvatar = localStorage.getItem("roar_avatar_url");
+        const resolved = sanitizeAvatarUrl(currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || (userProfile as any)?.photoURL || (userProfile as any)?.picture || storedAvatar) || undefined;
+        if (resolved) {
+          setUserAvatarUrl(resolved);
+        }
+      } catch { }
+    };
+
+    updateAvatar();
+    window.addEventListener("storage", updateAvatar);
+    window.addEventListener("roar-profile-updated", updateAvatar);
+    window.addEventListener("roar:avatar-updated", updateAvatar);
+    window.addEventListener("visibilitychange", updateAvatar);
+    return () => {
+      window.removeEventListener("storage", updateAvatar);
+      window.removeEventListener("roar-profile-updated", updateAvatar);
+      window.removeEventListener("roar:avatar-updated", updateAvatar);
+      window.removeEventListener("visibilitychange", updateAvatar);
+    };
   }, [currentAvatarUrl, userProfile]);
 
   const renameDollySession = useCallback(async (sessionId: string, newTitle: string) => {
