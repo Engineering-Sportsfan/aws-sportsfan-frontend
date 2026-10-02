@@ -3279,7 +3279,7 @@ import { useActivity } from "@/context/ActivityContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { handleGoBack } from "@/utils/backButton";
+
 import {
   BOT_TAGS,
   BOT_USERNAMES,
