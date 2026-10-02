@@ -24,6 +24,7 @@ import RoomsHome from "./screens/RoomsHome";
 import DiscussionRoom from "./screens/DiscussionRoom";
 import Notifications from "./screens/Notifications";
 import Leaderboard from "./screens/Leaderboard";
+import Profile from "./screens/Profile";
 import type { Notification, Room } from "./types";
 import { useRoarNotifications } from "@/context/RoarNotificationsContext";
 import RoomPostDetailsOverlay from "./components/RoomPostDetailsOverlay";

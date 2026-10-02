@@ -1368,7 +1368,7 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
                             type="number"
                             min={1}
                             max={10080}
-                            value={predictionCloseMinutes}
+                            value={predictionCloseMinutes ?? ""}
                             onChange={(e) => setPredictionCloseMinutes(Math.max(1, Math.min(10080, Number(e.target.value) || 1)))}
                             style={{ ...inputStyle, borderRadius: 12, marginTop: 8, padding: "10px 12px", fontSize: 13 }}
                             aria-label="Custom close time in minutes"

@@ -3995,6 +3995,38 @@ export default function RoomsHome({
       ? `🔥 Check out ${shareRoom.name} on Sportsfan360! Join the room 👉 ${shareUrl} #StartRoaring #Sportsfan360`
       : "Check out Sportsfan360!");
 
+  const handleNativeImageShare = async () => {
+    if (!shareRoom || !cardBlob) return;
+    if (nativeShareBusy) return;
+
+    setNativeShareBusy(true);
+    try {
+      const file = new File([cardBlob], shareFileName(shareRoom), { type: "image/png" });
+
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.canShare?.({ files: [file] })
+      ) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: shareRoom.name,
+            text: `Check out ${shareRoom.name} on Sportsfan360 👉 ${shareUrl}`,
+          });
+          return;
+        } catch (shareErr: any) {
+          if (shareErr?.name === "AbortError") return;
+          console.error("[RoomsHome] navigator.share threw:", shareErr);
+        }
+      }
+
+      downloadBlob(cardBlob, shareFileName(shareRoom));
+      onToast("Image saved! Attach it in your chat to share.");
+    } finally {
+      setNativeShareBusy(false);
+    }
+  };
+
   const openPlatformWithTextAndImage = (openUrl: () => void, toastMsg: string) => {
     if (cardBlob && shareRoom) {
       downloadBlob(cardBlob, shareFileName(shareRoom));
