@@ -25,6 +25,13 @@ function ProfileContent() {
   const botName = getBotCanonicalName(targetUserId);
   const expertName = getExpertCanonicalName(targetUserId);
 
+  const isSelf =
+    targetUserId &&
+    (targetUserId === authUser?.actualUserId ||
+      targetUserId === authUser?.userId ||
+      targetUserId === authUser?.email ||
+      targetUserId === authUser?.email?.replace(/[@.]/g, "_"));
+
   const effectiveUserId =
     botName ||
     expertName ||
@@ -157,7 +164,7 @@ function ProfileContent() {
         userBadge={userBadge}
         setUserBadge={setUserBadge}
         viewingProfile={targetUserId}
-        isViewingOther={!!targetUserId}
+        isViewingOther={!!targetUserId && !isSelf}
         fanData={
           profile?.user
             ? {

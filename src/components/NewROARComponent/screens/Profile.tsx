@@ -13,7 +13,7 @@
 // import ActivityFeed from "../components/ActivityFeed";
 // import { BADGE_CONFIG, BADGE_DETAIL, BADGE_LABELS, BADGES_LIST, RIVAL, CURRENT_USER } from "../constants";
 // import { fmt } from "../utils";
-// import BackButton from "../../ReusableComponent/BackButton";
+// import { handleGoBack } from "@/utils/backButton";
 // import { useActivity } from "@/context/ActivityContext";
 // import { useAuth } from "@/context/AuthContext";
 // import Link from "next/link";
@@ -3274,7 +3274,7 @@ import AvatarWithBadge, { sanitizeAvatarUrl } from "../components/AvatarWithBadg
 import ActivityFeed from "../components/ActivityFeed";
 import { BADGE_CONFIG, BADGE_DETAIL, BADGE_LABELS, BADGES_LIST, RIVAL, CURRENT_USER } from "../constants";
 import { fmt } from "../utils";
-import BackButton from "../../ReusableComponent/BackButton";
+import { handleGoBack } from "@/utils/backButton";
 import { useActivity } from "@/context/ActivityContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
@@ -4532,7 +4532,8 @@ export default function Profile({
         if (err.response?.status === 404) {
           if (isOtherProfile) {
             onToast("User not found");
-            handleBack?.();
+            if (handleBack) handleBack();
+            else handleGoBack(router, "/MainModules/HomePage");
           } else {
             try { localStorage.removeItem("roar_v2_complete"); } catch { }
             setOnboarded?.(false);
@@ -5274,6 +5275,7 @@ export default function Profile({
         position: "sticky", top: 0, zIndex: 50,
       }}>
         <button
+          type="button"
           onClick={() => {
             if (handleBack) handleBack();
             else handleGoBack(router, "/MainModules/ROAR");
@@ -5848,6 +5850,21 @@ export default function Profile({
 
           {/* ── Roar Journey ── */}
           <RoarJourneySection
+            userId={
+              isOtherProfile
+                ? (profileMetadata?.user?.actualUserId ||
+                   profileMetadata?.user?.userId ||
+                   (typeof viewingProfile === "string" ? viewingProfile : null) ||
+                   fanData?.actualUserId ||
+                   fanData?.userId)
+                : (profileMetadata?.user?.actualUserId ||
+                   profileMetadata?.user?.userId ||
+                   loggedInUserId ||
+                   authUser?.actualUserId ||
+                   authUser?.userId ||
+                   authUser?.email)
+            }
+            username={effectiveUsername || user?.username || user?.displayName || user?.name}
             polls={statPolls}
             arenaPredictions={statArenaPredictions}
             fanBattles={statFanBattles}
