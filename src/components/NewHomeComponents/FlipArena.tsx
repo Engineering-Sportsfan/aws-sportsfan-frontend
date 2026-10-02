@@ -3871,6 +3871,8 @@
 
 
 
+
+
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
@@ -3906,8 +3908,6 @@ import {
   MoreVertical,
   Info,
   Users,
-  LayoutGrid,
-  ChevronDown,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LeaderboardOverlayModal from "@/src/components/NewHomeComponents/LeaderboardOverlayModal";
@@ -4030,39 +4030,213 @@ function quizAnswerKey(index: number, questionId?: string) {
 }
 
 // ─── Global Voter Identity Match Helper ──────────────────────────────────────
+// ─── Global Voter Identity & Normalization Helpers ──────────────────────────
+export interface NormalizedVoter {
+  userId: string;
+  userName: string;
+  userAvatar: string | null;
+  userEmail: string;
+  selectedOptionId: string;
+  optionId: string;
+  optionText: string;
+  votedAt: number;
+}
+
+function isIpAddress(str: string): boolean {
+  if (!str) return false;
+  const s = str.trim();
+  if (/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/.test(s)) return true;
+  if (s.includes(",") && s.split(",").every((part) => /^\s*\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(part))) return true;
+  if (s.includes(":") && !s.includes("-") && !s.includes("_") && !s.includes("@") && /^[0-9a-fA-F:]+$/.test(s) && (s.match(/:/g) || []).length >= 2) return true;
+  return false;
+}
+
+function isValidRegisteredVoter(voter: any): boolean {
+  if (!voter) return false;
+  if (typeof voter === "string") {
+    const s = voter.trim();
+    if (!s) return false;
+    const l = s.toLowerCase();
+    if (l.startsWith("anon_") || l.startsWith("anon-") || l.startsWith("anon") || l === "anonymous" || l === "guest") return false;
+    if (isIpAddress(s)) return false;
+    return true;
+  }
+  const id = String(voter.userId || voter.uid || voter.actualUserId || voter.id || voter.user_id || "").trim();
+  const name = String(voter.userName || voter.username || voter.name || voter.displayName || "").trim();
+  const email = String((voter as any).userEmail || voter.email || "").trim();
+
+  const idL = id.toLowerCase();
+  const nameL = name.toLowerCase();
+  const emailL = email.toLowerCase();
+
+  if (idL.startsWith("anon_") || idL.startsWith("anon-") || idL.startsWith("anon") || idL === "anonymous" || idL === "guest") return false;
+  if (nameL.startsWith("anon_") || nameL.startsWith("anon-") || nameL.startsWith("anon") || nameL === "anonymous" || nameL === "guest") return false;
+  if (emailL.startsWith("anon_") || emailL.startsWith("anon-") || emailL.startsWith("anon") || emailL === "anonymous") return false;
+
+  if (isIpAddress(id) || isIpAddress(name) || isIpAddress(email)) return false;
+
+  return Boolean(id || name || email);
+}
+
+function normalizeVoter(voter: any, defaultOptionId = "", defaultOptionText = ""): NormalizedVoter | null {
+  if (!voter) return null;
+  if (!isValidRegisteredVoter(voter)) return null;
+
+  if (typeof voter === "string") {
+    const str = voter.trim();
+    const isEmail = str.includes("@");
+    return {
+      userId: str,
+      userName: isEmail ? str.split("@")[0] : str,
+      userAvatar: null,
+      userEmail: isEmail ? str : "",
+      selectedOptionId: defaultOptionId,
+      optionId: defaultOptionId,
+      optionText: defaultOptionText,
+      votedAt: Date.now(),
+    };
+  }
+
+  const rawId = String(voter.userId || voter.uid || voter.actualUserId || voter.id || voter.user_id || "").trim();
+  const rawName = String(voter.userName || voter.username || voter.name || voter.displayName || "").trim();
+  const rawEmail = String((voter as any).userEmail || voter.email || "").trim();
+  const rawAvatar = voter.userAvatar || voter.avatarUrl || voter.avatar || voter.photoURL || voter.image || voter.picture || null;
+
+  const resolvedId = rawId || rawEmail || rawName;
+  if (!resolvedId) return null;
+
+  const rawDisplay = rawName || (rawEmail ? rawEmail.split("@")[0] : "") || (rawId ? rawId.replace(/^user#/i, "") : "Fan");
+  const cleanDisplayName = rawDisplay.includes("_gmail_com")
+    ? rawDisplay.replace(/_gmail_com/gi, "")
+    : rawDisplay.includes("@")
+      ? rawDisplay.split("@")[0]
+      : rawDisplay;
+
+  return {
+    userId: rawId || resolvedId,
+    userName: cleanDisplayName,
+    userAvatar: typeof rawAvatar === "string" && rawAvatar.trim() && !rawAvatar.includes("dicebear.com") ? rawAvatar.trim() : null,
+    userEmail: rawEmail,
+    selectedOptionId: String(voter.selectedOptionId || voter.optionId || voter.side || voter.choice || defaultOptionId || "").trim(),
+    optionId: String(voter.optionId || defaultOptionId || "").trim(),
+    optionText: String(voter.optionText || defaultOptionText || "").trim(),
+    votedAt: Number(voter.votedAt) || Date.now(),
+  };
+}
+
 function checkVoterMatch(voter: any, userId?: string, userName?: string, userEmail?: string): boolean {
   if (!voter) return false;
   const uid = String(userId || "").trim().toLowerCase();
   const uname = String(userName || "").trim().toLowerCase();
   const uemail = String(userEmail || "").trim().toLowerCase();
 
-  const vUid = String(voter.userId || voter.actualUserId || voter.id || "").trim().toLowerCase();
-  const vName = String(voter.userName || voter.username || voter.name || "").trim().toLowerCase();
+  if (typeof voter === "string") {
+    const vStr = voter.trim().toLowerCase();
+    if (uid && (vStr === uid || vStr.includes(uid) || uid.includes(vStr))) return true;
+    if (uemail && vStr === uemail) return true;
+    if (uname && vStr === uname) return true;
+    return false;
+  }
+
+  const vUid = String(voter.userId || voter.uid || voter.actualUserId || voter.id || voter.user_id || "").trim().toLowerCase();
+  const vName = String(voter.userName || voter.username || voter.name || voter.displayName || "").trim().toLowerCase();
   const vEmail = String((voter as any).userEmail || voter.email || "").trim().toLowerCase();
 
   if (uid && vUid && (uid === vUid || vUid.includes(uid) || uid.includes(vUid))) return true;
   if (uemail && vEmail && uemail === vEmail) return true;
+  if (uemail && vUid && (uemail === vUid || vUid.includes(uemail))) return true;
   if (uname && vName && uname === vName) return true;
   return false;
 }
 
+function extractVotersFromResponse(
+  resData: any,
+  targetQId?: string,
+  questionIndex?: number
+): { allVoters: NormalizedVoter[]; questionVoters: Record<string, NormalizedVoter[]> } {
+  const result: { allVoters: NormalizedVoter[]; questionVoters: Record<string, NormalizedVoter[]> } = {
+    allVoters: [],
+    questionVoters: {},
+  };
+  if (!resData) return result;
 
-// ─── Filter helper to strictly exclude unregistered/anonymous IP-based voters ──
-function isValidRegisteredVoter(voter: any): boolean {
-  if (!voter) return false;
-  const id = String(voter.userId || voter.actualUserId || voter.id || "").trim().toLowerCase();
-  const name = String(voter.userName || voter.username || voter.name || "").trim().toLowerCase();
-  const email = String((voter as any).userEmail || voter.email || "").trim().toLowerCase();
+  const data = resData.data && typeof resData.data === "object" ? { ...resData, ...resData.data } : resData;
+  const uniqueOverallMap = new Map<string, NormalizedVoter>();
 
-  // Exclude anonymous / unregistered tokens
-  if (id.startsWith("anon_") || id.startsWith("anon-") || id.startsWith("anon") || id === "anonymous") return false;
-  if (name.startsWith("anon_") || name.startsWith("anon-") || name.startsWith("anon") || name === "anonymous") return false;
-  if (email.startsWith("anon_") || email.startsWith("anon-") || email.startsWith("anon") || email === "anonymous") return false;
+  const addVoter = (v: any, optId = "", optText = "", qKey?: string) => {
+    const norm = normalizeVoter(v, optId, optText);
+    if (!norm) return;
+    const key = (norm.userId || norm.userEmail || norm.userName).toLowerCase().replace(/^user#/i, "").trim();
+    if (!key) return;
 
-  // Exclude raw IP strings
-  if (id.includes(":") || name.includes(":") || id.includes(",") || name.includes(",")) return false;
+    if (!uniqueOverallMap.has(key)) {
+      uniqueOverallMap.set(key, norm);
+    }
+    if (qKey) {
+      if (!result.questionVoters[qKey]) {
+        result.questionVoters[qKey] = [];
+      }
+      if (!result.questionVoters[qKey].some((existing) =>
+        (existing.userId || existing.userEmail || existing.userName).toLowerCase().replace(/^user#/i, "").trim() === key
+      )) {
+        result.questionVoters[qKey].push(norm);
+      }
+    }
+  };
 
-  return true;
+  if (Array.isArray(data.questions)) {
+    data.questions.forEach((q: any, idx: number) => {
+      const qKey = String(q.questionId || q.id || `q_${idx + 1}`).trim();
+      const qAltKey = String(q.id || q.questionId || `q_${idx + 1}`).trim();
+
+      if (Array.isArray(q.options)) {
+        q.options.forEach((opt: any) => {
+          const optId = String(opt.id || opt.text || "").trim();
+          const optText = String(opt.text || opt.id || "").trim();
+          if (Array.isArray(opt.voters)) {
+            opt.voters.forEach((v: any) => {
+              addVoter(v, optId, optText, qKey);
+              if (qAltKey !== qKey) addVoter(v, optId, optText, qAltKey);
+            });
+          }
+        });
+      }
+      if (Array.isArray(q.voters)) {
+        q.voters.forEach((v: any) => {
+          addVoter(v, "", "", qKey);
+          if (qAltKey !== qKey) addVoter(v, "", "", qAltKey);
+        });
+      }
+    });
+  }
+
+  if (Array.isArray(data.options)) {
+    data.options.forEach((opt: any) => {
+      const optId = String(opt.id || opt.text || "").trim();
+      const optText = String(opt.text || opt.id || "").trim();
+      const qKey = opt.questionId ? String(opt.questionId).trim() : undefined;
+      if (Array.isArray(opt.voters)) {
+        opt.voters.forEach((v: any) => addVoter(v, optId, optText, qKey));
+      }
+    });
+  }
+
+  if (Array.isArray(data.voters)) {
+    data.voters.forEach((v: any) => addVoter(v));
+  } else if (data.voters && typeof data.voters === "object") {
+    Object.entries(data.voters).forEach(([optKey, vList]) => {
+      if (Array.isArray(vList)) {
+        vList.forEach((v: any) => addVoter(v, optKey, optKey));
+      }
+    });
+  }
+
+  if (Array.isArray(data.users)) {
+    data.users.forEach((v: any) => addVoter(v));
+  }
+
+  result.allVoters = Array.from(uniqueOverallMap.values());
+  return result;
 }
 
 
@@ -4498,9 +4672,9 @@ function DynamicFanBattleCard({
           className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
           <span className="group-hover:underline">
-            {(totalEngagedOverride !== undefined
-              ? totalEngagedOverride
-              : Math.max(hasUserParticipated ? 1 : 0, totalEngaged)
+            {Math.max(
+              hasUserParticipated ? 1 : 0,
+              totalEngagedOverride !== undefined ? totalEngagedOverride : totalEngaged
             ).toLocaleString()} engaged
           </span>
           <ChevronRight
@@ -4565,6 +4739,13 @@ function DynamicQuizCard({
   onOpenLeaderboard?: () => void;
   onSyncEngagedCount?: (count: number) => void;
 }) {
+  // ── BUG FIX B: hold onSyncEngagedCount in a ref so the per-question
+  // fetch effect doesn't re-run when the parent re-renders.
+  const onSyncEngagedCountRef = useRef(onSyncEngagedCount);
+  useEffect(() => {
+    onSyncEngagedCountRef.current = onSyncEngagedCount;
+  }, [onSyncEngagedCount]);
+
   const rawQuestions = useMemo(() => {
     if (item.quizData?.questions && Array.isArray(item.quizData.questions) && item.quizData.questions.length > 0) {
       return item.quizData.questions.map((q: any, idx: number) => {
@@ -4619,15 +4800,22 @@ function DynamicQuizCard({
     const subIdx = (item as any)._subQuestionIndex ?? index;
     const subId = (item as any)._subQuestionId || q.id;
 
-    let ans = getStoredVote(quizAnswerKey(index, q.id), item.id, userId);
-    if (!ans && totalQuestions === 1) {
-      ans = getStoredVote(`quiz`, item.id, userId);
+    const candidates: Array<[string, string]> = [
+      [quizAnswerKey(index, q.id), item.id],
+      [quizAnswerKey(index, q.id), parentId],
+      [quizAnswerKey(subIdx, subId), item.id],
+      [quizAnswerKey(subIdx, subId), parentId],
+    ];
+    if (totalQuestions === 1) {
+      candidates.push([`quiz`, item.id]);
+      candidates.push([`quiz`, parentId]);
     }
 
-    if (!ans && (item as any)._parentEngagementId) {
-      ans = getStoredVote(quizAnswerKey(subIdx, subId), parentId, userId);
+    for (const [key, id] of candidates) {
+      const v = getStoredVote(key, id, userId);
+      if (v) return v;
     }
-    return ans;
+    return null;
   }, [item.id, userId, totalQuestions, (item as any)._parentEngagementId, (item as any)._subQuestionIndex, (item as any)._subQuestionId]);
 
   const [dbAnswers, setDbAnswers] = useState<Record<number, { selectedId: string; isCorrect: boolean; earnedPoints?: number }>>({});
@@ -4653,11 +4841,15 @@ function DynamicQuizCard({
 
   const [currentQIndex, setCurrentQIndex] = useState(0);
   const currentQ = rawQuestions[Math.min(currentQIndex, totalQuestions - 1)];
-  const [questionVotersCount, setQuestionVotersCount] = useState<Record<number, number>>({});
+
+  // ── BUG FIX C: key questionVotersCount by question id (not index)
+  const [questionVotersCount, setQuestionVotersCount] = useState<Record<string, number>>({});
+
 
   useEffect(() => {
     if (currentQ) {
-      onQuestionChange?.(currentQIndex, currentQ.id || `q_${currentQIndex + 1}`);
+      const qId = currentQ.id || `q_${currentQIndex + 1}`;
+      onQuestionChange?.(currentQIndex, qId);
     }
   }, [currentQIndex, currentQ?.id, onQuestionChange]);
 
@@ -4809,69 +5001,66 @@ function DynamicQuizCard({
     }
   }, [item.id, userId, item.userLiked]);
 
-  // Fetch active question voter count whenever current question changes
+  // ── BUG FIX B: per-question voter count fetch — use ref, drop onSyncEngagedCount from deps
   useEffect(() => {
     if (totalQuestions <= 1 || !currentQ?.id) return;
     const parentId = (item as any)._parentEngagementId || item.id;
+    let cancelled = false;
+
     axios
       .get(`/api/engagements/${parentId}/voters?questionId=${encodeURIComponent(currentQ.id)}`)
       .then((res) => {
-        if (res.data?.success) {
-          let opts = res.data.options || [];
-          if (res.data.questions && Array.isArray(res.data.questions)) {
-            const qData = res.data.questions.find((q: any) => q.questionId === currentQ.id || q.id === currentQ.id);
-            opts = qData?.options || [];
-          }
-          const validVoters = opts
-            .flatMap((o: any) => o.voters || [])
-            .filter((v: any) => isValidRegisteredVoter(v));
-
-          const unique = new Set(validVoters.map((v: any) => String(v.userId || v.userName || '').toLowerCase()));
-          const count = unique.size;
-          setQuestionVotersCount((prev) => ({ ...prev, [currentQIndex]: count }));
-          onSyncEngagedCount?.(count);
-        }
+        if (cancelled || !res.data?.success) return;
+        const { questionVoters } = extractVotersFromResponse(res.data, currentQ.id, currentQIndex);
+        const count = (questionVoters[currentQ.id] || questionVoters[`q_${currentQIndex + 1}`] || []).length;
+        setQuestionVotersCount((prev) => ({ ...prev, [currentQ.id]: count }));
       })
       .catch(() => { });
-  }, [currentQ?.id, currentQIndex, item.id, (item as any)._parentEngagementId, totalQuestions, onSyncEngagedCount]);
 
+    return () => { cancelled = true; };
+  }, [currentQ?.id, currentQIndex, item.id, (item as any)._parentEngagementId, totalQuestions]);
+
+  // ── BUG FIX A: hydratingAnswers flag actually set/cleared
+  const [hydratingAnswers, setHydratingAnswers] = useState(false);
 
   // Database-first voters sync to restore user's actual chosen answers per question
   useEffect(() => {
     if (!userId) return;
     const parentId = (item as any)._parentEngagementId || item.id;
     let isMounted = true;
+    setHydratingAnswers(true);
 
-    // 1. Check local item.quizData.questions if options already contain voters
-    const initialRecovered: Record<number, { selectedId: string; isCorrect: boolean; earnedPoints?: number }> = {};
-    if (item.quizData?.questions && Array.isArray(item.quizData.questions)) {
-      item.quizData.questions.forEach((q: any, idx: number) => {
-        if (q.options && Array.isArray(q.options)) {
-          for (const opt of q.options) {
-            if ((opt.voters || []).some((v: any) => checkVoterMatch(v, userId, userName, userEmail))) {
-              const optId = opt.id || opt.text;
-              const right = checkIsOptionCorrect(optId, rawQuestions[idx] || q);
-              initialRecovered[idx] = {
-                selectedId: optId,
-                isCorrect: right,
-                earnedPoints: PARTICIPATION_POINTS + (right ? CORRECT_OPTION_BONUS : 0),
-              };
-              break;
+    const hydrate = async () => {
+      // 1. Check local item.quizData.questions if options already contain voters
+      const initialRecovered: Record<number, { selectedId: string; isCorrect: boolean; earnedPoints?: number }> = {};
+      if (item.quizData?.questions && Array.isArray(item.quizData.questions)) {
+        item.quizData.questions.forEach((q: any, idx: number) => {
+          if (q.options && Array.isArray(q.options)) {
+            for (const opt of q.options) {
+              if ((opt.voters || []).some((v: any) => checkVoterMatch(v, userId, userName, userEmail))) {
+                const optId = opt.id || opt.text;
+                const right = checkIsOptionCorrect(optId, rawQuestions[idx] || q);
+                initialRecovered[idx] = {
+                  selectedId: optId,
+                  isCorrect: right,
+                  earnedPoints: PARTICIPATION_POINTS + (right ? CORRECT_OPTION_BONUS : 0),
+                };
+                break;
+              }
             }
           }
-        }
-      });
-    }
+        });
+      }
 
-    if (Object.keys(initialRecovered).length > 0) {
-      setDbAnswers((prev) => ({ ...prev, ...initialRecovered }));
-    }
+      if (isMounted && Object.keys(initialRecovered).length > 0) {
+        setDbAnswers((prev) => ({ ...prev, ...initialRecovered }));
+      }
 
-    // 2. Fetch latest voters list from backend API
-    axios
-      .get(`/api/engagements/${parentId}/voters`)
-      .then((res) => {
+      // 2. Fetch latest voters list from backend API
+      try {
+        const res = await axios.get(`/api/engagements/${parentId}/voters`);
         if (!isMounted || !res.data?.success) return;
+
         const recovered: Record<number, { selectedId: string; isCorrect: boolean; earnedPoints?: number }> = {};
         const questionsData = res.data.questions || (res.data.options ? [{ options: res.data.options }] : []);
 
@@ -4893,38 +5082,61 @@ function DynamicQuizCard({
           }
         });
 
+        // ── Populate per-question voter counts for all questions unconditionally ──
+        const { questionVoters, allVoters: allQuizVoters } = extractVotersFromResponse(res.data);
+        const counts: Record<string, number> = {};
+        rawQuestions.forEach((q, idx) => {
+          const qId = q.id || `q_${idx + 1}`;
+          const qVoters = questionVoters[qId] || questionVoters[q.id] || [];
+          counts[q.id] = qVoters.length;
+        });
+        if (Object.keys(counts).length > 0) {
+          setQuestionVotersCount((prev) => ({ ...prev, ...counts }));
+        }
+
         if (Object.keys(recovered).length > 0) {
           setDbAnswers((prev) => ({ ...prev, ...recovered }));
+
+          // Mark this user as engaged locally so subsequent votes don't double-count
+          hasEngagedRef.current = true;
+          setStoredVote("quiz_engaged", item.id, true, userId);
+          setStoredVote("quiz_engaged", parentId, true, userId);
+
           const totalRecCount = Object.keys(recovered).length;
           if (totalRecCount >= totalQuestions) {
             setQuizFinished(true);
           }
         }
-      })
-      .catch(() => { });
+      } catch { }
 
-    // 3. Check vote status API
-    engagementService
-      .checkVoteStatus(parentId, userId)
-      .then((status) => {
-        if (!isMounted) return;
-        if (status.hasVoted && status.selectedOptionId) {
-          const right: boolean = Boolean(
-            status.isCorrect !== null && status.isCorrect !== undefined
-              ? status.isCorrect
-              : checkIsOptionCorrect(status.selectedOptionId, rawQuestions[0])
-          );
-          const points = PARTICIPATION_POINTS + (right ? CORRECT_OPTION_BONUS : 0);
-          setDbAnswers((prev) => {
-            if (prev[0]) return prev;
-            return {
-              ...prev,
-              0: { selectedId: status.selectedOptionId!, isCorrect: right, earnedPoints: points },
-            };
-          });
-        }
-      })
-      .catch(() => { });
+      // 3. Check vote status API
+      if (totalQuestions === 1) {
+        try {
+          const status = await engagementService.checkVoteStatus(parentId, userId);
+          if (!isMounted) return;
+          if (status.hasVoted && status.selectedOptionId) {
+            const right: boolean = Boolean(
+              status.isCorrect !== null && status.isCorrect !== undefined
+                ? status.isCorrect
+                : checkIsOptionCorrect(status.selectedOptionId, rawQuestions[0])
+            );
+            const points = PARTICIPATION_POINTS + (right ? CORRECT_OPTION_BONUS : 0);
+            setDbAnswers((prev) => {
+              if (prev[0]) return prev;
+              return {
+                ...prev,
+                0: { selectedId: status.selectedOptionId!, isCorrect: right, earnedPoints: points },
+              };
+            });
+          }
+
+        } catch { }
+      }
+    };
+
+    hydrate().finally(() => {
+      if (isMounted) setHydratingAnswers(false);
+    });
 
     return () => {
       isMounted = false;
@@ -4942,7 +5154,6 @@ function DynamicQuizCard({
     }
   }, [dbAnswers, calculateQuizProgress]);
 
-  // Active question answer restoration (strictly isolated per question)
   useEffect(() => {
     const ans = getEffectiveAnswer(currentQ, currentQIndex);
 
@@ -4961,12 +5172,13 @@ function DynamicQuizCard({
       setIsCorrect(isRight);
       const payload = { selectedId: item.userVote, isCorrect: isRight };
       setStoredVote(quizAnswerKey(currentQIndex, currentQ?.id), item.id, payload, userId);
-    } else {
+    } else if (!hydratingAnswers) {
+      // Only clear when the async voter fetch has finished and truly nothing was found
       setSelectedId(null);
       setAnswered(false);
       setIsCorrect(null);
     }
-  }, [currentQIndex, currentQ, item.id, userId, totalQuestions, checkIsOptionCorrect, getEffectiveAnswer, item.userVoted, item.userVote, dbAnswers]);
+  }, [currentQIndex, currentQ, item.id, userId, totalQuestions, checkIsOptionCorrect, getEffectiveAnswer, item.userVoted, item.userVote, dbAnswers, hydratingAnswers]);
 
   const handleOptionSelect = async (optId: string) => {
     if (!userId || String(userId).toLowerCase().startsWith("anon")) {
@@ -4989,7 +5201,7 @@ function DynamicQuizCard({
     setSelectedId(optId);
     setQuestionVotersCount((prev) => ({
       ...prev,
-      [currentQIndex]: Math.max(1, (prev[currentQIndex] || 0) + 1),
+      [currentQ.id]: Math.max(1, (prev[currentQ.id] || 0) + 1),
     }));
 
     setAnswered(true);
@@ -4998,9 +5210,9 @@ function DynamicQuizCard({
     const isFirstQuizEngagement = !hasEngagedRef.current;
     hasEngagedRef.current = true;
     setStoredVote("quiz_engaged", item.id, true, userId);
-    const nextCount = isFirstQuizEngagement ? Math.max(1, totalEngaged + 1) : Math.max(1, totalEngaged);
+    const nextCount = isFirstQuizEngagement ? totalEngaged + 1 : totalEngaged;
     setTotalEngaged(nextCount);
-    onSyncEngagedCount?.(nextCount);
+    if (totalQuestions === 1) onSyncEngagedCountRef.current?.(nextCount);
 
     const nextTotal = totalScore + earnedPoints;
     setTotalScore(nextTotal);
@@ -5078,6 +5290,28 @@ function DynamicQuizCard({
           new CustomEvent("sf360:points-updated", { detail: { points: earned } })
         );
       }
+      if (totalQuestions === 1 && typeof res?.totalEngaged === "number") {
+        setTotalEngaged(res.totalEngaged);
+        onSyncEngagedCountRef.current?.(res.totalEngaged);
+      }
+
+      // ── BUG FIX D: after vote, re-fetch per-question voter count authoritatively
+      axios
+        .get(`/api/engagements/${parentId}/voters?questionId=${encodeURIComponent(currentQ.id)}`)
+        .then((r) => {
+          if (!r.data?.success) return;
+          const { allVoters, questionVoters } = extractVotersFromResponse(r.data, currentQ.id, currentQIndex);
+
+          if (totalQuestions === 1) {
+            // single quiz: footer uses the parent count (registered voters only)
+            if (allVoters.length > 0) onSyncEngagedCountRef.current?.(allVoters.length);
+            return;
+          }
+
+          const n = (questionVoters[currentQ.id] || questionVoters[`q_${currentQIndex + 1}`] || []).length;
+          setQuestionVotersCount((prev) => ({ ...prev, [currentQ.id]: Math.max(1, n) }));
+        })
+        .catch(() => { });
     } catch (err: any) {
       const prevOpt = err?.response?.data?.selectedOptionId || optId;
       const right = checkIsOptionCorrect(prevOpt, currentQ);
@@ -5097,17 +5331,16 @@ function DynamicQuizCard({
       const nextIdx = currentQIndex + 1;
       const nextQ = rawQuestions[nextIdx];
       const ans = getEffectiveAnswer(nextQ, nextIdx);
+
+      // Reset transient answered state BEFORE the index change so the
+      // footer engaged count doesn't inherit the previous question's state.
+      setSelectedId(ans?.selectedId ?? null);
+      setAnswered(Boolean(ans));
+      setIsCorrect(ans ? (ans.isCorrect ?? checkIsOptionCorrect(ans.selectedId, nextQ)) : null);
+
       setCurrentQIndex(nextIdx);
-      onQuestionChange?.(nextIdx, nextQ?.id || `q_${nextIdx + 1}`);
-      if (ans) {
-        setSelectedId(ans.selectedId);
-        setAnswered(true);
-        setIsCorrect(ans.isCorrect !== undefined ? ans.isCorrect : checkIsOptionCorrect(ans.selectedId, nextQ));
-      } else {
-        setSelectedId(null);
-        setAnswered(false);
-        setIsCorrect(null);
-      }
+      const nextQId = nextQ?.id || `q_${nextIdx + 1}`;
+      onQuestionChange?.(nextIdx, nextQId);
     } else {
       setQuizFinished(true);
       const p = calculateQuizProgress();
@@ -5127,17 +5360,14 @@ function DynamicQuizCard({
       const prevIdx = currentQIndex - 1;
       const prevQ = rawQuestions[prevIdx];
       const ans = getEffectiveAnswer(prevQ, prevIdx);
+
+      setSelectedId(ans?.selectedId ?? null);
+      setAnswered(Boolean(ans));
+      setIsCorrect(ans ? (ans.isCorrect !== undefined ? ans.isCorrect : checkIsOptionCorrect(ans.selectedId, prevQ)) : null);
+
       setCurrentQIndex(prevIdx);
-      onQuestionChange?.(prevIdx, prevQ?.id || `q_${prevIdx + 1}`);
-      if (ans) {
-        setSelectedId(ans.selectedId);
-        setAnswered(true);
-        setIsCorrect(ans.isCorrect !== undefined ? ans.isCorrect : checkIsOptionCorrect(ans.selectedId, prevQ));
-      } else {
-        setSelectedId(null);
-        setAnswered(false);
-        setIsCorrect(null);
-      }
+      const prevQId = prevQ?.id || `q_${prevIdx + 1}`;
+      onQuestionChange?.(prevIdx, prevQId);
     }
   };
 
@@ -5187,6 +5417,14 @@ function DynamicQuizCard({
 
   const formattedTime = formatEngagementPostingTime(item);
   const currentProgress = calculateQuizProgress();
+
+  const isMultiQuiz = totalQuestions > 1;
+  const engagedDisplay = isMultiQuiz
+    ? Math.max(answered ? 1 : 0, questionVotersCount[currentQ?.id] ?? 0, totalEngagedOverride ?? 0)
+    : Math.max(
+      hasAlreadyEngaged || answered || selectedId !== null ? 1 : 0,
+      totalEngagedOverride !== undefined ? totalEngagedOverride : totalEngaged
+    );
 
   return (
     <motion.div
@@ -5390,34 +5628,11 @@ function DynamicQuizCard({
             <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
           </button>
         </div>
-        {/* <button
-          onClick={() => onOpenEngagedModal?.(item)}
-          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
-        >
-          <span className="group-hover:underline">
-            {(totalEngagedOverride !== undefined
-              ? totalEngagedOverride
-              : Math.max(hasAlreadyEngaged || answered || selectedId !== null ? 1 : 0, totalEngaged)
-            ).toLocaleString()} engaged
-          </span>
-          <ChevronRight
-            size={12}
-            className={`text-[#FF8A00] transition-transform duration-200 ${isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
-              }`}
-          />
-        </button> */}
         <button
           onClick={() => onOpenEngagedModal?.(item)}
           className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
         >
-          <span className="group-hover:underline">
-            {(totalQuestions > 1
-              ? (questionVotersCount[currentQIndex] ?? (answered || selectedId !== null ? 1 : 0))
-              : (totalEngagedOverride !== undefined
-                ? totalEngagedOverride
-                : Math.max(hasAlreadyEngaged || answered || selectedId !== null ? 1 : 0, totalEngaged))
-            ).toLocaleString()} engaged
-          </span>
+          <span className="group-hover:underline">{engagedDisplay.toLocaleString()} engaged</span>
           <ChevronRight
             size={12}
             className={`text-[#FF8A00] transition-transform duration-200 ${isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
@@ -5683,1505 +5898,1486 @@ function DynamicPollCard({
   const formattedTime = formatEngagementPostingTime(item);
 
   return (
-      <motion.div
-        id={`engagement-${item.id}`}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -12 }}
-        className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-emerald-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
-          ? "ring-2 ring-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.35)] scale-[1.01]"
-          : ""
-          }`}
-      >
-        {isHighlighted && (
-          <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 text-[10px] font-black text-emerald-300 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Sparkles size={11} className="text-emerald-400 animate-pulse" />
-              <span>SHARED POLL</span>
-            </span>
-            <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
-          </div>
-        )}
-        <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
-          <div className="flex items-center gap-1.5">
-            <span className="text-emerald-400">📊 LIVE POLL</span>
-            {isScheduled ? (
-              <>
-                <span>•</span>
-                <span className="text-amber-400 font-mono flex items-center gap-1">
-                  <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
-                </span>
-              </>
-            ) : isExpired ? (
-              <>
-                <span>•</span>
-                <span className="text-rose-400 font-mono">🔒 CLOSED</span>
-              </>
-            ) : (
-              <>
-                <span>•</span>
-                <span className="text-emerald-400 font-mono flex items-center gap-1">
-                  <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
-                </span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <span>{formattedTime}</span>
-          </div>
+    <motion.div
+      id={`engagement-${item.id}`}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-emerald-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+        ? "ring-2 ring-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.35)] scale-[1.01]"
+        : ""
+        }`}
+    >
+      {isHighlighted && (
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 text-[10px] font-black text-emerald-300 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Sparkles size={11} className="text-emerald-400 animate-pulse" />
+            <span>SHARED POLL</span>
+          </span>
+          <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
         </div>
+      )}
+      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
+        <div className="flex items-center gap-1.5">
+          <span className="text-emerald-400">📊 LIVE POLL</span>
+          {isScheduled ? (
+            <>
+              <span>•</span>
+              <span className="text-amber-400 font-mono flex items-center gap-1">
+                <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
+              </span>
+            </>
+          ) : isExpired ? (
+            <>
+              <span>•</span>
+              <span className="text-rose-400 font-mono">🔒 CLOSED</span>
+            </>
+          ) : (
+            <>
+              <span>•</span>
+              <span className="text-emerald-400 font-mono flex items-center gap-1">
+                <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
+              </span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span>{formattedTime}</span>
+        </div>
+      </div>
 
-        <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{item.title}</p>
+      <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{item.title}</p>
 
-        {isScheduled ? (
-          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center my-2 space-y-1">
-            <Clock size={20} className="mx-auto text-emerald-400 animate-pulse" />
-            <h4 className="text-xs font-black text-white">Poll Scheduled</h4>
-            <p className="text-[11px] text-white/60">
-              Voting opens in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-2 mb-4">
-            {options.map((opt) => {
-              const pct = Math.round(((opt.votes || 0) / totalVotes) * 100);
-              const isSelected = selectedId === opt.id || selectedId === opt.text;
-              const isWinner = checkIsOptionWinner(opt);
+      {isScheduled ? (
+        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center my-2 space-y-1">
+          <Clock size={20} className="mx-auto text-emerald-400 animate-pulse" />
+          <h4 className="text-xs font-black text-white">Poll Scheduled</h4>
+          <p className="text-[11px] text-white/60">
+            Voting opens in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2 mb-4">
+          {options.map((opt) => {
+            const pct = Math.round(((opt.votes || 0) / totalVotes) * 100);
+            const isSelected = selectedId === opt.id || selectedId === opt.text;
+            const isWinner = checkIsOptionWinner(opt);
 
-              let borderStyle = "border-white/[0.06] bg-white/[0.02]";
-              if (isExpired && isWinner) {
-                borderStyle = "border-emerald-500/70 bg-emerald-500/15";
-              } else if (isSelected) {
-                borderStyle = "border-emerald-500 bg-emerald-500/10";
-              }
+            let borderStyle = "border-white/[0.06] bg-white/[0.02]";
+            if (isExpired && isWinner) {
+              borderStyle = "border-emerald-500/70 bg-emerald-500/15";
+            } else if (isSelected) {
+              borderStyle = "border-emerald-500 bg-emerald-500/10";
+            }
 
-              return (
-                <button
-                  key={opt.id}
-                  onClick={() => handleVote(opt.id)}
-                  disabled={voted || isExpired || loading}
-                  className={`w-full rounded-xl p-3 border text-left transition-all cursor-pointer relative overflow-hidden group ${borderStyle} ${voted || isExpired ? "cursor-default" : "hover:bg-white/[0.04] active:scale-[0.99]"
-                    }`}
-                >
-                  {(voted || isExpired) && (
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${pct}%` }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                      className={`absolute inset-y-0 left-0 ${isExpired && isWinner
-                        ? "bg-emerald-500/25"
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handleVote(opt.id)}
+                disabled={voted || isExpired || loading}
+                className={`w-full rounded-xl p-3 border text-left transition-all cursor-pointer relative overflow-hidden group ${borderStyle} ${voted || isExpired ? "cursor-default" : "hover:bg-white/[0.04] active:scale-[0.99]"
+                  }`}
+              >
+                {(voted || isExpired) && (
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pct}%` }}
+                    transition={{ duration: 0.5, ease: "easeOut" }}
+                    className={`absolute inset-y-0 left-0 ${isExpired && isWinner
+                      ? "bg-emerald-500/25"
+                      : isSelected
+                        ? "bg-emerald-500/20"
+                        : "bg-white/[0.04]"
+                      }`}
+                  />
+                )}
+
+                <div className="relative z-10 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-bold ${isExpired && isWinner
+                        ? "text-emerald-300 font-black"
                         : isSelected
-                          ? "bg-emerald-500/20"
-                          : "bg-white/[0.04]"
+                          ? "text-emerald-400 font-black"
+                          : "text-white/80"
                         }`}
-                    />
-                  )}
-
-                  <div className="relative z-10 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`text-xs font-bold ${isExpired && isWinner
-                          ? "text-emerald-300 font-black"
-                          : isSelected
-                            ? "text-emerald-400 font-black"
-                            : "text-white/80"
-                          }`}
-                      >
-                        {opt.text}
+                    >
+                      {opt.text}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
+                        <Check size={11} /> You voted
                       </span>
-                      {isSelected && (
-                        <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                          <Check size={11} /> You voted
-                        </span>
-                      )}
-                      {isExpired && isWinner && (
-                        <span className="text-[10px] text-emerald-300 font-extrabold bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 rounded">
-                          ✓ Correct Option
-                        </span>
-                      )}
-                    </div>
-                    {(voted || isExpired) && (
-                      <span className="text-xs font-black font-mono text-white/50">{pct}%</span>
+                    )}
+                    {isExpired && isWinner && (
+                      <span className="text-[10px] text-emerald-300 font-extrabold bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 rounded">
+                        ✓ Correct Option
+                      </span>
                     )}
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {voted && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
-            {isExpired ? (
-              userWon || bonusAwarded || serverIsCorrect ? (
-                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
-                  <span className="flex items-center gap-1.5">
-                    <span>🎉</span>
-                    <span>Correct Option! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
-                  </span>
-                  <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                    +10 SXPs
-                  </span>
-                </div>
-              ) : (
-                <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
-                  <span>
-                    Poll ended {correctAnswer ? `· Winner: ` : ""}
-                    {correctAnswer && <strong className="text-emerald-400">{correctAnswer}</strong>}
-                  </span>
-                  <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
-                </div>
-              )
-            ) : (
-              <div className="text-[11px] font-black text-center text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
-                <span>🔒</span>
-                <span>Vote submitted · +2 SXPs earned!</span>
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-          <div className="flex gap-4">
-            <button
-              onClick={handleLike}
-              className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
-                }`}
-            >
-              <Heart size={13} fill={liked ? "currentColor" : "none"} />
-              <span>{likesCount.toLocaleString()}</span>
-            </button>
-            <button
-              onClick={handleShare}
-              className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
-            >
-              <Share2 size={13} />
-              <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
-            </button>
-          </div>
-          <button
-            onClick={() => onOpenEngagedModal?.(item)}
-            className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
-          >
-            <span className="group-hover:underline">
-              {(totalEngagedOverride !== undefined
-                ? totalEngagedOverride
-                : Math.max(hasUserParticipated ? 1 : 0, totalEngaged)
-              ).toLocaleString()} engaged
-            </span>
-            <ChevronRight
-              size={12}
-              className={`text-[#FF8A00] transition-transform duration-200 ${isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
-                }`}
-            />
-          </button>
-        </div>
-      </motion.div>
-    );
-  }
-
-  // ─── 4. Prediction Card Component (+2 SXPs Participation, +10 SXPs Correct) ───
-  function DynamicPredictionCard({
-    item,
-    userId,
-    userName,
-    userAvatar,
-    userEmail,
-    now,
-    onToast,
-    onEdit,
-    isHighlighted = false,
-    onOpenEngagedModal,
-    isEngagedExpanded = false,
-    totalEngagedOverride,
-    onSyncEngagedCount,
-  }: {
-    item: EngagementItem;
-    userId?: string;
-    userName?: string;
-    userAvatar?: string;
-    userEmail?: string;
-    now: number;
-    onToast: (msg: string) => void;
-    onEdit?: (item: EngagementItem) => void;
-    isHighlighted?: boolean;
-    onOpenEngagedModal?: (item: EngagementItem) => void;
-    isEngagedExpanded?: boolean;
-    totalEngagedOverride?: number;
-    onSyncEngagedCount?: (count: number) => void;
-  }) {
-    const pred = item.predictionData || {
-      question: item.title || "Will India score > 350 runs?",
-      category: "cricket",
-      leftChoice: { text: "Yes (> 350)", multiplier: 2.1, votes: 310 },
-      rightChoice: { text: "No (<= 350)", multiplier: 1.8, votes: 450 },
-      coinStake: 25,
-      timerMinutes: 10,
-      startTime: Date.now(),
-      expiresAt: Date.now() + 600000,
-      winningTarget: "",
-    };
-
-    const initialVote = getStoredVote("pred", item.id, userId);
-    const [selectedChoice, setSelectedChoice] = useState<"left" | "right" | null>(
-      initialVote?.choice || (item.userVote as "left" | "right") || null
-    );
-    const [predicted, setPredicted] = useState<boolean>(Boolean(initialVote || item.userVoted));
-    const [loading, setLoading] = useState(false);
-    const isPredictingRef = useRef(false);
-
-    const bonusClaimKey = `sf_pred_bonus_claimed_${item.id}_${userId || "anon"}`;
-    const [bonusAwarded, setBonusAwarded] = useState<boolean>(() => {
-      if (typeof window === "undefined") return false;
-      return localStorage.getItem(bonusClaimKey) === "true";
-    });
-    const [serverIsCorrect, setServerIsCorrect] = useState<boolean | null>(null);
-
-    const [liked, setLiked] = useState(false);
-    const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-    const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-    const [hasShared, setHasShared] = useState<boolean>(() => {
-      if (typeof window === "undefined") return false;
-      return Boolean(localStorage.getItem(`sf_shared_${item.id}_${userId || "anon"}`));
-    });
-
-    const hasUserParticipated = Boolean(predicted || selectedChoice !== null || item.userVoted || initialVote);
-    const [totalEngaged, setTotalEngaged] = useState<number>(() => {
-      return totalEngagedOverride !== undefined
-        ? totalEngagedOverride
-        : (hasUserParticipated ? Math.max(1, Number(item.totalEngaged) || 0) : (Number(item.totalEngaged) || 0));
-    });
-
-    useEffect(() => {
-      if (totalEngagedOverride !== undefined) {
-        setTotalEngaged(totalEngagedOverride);
-      }
-    }, [totalEngagedOverride]);
-
-    const calcPredictionResult = useCallback(
-      (
-        choice: "left" | "right",
-        overrideLeftPct?: number,
-        overrideRightPct?: number
-      ) => {
-        const leftVotes = pred.leftChoice.votes || 0;
-        const rightVotes = pred.rightChoice.votes || 0;
-        const total = leftVotes + rightVotes + 1;
-        const leftPct =
-          overrideLeftPct !== undefined
-            ? Math.round(overrideLeftPct)
-            : Math.round(((leftVotes + (choice === "left" ? 1 : 0)) / total) * 100);
-        const rightPct =
-          overrideRightPct !== undefined ? Math.round(overrideRightPct) : 100 - leftPct;
-        return {
-          coinsLocked: pred.coinStake || 25,
-          leftPercentage: leftPct,
-          rightPercentage: rightPct,
-        };
-      },
-      [pred.coinStake, pred.leftChoice.votes, pred.rightChoice.votes]
-    );
-
-    const [result, setResult] = useState<{
-      coinsLocked: number;
-      leftPercentage: number;
-      rightPercentage: number;
-    } | null>(() => {
-      const c = initialVote?.choice || (item.userVote as "left" | "right");
-      if (!c) return null;
-      return calcPredictionResult(c, initialVote?.leftPercentage, initialVote?.rightPercentage);
-    });
-
-    const startTime = getEngagementStartTime(item);
-    const isScheduled = startTime > now;
-    const timeToStartMs = Math.max(0, startTime - now);
-
-    const durationMins = Number(pred.timerMinutes || 10);
-    const expiresAt = pred.expiresAt || (startTime + durationMins * 60 * 1000);
-    const isExpired = now >= expiresAt;
-    const timeRemainingMs = Math.max(0, expiresAt - now);
-
-    const winningTarget = (pred as any).winningTarget || (pred as any).correctAnswer || "";
-
-    const checkIsChoiceWinner = useCallback(
-      (choice: "left" | "right" | null) => {
-        if (!choice || !winningTarget) return false;
-        const wt = winningTarget.trim().toLowerCase();
-        if (wt === "left" && choice === "left") return true;
-        if (wt === "right" && choice === "right") return true;
-        const chosenText =
-          choice === "left"
-            ? pred.leftChoice.text.trim().toLowerCase()
-            : pred.rightChoice.text.trim().toLowerCase();
-        return wt === chosenText;
-      },
-      [winningTarget, pred.leftChoice.text, pred.rightChoice.text]
-    );
-
-    const userWon = useMemo(() => {
-      return checkIsChoiceWinner(selectedChoice);
-    }, [selectedChoice, checkIsChoiceWinner]);
-
-    useEffect(() => {
-      if (isExpired && (userWon || serverIsCorrect) && !bonusAwarded && userId) {
-        setBonusAwarded(true);
-        if (typeof window !== "undefined") {
-          localStorage.setItem(bonusClaimKey, "true");
-          window.dispatchEvent(
-            new CustomEvent("sf360:points-updated", {
-              detail: { points: CORRECT_OPTION_BONUS },
-            })
-          );
-        }
-        onToast(`🏆 Prediction Ended! You won +${CORRECT_OPTION_BONUS} SXPs bonus for your correct prediction!`);
-      }
-    }, [isExpired, userWon, serverIsCorrect, bonusAwarded, bonusClaimKey, onToast, userId]);
-
-    useEffect(() => {
-      if (item.userLiked) {
-        setLiked(true);
-      } else if (userId) {
-        engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-          if (isLiked) setLiked(true);
-        });
-      }
-
-      const stored = getStoredVote("pred", item.id, userId);
-      if (stored?.choice) {
-        setSelectedChoice(stored.choice);
-        setPredicted(true);
-        setResult(calcPredictionResult(stored.choice, stored.leftPercentage, stored.rightPercentage));
-      }
-
-      if (item.userVoted && item.userVote) {
-        const choice = item.userVote as "left" | "right";
-        setSelectedChoice(choice);
-        setPredicted(true);
-        setResult(calcPredictionResult(choice));
-        setStoredVote("pred", item.id, { choice }, userId);
-      } else if (userId) {
-        engagementService.checkVoteStatus(item.id, userId).then((res) => {
-          if (res.hasVoted && res.selectedOptionId) {
-            const choice = res.selectedOptionId as "left" | "right";
-            setSelectedChoice(choice);
-            setPredicted(true);
-            setResult(calcPredictionResult(choice));
-            setStoredVote("pred", item.id, { choice }, userId);
-          }
-        });
-      }
-    }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, calcPredictionResult]);
-
-    const handlePredict = async (choice: "left" | "right") => {
-      if (!userId || String(userId).toLowerCase().startsWith("anon")) {
-        onToast("Please sign in to participate and earn SXPs!");
-        return;
-      }
-      if (isScheduled) {
-        onToast(`This prediction opens in ${formatCountdown(timeToStartMs)}!`);
-        return;
-      }
-      if (isExpired) {
-        onToast("This prediction has ended!");
-        return;
-      }
-      if (predicted || loading || isPredictingRef.current || getStoredVote("pred", item.id, userId)) {
-        onToast("You have already placed your prediction!");
-        return;
-      }
-
-      isPredictingRef.current = true;
-      setSelectedChoice(choice);
-      setPredicted(true);
-      setLoading(true);
-      setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
-      const nextCount = Math.max(1, totalEngaged + 1);
-      setTotalEngaged(nextCount);
-      onSyncEngagedCount?.(nextCount);
-
-      try {
-        const res: any = await engagementService.voteEngagement(item.id, choice, userId, undefined, { userName, userAvatar, userEmail });
-        const computedResult = calcPredictionResult(
-          choice,
-          res?.leftPercentage,
-          res?.rightPercentage
-        );
-        if (res?.coinsLocked) {
-          computedResult.coinsLocked = res.coinsLocked;
-        }
-        setResult(computedResult);
-        setStoredVote(
-          "pred",
-          item.id,
-          {
-            choice,
-            coinsLocked: computedResult.coinsLocked,
-            leftPercentage: computedResult.leftPercentage,
-            rightPercentage: computedResult.rightPercentage,
-          },
-          userId
-        );
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
-          );
-        }
-      } catch (err: any) {
-        const prevChoice = (err?.response?.data?.selectedOptionId || choice) as "left" | "right";
-        setSelectedChoice(prevChoice);
-        const fallbackResult = calcPredictionResult(prevChoice);
-        setResult(fallbackResult);
-        setStoredVote(
-          "pred",
-          item.id,
-          {
-            choice: prevChoice,
-            coinsLocked: fallbackResult.coinsLocked,
-            leftPercentage: fallbackResult.leftPercentage,
-            rightPercentage: fallbackResult.rightPercentage,
-          },
-          userId
-        );
-      } finally {
-        setLoading(false);
-        isPredictingRef.current = false;
-      }
-    };
-
-    const handleLike = async () => {
-      const nextLiked = !liked;
-      const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
-      setLiked(nextLiked);
-      setLikesCount(nextCount);
-
-      try {
-        const res = await engagementService.toggleLikeEngagement(item.id, userId, { userName, userAvatar, userEmail });
-        if (res?.likesCount !== undefined) {
-          setLikesCount(res.likesCount);
-          setLiked(res.liked);
-        }
-      } catch { }
-    };
-
-    const handleShare = async () => {
-      const targetId = (item as any)._parentEngagementId || item.id;
-      if (!hasShared) {
-        setHasShared(true);
-        setSharesCount((prev) => prev + 1);
-        if (typeof window !== "undefined") {
-          localStorage.setItem(`sf_shared_${targetId}_${userId || "anon"}`, "true");
-        }
-        engagementService.shareEngagement(targetId)
-          .then((res: any) => {
-            if (res?.sharesCount !== undefined) {
-              setSharesCount(Number(res.sharesCount));
-            }
-          })
-          .catch(() => { });
-      }
-
-      const shareUrl = getEngagementShareUrl(item);
-      const text = `🎯 Prediction: "${pred.question || item.title}" — Make your pick on SportsFan360:`;
-      if (navigator.share) {
-        navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
-      } else {
-        await navigator.clipboard.writeText(shareUrl);
-        onToast("Prediction link copied to clipboard! 📋");
-      }
-    };
-
-    const formattedTime = formatEngagementPostingTime(item);
-
-
-
-    return (
-      <motion.div
-        id={`engagement-${item.id}`}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -12 }}
-        className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
-          ? "ring-2 ring-amber-500 shadow-[0_0_35px_rgba(245,158,11,0.35)] scale-[1.01]"
-          : ""
-          }`}
-      >
-        {isHighlighted && (
-          <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-[10px] font-black text-amber-300 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Sparkles size={11} className="text-amber-400 animate-pulse" />
-              <span>SHARED PREDICTION</span>
-            </span>
-            <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
-          </div>
-        )}
-        <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-          <div className="flex items-center gap-1.5 uppercase">
-            <span className="text-amber-400">🎯 PREDICTION</span>
-            {isScheduled ? (
-              <>
-                <span>•</span>
-                <span className="text-amber-400 font-mono flex items-center gap-1">
-                  <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
-                </span>
-              </>
-            ) : isExpired ? (
-              <>
-                <span>•</span>
-                <span className="text-rose-400 font-mono">🔒 CLOSED</span>
-              </>
-            ) : (
-              <>
-                <span>•</span>
-                <span className="text-emerald-400 font-mono flex items-center gap-1">
-                  <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
-                </span>
-              </>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <span>{formattedTime}</span>
-          </div>
-        </div>
-
-        <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{pred.question || item.title}</p>
-
-        {isScheduled ? (
-          <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center my-2 space-y-1">
-            <Clock size={20} className="mx-auto text-amber-400 animate-pulse" />
-            <h4 className="text-xs font-black text-white">Prediction Scheduled</h4>
-            <p className="text-[11px] text-white/60">
-              Predictions open in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3.5 mb-4">
-            <button
-              onClick={() => handlePredict("left")}
-              disabled={predicted || isExpired || loading}
-              className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "left"
-                ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-                : predicted || isExpired
-                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-                }`}
-            >
-              <span className="text-xs font-black">{pred.leftChoice.text}</span>
-              <span className="text-[10px] font-black mt-1 text-white/50">
-                {result ? `${result.leftPercentage}%` : null}
-              </span>
-            </button>
-
-            <button
-              onClick={() => handlePredict("right")}
-              disabled={predicted || isExpired || loading}
-              className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "right"
-                ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-                : predicted || isExpired
-                  ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                  : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-                }`}
-            >
-              <span className="text-xs font-black">{pred.rightChoice.text}</span>
-              <span className="text-[10px] font-black mt-1 text-white/50">
-                {result ? `${result.rightPercentage}%` : null}
-              </span>
-            </button>
-          </div>
-        )}
-
-        {predicted && (
-          <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
-            {isExpired ? (
-              userWon || bonusAwarded || serverIsCorrect ? (
-                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
-                  <span className="flex items-center gap-1.5">
-                    <span>🎉</span>
-                    <span>Prediction Won! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
-                  </span>
-                  <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                    +10 SXPs
-                  </span>
-                </div>
-              ) : (
-                <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
-                  <span>
-                    Prediction closed
-                  </span>
-                  <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
-                </div>
-              )
-            ) : (
-              <div className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
-                <span>🔒</span>
-                <span>+2 SXPs earned!</span>
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-          <div className="flex gap-4">
-            <button
-              onClick={handleLike}
-              className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
-                }`}
-            >
-              <Heart size={13} fill={liked ? "currentColor" : "none"} />
-              <span>{likesCount.toLocaleString()}</span>
-            </button>
-            <button
-              onClick={handleShare}
-              className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
-            >
-              <Share2 size={13} />
-              <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
-            </button>
-          </div>
-          <button
-            onClick={() => onOpenEngagedModal?.(item)}
-            className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
-          >
-            <span className="group-hover:underline">
-              {(totalEngagedOverride !== undefined
-                ? totalEngagedOverride
-                : Math.max(hasUserParticipated ? 1 : 0, totalEngaged)
-              ).toLocaleString()} engaged
-            </span>
-            <ChevronRight
-              size={12}
-              className={`text-[#FF8A00] transition-transform duration-200 ${isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
-                }`}
-            />
-          </button>
-        </div>
-      </motion.div>
-    );
-  }
-
-  // ─── 5. Meme Card Component (5 Heat Rating Tiers +2 SXPs Participation) ───────
-  function DynamicMemeCard({
-    item,
-    userId,
-    userName,
-    userAvatar,
-    userEmail,
-    now,
-    onToast,
-    onEdit,
-    onDelete,
-    isHighlighted = false,
-    onOpenEngagedModal,
-    isEngagedExpanded = false,
-    totalEngagedOverride,
-    onSyncEngagedCount,
-  }: {
-    item: EngagementItem;
-    userId?: string;
-    userName?: string;
-    userAvatar?: string;
-    userEmail?: string;
-    now: number;
-    onToast: (msg: string) => void;
-    onEdit?: (item: EngagementItem) => void;
-    onDelete?: (item: EngagementItem) => void;
-    isHighlighted?: boolean;
-    onOpenEngagedModal?: (item: EngagementItem) => void;
-    isEngagedExpanded?: boolean;
-    totalEngagedOverride?: number;
-    onSyncEngagedCount?: (count: number) => void;
-  }) {
-    const { user } = useAuth();
-    const currentUserId = userId || user?.userId || (user as any)?.actualUserId || user?.email;
-    const currentUserEmail = user?.email || (user as any)?.userEmail || "";
-    const currentUserName = user?.name || (user as any)?.userName || (user as any)?.displayName || "";
-
-    const meme = item.memeData || {
-      imageUrl: "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
-      caption: item.subtitle || item.title || "Matchday meme energy!",
-      authorName: "SportsFan",
-      authorHandle: "@SportsFan",
-      authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
-      heatPercentage: 0,
-      totalVotes: 0,
-      reactions: { mild: 0, funny: 0, hot: 0, fire: 0, nuclear: 0 },
-      commentsCount: 0,
-    };
-
-    const initialStored = getStoredVote("meme", item.id, currentUserId);
-    const [selectedRating, setSelectedRating] = useState<MemeReactionType | null>(
-      initialStored?.reaction || (item.userVote as MemeReactionType) || null
-    );
-    const [hasVoted, setHasVoted] = useState(Boolean(initialStored || item.userVoted));
-    const [loadingVote, setLoadingVote] = useState(false);
-    const [liked, setLiked] = useState(Boolean(item.userLiked));
-    const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-    const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-    const [hasShared, setHasShared] = useState<boolean>(() => {
-      if (typeof window === "undefined") return false;
-      return Boolean(localStorage.getItem(`sf_shared_${item.id}_${currentUserId || "anon"}`));
-    });
-
-    const hasUserParticipated = Boolean(hasVoted || selectedRating !== null || item.userVoted || initialStored);
-    const [totalEngaged, setTotalEngaged] = useState<number>(() => {
-      return totalEngagedOverride !== undefined
-        ? totalEngagedOverride
-        : (hasUserParticipated ? Math.max(1, Number(item.totalEngaged) || 0) : (Number(item.totalEngaged) || 0));
-    });
-
-    useEffect(() => {
-      if (totalEngagedOverride !== undefined) {
-        setTotalEngaged(totalEngagedOverride);
-      }
-    }, [totalEngagedOverride]);
-
-    const [reactions, setReactions] = useState<{
-      mild: number;
-      funny: number;
-      hot: number;
-      fire: number;
-      nuclear: number;
-    }>({
-      mild: Number(meme.reactions?.mild) || 0,
-      funny: Number(meme.reactions?.funny) || 0,
-      hot: Number(meme.reactions?.hot) || 0,
-      fire: Number(meme.reactions?.fire) || 0,
-      nuclear: Number(meme.reactions?.nuclear) || 0,
-    });
-
-    const totalHeatVotes =
-      reactions.mild + reactions.funny + reactions.hot + reactions.fire + reactions.nuclear;
-
-    const calculateHeatPct = useCallback(
-      (r: typeof reactions) => {
-        const sum = r.mild + r.funny + r.hot + r.fire + r.nuclear;
-        if (sum === 0) return 0;
-        const score = r.mild * 20 + r.funny * 40 + r.hot * 65 + r.fire * 85 + r.nuclear * 100;
-        return Math.round(score / sum);
-      },
-      []
-    );
-
-    const [heatPercentage, setHeatPercentage] = useState<number>(
-      meme.heatPercentage || calculateHeatPct(reactions)
-    );
-
-    useEffect(() => {
-      if (item.userLiked) {
-        setLiked(true);
-      } else if (currentUserId) {
-        engagementService.checkLikeStatus(item.id, currentUserId).then((isLiked) => {
-          if (isLiked) setLiked(true);
-        });
-      }
-
-      const stored = getStoredVote("meme", item.id, currentUserId);
-      if (stored?.reaction) {
-        setSelectedRating(stored.reaction);
-        setHasVoted(true);
-      } else if (item.userVoted && item.userVote) {
-        setSelectedRating(item.userVote as MemeReactionType);
-        setHasVoted(true);
-        setStoredVote("meme", item.id, { reaction: item.userVote }, currentUserId);
-      } else if (currentUserId) {
-        engagementService.checkVoteStatus(item.id, currentUserId).then((res) => {
-          if (res.hasVoted && res.selectedOptionId) {
-            setSelectedRating(res.selectedOptionId as MemeReactionType);
-            setHasVoted(true);
-            setStoredVote("meme", item.id, { reaction: res.selectedOptionId }, currentUserId);
-          }
-        });
-      }
-    }, [item.id, item.userLiked, item.userVoted, item.userVote, currentUserId]);
-
-    const handleSelectRating = (tier: MemeReactionType) => {
-      if (hasVoted) return;
-      setSelectedRating(tier);
-    };
-
-    const handleSubmitVote = async () => {
-      if (!currentUserId || String(currentUserId).toLowerCase().startsWith("anon")) {
-        onToast("Please sign in to vote and earn SXPs!");
-        return;
-      }
-      if (!selectedRating || hasVoted || loadingVote) return;
-
-      setLoadingVote(true);
-      setHasVoted(true);
-      setStoredVote("meme", item.id, { reaction: selectedRating }, currentUserId);
-      const nextCount = Math.max(1, totalEngaged + 1);
-      setTotalEngaged(nextCount);
-      onSyncEngagedCount?.(nextCount);
-
-      const nextReactions = {
-        ...reactions,
-        [selectedRating]: (reactions[selectedRating] || 0) + 1,
-      };
-      setReactions(nextReactions);
-      const nextHeat = calculateHeatPct(nextReactions);
-      setHeatPercentage(nextHeat);
-
-      try {
-        const res: any = await engagementService.voteEngagement(
-          item.id,
-          selectedRating,
-          currentUserId,
-          undefined,
-          {
-            userName: currentUserName,
-            userAvatar,
-            userEmail: currentUserEmail,
-          }
-        );
-        if (res?.reactions) {
-          setReactions(res.reactions);
-          setHeatPercentage(res.heatPercentage || calculateHeatPct(res.reactions));
-        }
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
-          );
-        }
-      } catch {
-      } finally {
-        setLoadingVote(false);
-      }
-    };
-
-    const handleLike = async () => {
-      const nextLiked = !liked;
-      const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
-      setLiked(nextLiked);
-      setLikesCount(nextCount);
-
-      try {
-        const res = await engagementService.toggleLikeEngagement(item.id, currentUserId, {
-          userName: currentUserName,
-          userAvatar,
-          userEmail: currentUserEmail,
-        });
-        if (res?.likesCount !== undefined) {
-          setLikesCount(res.likesCount);
-          setLiked(res.liked);
-        }
-      } catch { }
-    };
-
-    const handleShare = async () => {
-      const targetId = (item as any)._parentEngagementId || item.id;
-      if (!hasShared) {
-        setHasShared(true);
-        setSharesCount((prev) => prev + 1);
-        if (typeof window !== "undefined") {
-          localStorage.setItem(`sf_shared_${targetId}_${currentUserId || "anon"}`, "true");
-        }
-        engagementService.shareEngagement(targetId)
-          .then((res: any) => {
-            if (res?.sharesCount !== undefined) {
-              setSharesCount(Number(res.sharesCount));
-            }
-          })
-          .catch(() => { });
-      }
-
-      const shareUrl = getEngagementShareUrl(item);
-      const text = `🔥 Meme: "${meme.caption}" — Rate the matchday heat on SportsFan360:`;
-      if (navigator.share) {
-        navigator.share({ title: item.title || "Matchday Meme", text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
-      } else {
-        await navigator.clipboard.writeText(shareUrl);
-        onToast("Meme link copied to clipboard! 📋");
-      }
-    };
-
-
-    const formattedTime = formatEngagementPostingTime(item);
-
-    const RATING_TIERS: Array<{
-      id: MemeReactionType;
-      label: string;
-      flameColor: string;
-      bgHover: string;
-      activeBorder: string;
-    }> = [
-        { id: "mild", label: "Mild", flameColor: "text-slate-400", bgHover: "hover:bg-slate-500/10", activeBorder: "border-slate-400 bg-slate-500/20" },
-        { id: "funny", label: "Funny", flameColor: "text-pink-400", bgHover: "hover:bg-pink-500/10", activeBorder: "border-pink-500 bg-pink-500/20" },
-        { id: "hot", label: "Hot", flameColor: "text-amber-400", bgHover: "hover:bg-amber-500/10", activeBorder: "border-amber-500 bg-amber-500/20" },
-        { id: "fire", label: "Fire", flameColor: "text-orange-500", bgHover: "hover:bg-orange-500/10", activeBorder: "border-orange-500 bg-orange-500/20" },
-        { id: "nuclear", label: "Nuclear", flameColor: "text-fuchsia-400", bgHover: "hover:bg-fuchsia-500/10", activeBorder: "border-fuchsia-500 bg-fuchsia-500/20" },
-      ];
-
-    return (
-      <motion.div
-        id={`engagement-${item.id}`}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -12 }}
-        className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
-          ? "ring-2 ring-orange-500 shadow-[0_0_35px_rgba(249,115,22,0.35)] scale-[1.01]"
-          : ""
-          }`}
-      >
-        {isHighlighted && (
-          <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-orange-500/20 to-rose-500/20 border border-orange-500/40 text-[10px] font-black text-orange-300 flex items-center justify-between">
-            <span className="flex items-center gap-1.5">
-              <Sparkles size={11} className="text-orange-400 animate-pulse" />
-              <span>SHARED MEME</span>
-            </span>
-            <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
-          </div>
-        )}
-
-        {/* Header */}
-        <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
-          <div className="flex items-center gap-1.5 uppercase">
-            <span className="text-orange-400 flex items-center gap-1">
-              <Flame size={11} className="text-orange-400" />
-              <span>MEME</span>
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span>{formattedTime}</span>
-          </div>
-        </div>
-
-        {/* Caption */}
-        <p className="text-xs font-semibold text-white/90 mb-3 leading-relaxed">
-          {meme.caption}
-        </p>
-
-        {/* Meme Image */}
-        <div className="w-full rounded-xl overflow-hidden bg-black/40 border border-white/[0.08] mb-3 relative group">
-          <img
-            src={meme.imageUrl}
-            alt={meme.caption || "Meme"}
-            className="w-full h-auto max-h-[360px] object-cover mx-auto"
-            onError={(e: any) => {
-              e.target.src = "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80";
-            }}
-          />
-        </div>
-
-        {/* Dynamic Heat Gauge Meter */}
-        <div className="p-3 rounded-xl bg-gradient-to-r from-orange-500/10 via-rose-500/10 to-purple-500/10 border border-orange-500/20 mb-3">
-          <div className="flex items-center justify-between text-xs font-bold mb-1.5">
-            <span className="flex items-center gap-1.5 text-orange-400 font-black">
-              <Flame size={14} className="animate-pulse" />
-              <span>Heat Meter</span>
-            </span>
-            <span className="font-mono font-black text-amber-300 text-xs">
-              {heatPercentage}% Heat ({totalHeatVotes} {totalHeatVotes === 1 ? "vote" : "votes"})
-            </span>
-          </div>
-          <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
-            <motion.div
-              initial={{ width: 0 }}
-              animate={{ width: `${heatPercentage}%` }}
-              transition={{ duration: 0.6, ease: "easeOut" }}
-              className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500"
-            />
-          </div>
-        </div>
-
-        {/* 5-Flame Rating Selection */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-[10px] font-bold text-white/50 px-1">
-            <span>{hasVoted ? "Your locked rating:" : "Rate how funny/hot this is:"}</span>
-            <span className="text-orange-400 font-mono">+2 SXPs participation</span>
-          </div>
-
-          <div className="grid grid-cols-5 gap-1.5">
-            {RATING_TIERS.map((tier) => {
-              const isSelected = selectedRating === tier.id;
-              return (
-                <button
-                  key={tier.id}
-                  onClick={() => handleSelectRating(tier.id)}
-                  disabled={hasVoted}
-                  className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer ${isSelected
-                    ? tier.activeBorder + " shadow-md"
-                    : "border-white/[0.06] bg-white/[0.02] " + tier.bgHover
-                    } ${hasVoted ? "cursor-default opacity-80" : "active:scale-95"}`}
-                >
-                  <Flame size={16} className={`${tier.flameColor} ${isSelected ? "animate-bounce" : ""}`} fill={isSelected ? "currentColor" : "none"} />
-                  <span className="text-[10px] font-black text-white/90 mt-1">{tier.label}</span>
-                  {hasVoted && (
-                    <span className="text-[9px] font-mono text-white/40 mt-0.5">
-                      {reactions[tier.id] || 0}
-                    </span>
+                  {(voted || isExpired) && (
+                    <span className="text-xs font-black font-mono text-white/50">{pct}%</span>
                   )}
-                </button>
-              );
-            })}
-          </div>
-
-          <button
-            onClick={handleSubmitVote}
-            disabled={!selectedRating || hasVoted || loadingVote}
-            className={`w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${hasVoted
-              ? "bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 cursor-default"
-              : selectedRating
-                ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-lg shadow-orange-500/20 active:scale-98 cursor-pointer"
-                : "bg-white/5 border border-white/10 text-white/30 cursor-not-allowed"
-              }`}
-          >
-            {hasVoted ? (
-              <>
-                <Check size={14} />
-                <span>Rating Locked · +2 SXPs Earned</span>
-              </>
-            ) : !selectedRating ? (
-              <span>Select a rating above</span>
-            ) : (
-              <>
-                <Flame size={14} className="animate-pulse" />
-                <span>Vote {selectedRating.charAt(0).toUpperCase() + selectedRating.slice(1)}</span>
-              </>
-            )}
-          </button>
+                </div>
+              </button>
+            );
+          })}
         </div>
+      )}
 
-        {/* Engagement Footer */}
-        <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-          <div className="flex gap-4">
-            <button
-              onClick={handleLike}
-              className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
-                }`}
-            >
-              <Heart size={13} fill={liked ? "currentColor" : "none"} />
-              <span>{likesCount.toLocaleString()}</span>
-            </button>
-            <button
-              onClick={handleShare}
-              className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
-            >
-              <Share2 size={13} />
-              <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
-            </button>
-
-          </div>
-          <button
-            onClick={() => onOpenEngagedModal?.(item)}
-            className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
-          >
-            <span className="group-hover:underline">
-              {(totalEngagedOverride !== undefined
-                ? totalEngagedOverride
-                : Math.max(hasUserParticipated ? 1 : 0, totalEngaged)
-              ).toLocaleString()} engaged
-            </span>
-            <ChevronRight
-              size={12}
-              className={`text-[#FF8A00] transition-transform duration-200 ${isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
-                }`}
-            />
-          </button>
-        </div>
-      </motion.div>
-    );
-  }
-
-  // ─── Engaged Users Dialog Modal ──────────────────────────────────────────────
-  interface EngagedOptionData {
-    id: string;
-    text: string;
-    count: number;
-    voters: Array<{
-      userId: string;
-      userName: string;
-      userAvatar?: string | null;
-      selectedOptionId: string;
-      votedAt?: number;
-    }>;
-  }
-
-  // Filter helper to strictly exclude unregistered/anonymous IP-based voters
-
-
-  function EngagedUsersInlineList({
-    item,
-    questionId,
-    questionIndex,
-    onSyncCount,
-    onClose,
-  }: {
-    item: EngagementItem | null;
-    questionId?: string;
-    questionIndex?: number;
-    onSyncCount?: (count: number) => void;
-    onClose?: () => void;
-  }) {
-    const { user } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [options, setOptions] = useState<EngagedOptionData[]>([]);
-    const [userAvatarMap, setUserAvatarMap] = useState<Map<string, string>>(new Map());
-    const [page, setPage] = useState(1);
-    const itemsPerPage = 10;
-
-    useEffect(() => {
-      if (!item) return;
-
-      setLoading(true);
-      setPage(1); // Reset page on new item or question
-      const parentId = (item as any)._parentEngagementId || item.id;
-      const targetQId = (item as any)._subQuestionId || questionId;
-      const qParam = targetQId ? `?questionId=${encodeURIComponent(targetQId)}` : "";
-
-      axios
-        .get(`/api/engagements/${parentId}/voters${qParam}`)
-        .then((res) => {
-          if (res.data?.success) {
-            let opts: EngagedOptionData[] = [];
-            if (res.data.questions && Array.isArray(res.data.questions)) {
-              const targetQ = targetQId
-                ? res.data.questions.find((q: any) => q.questionId === targetQId || q.id === targetQId)
-                : res.data.questions[(item as any)._subQuestionIndex ?? questionIndex ?? 0] || res.data.questions[0];
-              opts = targetQ?.options || [];
-            } else if (res.data.options) {
-              if (targetQId && res.data.options.some((o: any) => o.questionId)) {
-                opts = res.data.options.filter((o: any) => o.questionId === targetQId);
-              } else {
-                opts = res.data.options || [];
-              }
-            }
-
-            // Filter out unregistered/anonymous voters from each option
-            const cleanOpts = opts.map((opt) => {
-              const validVoters = (opt.voters || []).filter((v: any) => isValidRegisteredVoter(v));
-              return {
-                ...opt,
-                voters: validVoters,
-                count: validVoters.length,
-              };
-            });
-
-            setOptions(cleanOpts);
-          }
-        })
-        .catch((err) => {
-          console.warn("Failed to load voters:", err);
-        })
-        .finally(() => {
-          setLoading(false);
-        });
-    }, [item, questionId, questionIndex]);
-
-    // Fetch fresh user avatars from /api/users
-    useEffect(() => {
-      if (!item) return;
-
-      const buildMap = (list: any[]) => {
-        const map = new Map<string, string>();
-        const add = (key: any, img: any) => {
-          if (!key || !img || typeof img !== "string") return;
-          const clean = img.trim();
-          if (!clean || clean === "null" || clean === "undefined") return;
-          if (clean.includes("dicebear.com")) return;
-          const k = String(key).trim().toLowerCase();
-          const noPrefix = k.replace(/^user#/i, "");
-          map.set(k, clean);
-          map.set(noPrefix, clean);
-          if (k.includes("@")) map.set(k.replace(/@/g, "_"), clean);
-        };
-
-        list.forEach((u) => {
-          if (!u) return;
-          const img =
-            u.avatarUrl || u.photoURL || u.picture || u.image ||
-            u.avatar || u.profilePicture || u.userAvatar;
-          if (!img) return;
-          add(u.userId, img);
-          add(u.actualUserId, img);
-          add(u.id, img);
-          add(u.email, img);
-          add(u.userEmail, img);
-          add(u.username, img);
-          add(u.userName, img);
-          add(u.name, img);
-        });
-        return map;
-      };
-
-      const fetchAvatars = async () => {
-        try {
-          const res = await axios.get("/api/users", { withCredentials: true });
-          const list =
-            res.data?.users ||
-            res.data?.data?.users ||
-            res.data?.data ||
-            res.data?.allUsers ||
-            (Array.isArray(res.data) ? res.data : []);
-          setUserAvatarMap(buildMap(list));
-        } catch {
-          // silent fail
-        }
-      };
-      fetchAvatars();
-    }, [item]);
-
-    // Check if current user has voted on this item
-    const currentUserVoted = useMemo(() => {
-      if (!user || !item) return false;
-      const uid = user.userId || (user as any)?.actualUserId || user.email;
-      if (!uid || String(uid).toLowerCase().startsWith("anon")) return false;
-
-      const parentId = (item as any)._parentEngagementId || item.id;
-      const subIdx = (item as any)._subQuestionIndex ?? questionIndex ?? 0;
-      const qId = (item as any)._subQuestionId || questionId || item.quizData?.questions?.[subIdx]?.id || `q_${subIdx + 1}`;
-
-      // if (item.type === "quiz") {
-      //   return Boolean(
-      //     getStoredVote(quizAnswerKey(subIdx, qId), item.id, uid) ||
-      //     getStoredVote(quizAnswerKey(subIdx, qId), parentId, uid) ||
-      //     getStoredVote("quiz", item.id, uid) ||
-      //     getStoredVote("quiz_engaged", item.id, uid) ||
-      //     getStoredVote("quiz_engaged", parentId, uid)
-      //   );
-      // } else if (item.type === "fan_battle") {
-
-      const totalQuestions = item.quizData?.questions?.length || 1;
-
-      if (item.type === "quiz") {
-        if (totalQuestions > 1) {
-          // Multi-question quiz: Strictly check only this specific question
-          return Boolean(
-            getStoredVote(quizAnswerKey(subIdx, qId), item.id, uid) ||
-            getStoredVote(quizAnswerKey(subIdx, qId), parentId, uid)
-          );
-        }
-        // Single-question quiz fallback
-        return Boolean(
-          getStoredVote(quizAnswerKey(subIdx, qId), item.id, uid) ||
-          getStoredVote("quiz", item.id, uid) ||
-          getStoredVote("quiz_engaged", item.id, uid)
-        );
-      } else if (item.type === "fan_battle") {
-        return Boolean(getStoredVote("fb", item.id, uid));
-      } else if (item.type === "poll") {
-        return Boolean(getStoredVote("poll", item.id, uid));
-      } else if (item.type === "prediction") {
-        return Boolean(getStoredVote("pred", item.id, uid));
-      } else if (item.type === "meme") {
-        return Boolean(getStoredVote("meme", item.id, uid));
-      }
-      return Boolean(item.userVoted);
-    }, [item, user, questionId, questionIndex]);
-
-    // Combined deduplicated list of registered voters
-    const allVoters = useMemo(() => {
-      const raw = options
-        .flatMap((opt) => (opt.voters || []).map((v) => ({ ...v, optionId: opt.id, optionText: opt.text })))
-        .filter((v) => isValidRegisteredVoter(v));
-
-      const uniqueMap = new Map<string, typeof raw[0]>();
-      raw.forEach((v) => {
-        const key = String(v.userId || v.userName || (v as any).userEmail || "").trim().toLowerCase();
-        if (key && !uniqueMap.has(key)) {
-          uniqueMap.set(key, v);
-        }
-      });
-
-      if (currentUserVoted && user) {
-        const uid = String(user.userId || (user as any)?.actualUserId || user.email || "").trim().toLowerCase();
-        if (uid && !uniqueMap.has(uid) && isValidRegisteredVoter({ userId: uid, userName: user.name, userEmail: user.email })) {
-          uniqueMap.set(uid, {
-            userId: user.userId || uid,
-            userName: user.name || (user as any)?.userName || user.email?.split("@")[0] || "You",
-            userAvatar: (user as any)?.avatarUrl || user.photoURL || (user as any)?.picture || null,
-            selectedOptionId: "",
-            optionId: "",
-            optionText: "",
-            votedAt: Date.now(),
-          });
-        }
-      }
-
-      return Array.from(uniqueMap.values());
-    }, [options, currentUserVoted, user]);
-
-    const finalVotersCount = allVoters.length;
-
-    useEffect(() => {
-      if (!loading) {
-        onSyncCount?.(finalVotersCount);
-      }
-    }, [finalVotersCount, loading, onSyncCount]);
-
-    if (!item) return null;
-
-    // Resolve the freshest avatar for a voter
-    const resolveAvatar = (voter: EngagedOptionData["voters"][number]): string => {
-      const isMe =
-        user?.userId === voter.userId ||
-        (user as any)?.actualUserId === voter.userId ||
-        (user?.email && voter.userId === user.email);
-
-      if (isMe && typeof window !== "undefined") {
-        const local = localStorage.getItem("roar_avatar_url");
-        if (local && !local.includes("dicebear.com")) return local;
-      }
-      if (voter.userAvatar) return voter.userAvatar;
-
-      const candidates = [
-        voter.userId,
-        voter.userName,
-        (voter as any).userEmail,
-      ].filter(Boolean) as string[];
-
-      for (const c of candidates) {
-        const k = String(c).trim().toLowerCase();
-        const found =
-          userAvatarMap.get(k) ||
-          userAvatarMap.get(k.replace(/^user#/i, "")) ||
-          userAvatarMap.get(k.replace(/@/g, "_"));
-        if (found) return found;
-      }
-      return "";
-    };
-
-    const displayedVoters = allVoters.slice(0, page * itemsPerPage);
-    const hasMore = displayedVoters.length < allVoters.length;
-
-    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-      const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
-      if (scrollHeight - scrollTop <= clientHeight + 50 && hasMore) {
-        setPage((p) => p + 1);
-      }
-    };
-
-    const totalQuestions = item.quizData?.questions?.length || 1;
-
-    return (
-      <AnimatePresence>
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="w-full max-w-lg mx-auto bg-gradient-to-b from-[#24131c]/90 to-[#0d111c]/95 rounded-2xl overflow-hidden mt-2 mb-2 border border-white/10 shadow-2xl relative"
-        >
-          {/* Header */}
-          <div className="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.04]">
-            <h3 className="text-xs font-bold text-white/80 flex items-center gap-1.5">
-              <span>Engaged Fans</span>
-              {item.type === "quiz" && totalQuestions > 1 && (
-                <span className="text-[9px] text-[#FF8A00] font-extrabold bg-[#FF8A00]/15 px-1.5 py-0.5 rounded-full border border-[#FF8A00]/30">
-                  Q{((item as any)._subQuestionIndex ?? questionIndex ?? 0) + 1}/{totalQuestions}
+      {voted && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
+          {isExpired ? (
+            userWon || bonusAwarded || serverIsCorrect ? (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                <span className="flex items-center gap-1.5">
+                  <span>🎉</span>
+                  <span>Correct Option! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
                 </span>
-              )}
-            </h3>
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="w-5 h-5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] active:bg-white/[0.18] text-white/50 hover:text-white flex items-center justify-center transition-colors cursor-pointer border border-white/[0.08]"
-                title="Close list"
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
-
-          {/* Voters List Body */}
-          <div
-            className="max-h-[220px] overflow-y-auto px-4 pb-2.5 space-y-0"
-            onScroll={handleScroll}
-          >
-            {loading ? (
-              <div className="py-4 flex flex-col items-center justify-center gap-1.5 text-white/40 text-[11px] font-medium">
-                <div className="w-5 h-5 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
-                <span>Loading fans...</span>
-              </div>
-            ) : allVoters.length === 0 ? (
-              <div className="py-4 flex flex-col items-center justify-center text-center text-[11px] font-medium text-white/40 space-y-1">
-                <Users size={18} className="mx-auto text-white/20 mb-1" />
-                <p>No fans opted yet.</p>
+                <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                  +10 SXPs
+                </span>
               </div>
             ) : (
-              <>
-                {displayedVoters.map((voter, idx) => {
-                  const initialLetter = voter.userName ? voter.userName.charAt(0).toUpperCase() : "F";
-                  const avatarUrl = resolveAvatar(voter);
-                  const rawName = voter.userName || "Fan";
-                  const displayName = rawName.includes("_gmail_com")
-                    ? rawName.replace(/_gmail_com/gi, "")
-                    : rawName;
-
-                  return (
-                    <div
-                      key={`${voter.userId}-${idx}`}
-                      onClick={() => {
-                        window.location.href = `/MainModules/Profile?userId=${encodeURIComponent(
-                          voter.userId
-                        )}`;
-                      }}
-                      className="py-1.5 border-b border-white/[0.04] flex items-center justify-between gap-3 transition-all cursor-pointer group last:border-0"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
-                        {avatarUrl ? (
-                          <img
-                            src={avatarUrl}
-                            alt={voter.userName}
-                            referrerPolicy="no-referrer"
-                            crossOrigin="anonymous"
-                            className="w-6.5 h-6.5 rounded-full object-cover border border-white/10 shrink-0"
-                            onError={(e: any) => {
-                              e.target.style.display = "none";
-                              e.target.nextSibling.style.display = "flex";
-                            }}
-                          />
-                        ) : null}
-                        <div
-                          style={{ display: avatarUrl ? "none" : "flex" }}
-                          className="w-6.5 h-6.5 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 border border-white/10 items-center justify-center text-white font-black text-[10px] shrink-0"
-                        >
-                          {initialLetter}
-                        </div>
-
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-[12px] font-semibold text-white/90 group-hover:text-amber-400 transition-colors break-words break-all whitespace-normal leading-tight">
-                            {displayName}
-                          </h4>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {hasMore && (
-                  <div className="py-2.5 flex flex-col items-center justify-center gap-1 text-white/40 text-[9px] font-bold">
-                    <div className="w-3.5 h-3.5 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
-                    <span>Loading more...</span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {onClose && (
-            <div className="p-2 border-t border-white/[0.04] bg-white/[0.02] flex items-center justify-center">
-              <button
-                onClick={onClose}
-                className="py-1.5 px-4 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] active:bg-white/[0.18] text-white/70 hover:text-white text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer border border-white/[0.08] active:scale-95 shadow-sm"
-              >
-                <ChevronUp size={13} className="text-[#FF8A00]" />
-                <span>Close</span>
-              </button>
+              <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
+                <span>
+                  Poll ended {correctAnswer ? `· Winner: ` : ""}
+                  {correctAnswer && <strong className="text-emerald-400">{correctAnswer}</strong>}
+                </span>
+                <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
+              </div>
+            )
+          ) : (
+            <div className="text-[11px] font-black text-center text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
+              <span>🔒</span>
+              <span>Vote submitted · +2 SXPs earned!</span>
             </div>
           )}
         </motion.div>
-      </AnimatePresence>
-    );
-  }
+      )}
 
-<<<<<<< HEAD
-const ARENA_FILTER_CHIPS = [
-  { id: "all", label: "All", isHash: true },
-  { id: "quiz", label: "Quiz", isHash: false },
-  { id: "poll", label: "Poll", isHash: false },
-  { id: "battle", label: "Battle", isHash: false },
-  { id: "prediction", label: "Prediction", isHash: false },
-  { id: "meme", label: "Meme", isHash: false },
-] as const;
+      <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
+        <div className="flex gap-4">
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
+          >
+            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+            <span>{likesCount.toLocaleString()}</span>
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
+          >
+            <Share2 size={13} />
+            <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+          </button>
+        </div>
+        <button
+          onClick={() => onOpenEngagedModal?.(item)}
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
+        >
+          <span className="group-hover:underline">
+            {Math.max(
+              hasUserParticipated ? 1 : 0,
+              totalEngagedOverride !== undefined ? totalEngagedOverride : totalEngaged
+            ).toLocaleString()} engaged
+          </span>
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+              }`}
+          />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
 
+// ─── 4. Prediction Card Component (+2 SXPs Participation, +10 SXPs Correct) ───
+function DynamicPredictionCard({
+  item,
+  userId,
+  userName,
+  userAvatar,
+  userEmail,
+  now,
+  onToast,
+  onEdit,
+  isHighlighted = false,
+  onOpenEngagedModal,
+  isEngagedExpanded = false,
+  totalEngagedOverride,
+  onSyncEngagedCount,
+}: {
+  item: EngagementItem;
+  userId?: string;
+  userName?: string;
+  userAvatar?: string;
+  userEmail?: string;
+  now: number;
+  onToast: (msg: string) => void;
+  onEdit?: (item: EngagementItem) => void;
+  isHighlighted?: boolean;
+  onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
+  totalEngagedOverride?: number;
+  onSyncEngagedCount?: (count: number) => void;
+}) {
+  const pred = item.predictionData || {
+    question: item.title || "Will India score > 350 runs?",
+    category: "cricket",
+    leftChoice: { text: "Yes (> 350)", multiplier: 2.1, votes: 310 },
+    rightChoice: { text: "No (<= 350)", multiplier: 1.8, votes: 450 },
+    coinStake: 25,
+    timerMinutes: 10,
+    startTime: Date.now(),
+    expiresAt: Date.now() + 600000,
+    winningTarget: "",
+  };
+
+  const initialVote = getStoredVote("pred", item.id, userId);
+  const [selectedChoice, setSelectedChoice] = useState<"left" | "right" | null>(
+    initialVote?.choice || (item.userVote as "left" | "right") || null
+  );
+  const [predicted, setPredicted] = useState<boolean>(Boolean(initialVote || item.userVoted));
+  const [loading, setLoading] = useState(false);
+  const isPredictingRef = useRef(false);
+
+  const bonusClaimKey = `sf_pred_bonus_claimed_${item.id}_${userId || "anon"}`;
+  const [bonusAwarded, setBonusAwarded] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem(bonusClaimKey) === "true";
+  });
+  const [serverIsCorrect, setServerIsCorrect] = useState<boolean | null>(null);
+
+  const [liked, setLiked] = useState(false);
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const [hasShared, setHasShared] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean(localStorage.getItem(`sf_shared_${item.id}_${userId || "anon"}`));
+  });
+
+  const hasUserParticipated = Boolean(predicted || selectedChoice !== null || item.userVoted || initialVote);
+  const [totalEngaged, setTotalEngaged] = useState<number>(() => {
+    return totalEngagedOverride !== undefined
+      ? totalEngagedOverride
+      : (hasUserParticipated ? Math.max(1, Number(item.totalEngaged) || 0) : (Number(item.totalEngaged) || 0));
+  });
+
+  useEffect(() => {
+    if (totalEngagedOverride !== undefined) {
+      setTotalEngaged(totalEngagedOverride);
+    }
+  }, [totalEngagedOverride]);
+
+  const calcPredictionResult = useCallback(
+    (
+      choice: "left" | "right",
+      overrideLeftPct?: number,
+      overrideRightPct?: number
+    ) => {
+      const leftVotes = pred.leftChoice.votes || 0;
+      const rightVotes = pred.rightChoice.votes || 0;
+      const total = leftVotes + rightVotes + 1;
+      const leftPct =
+        overrideLeftPct !== undefined
+          ? Math.round(overrideLeftPct)
+          : Math.round(((leftVotes + (choice === "left" ? 1 : 0)) / total) * 100);
+      const rightPct =
+        overrideRightPct !== undefined ? Math.round(overrideRightPct) : 100 - leftPct;
+      return {
+        coinsLocked: pred.coinStake || 25,
+        leftPercentage: leftPct,
+        rightPercentage: rightPct,
+      };
+    },
+    [pred.coinStake, pred.leftChoice.votes, pred.rightChoice.votes]
+  );
+
+  const [result, setResult] = useState<{
+    coinsLocked: number;
+    leftPercentage: number;
+    rightPercentage: number;
+  } | null>(() => {
+    const c = initialVote?.choice || (item.userVote as "left" | "right");
+    if (!c) return null;
+    return calcPredictionResult(c, initialVote?.leftPercentage, initialVote?.rightPercentage);
+  });
+
+  const startTime = getEngagementStartTime(item);
+  const isScheduled = startTime > now;
+  const timeToStartMs = Math.max(0, startTime - now);
+
+  const durationMins = Number(pred.timerMinutes || 10);
+  const expiresAt = pred.expiresAt || (startTime + durationMins * 60 * 1000);
+  const isExpired = now >= expiresAt;
+  const timeRemainingMs = Math.max(0, expiresAt - now);
+
+  const winningTarget = (pred as any).winningTarget || (pred as any).correctAnswer || "";
+
+  const checkIsChoiceWinner = useCallback(
+    (choice: "left" | "right" | null) => {
+      if (!choice || !winningTarget) return false;
+      const wt = winningTarget.trim().toLowerCase();
+      if (wt === "left" && choice === "left") return true;
+      if (wt === "right" && choice === "right") return true;
+      const chosenText =
+        choice === "left"
+          ? pred.leftChoice.text.trim().toLowerCase()
+          : pred.rightChoice.text.trim().toLowerCase();
+      return wt === chosenText;
+    },
+    [winningTarget, pred.leftChoice.text, pred.rightChoice.text]
+  );
+
+  const userWon = useMemo(() => {
+    return checkIsChoiceWinner(selectedChoice);
+  }, [selectedChoice, checkIsChoiceWinner]);
+
+  useEffect(() => {
+    if (isExpired && (userWon || serverIsCorrect) && !bonusAwarded && userId) {
+      setBonusAwarded(true);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(bonusClaimKey, "true");
+        window.dispatchEvent(
+          new CustomEvent("sf360:points-updated", {
+            detail: { points: CORRECT_OPTION_BONUS },
+          })
+        );
+      }
+      onToast(`🏆 Prediction Ended! You won +${CORRECT_OPTION_BONUS} SXPs bonus for your correct prediction!`);
+    }
+  }, [isExpired, userWon, serverIsCorrect, bonusAwarded, bonusClaimKey, onToast, userId]);
+
+  useEffect(() => {
+    if (item.userLiked) {
+      setLiked(true);
+    } else if (userId) {
+      engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
+        if (isLiked) setLiked(true);
+      });
+    }
+
+    const stored = getStoredVote("pred", item.id, userId);
+    if (stored?.choice) {
+      setSelectedChoice(stored.choice);
+      setPredicted(true);
+      setResult(calcPredictionResult(stored.choice, stored.leftPercentage, stored.rightPercentage));
+    }
+
+    if (item.userVoted && item.userVote) {
+      const choice = item.userVote as "left" | "right";
+      setSelectedChoice(choice);
+      setPredicted(true);
+      setResult(calcPredictionResult(choice));
+      setStoredVote("pred", item.id, { choice }, userId);
+    } else if (userId) {
+      engagementService.checkVoteStatus(item.id, userId).then((res) => {
+        if (res.hasVoted && res.selectedOptionId) {
+          const choice = res.selectedOptionId as "left" | "right";
+          setSelectedChoice(choice);
+          setPredicted(true);
+          setResult(calcPredictionResult(choice));
+          setStoredVote("pred", item.id, { choice }, userId);
+        }
+      });
+    }
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, calcPredictionResult]);
+
+  const handlePredict = async (choice: "left" | "right") => {
+    if (!userId || String(userId).toLowerCase().startsWith("anon")) {
+      onToast("Please sign in to participate and earn SXPs!");
+      return;
+    }
+    if (isScheduled) {
+      onToast(`This prediction opens in ${formatCountdown(timeToStartMs)}!`);
+      return;
+    }
+    if (isExpired) {
+      onToast("This prediction has ended!");
+      return;
+    }
+    if (predicted || loading || isPredictingRef.current || getStoredVote("pred", item.id, userId)) {
+      onToast("You have already placed your prediction!");
+      return;
+    }
+
+    isPredictingRef.current = true;
+    setSelectedChoice(choice);
+    setPredicted(true);
+    setLoading(true);
+    setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
+    const nextCount = Math.max(1, totalEngaged + 1);
+    setTotalEngaged(nextCount);
+    onSyncEngagedCount?.(nextCount);
+
+    try {
+      const res: any = await engagementService.voteEngagement(item.id, choice, userId, undefined, { userName, userAvatar, userEmail });
+      const computedResult = calcPredictionResult(
+        choice,
+        res?.leftPercentage,
+        res?.rightPercentage
+      );
+      if (res?.coinsLocked) {
+        computedResult.coinsLocked = res.coinsLocked;
+      }
+      setResult(computedResult);
+      setStoredVote(
+        "pred",
+        item.id,
+        {
+          choice,
+          coinsLocked: computedResult.coinsLocked,
+          leftPercentage: computedResult.leftPercentage,
+          rightPercentage: computedResult.rightPercentage,
+        },
+        userId
+      );
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
+        );
+      }
+    } catch (err: any) {
+      const prevChoice = (err?.response?.data?.selectedOptionId || choice) as "left" | "right";
+      setSelectedChoice(prevChoice);
+      const fallbackResult = calcPredictionResult(prevChoice);
+      setResult(fallbackResult);
+      setStoredVote(
+        "pred",
+        item.id,
+        {
+          choice: prevChoice,
+          coinsLocked: fallbackResult.coinsLocked,
+          leftPercentage: fallbackResult.leftPercentage,
+          rightPercentage: fallbackResult.rightPercentage,
+        },
+        userId
+      );
+    } finally {
+      setLoading(false);
+      isPredictingRef.current = false;
+    }
+  };
+
+  const handleLike = async () => {
+    const nextLiked = !liked;
+    const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
+    setLiked(nextLiked);
+    setLikesCount(nextCount);
+
+    try {
+      const res = await engagementService.toggleLikeEngagement(item.id, userId, { userName, userAvatar, userEmail });
+      if (res?.likesCount !== undefined) {
+        setLikesCount(res.likesCount);
+        setLiked(res.liked);
+      }
+    } catch { }
+  };
+
+  const handleShare = async () => {
+    const targetId = (item as any)._parentEngagementId || item.id;
+    if (!hasShared) {
+      setHasShared(true);
+      setSharesCount((prev) => prev + 1);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`sf_shared_${targetId}_${userId || "anon"}`, "true");
+      }
+      engagementService.shareEngagement(targetId)
+        .then((res: any) => {
+          if (res?.sharesCount !== undefined) {
+            setSharesCount(Number(res.sharesCount));
+          }
+        })
+        .catch(() => { });
+    }
+
+    const shareUrl = getEngagementShareUrl(item);
+    const text = `🎯 Prediction: "${pred.question || item.title}" — Make your pick on SportsFan360:`;
+    if (navigator.share) {
+      navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+      onToast("Prediction link copied to clipboard! 📋");
+    }
+  };
+
+  const formattedTime = formatEngagementPostingTime(item);
+
+
+
+  return (
+    <motion.div
+      id={`engagement-${item.id}`}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-amber-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+        ? "ring-2 ring-amber-500 shadow-[0_0_35px_rgba(245,158,11,0.35)] scale-[1.01]"
+        : ""
+        }`}
+    >
+      {isHighlighted && (
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-amber-500/20 to-orange-500/20 border border-amber-500/40 text-[10px] font-black text-amber-300 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Sparkles size={11} className="text-amber-400 animate-pulse" />
+            <span>SHARED PREDICTION</span>
+          </span>
+          <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
+        </div>
+      )}
+      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
+        <div className="flex items-center gap-1.5 uppercase">
+          <span className="text-amber-400">🎯 PREDICTION</span>
+          {isScheduled ? (
+            <>
+              <span>•</span>
+              <span className="text-amber-400 font-mono flex items-center gap-1">
+                <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
+              </span>
+            </>
+          ) : isExpired ? (
+            <>
+              <span>•</span>
+              <span className="text-rose-400 font-mono">🔒 CLOSED</span>
+            </>
+          ) : (
+            <>
+              <span>•</span>
+              <span className="text-emerald-400 font-mono flex items-center gap-1">
+                <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
+              </span>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span>{formattedTime}</span>
+        </div>
+      </div>
+
+      <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{pred.question || item.title}</p>
+
+      {isScheduled ? (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center my-2 space-y-1">
+          <Clock size={20} className="mx-auto text-amber-400 animate-pulse" />
+          <h4 className="text-xs font-black text-white">Prediction Scheduled</h4>
+          <p className="text-[11px] text-white/60">
+            Predictions open in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3.5 mb-4">
+          <button
+            onClick={() => handlePredict("left")}
+            disabled={predicted || isExpired || loading}
+            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "left"
+              ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+              : predicted || isExpired
+                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+              }`}
+          >
+            <span className="text-xs font-black">{pred.leftChoice.text}</span>
+            <span className="text-[10px] font-black mt-1 text-white/50">
+              {result ? `${result.leftPercentage}%` : null}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handlePredict("right")}
+            disabled={predicted || isExpired || loading}
+            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "right"
+              ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+              : predicted || isExpired
+                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
+                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+              }`}
+          >
+            <span className="text-xs font-black">{pred.rightChoice.text}</span>
+            <span className="text-[10px] font-black mt-1 text-white/50">
+              {result ? `${result.rightPercentage}%` : null}
+            </span>
+          </button>
+        </div>
+      )}
+
+      {predicted && (
+        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
+          {isExpired ? (
+            userWon || bonusAwarded || serverIsCorrect ? (
+              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
+                <span className="flex items-center gap-1.5">
+                  <span>🎉</span>
+                  <span>Prediction Won! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
+                </span>
+                <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
+                  +10 SXPs
+                </span>
+              </div>
+            ) : (
+              <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
+                <span>
+                  Prediction closed
+                </span>
+                <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
+              </div>
+            )
+          ) : (
+            <div className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
+              <span>🔒</span>
+              <span>+2 SXPs earned!</span>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
+        <div className="flex gap-4">
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
+          >
+            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+            <span>{likesCount.toLocaleString()}</span>
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
+          >
+            <Share2 size={13} />
+            <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+          </button>
+        </div>
+        <button
+          onClick={() => onOpenEngagedModal?.(item)}
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
+        >
+          <span className="group-hover:underline">
+            {Math.max(
+              hasUserParticipated ? 1 : 0,
+              totalEngagedOverride !== undefined ? totalEngagedOverride : totalEngaged
+            ).toLocaleString()} engaged
+          </span>
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+              }`}
+          />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── 5. Meme Card Component (5 Heat Rating Tiers +2 SXPs Participation) ───────
+function DynamicMemeCard({
+  item,
+  userId,
+  userName,
+  userAvatar,
+  userEmail,
+  now,
+  onToast,
+  onEdit,
+  onDelete,
+  isHighlighted = false,
+  onOpenEngagedModal,
+  isEngagedExpanded = false,
+  totalEngagedOverride,
+  onSyncEngagedCount,
+}: {
+  item: EngagementItem;
+  userId?: string;
+  userName?: string;
+  userAvatar?: string;
+  userEmail?: string;
+  now: number;
+  onToast: (msg: string) => void;
+  onEdit?: (item: EngagementItem) => void;
+  onDelete?: (item: EngagementItem) => void;
+  isHighlighted?: boolean;
+  onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
+  totalEngagedOverride?: number;
+  onSyncEngagedCount?: (count: number) => void;
+}) {
+  const { user } = useAuth();
+  const currentUserId = userId || user?.userId || (user as any)?.actualUserId || user?.email;
+  const currentUserEmail = user?.email || (user as any)?.userEmail || "";
+  const currentUserName = user?.name || (user as any)?.userName || (user as any)?.displayName || "";
+
+  const meme = item.memeData || {
+    imageUrl: "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
+    caption: item.subtitle || item.title || "Matchday meme energy!",
+    authorName: "SportsFan",
+    authorHandle: "@SportsFan",
+    authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
+    heatPercentage: 0,
+    totalVotes: 0,
+    reactions: { mild: 0, funny: 0, hot: 0, fire: 0, nuclear: 0 },
+    commentsCount: 0,
+  };
+
+  const initialStored = getStoredVote("meme", item.id, currentUserId);
+  const [selectedRating, setSelectedRating] = useState<MemeReactionType | null>(
+    initialStored?.reaction || (item.userVote as MemeReactionType) || null
+  );
+  const [hasVoted, setHasVoted] = useState(Boolean(initialStored || item.userVoted));
+  const [loadingVote, setLoadingVote] = useState(false);
+  const [liked, setLiked] = useState(Boolean(item.userLiked));
+  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
+  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
+  const [hasShared, setHasShared] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean(localStorage.getItem(`sf_shared_${item.id}_${currentUserId || "anon"}`));
+  });
+
+  const hasUserParticipated = Boolean(hasVoted || selectedRating !== null || item.userVoted || initialStored);
+  const [totalEngaged, setTotalEngaged] = useState<number>(() => {
+    return totalEngagedOverride !== undefined
+      ? totalEngagedOverride
+      : (hasUserParticipated ? Math.max(1, Number(item.totalEngaged) || 0) : (Number(item.totalEngaged) || 0));
+  });
+
+  useEffect(() => {
+    if (totalEngagedOverride !== undefined) {
+      setTotalEngaged(totalEngagedOverride);
+    }
+  }, [totalEngagedOverride]);
+
+  const [reactions, setReactions] = useState<{
+    mild: number;
+    funny: number;
+    hot: number;
+    fire: number;
+    nuclear: number;
+  }>({
+    mild: Number(meme.reactions?.mild) || 0,
+    funny: Number(meme.reactions?.funny) || 0,
+    hot: Number(meme.reactions?.hot) || 0,
+    fire: Number(meme.reactions?.fire) || 0,
+    nuclear: Number(meme.reactions?.nuclear) || 0,
+  });
+
+  const totalHeatVotes =
+    reactions.mild + reactions.funny + reactions.hot + reactions.fire + reactions.nuclear;
+
+  const calculateHeatPct = useCallback(
+    (r: typeof reactions) => {
+      const sum = r.mild + r.funny + r.hot + r.fire + r.nuclear;
+      if (sum === 0) return 0;
+      const score = r.mild * 20 + r.funny * 40 + r.hot * 65 + r.fire * 85 + r.nuclear * 100;
+      return Math.round(score / sum);
+    },
+    []
+  );
+
+  const [heatPercentage, setHeatPercentage] = useState<number>(
+    meme.heatPercentage || calculateHeatPct(reactions)
+  );
+
+  useEffect(() => {
+    if (item.userLiked) {
+      setLiked(true);
+    } else if (currentUserId) {
+      engagementService.checkLikeStatus(item.id, currentUserId).then((isLiked) => {
+        if (isLiked) setLiked(true);
+      });
+    }
+
+    const stored = getStoredVote("meme", item.id, currentUserId);
+    if (stored?.reaction) {
+      setSelectedRating(stored.reaction);
+      setHasVoted(true);
+    } else if (item.userVoted && item.userVote) {
+      setSelectedRating(item.userVote as MemeReactionType);
+      setHasVoted(true);
+      setStoredVote("meme", item.id, { reaction: item.userVote }, currentUserId);
+    } else if (currentUserId) {
+      engagementService.checkVoteStatus(item.id, currentUserId).then((res) => {
+        if (res.hasVoted && res.selectedOptionId) {
+          setSelectedRating(res.selectedOptionId as MemeReactionType);
+          setHasVoted(true);
+          setStoredVote("meme", item.id, { reaction: res.selectedOptionId }, currentUserId);
+        }
+      });
+    }
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, currentUserId]);
+
+  const handleSelectRating = (tier: MemeReactionType) => {
+    if (hasVoted) return;
+    setSelectedRating(tier);
+  };
+
+  const handleSubmitVote = async () => {
+    if (!currentUserId || String(currentUserId).toLowerCase().startsWith("anon")) {
+      onToast("Please sign in to vote and earn SXPs!");
+      return;
+    }
+    if (!selectedRating || hasVoted || loadingVote) return;
+
+    setLoadingVote(true);
+    setHasVoted(true);
+    setStoredVote("meme", item.id, { reaction: selectedRating }, currentUserId);
+    const nextCount = Math.max(1, totalEngaged + 1);
+    setTotalEngaged(nextCount);
+    onSyncEngagedCount?.(nextCount);
+
+    const nextReactions = {
+      ...reactions,
+      [selectedRating]: (reactions[selectedRating] || 0) + 1,
+    };
+    setReactions(nextReactions);
+    const nextHeat = calculateHeatPct(nextReactions);
+    setHeatPercentage(nextHeat);
+
+    try {
+      const res: any = await engagementService.voteEngagement(
+        item.id,
+        selectedRating,
+        currentUserId,
+        undefined,
+        {
+          userName: currentUserName,
+          userAvatar,
+          userEmail: currentUserEmail,
+        }
+      );
+      if (res?.reactions) {
+        setReactions(res.reactions);
+        setHeatPercentage(res.heatPercentage || calculateHeatPct(res.reactions));
+      }
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
+        );
+      }
+    } catch {
+    } finally {
+      setLoadingVote(false);
+    }
+  };
+
+  const handleLike = async () => {
+    const nextLiked = !liked;
+    const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
+    setLiked(nextLiked);
+    setLikesCount(nextCount);
+
+    try {
+      const res = await engagementService.toggleLikeEngagement(item.id, currentUserId, {
+        userName: currentUserName,
+        userAvatar,
+        userEmail: currentUserEmail,
+      });
+      if (res?.likesCount !== undefined) {
+        setLikesCount(res.likesCount);
+        setLiked(res.liked);
+      }
+    } catch { }
+  };
+
+  const handleShare = async () => {
+    const targetId = (item as any)._parentEngagementId || item.id;
+    if (!hasShared) {
+      setHasShared(true);
+      setSharesCount((prev) => prev + 1);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(`sf_shared_${targetId}_${currentUserId || "anon"}`, "true");
+      }
+      engagementService.shareEngagement(targetId)
+        .then((res: any) => {
+          if (res?.sharesCount !== undefined) {
+            setSharesCount(Number(res.sharesCount));
+          }
+        })
+        .catch(() => { });
+    }
+
+    const shareUrl = getEngagementShareUrl(item);
+    const text = `🔥 Meme: "${meme.caption}" — Rate the matchday heat on SportsFan360:`;
+    if (navigator.share) {
+      navigator.share({ title: item.title || "Matchday Meme", text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => { });
+    } else {
+      await navigator.clipboard.writeText(shareUrl);
+      onToast("Meme link copied to clipboard! 📋");
+    }
+  };
+
+
+  const formattedTime = formatEngagementPostingTime(item);
+
+  const RATING_TIERS: Array<{
+    id: MemeReactionType;
+    label: string;
+    flameColor: string;
+    bgHover: string;
+    activeBorder: string;
+  }> = [
+      { id: "mild", label: "Mild", flameColor: "text-slate-400", bgHover: "hover:bg-slate-500/10", activeBorder: "border-slate-400 bg-slate-500/20" },
+      { id: "funny", label: "Funny", flameColor: "text-pink-400", bgHover: "hover:bg-pink-500/10", activeBorder: "border-pink-500 bg-pink-500/20" },
+      { id: "hot", label: "Hot", flameColor: "text-amber-400", bgHover: "hover:bg-amber-500/10", activeBorder: "border-amber-500 bg-amber-500/20" },
+      { id: "fire", label: "Fire", flameColor: "text-orange-500", bgHover: "hover:bg-orange-500/10", activeBorder: "border-orange-500 bg-orange-500/20" },
+      { id: "nuclear", label: "Nuclear", flameColor: "text-fuchsia-400", bgHover: "hover:bg-fuchsia-500/10", activeBorder: "border-fuchsia-500 bg-fuchsia-500/20" },
+    ];
+
+  return (
+    <motion.div
+      id={`engagement-${item.id}`}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -12 }}
+      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-orange-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${isHighlighted
+        ? "ring-2 ring-orange-500 shadow-[0_0_35px_rgba(249,115,22,0.35)] scale-[1.01]"
+        : ""
+        }`}
+    >
+      {isHighlighted && (
+        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-orange-500/20 to-rose-500/20 border border-orange-500/40 text-[10px] font-black text-orange-300 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Sparkles size={11} className="text-orange-400 animate-pulse" />
+            <span>SHARED MEME</span>
+          </span>
+          <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 tracking-wider">
+        <div className="flex items-center gap-1.5 uppercase">
+          <span className="text-orange-400 flex items-center gap-1">
+            <Flame size={11} className="text-orange-400" />
+            <span>MEME</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>{formattedTime}</span>
+        </div>
+      </div>
+
+      {/* Caption */}
+      <p className="text-xs font-semibold text-white/90 mb-3 leading-relaxed">
+        {meme.caption}
+      </p>
+
+      {/* Meme Image */}
+      <div className="w-full rounded-xl overflow-hidden bg-black/40 border border-white/[0.08] mb-3 relative group">
+        <img
+          src={meme.imageUrl}
+          alt={meme.caption || "Meme"}
+          className="w-full h-auto max-h-[360px] object-cover mx-auto"
+          onError={(e: any) => {
+            e.target.src = "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80";
+          }}
+        />
+      </div>
+
+      {/* Dynamic Heat Gauge Meter */}
+      <div className="p-3 rounded-xl bg-gradient-to-r from-orange-500/10 via-rose-500/10 to-purple-500/10 border border-orange-500/20 mb-3">
+        <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+          <span className="flex items-center gap-1.5 text-orange-400 font-black">
+            <Flame size={14} className="animate-pulse" />
+            <span>Heat Meter</span>
+          </span>
+          <span className="font-mono font-black text-amber-300 text-xs">
+            {heatPercentage}% Heat ({totalHeatVotes} {totalHeatVotes === 1 ? "vote" : "votes"})
+          </span>
+        </div>
+        <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${heatPercentage}%` }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500"
+          />
+        </div>
+      </div>
+
+      {/* 5-Flame Rating Selection */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between text-[10px] font-bold text-white/50 px-1">
+          <span>{hasVoted ? "Your locked rating:" : "Rate how funny/hot this is:"}</span>
+          <span className="text-orange-400 font-mono">+2 SXPs participation</span>
+        </div>
+
+        <div className="grid grid-cols-5 gap-1.5">
+          {RATING_TIERS.map((tier) => {
+            const isSelected = selectedRating === tier.id;
+            return (
+              <button
+                key={tier.id}
+                onClick={() => handleSelectRating(tier.id)}
+                disabled={hasVoted}
+                className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer ${isSelected
+                  ? tier.activeBorder + " shadow-md"
+                  : "border-white/[0.06] bg-white/[0.02] " + tier.bgHover
+                  } ${hasVoted ? "cursor-default opacity-80" : "active:scale-95"}`}
+              >
+                <Flame size={16} className={`${tier.flameColor} ${isSelected ? "animate-bounce" : ""}`} fill={isSelected ? "currentColor" : "none"} />
+                <span className="text-[10px] font-black text-white/90 mt-1">{tier.label}</span>
+                {hasVoted && (
+                  <span className="text-[9px] font-mono text-white/40 mt-0.5">
+                    {reactions[tier.id] || 0}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        <button
+          onClick={handleSubmitVote}
+          disabled={!selectedRating || hasVoted || loadingVote}
+          className={`w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${hasVoted
+            ? "bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 cursor-default"
+            : selectedRating
+              ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-lg shadow-orange-500/20 active:scale-98 cursor-pointer"
+              : "bg-white/5 border border-white/10 text-white/30 cursor-not-allowed"
+            }`}
+        >
+          {hasVoted ? (
+            <>
+              <Check size={14} />
+              <span>Rating Locked · +2 SXPs Earned</span>
+            </>
+          ) : !selectedRating ? (
+            <span>Select a rating above</span>
+          ) : (
+            <>
+              <Flame size={14} className="animate-pulse" />
+              <span>Vote {selectedRating.charAt(0).toUpperCase() + selectedRating.slice(1)}</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Engagement Footer */}
+      <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
+        <div className="flex gap-4">
+          <button
+            onClick={handleLike}
+            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${liked ? "text-[#FF3D57]" : "hover:text-white"
+              }`}
+          >
+            <Heart size={13} fill={liked ? "currentColor" : "none"} />
+            <span>{likesCount.toLocaleString()}</span>
+          </button>
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
+          >
+            <Share2 size={13} />
+            <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
+          </button>
+
+        </div>
+        <button
+          onClick={() => onOpenEngagedModal?.(item)}
+          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
+        >
+          <span className="group-hover:underline">
+            {Math.max(
+              hasUserParticipated ? 1 : 0,
+              totalEngagedOverride !== undefined ? totalEngagedOverride : totalEngaged
+            ).toLocaleString()} engaged
+          </span>
+          <ChevronRight
+            size={12}
+            className={`text-[#FF8A00] transition-transform duration-200 ${isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
+              }`}
+          />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Engaged Users Dialog Modal ──────────────────────────────────────────────
+function EngagedUsersInlineList({
+  item,
+  questionId,
+  questionIndex,
+  onSyncCount,
+  onClose,
+}: {
+  item: EngagementItem | null;
+  questionId?: string;
+  questionIndex?: number;
+  onSyncCount?: (count: number) => void;
+  onClose?: () => void;
+}) {
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [votersList, setVotersList] = useState<NormalizedVoter[]>([]);
+  const [userAvatarMap, setUserAvatarMap] = useState<Map<string, string>>(new Map());
+  const [page, setPage] = useState(1);
+  const itemsPerPage = 10;
+
+  useEffect(() => {
+    if (!item) return;
+
+    setLoading(true);
+    setPage(1);
+    const parentId = (item as any)._parentEngagementId || item.id;
+    const targetQId = (item as any)._subQuestionId || questionId;
+    const qParam = targetQId ? `?questionId=${encodeURIComponent(targetQId)}` : "";
+
+    axios
+      .get(`/api/engagements/${parentId}/voters${qParam}`)
+      .then((res) => {
+        if (res.data?.success) {
+          const { allVoters: extractedOverall, questionVoters } = extractVotersFromResponse(res.data, targetQId, questionIndex);
+          const isMulti = (item.quizData?.questions?.length || 1) > 1;
+
+          let targetList = extractedOverall;
+          if (item.type === "quiz" && isMulti) {
+            const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+            const matchedKey = targetQId
+              ? Object.keys(questionVoters).find((k) => norm(k) === norm(targetQId))
+              : undefined;
+            targetList = matchedKey ? questionVoters[matchedKey] : [];
+          }
+          setVotersList(targetList);
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to load voters:", err);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [item?.id, (item as any)?._parentEngagementId, questionId, questionIndex]);
+
+  // Fetch fresh user avatars from /api/users
+  useEffect(() => {
+    if (!item) return;
+
+    const buildMap = (list: any[]) => {
+      const map = new Map<string, string>();
+      const add = (key: any, img: any) => {
+        if (!key || !img || typeof img !== "string") return;
+        const clean = img.trim();
+        if (!clean || clean === "null" || clean === "undefined") return;
+        if (clean.includes("dicebear.com")) return;
+        const k = String(key).trim().toLowerCase();
+        const noPrefix = k.replace(/^user#/i, "");
+        map.set(k, clean);
+        map.set(noPrefix, clean);
+        if (k.includes("@")) map.set(k.replace(/@/g, "_"), clean);
+      };
+
+      list.forEach((u) => {
+        if (!u) return;
+        const img =
+          u.avatarUrl || u.photoURL || u.picture || u.image ||
+          u.avatar || u.profilePicture || u.userAvatar;
+        if (!img) return;
+        add(u.userId, img);
+        add(u.uid, img);
+        add(u.actualUserId, img);
+        add(u.id, img);
+        add(u.email, img);
+        add(u.userEmail, img);
+        add(u.username, img);
+        add(u.userName, img);
+        add(u.name, img);
+      });
+      return map;
+    };
+
+    const fetchAvatars = async () => {
+      try {
+        const res = await axios.get("/api/users", { withCredentials: true });
+        const list =
+          res.data?.users ||
+          res.data?.data?.users ||
+          res.data?.data ||
+          res.data?.allUsers ||
+          (Array.isArray(res.data) ? res.data : []);
+        setUserAvatarMap(buildMap(list));
+      } catch {
+        // silent fail
+      }
+    };
+    fetchAvatars();
+  }, [item?.id]);
+
+  // Check if current user has voted on this item
+  const currentUserVoted = useMemo(() => {
+    if (!user || !item) return false;
+    const uid = user.userId || (user as any)?.actualUserId || user.email;
+    if (!uid || String(uid).toLowerCase().startsWith("anon")) return false;
+
+    const parentId = (item as any)._parentEngagementId || item.id;
+    const subIdx = (item as any)._subQuestionIndex ?? questionIndex ?? 0;
+    const qId = (item as any)._subQuestionId || questionId || item.quizData?.questions?.[subIdx]?.id || `q_${subIdx + 1}`;
+
+    const totalQuestions = item.quizData?.questions?.length || 1;
+
+    if (item.type === "quiz") {
+      if (totalQuestions > 1) {
+        return Boolean(
+          getStoredVote(quizAnswerKey(subIdx, qId), item.id, uid) ||
+          getStoredVote(quizAnswerKey(subIdx, qId), parentId, uid)
+        );
+      }
+      return Boolean(
+        getStoredVote(quizAnswerKey(subIdx, qId), item.id, uid) ||
+        getStoredVote("quiz", item.id, uid) ||
+        getStoredVote("quiz_engaged", item.id, uid)
+      );
+    } else if (item.type === "fan_battle") {
+      return Boolean(getStoredVote("fb", item.id, uid));
+    } else if (item.type === "poll") {
+      return Boolean(getStoredVote("poll", item.id, uid));
+    } else if (item.type === "prediction") {
+      return Boolean(getStoredVote("pred", item.id, uid));
+    } else if (item.type === "meme") {
+      return Boolean(getStoredVote("meme", item.id, uid));
+    }
+    return Boolean(item.userVoted);
+  }, [item, user, questionId, questionIndex]);
+
+  // Combined deduplicated list of registered voters
+  const allVoters = useMemo(() => {
+    const uniqueMap = new Map<string, NormalizedVoter>();
+    votersList.forEach((v) => {
+      const key = (v.userId || v.userEmail || v.userName).toLowerCase().replace(/^user#/i, "").trim();
+      if (key && !uniqueMap.has(key)) {
+        uniqueMap.set(key, v);
+      }
+    });
+
+    if (currentUserVoted && user) {
+      const uid = String(user.userId || (user as any)?.actualUserId || user.email || "").trim().toLowerCase().replace(/^user#/i, "");
+      const uemail = String(user.email || (user as any)?.userEmail || "").trim().toLowerCase();
+      const uname = String(user.name || (user as any)?.userName || "").trim().toLowerCase();
+
+      let alreadyIn = false;
+      if (uid && uniqueMap.has(uid)) alreadyIn = true;
+      if (!alreadyIn && uemail && uniqueMap.has(uemail)) alreadyIn = true;
+      if (!alreadyIn && uname && uniqueMap.has(uname)) alreadyIn = true;
+      if (!alreadyIn) {
+        for (const existing of uniqueMap.values()) {
+          const eId = (existing.userId || "").toLowerCase().replace(/^user#/i, "");
+          const eEmail = (existing.userEmail || "").toLowerCase();
+          const eName = (existing.userName || "").toLowerCase();
+          if ((uid && eId === uid) || (uemail && eEmail === uemail) || (uemail && eId === uemail) || (uname && eName === uname)) {
+            alreadyIn = true;
+            break;
+          }
+        }
+      }
+
+      if (!alreadyIn && (uid || uemail)) {
+        const myName = user.name || (user as any)?.userName || (user.email ? user.email.split("@")[0] : "You");
+        const myAvatar = (user as any)?.avatarUrl || user.photoURL || (user as any)?.picture || (user as any)?.avatar || null;
+        uniqueMap.set(uid || uemail, {
+          userId: user.userId || (user as any)?.actualUserId || uid || uemail,
+          userName: myName,
+          userAvatar: myAvatar,
+          userEmail: user.email || "",
+          selectedOptionId: "",
+          optionId: "",
+          optionText: "",
+          votedAt: Date.now(),
+        });
+      }
+    }
+
+    return Array.from(uniqueMap.values());
+  }, [votersList, currentUserVoted, user]);
+
+  const finalVotersCount = allVoters.length;
+
+  const onSyncCountRef = useRef(onSyncCount);
+  useEffect(() => {
+    onSyncCountRef.current = onSyncCount;
+  }, [onSyncCount]);
+
+  useEffect(() => {
+    if (!loading) {
+      onSyncCountRef.current?.(finalVotersCount);
+    }
+  }, [finalVotersCount, loading]);
+
+  if (!item) return null;
+
+  // Resolve the freshest avatar for a voter
+  const resolveAvatar = (voter: NormalizedVoter): string => {
+    const vId = String(voter.userId || "").toLowerCase().replace(/^user#/i, "");
+    const vEmail = String(voter.userEmail || "").toLowerCase();
+    const isMe =
+      (user?.userId && vId === String(user.userId).toLowerCase().replace(/^user#/i, "")) ||
+      ((user as any)?.actualUserId && vId === String((user as any).actualUserId).toLowerCase().replace(/^user#/i, "")) ||
+      (user?.email && (vId === user.email.toLowerCase() || vEmail === user.email.toLowerCase()));
+
+    if (isMe && typeof window !== "undefined") {
+      const local = localStorage.getItem("roar_avatar_url");
+      if (local && !local.includes("dicebear.com")) return local;
+    }
+    if (voter.userAvatar && !voter.userAvatar.includes("dicebear.com")) return voter.userAvatar;
+
+    const candidates = [
+      voter.userId,
+      vId,
+      voter.userName,
+      voter.userEmail,
+    ].filter(Boolean) as string[];
+
+    for (const c of candidates) {
+      const k = String(c).trim().toLowerCase();
+      const found =
+        userAvatarMap.get(k) ||
+        userAvatarMap.get(k.replace(/^user#/i, "")) ||
+        userAvatarMap.get(k.replace(/@/g, "_"));
+      if (found) return found;
+    }
+    return "";
+  };
+
+  const displayedVoters = allVoters.slice(0, page * itemsPerPage);
+  const hasMore = displayedVoters.length < allVoters.length;
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight + 50 && hasMore) {
+      setPage((p) => p + 1);
+    }
+  };
+
+  const totalQuestions = item.quizData?.questions?.length || 1;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, height: 0 }}
+        animate={{ opacity: 1, height: "auto" }}
+        exit={{ opacity: 0, height: 0 }}
+        className="w-full max-w-lg mx-auto bg-gradient-to-b from-[#24131c]/90 to-[#0d111c]/95 rounded-2xl overflow-hidden mt-2 mb-2 border border-white/10 shadow-2xl relative"
+      >
+        {/* Header */}
+        <div className="px-4 py-2.5 flex items-center justify-between border-b border-white/[0.04]">
+          <h3 className="text-xs font-bold text-white/80 flex items-center gap-1.5">
+            <span>Engaged Fans</span>
+            {item.type === "quiz" && totalQuestions > 1 && (
+              <span className="text-[9px] text-[#FF8A00] font-extrabold bg-[#FF8A00]/15 px-1.5 py-0.5 rounded-full border border-[#FF8A00]/30">
+                Q{((item as any)._subQuestionIndex ?? questionIndex ?? 0) + 1}/{totalQuestions}
+              </span>
+            )}
+          </h3>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-5 h-5 rounded-full bg-white/[0.06] hover:bg-white/[0.12] active:bg-white/[0.18] text-white/50 hover:text-white flex items-center justify-center transition-colors cursor-pointer border border-white/[0.08]"
+              title="Close list"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+
+        {/* Voters List Body */}
+        <div
+          className="max-h-[220px] overflow-y-auto px-4 pb-2.5 space-y-0"
+          onScroll={handleScroll}
+        >
+          {loading ? (
+            <div className="py-4 flex flex-col items-center justify-center gap-1.5 text-white/40 text-[11px] font-medium">
+              <div className="w-5 h-5 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
+              <span>Loading fans...</span>
+            </div>
+          ) : allVoters.length === 0 ? (
+            <div className="py-4 flex flex-col items-center justify-center text-center text-[11px] font-medium text-white/40 space-y-1">
+              <Users size={18} className="mx-auto text-white/20 mb-1" />
+              <p>No fans opted yet.</p>
+            </div>
+          ) : (
+            <>
+              {displayedVoters.map((voter, idx) => {
+                const initialLetter = voter.userName ? voter.userName.charAt(0).toUpperCase() : "F";
+                const avatarUrl = resolveAvatar(voter);
+                const rawName = voter.userName || (voter.userEmail ? voter.userEmail.split("@")[0] : "Fan");
+                const displayName = rawName.includes("_gmail_com")
+                  ? rawName.replace(/_gmail_com/gi, "")
+                  : rawName.includes("@")
+                    ? rawName.split("@")[0]
+                    : rawName;
+
+                return (
+                  <div
+                    key={`${voter.userId}-${idx}`}
+                    onClick={() => {
+                      if (voter.userId) {
+                        window.location.href = `/MainModules/Profile?userId=${encodeURIComponent(
+                          voter.userId
+                        )}`;
+                      }
+                    }}
+                    className="py-1.5 border-b border-white/[0.04] flex items-center justify-between gap-3 transition-all cursor-pointer group last:border-0"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1 overflow-hidden">
+                      {avatarUrl ? (
+                        <img
+                          src={avatarUrl}
+                          alt={displayName}
+                          referrerPolicy="no-referrer"
+                          crossOrigin="anonymous"
+                          className="w-6.5 h-6.5 rounded-full object-cover border border-white/10 shrink-0"
+                          onError={(e: any) => {
+                            e.target.style.display = "none";
+                            e.target.nextSibling.style.display = "flex";
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        style={{ display: avatarUrl ? "none" : "flex" }}
+                        className="w-6.5 h-6.5 rounded-full bg-gradient-to-tr from-purple-600 to-pink-600 border border-white/10 items-center justify-center text-white font-black text-[10px] shrink-0"
+                      >
+                        {initialLetter}
+                      </div>
+
+                      <div className="min-w-0 flex-1 flex items-center gap-2 overflow-hidden">
+                        <h4 className="text-[12px] font-semibold text-white/90 group-hover:text-amber-400 transition-colors truncate leading-tight">
+                          {displayName}
+                        </h4>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {hasMore && (
+                <div className="py-2.5 flex flex-col items-center justify-center gap-1 text-white/40 text-[9px] font-bold">
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-[#FF8A00] border-t-transparent animate-spin" />
+                  <span>Loading more...</span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {onClose && (
+          <div className="p-2 border-t border-white/[0.04] bg-white/[0.02] flex items-center justify-center">
+            <button
+              onClick={onClose}
+              className="py-1.5 px-4 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] active:bg-white/[0.18] text-white/70 hover:text-white text-[11px] font-bold flex items-center gap-1.5 transition-all cursor-pointer border border-white/[0.08] active:scale-95 shadow-sm"
+            >
+              <ChevronUp size={13} className="text-[#FF8A00]" />
+              <span>Close</span>
+            </button>
+          </div>
+        )}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
+// ─── Main FlipArena Component ───────────────────────────────────────────────
 export default function FlipArena({
   selectedSport,
   activeTab = "fliparena",
@@ -7194,850 +7390,600 @@ export default function FlipArena({
   const [engagements, setEngagements] = useState<EngagementItem[]>([]);
   const [loadingEngagements, setLoadingEngagements] = useState(true);
   const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction" | "meme">("all");
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const moreButtonRef = useRef<HTMLButtonElement | null>(null);
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
-
-  const toggleMoreMenu = () => {
-    if (!showMoreMenu && moreButtonRef.current) {
-      const rect = moreButtonRef.current.getBoundingClientRect();
-      const left = Math.max(12, Math.min(window.innerWidth - 170, rect.left));
-      setDropdownPos({
-        top: rect.bottom + 6,
-        left,
-      });
-      setShowMoreMenu(true);
-    } else {
-      setShowMoreMenu(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!showMoreMenu) return;
-    const handleReposition = () => {
-      if (moreButtonRef.current) {
-        const rect = moreButtonRef.current.getBoundingClientRect();
-        const left = Math.max(12, Math.min(window.innerWidth - 170, rect.left));
-        setDropdownPos({
-          top: rect.bottom + 6,
-          left,
-        });
-      }
-    };
-    window.addEventListener("scroll", handleReposition, true);
-    window.addEventListener("resize", handleReposition);
-    return () => {
-      window.removeEventListener("scroll", handleReposition, true);
-      window.removeEventListener("resize", handleReposition);
-    };
-  }, [showMoreMenu]);
-
-  const mobilePrimaryChips = ARENA_FILTER_CHIPS.slice(0, 3); // All, Quiz
-  const extraChips = ARENA_FILTER_CHIPS.slice(2); // Poll, Battle, Prediction, Meme
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
   const [engagedModalItem, setEngagedModalItem] = useState<EngagementItem | null>(null);
   const [quizActiveQuestion, setQuizActiveQuestion] = useState<Record<string, { index: number; id: string }>>({});
   const [syncedEngagedCounts, setSyncedEngagedCounts] = useState<Record<string, number>>({});
-=======
-  // ─── Main FlipArena Component ───────────────────────────────────────────────
-  export default function FlipArena({
-    selectedSport,
-    activeTab = "fliparena",
-    setActiveTab,
-    isPreview = true,
-  }: FlipArenaProps) {
-    const { user } = useAuth();
-    const currentUser = resolveCurrentUser(user);
-    const activeUserId = currentUser.activeUserId;
-    const [engagements, setEngagements] = useState<EngagementItem[]>([]);
-    const [loadingEngagements, setLoadingEngagements] = useState(true);
-    const [filter, setFilter] = useState<"all" | "quiz" | "poll" | "battle" | "prediction" | "meme">("all");
-    const [toastMessage, setToastMessage] = useState<string | null>(null);
-    const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
-    const [engagedModalItem, setEngagedModalItem] = useState<EngagementItem | null>(null);
-    const [quizActiveQuestion, setQuizActiveQuestion] = useState<Record<string, { index: number; id: string }>>({});
-    const [syncedEngagedCounts, setSyncedEngagedCounts] = useState<Record<string, number>>({});
->>>>>>> ed09b27a1ebaac5f2589732a6f924a90dfc6db40
 
-    const handleSyncEngagedCount = useCallback((itemId: string, count: number) => {
-      setSyncedEngagedCounts((prev) => {
-        if (prev[itemId] === count) return prev;
-        return { ...prev, [itemId]: count };
+  const handleSyncEngagedCount = useCallback((itemId: string, count: number) => {
+    setSyncedEngagedCounts((prev) => {
+      if (prev[itemId] === count) return prev;
+      return { ...prev, [itemId]: count };
+    });
+  }, []);
+
+  const handleQuizQuestionChange = useCallback((itemId: string, index: number, id: string) => {
+    setQuizActiveQuestion((prev) => {
+      if (prev[itemId]?.index === index && prev[itemId]?.id === id) return prev;
+      return {
+        ...prev,
+        [itemId]: { index, id },
+      };
+    });
+  }, []);
+
+  const handleOpenEngagedModal = (item: EngagementItem) => {
+    if (engagedModalItem?.id === item.id) {
+      setEngagedModalItem(null); // Toggle off if already open
+    } else {
+      setEngagedModalItem(item); // Open new
+    }
+  };
+
+  // 1-second live clock for all countdowns and frequency unlocks
+  const [now, setNow] = useState<number>(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalType, setModalType] = useState<EngagementType>("quiz");
+  const [editingItem, setEditingItem] = useState<EngagementItem | null>(null);
+
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [loadingPolls, setLoadingPolls] = useState(true);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
+  const isFetchingEngagementsRef = useRef(false);
+  const lastFetchTimeRef = useRef(0);
+
+  const fetchEngagements = useCallback(async () => {
+    if (isFetchingEngagementsRef.current || Date.now() - lastFetchTimeRef.current < 2000) {
+      return;
+    }
+    isFetchingEngagementsRef.current = true;
+    lastFetchTimeRef.current = Date.now();
+    setLoadingEngagements(true);
+    try {
+      let liveItems = await engagementService.getEngagements({
+        sport: selectedSport && selectedSport !== "mixed" && selectedSport !== "all" ? selectedSport : undefined,
+        status: "active",
+        userId: activeUserId,
       });
-    }, []);
 
-    const handleQuizQuestionChange = useCallback((itemId: string, index: number, id: string) => {
-      setQuizActiveQuestion((prev) => {
-        if (prev[itemId]?.index === index && prev[itemId]?.id === id) return prev;
-        return {
-          ...prev,
-          [itemId]: { index, id },
-        };
-      });
-    }, []);
-
-    const handleOpenEngagedModal = (item: EngagementItem) => {
-      if (engagedModalItem?.id === item.id) {
-        setEngagedModalItem(null); // Toggle off if already open
-      } else {
-        setEngagedModalItem(item); // Open new
-      }
-    };
-
-    // 1-second live clock for all countdowns and frequency unlocks
-    const [now, setNow] = useState<number>(Date.now());
-    useEffect(() => {
-      const timer = setInterval(() => setNow(Date.now()), 1000);
-      return () => clearInterval(timer);
-    }, []);
-
-    const [modalOpen, setModalOpen] = useState(false);
-    const [modalType, setModalType] = useState<EngagementType>("quiz");
-    const [editingItem, setEditingItem] = useState<EngagementItem | null>(null);
-
-    const [polls, setPolls] = useState<Poll[]>([]);
-    const [loadingPolls, setLoadingPolls] = useState(true);
-
-    const showToast = useCallback((msg: string) => {
-      setToastMessage(msg);
-      setTimeout(() => setToastMessage(null), 3000);
-    }, []);
-
-    const isFetchingEngagementsRef = useRef(false);
-    const lastFetchTimeRef = useRef(0);
-
-    const fetchEngagements = useCallback(async () => {
-      if (isFetchingEngagementsRef.current || Date.now() - lastFetchTimeRef.current < 2000) {
-        return;
-      }
-      isFetchingEngagementsRef.current = true;
-      lastFetchTimeRef.current = Date.now();
-      setLoadingEngagements(true);
-      try {
-        let liveItems = await engagementService.getEngagements({
-          sport: selectedSport && selectedSport !== "mixed" && selectedSport !== "all" ? selectedSport : undefined,
+      // Fallback 1: If sport-filtered query returned 0 items, fetch across all sports
+      if ((!liveItems || liveItems.length === 0) && selectedSport && selectedSport !== "mixed" && selectedSport !== "all") {
+        liveItems = await engagementService.getEngagements({
           status: "active",
           userId: activeUserId,
         });
+      }
 
-        // Fallback 1: If sport-filtered query returned 0 items, fetch across all sports
-        if ((!liveItems || liveItems.length === 0) && selectedSport && selectedSport !== "mixed" && selectedSport !== "all") {
-          liveItems = await engagementService.getEngagements({
-            status: "active",
-            userId: activeUserId,
-          });
-        }
+      // Fallback 2: If status="active" was too restrictive, fetch without status constraint
+      if (!liveItems || liveItems.length === 0) {
+        liveItems = await engagementService.getEngagements({
+          userId: activeUserId,
+        });
+      }
 
-        // Fallback 2: If status="active" was too restrictive, fetch without status constraint
-        if (!liveItems || liveItems.length === 0) {
-          liveItems = await engagementService.getEngagements({
-            userId: activeUserId,
-          });
-        }
+      if (liveItems && liveItems.length > 0) {
+        setEngagements(liveItems);
 
-        if (liveItems && liveItems.length > 0) {
-          setEngagements(liveItems);
+        // Pre-fetch accurate registered voter counts for all loaded items on feed load
+        liveItems.forEach((it) => {
+          axios
+            .get(`/api/engagements/${it.id}/voters`)
+            .then((votersRes) => {
+              if (votersRes.data?.success) {
+                const { allVoters: extractedVoters, questionVoters } = extractVotersFromResponse(votersRes.data);
 
-          // Pre-fetch accurate registered voter counts for all loaded items on feed load
-          liveItems.forEach((it) => {
-            axios
-              .get(`/api/engagements/${it.id}/voters`)
-              .then((votersRes) => {
-                if (votersRes.data?.success) {
-                  let opts: any[] = [];
-                  if (votersRes.data.questions && Array.isArray(votersRes.data.questions)) {
-                    opts = votersRes.data.questions[0]?.options || [];
-                  } else if (votersRes.data.options) {
-                    opts = votersRes.data.options;
-                  }
+                // Sync each question count if multi-question quiz
+                Object.entries(questionVoters).forEach(([qKey, qVoters]) => {
+                  handleSyncEngagedCount(`${it.id}_${qKey}`, qVoters.length);
+                });
 
-                  const allRegisteredVoters = opts
-                    .flatMap((o: any) => o.voters || [])
-                    .filter((v: any) => isValidRegisteredVoter(v));
+                // Overall count: use extracted unique voters if > 0, otherwise maintain existing totalEngaged
 
-                  // Deduplicate unique voters
-                  const uniqueVoters = new Set<string>();
-                  allRegisteredVoters.forEach((v: any) => {
-                    const key = String(v.userId || v.actualUserId || v.userName || "").trim().toLowerCase();
-                    if (key) uniqueVoters.add(key);
-                  });
-
-                  const count = uniqueVoters.size;
-                  handleSyncEngagedCount(it.id, count);
-                }
-              })
-              .catch(() => { });
-          });
-        } else {
-          setEngagements([]);
-        }
-      } catch (err) {
-        console.warn("Could not fetch live engagements:", err);
+                handleSyncEngagedCount(it.id, extractedVoters.length);
+              }
+            })
+            .catch(() => { });
+        });
+      } else {
         setEngagements([]);
-      } finally {
-        setLoadingEngagements(false);
-        isFetchingEngagementsRef.current = false;
       }
-    }, [selectedSport, activeUserId, handleSyncEngagedCount]);
+    } catch (err) {
+      console.warn("Could not fetch live engagements:", err);
+      setEngagements([]);
+    } finally {
+      setLoadingEngagements(false);
+      isFetchingEngagementsRef.current = false;
+    }
+  }, [selectedSport, activeUserId, handleSyncEngagedCount]);
 
-    useEffect(() => {
-      fetchEngagements();
-    }, [fetchEngagements]);
+  useEffect(() => {
+    fetchEngagements();
+  }, [fetchEngagements]);
 
-    useEffect(() => {
-      const handleGlobalCreated = () => {
-        lastFetchTimeRef.current = 0;
-        engagementService.invalidateCache();
-        fetchEngagements();
-      };
-      window.addEventListener("arena-engagement-created", handleGlobalCreated);
-      return () => window.removeEventListener("arena-engagement-created", handleGlobalCreated);
-    }, [fetchEngagements]);
-
-    const handleOpenCreate = (type: EngagementType = "quiz") => {
-      setEditingItem(null);
-      setModalType(type);
-      setModalOpen(true);
-    };
-
-    const handleOpenEdit = (item: EngagementItem) => {
-      setEditingItem(item);
-      setModalType(item.type);
-      setModalOpen(true);
-    };
-
-    const handleDeleteEngagement = async (item: EngagementItem) => {
-      const isMeme = item.type === "meme";
-      const label = isMeme ? "meme" : "event";
-      const targetId = (item as any)._parentEngagementId || item.id;
-      if (!confirm(`Are you sure you want to delete this ${label} "${item.title || item.subtitle || "Untitled"}"?`)) {
-        return;
-      }
-      try {
-        await engagementService.deleteEngagement(targetId);
-        setEngagements((prev) => prev.filter((it) => it.id !== targetId));
-        showToast(`${isMeme ? "Meme" : "Event"} deleted successfully! 🗑️`);
-        engagementService.invalidateCache();
-      } catch (err) {
-        console.error("Failed to delete engagement item:", err);
-        showToast("Failed to delete item. Please try again.");
-      }
-    };
-
-    const handleItemSaved = (savedItem: EngagementItem, isEdit: boolean) => {
-      setEngagements((prev) => {
-        if (isEdit) {
-          return prev.map((it) => (it.id === savedItem.id ? savedItem : it));
-        }
-        return [savedItem, ...prev];
-      });
-
+  useEffect(() => {
+    const handleGlobalCreated = () => {
+      lastFetchTimeRef.current = 0;
       engagementService.invalidateCache();
       fetchEngagements();
-
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
-        );
-        window.dispatchEvent(new CustomEvent("arena-engagement-created", { detail: savedItem }));
-      }
-
-      if (!isEdit) {
-        const typeLabel =
-          savedItem.type === "quiz"
-            ? "Quiz Question"
-            : savedItem.type === "poll"
-              ? "Poll"
-              : savedItem.type === "prediction"
-                ? "Prediction"
-                : savedItem.type === "fan_battle"
-                  ? "Fan Battle"
-                  : "Meme";
-        showToast(`${typeLabel} Created Successfully! +${PARTICIPATION_POINTS} SXPs earned 🚀`);
-      } else {
-        showToast("Event updated successfully!");
-      }
     };
+    window.addEventListener("arena-engagement-created", handleGlobalCreated);
+    return () => window.removeEventListener("arena-engagement-created", handleGlobalCreated);
+  }, [fetchEngagements]);
 
-    useEffect(() => {
-      fetch("/api/polls")
-        .then((res) => res.json())
-        .then((json) => {
-          setPolls(Array.isArray(json?.data) ? json.data : []);
-          setLoadingPolls(false);
-        })
-        .catch((err) => {
-          console.error("Failed to fetch polls in FlipArena:", err);
-          setPolls([]);
-          setLoadingPolls(false);
-        });
-    }, []);
+  const handleOpenCreate = (type: EngagementType = "quiz") => {
+    setEditingItem(null);
+    setModalType(type);
+    setModalOpen(true);
+  };
 
-    const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const handleOpenEdit = (item: EngagementItem) => {
+    setEditingItem(item);
+    setModalType(item.type);
+    setModalOpen(true);
+  };
 
-    // Auto-detect and open shared item from URL (e.g. ?itemId=quiz_123 or ?quizId=... or ?engagementId=... or #quiz_123)
-    useEffect(() => {
-      if (typeof window === "undefined") return;
+  const handleDeleteEngagement = async (item: EngagementItem) => {
+    const isMeme = item.type === "meme";
+    const label = isMeme ? "meme" : "event";
+    const targetId = (item as any)._parentEngagementId || item.id;
+    if (!confirm(`Are you sure you want to delete this ${label} "${item.title || item.subtitle || "Untitled"}"?`)) {
+      return;
+    }
+    try {
+      await engagementService.deleteEngagement(targetId);
+      setEngagements((prev) => prev.filter((it) => it.id !== targetId));
+      showToast(`${isMeme ? "Meme" : "Event"} deleted successfully! 🗑️`);
+      engagementService.invalidateCache();
+    } catch (err) {
+      console.error("Failed to delete engagement item:", err);
+      showToast("Failed to delete item. Please try again.");
+    }
+  };
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const sharedId =
-        urlParams.get("itemId") ||
-        urlParams.get("quizId") ||
-        urlParams.get("engagementId") ||
-        urlParams.get("cardId") ||
-        urlParams.get("id") ||
-        (window.location.hash ? window.location.hash.replace("#", "").replace(/^engagement-/, "") : null);
-      const sharedType = urlParams.get("type");
-      const tabParam = urlParams.get("tab");
+  const handleItemSaved = (savedItem: EngagementItem, isEdit: boolean) => {
+    setEngagements((prev) => {
+      if (isEdit) {
+        return prev.map((it) => (it.id === savedItem.id ? savedItem : it));
+      }
+      return [savedItem, ...prev];
+    });
 
-      if (tabParam === "leaderboard") {
-        setShowLeaderboardModal(true);
+    engagementService.invalidateCache();
+    fetchEngagements();
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
+      );
+      window.dispatchEvent(new CustomEvent("arena-engagement-created", { detail: savedItem }));
+    }
+
+    if (!isEdit) {
+      const typeLabel =
+        savedItem.type === "quiz"
+          ? "Quiz Question"
+          : savedItem.type === "poll"
+            ? "Poll"
+            : savedItem.type === "prediction"
+              ? "Prediction"
+              : savedItem.type === "fan_battle"
+                ? "Fan Battle"
+                : "Meme";
+      showToast(`${typeLabel} Created Successfully! +${PARTICIPATION_POINTS} SXPs earned 🚀`);
+    } else {
+      showToast("Event updated successfully!");
+    }
+  };
+
+  useEffect(() => {
+    fetch("/api/polls")
+      .then((res) => res.json())
+      .then((json) => {
+        setPolls(Array.isArray(json?.data) ? json.data : []);
+        setLoadingPolls(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch polls in FlipArena:", err);
+        setPolls([]);
+        setLoadingPolls(false);
+      });
+  }, []);
+
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+
+  // Auto-detect and open shared item from URL (e.g. ?itemId=quiz_123 or ?quizId=... or ?engagementId=... or #quiz_123)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const sharedId =
+      urlParams.get("itemId") ||
+      urlParams.get("quizId") ||
+      urlParams.get("engagementId") ||
+      urlParams.get("cardId") ||
+      urlParams.get("id") ||
+      (window.location.hash ? window.location.hash.replace("#", "").replace(/^engagement-/, "") : null);
+    const sharedType = urlParams.get("type");
+    const tabParam = urlParams.get("tab");
+
+    if (tabParam === "leaderboard") {
+      setShowLeaderboardModal(true);
+    }
+
+    if (sharedId) {
+      setHighlightedItemId(sharedId);
+
+      // Auto-set matching tab filter if type parameter is provided
+      if (sharedType) {
+        const typeClean = sharedType.toLowerCase().trim();
+        if (typeClean === "quiz") setFilter("quiz");
+        else if (typeClean === "poll") setFilter("poll");
+        else if (typeClean === "fan_battle" || typeClean === "battle") setFilter("battle");
+        else if (typeClean === "prediction") setFilter("prediction");
+        else if (typeClean === "meme") setFilter("meme");
+        else setFilter("all");
       }
 
-      if (sharedId) {
-        setHighlightedItemId(sharedId);
+      // If item is not in local engagements list yet, fetch it individually
+      engagementService.getEngagementById(sharedId).then((singleItem) => {
+        if (singleItem) {
+          setEngagements((prev) => {
+            if (prev.some((x) => x.id === singleItem.id)) return prev;
+            return [singleItem, ...prev];
+          });
 
-        // Auto-set matching tab filter if type parameter is provided
-        if (sharedType) {
-          const typeClean = sharedType.toLowerCase().trim();
-          if (typeClean === "quiz") setFilter("quiz");
-          else if (typeClean === "poll") setFilter("poll");
-          else if (typeClean === "fan_battle" || typeClean === "battle") setFilter("battle");
-          else if (typeClean === "prediction") setFilter("prediction");
-          else if (typeClean === "meme") setFilter("meme");
-          else setFilter("all");
-        }
-
-        // If item is not in local engagements list yet, fetch it individually
-        engagementService.getEngagementById(sharedId).then((singleItem) => {
-          if (singleItem) {
-            setEngagements((prev) => {
-              if (prev.some((x) => x.id === singleItem.id)) return prev;
-              return [singleItem, ...prev];
-            });
-
-            // If no type was specified in URL, align filter to the fetched item's type
-            if (!sharedType && singleItem.type) {
-              const t = singleItem.type.toLowerCase().trim();
-              if (t === "quiz") setFilter("quiz");
-              else if (t === "poll") setFilter("poll");
-              else if (t === "fan_battle") setFilter("battle");
-              else if (t === "prediction") setFilter("prediction");
-              else if (t === "meme") setFilter("meme");
-            }
-
-            showToast(`🎯 Opened shared ${singleItem.type ? singleItem.type.toUpperCase() : "item"}: "${singleItem.title || 'Event'}"`);
+          // If no type was specified in URL, align filter to the fetched item's type
+          if (!sharedType && singleItem.type) {
+            const t = singleItem.type.toLowerCase().trim();
+            if (t === "quiz") setFilter("quiz");
+            else if (t === "poll") setFilter("poll");
+            else if (t === "fan_battle") setFilter("battle");
+            else if (t === "prediction") setFilter("prediction");
+            else if (t === "meme") setFilter("meme");
           }
-        }).catch((err) => {
-          console.warn("Could not fetch shared engagement item:", err);
-        });
+
+          showToast(`🎯 Opened shared ${singleItem.type ? singleItem.type.toUpperCase() : "item"}: "${singleItem.title || 'Event'}"`);
+        }
+      }).catch((err) => {
+        console.warn("Could not fetch shared engagement item:", err);
+      });
+    }
+  }, [showToast]);
+
+  // Smoothly scroll and center the spotlighted card once rendered in the DOM
+  useEffect(() => {
+    if (!highlightedItemId) return;
+    let attempts = 0;
+    const interval = setInterval(() => {
+      attempts++;
+      const targetEl = document.getElementById(`engagement-${highlightedItemId}`);
+      if (targetEl) {
+        targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
+        clearInterval(interval);
+      } else if (attempts > 25) {
+        clearInterval(interval);
       }
-    }, [showToast]);
+    }, 150);
 
-    // Smoothly scroll and center the spotlighted card once rendered in the DOM
-    useEffect(() => {
-      if (!highlightedItemId) return;
-      let attempts = 0;
-      const interval = setInterval(() => {
-        attempts++;
-        const targetEl = document.getElementById(`engagement-${highlightedItemId}`);
-        if (targetEl) {
-          targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
-          clearInterval(interval);
-        } else if (attempts > 25) {
-          clearInterval(interval);
-        }
-      }, 150);
+    return () => clearInterval(interval);
+  }, [highlightedItemId, engagements]);
 
-      return () => clearInterval(interval);
-    }, [highlightedItemId, engagements]);
+  // Filter and sort arena engagements
+  const filteredEngagements = useMemo(() => {
+    return engagements
+      .filter((item) => {
+        if (!item || !item.title || !item.type) return false;
 
-    // Filter and sort arena engagements
-    const filteredEngagements = useMemo(() => {
-      return engagements
-        .filter((item) => {
-          if (!item || !item.title || !item.type) return false;
-
-          // Always include the highlighted shared item even if filter differs
-          if (
-            highlightedItemId &&
-            (item.id === highlightedItemId || (item as any)._parentEngagementId === highlightedItemId)
-          ) {
-            return true;
-          }
-
-          const itemType = (item.type || "").toLowerCase().trim();
-          if (filter === "all") return true;
-          if (filter === "battle") return itemType === "fan_battle";
-          if (filter === "quiz") return itemType === "quiz";
-          if (filter === "poll") return itemType === "poll";
-          if (filter === "prediction") return itemType === "prediction";
-          if (filter === "meme") return itemType === "meme";
-
+        // Always include the highlighted shared item even if filter differs
+        if (
+          highlightedItemId &&
+          (item.id === highlightedItemId || (item as any)._parentEngagementId === highlightedItemId)
+        ) {
           return true;
-        })
-        .sort((a, b) => {
-          // Highlighted shared item always sorted to the very top
-          if (highlightedItemId) {
-            if (a.id === highlightedItemId || (a as any)._parentEngagementId === highlightedItemId) return -1;
-            if (b.id === highlightedItemId || (b as any)._parentEngagementId === highlightedItemId) return 1;
-          }
+        }
 
-          return getEngagementPostingTime(b) - getEngagementPostingTime(a);
-        });
-    }, [engagements, filter, highlightedItemId]);
+        const itemType = (item.type || "").toLowerCase().trim();
+        if (filter === "all") return true;
+        if (filter === "battle") return itemType === "fan_battle";
+        if (filter === "quiz") return itemType === "quiz";
+        if (filter === "poll") return itemType === "poll";
+        if (filter === "prediction") return itemType === "prediction";
+        if (filter === "meme") return itemType === "meme";
 
-    return (
-      <div className="w-full bg-[#070b14] min-h-screen text-white flex flex-col font-sans pb-16 relative">
-        <AnimatePresence>
-          {toastMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
-              className="fixed top-5 left-1/2 -translate-x-1/2 z-[100005] bg-gradient-to-r from-[#161e2e] via-[#1a2234] to-[#161e2e] border-2 border-emerald-500/50 text-white text-xs font-black px-5 py-3 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.9)] flex items-center gap-2.5 backdrop-blur-xl pointer-events-none"
-            >
-              <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                <CheckCircle2 size={14} />
-              </div>
-              <span>{toastMessage}</span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        return true;
+      })
+      .sort((a, b) => {
+        // Highlighted shared item always sorted to the very top
+        if (highlightedItemId) {
+          if (a.id === highlightedItemId || (a as any)._parentEngagementId === highlightedItemId) return -1;
+          if (b.id === highlightedItemId || (b as any)._parentEngagementId === highlightedItemId) return 1;
+        }
 
-<<<<<<< HEAD
+        return getEngagementPostingTime(b) - getEngagementPostingTime(a);
+      });
+  }, [engagements, filter, highlightedItemId]);
+
+  return (
+    <div className="w-full bg-[#070b14] min-h-screen text-white flex flex-col font-sans pb-16 relative">
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className="fixed top-5 left-1/2 -translate-x-1/2 z-[100005] bg-gradient-to-r from-[#161e2e] via-[#1a2234] to-[#161e2e] border-2 border-emerald-500/50 text-white text-xs font-black px-5 py-3 rounded-full shadow-[0_10px_40px_rgba(0,0,0,0.9)] flex items-center gap-2.5 backdrop-blur-xl pointer-events-none"
+          >
+            <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+              <CheckCircle2 size={14} />
+            </div>
+            <span>{toastMessage}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {!isPreview && (
-        <div className="px-4 mb-4 mt-4">
-          <div className="flex p-1 rounded-2xl bg-white/[0.04] border border-white/[0.08] shadow-inner">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07] bg-[#070b14]/90 backdrop-blur-md sticky top-0 z-40">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => (window.location.href = "/MainModules/HomePage")}
+              className="w-9 h-9 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-white/80 hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
+            >
+              <ArrowLeft size={16} />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-base font-black tracking-tight">FlipARENA 🏟️</h1>
+                <span className="text-[9px] font-black bg-gradient-to-r from-pink-500 to-orange-500 text-white px-2 py-0.5 rounded-full tracking-wider animate-pulse">
+                  LIVE
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[9px] font-bold text-white/40">🏏 Cricket</span>
+                <span className="text-[9px] font-bold text-white/40">⚽ Football</span>
+                <span className="text-[9px] font-bold text-white/40">🏃 Athletics</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isPreview && (
+        <div className="px-3 sm:px-4 mb-3 sm:mb-4 mt-3 sm:mt-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5">
+            {/* FlipLINE Tab */}
             <button
               onClick={() => (window.location.href = "/MainModules/FlipLine")}
-              className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer border-none"
-              style={{
-                background: "transparent",
-                color: "rgba(255,255,255,0.4)",
-              }}
+              className="relative py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer bg-[#111418] border border-[#2A2F36] active:scale-[0.99] overflow-hidden"
             >
-              <span className="text-sm">⚡</span> FlipLINE
+              <Zap size={18} className="text-[#9AA3AF]" />
+              <span className="text-[13.5px] sm:text-[15px] tracking-wide font-bold text-[#9AA3AF]">
+                FlipLINE
+              </span>
             </button>
+
+            {/* FlipARENA Tab */}
             <button
-              className="flex-1 py-3 rounded-xl flex items-center justify-center gap-2 font-black text-xs transition-all duration-300 active:scale-[0.98] cursor-pointer border-none"
-              style={{
-                background: "linear-gradient(90deg, #FF3D57, #FF7B02)",
-                color: "#fff",
-                boxShadow: "0 4px 15px rgba(255, 61, 87, 0.25)",
-              }}
+              className="relative py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer bg-[#111418] border border-[#2A2F36] active:scale-[0.99] overflow-hidden"
             >
-              <span className="text-sm">🏟️</span> FlipARENA
+              <Target size={18} className="text-[#FF2D8A]" />
+              <span className="text-[13.5px] sm:text-[15px] tracking-wide font-black text-[#FFFFFF]">
+                FlipARENA
+              </span>
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FF2D8A]" />
             </button>
           </div>
         </div>
       )}
 
-      <div className="px-4 py-3 flex flex-col md:flex-row md:items-center justify-between border-t border-white/[0.05] mt-2 gap-3">
+      <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2 gap-2 flex-wrap">
         <div>
-          <div className="flex justify-between items-center w-full">
-            <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
-            <button
-              onClick={() => setShowLeaderboardModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
-              title="Open Leaderboards"
-            >
-              <Trophy size={13} className="text-amber-400" />
-              <span>Leaderboard</span>
-            </button>
-          </div>
+          <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
           <p className="text-[10px] text-white/35 mt-0.5">Earn +2 SXPs participation · +10 SXPs for correct answers</p>
         </div>
 
-        {/* Filter Chips Bar */}
-        <div
-          className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-        >
-          {/* Mobile & Desktop: Primary Chips (All, Quiz) */}
-          {mobilePrimaryChips.map((chip) => {
-            const isActive = filter === chip.id;
-            return (
-              <button
-                key={chip.id}
-                onClick={() => setFilter(chip.id)}
-                className="relative px-3.5 py-1.5 rounded-lg bg-[#15181D] border border-[#2A2F36] flex items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer shrink-0 overflow-hidden"
-              >
-                {chip.isHash && (
-                  <span className="text-[#FF2D8A] font-black text-xs">#</span>
-                )}
-                <span
-                  style={{
-                    color: isActive ? "#FFFFFF" : "#E4E8EE",
-                    fontWeight: isActive ? 800 : 600,
-                  }}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowLeaderboardModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
+            title="Open Leaderboards"
+          >
+            <Trophy size={13} className="text-amber-400" />
+            <span>Leaderboard</span>
+          </button>
+          <div className="flex gap-1.5 bg-[#111418] p-1 rounded-xl border border-[#2A2F36] overflow-x-auto">
+            {(["all", "quiz", "poll", "battle", "prediction", "meme"] as const).map((tab) => {
+              const isSelected = filter === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setFilter(tab)}
+                  className={`relative px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer shrink-0 overflow-hidden ${isSelected
+                    ? "text-[#FFFFFF] bg-white/[0.06]"
+                    : "text-[#9AA3AF] hover:text-white/80 hover:bg-white/[0.02]"
+                    }`}
                 >
-                  {chip.label}
-                </span>
-                {isActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF2D8A]" />
-                )}
-              </button>
-            );
-          })}
-
-          {/* Desktop Only: Remaining chips (Poll, Battle, Prediction, Meme) */}
-          {extraChips.map((chip) => {
-            const isActive = filter === chip.id;
-            return (
-              <button
-                key={chip.id}
-                onClick={() => setFilter(chip.id)}
-                className="hidden md:flex relative px-3.5 py-1.5 rounded-lg bg-[#15181D] border border-[#2A2F36] items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer shrink-0 overflow-hidden"
-              >
-                <span
-                  style={{
-                    color: isActive ? "#FFFFFF" : "#E4E8EE",
-                    fontWeight: isActive ? 800 : 600,
-                  }}
-                >
-                  {chip.label}
-                </span>
-                {isActive && (
-                  <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF2D8A]" />
-                )}
-              </button>
-            );
-          })}
-
-          {/* Mobile Only: More Dropdown Button */}
-          <div className="flex md:hidden relative shrink-0">
-            <button
-              ref={moreButtonRef}
-              onClick={toggleMoreMenu}
-              className="relative px-3.5 py-1.5 rounded-lg bg-[#15181D] border border-[#2A2F36] flex items-center gap-1.5 text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer overflow-hidden"
-            >
-              <LayoutGrid size={13} className="text-[#9AA3AF]" />
-              <span
-                style={{
-                  color: extraChips.some((c) => c.id === filter) ? "#FFFFFF" : "#E4E8EE",
-                  fontWeight: extraChips.some((c) => c.id === filter) ? 800 : 600,
-                }}
-              >
-                {extraChips.find((c) => c.id === filter)?.label || "More"}
-              </span>
-              <ChevronDown
-                size={13}
-                className={`text-[#9AA3AF] transition-transform duration-200 ${showMoreMenu ? "rotate-180" : ""}`}
-              />
-              {extraChips.some((c) => c.id === filter) && (
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#FF2D8A]" />
-              )}
-            </button>
-=======
-        {!isPreview && (
-          <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.07] bg-[#070b14]/90 backdrop-blur-md sticky top-0 z-40">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => (window.location.href = "/MainModules/HomePage")}
-                className="w-9 h-9 rounded-full bg-white/[0.05] border border-white/[0.08] flex items-center justify-center text-white/80 hover:bg-white/10 active:scale-95 transition-all cursor-pointer"
-              >
-                <ArrowLeft size={16} />
-              </button>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h1 className="text-base font-black tracking-tight">FlipARENA 🏟️</h1>
-                  <span className="text-[9px] font-black bg-gradient-to-r from-pink-500 to-orange-500 text-white px-2 py-0.5 rounded-full tracking-wider animate-pulse">
-                    LIVE
-                  </span>
-                </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[9px] font-bold text-white/40">🏏 Cricket</span>
-                  <span className="text-[9px] font-bold text-white/40">⚽ Football</span>
-                  <span className="text-[9px] font-bold text-white/40">🏃 Athletics</span>
-                </div>
-              </div>
-            </div>
->>>>>>> ed09b27a1ebaac5f2589732a6f924a90dfc6db40
+                  <span>{tab === "all" ? "All" : tab === "meme" ? "Meme" : tab}</span>
+                  {isSelected && (
+                    <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#FF2D8A]" />
+                  )}
+                </button>
+              );
+            })}
           </div>
-        )}
-
-<<<<<<< HEAD
-      {/* Fixed Dropdown Menu for More Options (Rendered outside scroll container to prevent clipping) */}
-      <AnimatePresence>
-        {showMoreMenu && dropdownPos && (
-          <>
-            {/* Backdrop to close when clicking outside */}
-            <div
-              className="fixed inset-0 z-[99998] bg-transparent"
-              onClick={() => setShowMoreMenu(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, y: -4, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.95 }}
-              transition={{ duration: 0.15 }}
-              style={{
-                position: "fixed",
-                top: `${dropdownPos.top}px`,
-                left: `${dropdownPos.left}px`,
-                zIndex: 99999,
-              }}
-              className="min-w-[155px] p-1.5 rounded-xl bg-[#15181D] border border-[#2A2F36] shadow-[0_12px_36px_rgba(0,0,0,0.85)] flex flex-col gap-1 backdrop-blur-xl"
-            >
-              <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[#9AA3AF]">
-                More Arena Types
-              </div>
-              {extraChips.map((chip) => {
-                const isSelected = filter === chip.id;
-                return (
-                  <button
-                    key={chip.id}
-                    onClick={() => {
-                      setFilter(chip.id);
-                      setShowMoreMenu(false);
-                    }}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all text-left cursor-pointer ${isSelected
-                      ? "bg-[#111418] text-white border border-[#FF2D8A]/50 shadow-sm"
-                      : "text-[#E4E8EE] hover:bg-[#111418] hover:text-white"
-                      }`}
-                  >
-                    <span className="flex-1">{chip.label}</span>
-                    {isSelected && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#FF2D8A]" />
-                    )}
-                  </button>
-                );
-              })}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+        </div>
+      </div>
 
       <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full max-w-lg mx-auto">
         {loadingEngagements && engagements.length === 0 ? (
           <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/40 text-xs font-bold">
             <div className="w-6 h-6 border-2 border-[#FF3D57] border-t-transparent rounded-full animate-spin" />
             <span>Loading live arena battles...</span>
-=======
-        {!isPreview && (
-          <div className="px-3 sm:px-4 mb-3 sm:mb-4 mt-3 sm:mt-4">
-            <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5">
-              {/* FlipLINE Tab */}
-              <button
-                onClick={() => (window.location.href = "/MainModules/FlipLine")}
-                className="relative py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer bg-[#111418] border border-[#2A2F36] active:scale-[0.99] overflow-hidden"
-              >
-                <Zap size={18} className="text-[#9AA3AF]" />
-                <span className="text-[13.5px] sm:text-[15px] tracking-wide font-bold text-[#9AA3AF]">
-                  FlipLINE
-                </span>
-              </button>
+          </div>
+        ) : filteredEngagements.length === 0 ? (
+          <div className="py-12 text-center text-xs font-bold text-white/40 border border-white/[0.06] rounded-2xl bg-[#0e111a] p-8 w-full max-w-lg space-y-3">
+            <p>No events found for this filter.</p>
+            <button
+              onClick={() =>
+                handleOpenCreate(
+                  filter === "all"
+                    ? "quiz"
+                    : filter === "battle"
+                      ? "fan_battle"
+                      : filter === "prediction"
+                        ? "prediction"
+                        : filter === "meme"
+                          ? "meme"
+                          : filter
+                )
+              }
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"
+            >
+              <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 SXPs)
+            </button>
+          </div>
+        ) : (
+          <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-4">
+            <AnimatePresence mode="popLayout">
+              {filteredEngagements.map((item) => {
+                const isItemHighlighted = Boolean(highlightedItemId && (item.id === highlightedItemId || (item as any)._parentEngagementId === highlightedItemId));
+                const isMultiQuiz = item.type === "quiz" && (item.quizData?.questions?.length || 1) > 1;
 
-              {/* FlipARENA Tab */}
-              <button
-                className="relative py-3 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer bg-[#111418] border border-[#2A2F36] active:scale-[0.99] overflow-hidden"
-              >
-                <Target size={18} className="text-[#FF2D8A]" />
-                <span className="text-[13.5px] sm:text-[15px] tracking-wide font-black text-[#FFFFFF]">
-                  FlipARENA
-                </span>
-                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#FF2D8A]" />
-              </button>
-            </div>
->>>>>>> ed09b27a1ebaac5f2589732a6f924a90dfc6db40
+
+                // Determine the correct Card Component
+                let CardComponent: React.ComponentType<any> | null = null;
+                if (item.type === "fan_battle") CardComponent = DynamicFanBattleCard;
+                else if (item.type === "quiz") CardComponent = DynamicQuizCard;
+                else if (item.type === "poll") CardComponent = DynamicPollCard;
+                else if (item.type === "prediction") CardComponent = DynamicPredictionCard;
+                else if (item.type === "meme") CardComponent = DynamicMemeCard;
+
+                if (!CardComponent) return null;
+
+                return (
+                  <motion.div
+                    layout
+                    key={item.id}
+                    className="w-full max-w-lg mx-auto flex flex-col items-center"
+                  >
+                    <CardComponent
+                      item={item}
+                      userId={activeUserId}
+                      userName={currentUser.userName}
+                      userAvatar={currentUser.userAvatar}
+                      userEmail={currentUser.userEmail}
+                      now={now}
+                      onToast={showToast}
+                      onEdit={handleOpenEdit}
+                      onDelete={item.type === "meme" ? handleDeleteEngagement : undefined}
+                      isHighlighted={isItemHighlighted}
+                      onOpenEngagedModal={handleOpenEngagedModal}
+                      isEngagedExpanded={engagedModalItem?.id === item.id}
+                      totalEngagedOverride={
+                        isMultiQuiz
+                          ? (quizActiveQuestion[item.id]?.id
+                            ? syncedEngagedCounts[`${item.id}_${quizActiveQuestion[item.id].id}`]
+                            : undefined)
+                          : syncedEngagedCounts[item.id]
+                      }
+                      onQuestionChange={item.type === "quiz" ? (index: number, qId: string) => handleQuizQuestionChange(item.id, index, qId) : undefined}
+                      onOpenLeaderboard={() => setShowLeaderboardModal(true)}
+                      onSyncEngagedCount={isMultiQuiz ? undefined : (count: number) => {
+                        const activeQId = quizActiveQuestion[item.id]?.id;
+                        if (item.type === "quiz" && activeQId) {
+                          handleSyncEngagedCount(`${item.id}_${activeQId}`, count);
+                        } else {
+                          handleSyncEngagedCount(item.id, count);
+                        }
+                        if ((item as any)._parentEngagementId) {
+                          handleSyncEngagedCount((item as any)._parentEngagementId, count);
+                        }
+                      }}
+                    />
+
+                    {/* Inline Engaged Users List */}
+                    {engagedModalItem?.id === item.id && (
+                      <EngagedUsersInlineList
+                        item={engagedModalItem}
+                        questionId={(engagedModalItem as any)._subQuestionId || quizActiveQuestion[item.id]?.id}
+                        questionIndex={(engagedModalItem as any)._subQuestionIndex ?? quizActiveQuestion[item.id]?.index}
+                        onSyncCount={isMultiQuiz ? undefined : (count: number) => {
+                          const activeQId = (engagedModalItem as any)._subQuestionId || quizActiveQuestion[item.id]?.id;
+                          if (engagedModalItem?.type === "quiz" && activeQId) {
+                            handleSyncEngagedCount(`${item.id}_${activeQId}`, count);
+                          } else {
+                            handleSyncEngagedCount(item.id, count);
+                          }
+                        }}
+                        onClose={() => setEngagedModalItem(null)}
+                      />
+                    )}
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
           </div>
         )}
 
-        <div className="px-4 py-3 flex items-center justify-between border-t border-white/[0.05] mt-2 gap-2 flex-wrap">
-          <div>
-            <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
-            <p className="text-[10px] text-white/35 mt-0.5">Earn +2 SXPs participation · +10 SXPs for correct answers</p>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
+        {isPreview && (
+          <div className="w-full max-w-lg mt-4 px-2">
             <button
-              onClick={() => setShowLeaderboardModal(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/15 to-rose-500/15 border border-amber-500/30 hover:border-amber-400 text-amber-400 hover:text-amber-300 text-[10px] font-black uppercase tracking-wider shadow-[0_0_12px_rgba(245,158,11,0.15)] transition-all cursor-pointer hover:scale-105 active:scale-95 shrink-0"
-              title="Open Leaderboards"
+              onClick={() => (window.location.href = "/MainModules/FlipArena")}
+              className="w-full py-[11px] rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
+              style={{
+                background: "rgba(255,255,255,0.045)",
+                border: "1px solid rgba(255,255,255,0.1)",
+              }}
             >
-              <Trophy size={13} className="text-amber-400" />
-              <span>Leaderboard</span>
-            </button>
-            <div className="flex gap-1.5 bg-[#111418] p-1 rounded-xl border border-[#2A2F36] overflow-x-auto">
-              {(["all", "quiz", "poll", "battle", "prediction", "meme"] as const).map((tab) => {
-                const isSelected = filter === tab;
-                return (
-                  <button
-                    key={tab}
-                    onClick={() => setFilter(tab)}
-                    className={`relative px-3 py-1.5 rounded-lg text-[10.5px] font-black uppercase tracking-wider transition-all duration-200 cursor-pointer shrink-0 overflow-hidden ${isSelected
-                      ? "text-[#FFFFFF] bg-white/[0.06]"
-                      : "text-[#9AA3AF] hover:text-white/80 hover:bg-white/[0.02]"
-                      }`}
-                  >
-                    <span>{tab === "all" ? "All" : tab === "meme" ? "Meme" : tab}</span>
-                    {isSelected && (
-                      <div className="absolute bottom-0 left-0 right-0 h-[2.5px] bg-[#FF2D8A]" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        <div className="px-4 space-y-5 mt-2 flex flex-col items-center w-full max-w-lg mx-auto">
-          {loadingEngagements && engagements.length === 0 ? (
-            <div className="py-12 flex flex-col items-center justify-center gap-3 text-white/40 text-xs font-bold">
-              <div className="w-6 h-6 border-2 border-[#FF3D57] border-t-transparent rounded-full animate-spin" />
-              <span>Loading live arena battles...</span>
-            </div>
-          ) : filteredEngagements.length === 0 ? (
-            <div className="py-12 text-center text-xs font-bold text-white/40 border border-white/[0.06] rounded-2xl bg-[#0e111a] p-8 w-full max-w-lg space-y-3">
-              <p>No events found for this filter.</p>
-              <button
-                onClick={() =>
-                  handleOpenCreate(
-                    filter === "all"
-                      ? "quiz"
-                      : filter === "battle"
-                        ? "fan_battle"
-                        : filter === "prediction"
-                          ? "prediction"
-                          : filter === "meme"
-                            ? "meme"
-                            : filter
-                  )
-                }
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"
-              >
-                <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 SXPs)
-              </button>
-            </div>
-          ) : (
-            <div className="w-full max-w-lg mx-auto flex flex-col items-center gap-4">
-              <AnimatePresence mode="popLayout">
-                {filteredEngagements.map((item) => {
-                  const isItemHighlighted = Boolean(highlightedItemId && (item.id === highlightedItemId || (item as any)._parentEngagementId === highlightedItemId));
-
-                  // Determine the correct Card Component
-                  let CardComponent: React.ComponentType<any> | null = null;
-                  if (item.type === "fan_battle") CardComponent = DynamicFanBattleCard;
-                  else if (item.type === "quiz") CardComponent = DynamicQuizCard;
-                  else if (item.type === "poll") CardComponent = DynamicPollCard;
-                  else if (item.type === "prediction") CardComponent = DynamicPredictionCard;
-                  else if (item.type === "meme") CardComponent = DynamicMemeCard;
-
-                  if (!CardComponent) return null;
-
-                  return (
-                    <motion.div
-                      layout
-                      key={item.id}
-                      className="w-full max-w-lg mx-auto flex flex-col items-center"
-                    >
-                      <CardComponent
-                        item={item}
-                        userId={activeUserId}
-                        userName={currentUser.userName}
-                        userAvatar={currentUser.userAvatar}
-                        userEmail={currentUser.userEmail}
-                        now={now}
-                        onToast={showToast}
-                        onEdit={handleOpenEdit}
-                        onDelete={item.type === "meme" ? handleDeleteEngagement : undefined}
-                        isHighlighted={isItemHighlighted}
-                        onOpenEngagedModal={handleOpenEngagedModal}
-                        isEngagedExpanded={engagedModalItem?.id === item.id}
-                        // totalEngagedOverride={syncedEngagedCounts[item.id] ?? syncedEngagedCounts[(item as any)._parentEngagementId]}
-                        totalEngagedOverride={
-                          item.type === "quiz" && quizActiveQuestion[item.id]?.id
-                            ? (syncedEngagedCounts[`${item.id}_${quizActiveQuestion[item.id].id}`] ?? syncedEngagedCounts[item.id])
-                            : (syncedEngagedCounts[item.id] ?? syncedEngagedCounts[(item as any)._parentEngagementId])
-                        }
-                        onQuestionChange={item.type === "quiz" ? (index: number, qId: string) => handleQuizQuestionChange(item.id, index, qId) : undefined}
-                        onOpenLeaderboard={() => setShowLeaderboardModal(true)}
-                        onSyncEngagedCount={(count: number) => {
-                          handleSyncEngagedCount(item.id, count);
-                          const activeQId = quizActiveQuestion[item.id]?.id;
-                          if (activeQId) {
-                            handleSyncEngagedCount(`${item.id}_${activeQId}`, count);
-                          }
-                          if ((item as any)._parentEngagementId) {
-                            handleSyncEngagedCount((item as any)._parentEngagementId, count);
-                          }
-                        }}
-                      />
-
-                      {/* Inline Engaged Users List */}
-                      {engagedModalItem?.id === item.id && (
-                        <EngagedUsersInlineList
-                          item={engagedModalItem}
-                          questionId={(engagedModalItem as any)._subQuestionId || quizActiveQuestion[item.id]?.id}
-                          questionIndex={(engagedModalItem as any)._subQuestionIndex ?? quizActiveQuestion[item.id]?.index}
-                          onSyncCount={(count: number) => {
-                            handleSyncEngagedCount(item.id, count);
-                            const activeQId = (engagedModalItem as any)._subQuestionId || quizActiveQuestion[item.id]?.id;
-                            if (activeQId) {
-                              handleSyncEngagedCount(`${item.id}_${activeQId}`, count);
-                            }
-                          }}
-                          onClose={() => setEngagedModalItem(null)}
-                        />
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-          )}
-
-          {isPreview && (
-            <div className="w-full max-w-lg mt-4 px-2">
-              <button
-                onClick={() => (window.location.href = "/MainModules/FlipArena")}
-                className="w-full py-[11px] rounded-[14px] flex items-center justify-center gap-2 active:scale-[0.98] transition-all cursor-pointer"
+              <span
                 style={{
-                  background: "rgba(255,255,255,0.045)",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  fontSize: 11.5,
+                  fontWeight: 800,
+                  color: "rgba(255,255,255,0.55)",
                 }}
               >
-                <span
-                  style={{
-                    fontSize: 11.5,
-                    fontWeight: 800,
-                    color: "rgba(255,255,255,0.55)",
-                  }}
-                >
-                  View Full FlipARENA
-                </span>
-                <svg
-                  width="11"
-                  height="11"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="rgba(255,255,255,0.4)"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M9 18l6-6-6-6" />
-                </svg>
-              </button>
-            </div>
-          )}
-        </div>
-
-        <LeaderboardOverlayModal
-          isOpen={showLeaderboardModal}
-          onClose={() => setShowLeaderboardModal(false)}
-        />
-
-        <ArenaEngagementModal
-          isOpen={modalOpen}
-          onClose={() => setModalOpen(false)}
-          initialType={modalType}
-          editingItem={editingItem}
-          onSaved={handleItemSaved}
-          onToast={showToast}
-        />
+                View Full FlipARENA
+              </span>
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="rgba(255,255,255,0.4)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
-    );
-  }
+
+      <LeaderboardOverlayModal
+        isOpen={showLeaderboardModal}
+        onClose={() => setShowLeaderboardModal(false)}
+      />
+
+      <ArenaEngagementModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        initialType={modalType}
+        editingItem={editingItem}
+        onSaved={handleItemSaved}
+        onToast={showToast}
+      />
+    </div>
+  );
+}
