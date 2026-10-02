@@ -3279,6 +3279,7 @@ import { useActivity } from "@/context/ActivityContext";
 import { useAuth } from "@/context/AuthContext";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+
 import {
   BOT_TAGS,
   BOT_USERNAMES,
@@ -5712,10 +5713,10 @@ export default function Profile({
           type="button"
           onClick={() => {
             if (handleBack) handleBack();
-            else handleGoBack(router, "/MainModules/HomePage");
+            else handleGoBack(router, "/MainModules/ROAR");
           }}
-          aria-label="Go back"
           data-nav="back"
+          aria-label="Go back"
           style={{ background: "none", border: "none", cursor: "pointer", color: "white", padding: "4px 2px", display: "flex", alignItems: "center" }}
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

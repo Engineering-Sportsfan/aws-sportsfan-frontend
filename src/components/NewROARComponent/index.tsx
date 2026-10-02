@@ -24,10 +24,8 @@ import RoomsHome from "./screens/RoomsHome";
 import DiscussionRoom from "./screens/DiscussionRoom";
 import Notifications from "./screens/Notifications";
 import Leaderboard from "./screens/Leaderboard";
-import Profile from "./screens/Profile";
 import type { Notification, Room } from "./types";
 import { useRoarNotifications } from "@/context/RoarNotificationsContext";
-import { RoarProfileProvider, useRoarProfileContext } from "@/context/RoarProfileContext";
 import RoomPostDetailsOverlay from "./components/RoomPostDetailsOverlay";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -50,13 +48,7 @@ export default function ROARApp() {
 
   // ── Bootstrap 
   const [mounted, setMounted] = useState(false);
-  const [checkingProfile, setChecking] = useState(() => {
-    if (typeof window !== "undefined") {
-      const p = new URLSearchParams(window.location.search);
-      if (p.get("profileUserId")) return false;
-    }
-    return true;
-  });
+  const [checkingProfile, setChecking] = useState(true);
   const [onboarded, setOnboarded] = useState(false);
   const [userBadge, setUserBadge] = useState("ROOKIE_FAN");
   const [userSports, setUserSports] = useState<string[]>([]);
@@ -72,11 +64,6 @@ useEffect(() => {
   useEffect(() => {
      if (!authReady) return;
     const checkProfile = async () => {
-      const isViewingProfileDirectly = searchParams.get("profileUserId");
-      if (isViewingProfileDirectly) {
-        setChecking(false);
-        setOnboarded(true);
-      }
       try {
         const myUid =
           authUser?.actualUserId ||
@@ -223,21 +210,22 @@ const openRecapForRoom = useCallback(async (room: Room) => {
     }
   }, [selectedPost, phog, selectedRoom]);
 
-  const { viewingUserId, profileData, openProfile, closeProfile } = useRoarProfileContext();
-
   const handleFanProfileClick = useCallback((fan: any) => {
+    const target = fan?.authorUid || fan?.userId || fan?.username || fan?.displayName || "";
     if (phog) {
       phog.capture("view_profile", {
-        viewed_user: fan.authorUid || fan.username || "",
+        viewed_user: target,
         room_name: selectedRoom?.name || ""
       });
     }
-    if (fan.authorUid && fan.authorUid === currentUserId) {
+    if (target && target === currentUserId) {
       router.push("/MainModules/Profile");
+    } else if (target) {
+      router.push(`/MainModules/Profile?userId=${encodeURIComponent(target)}`);
     } else {
-      openProfile(fan.authorUid);
+      router.push("/MainModules/Profile");
     }
-  }, [currentUserId, openProfile, router, phog, selectedRoom]);
+  }, [currentUserId, router, phog, selectedRoom]);
 
   // ── Compose ────────────────────────────────────────────────────────────────
   const [composeOpen, setComposeOpen] = useState(false);
@@ -262,7 +250,14 @@ const openRecapForRoom = useCallback(async (room: Room) => {
   const [notifSeeded, setNotifSeeded] = useState(false);
   const fetchRoarNotifications = useCallback(async () => {
     try {
-      const res = await axios.get("/api/roar/notifications?limit=30");
+      const myUid =
+        authUser?.actualUserId ||
+        authUser?.userId ||
+        (authUser?.email ? authUser.email.replace(/[@.]/g, "_") : undefined);
+      const params = new URLSearchParams({ limit: "30" });
+      if (myUid) params.set("uid", myUid);
+      if (authUser?.email) params.set("email", authUser.email);
+      const res = await axios.get(`/api/roar/notifications?${params.toString()}`);
       if (!res.data?.success || !Array.isArray(res.data.notifications)) return false;
       const mapped: Notification[] = res.data.notifications.map((n: any) => ({
         id: n.notifId || n.id,
@@ -270,7 +265,7 @@ const openRecapForRoom = useCallback(async (room: Room) => {
         title: n.title || n.message || "ROAR update",
         subtitle: n.subtitle || n.postPreview || "",
         time: n.createdAt ? "Just now" : "",
-        read: Boolean(n.read),
+        read: Boolean(n.read ?? n.isRead),
         fan: n.fan ?? null,
         cta: n.cta ?? null,
         postId: n.postId,
@@ -281,7 +276,7 @@ const openRecapForRoom = useCallback(async (room: Room) => {
       console.error("Failed to fetch ROAR notifications:", err);
       return false;
     }
-  }, [setNotifications]);
+  }, [setNotifications, authUser]);
 
   useEffect(() => {
     if (notifSeeded) return;
@@ -733,7 +728,7 @@ const openRecapForRoom = useCallback(async (room: Room) => {
   const isRoom = overlay === "room";
   const isLB = overlay === "leaderboard";
   const isFullScreenOverlay = isRoom;
-  const hideChrome = isFullScreenOverlay || !onboarded || !!viewingUserId;
+  const hideChrome = isFullScreenOverlay || !onboarded;
 
   useEffect(() => {
     if (hideChrome) document.body.classList.add("roar-room-active");
@@ -776,27 +771,7 @@ const openRecapForRoom = useCallback(async (room: Room) => {
         {onboarded && (
           <div style={{ position: "relative", zIndex: 1, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <AnimatePresence mode="wait">
-              {viewingUserId ? (
-                <motion.div
-                  key="viewing-profile"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.18 }}
-                  style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}
-                >
-                  <Profile
-                    userBadge={userBadge}
-                    setUserBadge={setUserBadge}
-                    onCompose={() => openCompose("prediction")}
-                    onToast={showToast}
-                    setOnboarded={setOnboarded}
-                    onNavigateTab={handleTab}
-                    viewingProfile={viewingUserId}
-                    onClose={closeProfile}
-                  />
-                </motion.div>
-              ) : isLB ? (
+              {isLB ? (
                 <motion.div key="lb" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <Leaderboard onBack={() => setOverlay(null)} onCompose={() => openCompose("prediction")} />
                 </motion.div>

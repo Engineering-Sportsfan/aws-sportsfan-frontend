@@ -771,7 +771,7 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
   const [domReady, setDomReady] = useState(false);
   const [selectedGif, setSelectedGif] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [predictionCloseMinutes, setPredictionCloseMinutes] = useState(2);
+  const [predictionCloseMinutes, setPredictionCloseMinutes] = useState<number | null>(null);
   const [predictionOptions, setPredictionOptions] = useState<string[]>(["", ""]);
 
   // Cursor tracking per field (needed to correctly splice mention text)
@@ -904,7 +904,7 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
     setMatch("None / General");
     setSelectedGif(null);
     setSelectedTag(null);
-    setPredictionCloseMinutes(2);
+    setPredictionCloseMinutes(null);
     setPredictionOptions(["", ""]);
     mention.dismiss();
   };
@@ -933,10 +933,10 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
       mediaFiles: selected === "post" ? mediaFiles : [],
       gifUrl: selectedGif ? MEMORY_GIFS.find((g) => g.id === selectedGif)?.path : undefined,
       sf360Tag: selectedTag ?? undefined,
-      ...(selected === "prediction" && {
+      ...(selected === "prediction" && predictionCloseMinutes ? {
         closeAfterMinutes: predictionCloseMinutes,
         closesAt: Date.now() + predictionCloseMinutes * 60 * 1000,
-      }),
+      } : {}),
     });
     onClose();
   };
@@ -1281,39 +1281,8 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
                             <span style={{ width: 16, height: 16, borderRadius: "50%", border: "1px solid #fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13, lineHeight: 1 }}>+</span>
                           </button>
                           <div style={{ height: 1, background: "#575757", margin: "20px 0 10px" }} />
-                          <label style={{ display: "block", color: "#777", fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Set duration</label>
+                            <label style={{ display: "block", color: "#777", fontSize: 15, fontWeight: 600, marginBottom: 10 }}>Set Duration</label>
                           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                            {/* {[
-                              { label: "2min", value: 2 },
-                              { label: "1:30hr", value: 90 },
-                              { label: "Custom", value: 0 },
-                            ].map((duration) => {
-                              const active = duration.value === 0 ? predictionCloseMinutes !== 2 && predictionCloseMinutes !== 90 : predictionCloseMinutes === duration.value;
-                              return (
-                                <button
-                                  key={duration.label}
-                                  type="button"
-                                  onClick={() => setPredictionCloseMinutes(duration.value === 0 ? 60 : duration.value)}
-                                  style={{ height: 30, padding: "0 12px", borderRadius: 999, border: "none", background: active ? "#0f0f0f" : "#171717", color: active ? "#fff" : "#696969", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
-                                >
-                                  {duration.label}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          {predictionCloseMinutes !== 2 && predictionCloseMinutes !== 90 && (
-                            <input
-                              type="number"
-                              min={1}
-                              max={10080}
-                              value={predictionCloseMinutes}
-                              onChange={(e) => setPredictionCloseMinutes(Math.max(1, Math.min(10080, Number(e.target.value) || 1)))}
-                              aria-label="Custom close time in minutes"
-                              style={{ width: "100%", marginTop: 10, border: "none", outline: "none", borderRadius: 999, background: "#171717", color: "#fff", fontSize: 14, padding: "10px 14px" }}
-                            />
-                          )} */}
-
-
                             {[
                               { label: "20 mins", value: 20 },
                               { label: "30 mins", value: 30 },
@@ -1326,7 +1295,7 @@ export default function ComposeModal({ open, onClose, onPost, initialType, onOpe
                                 <button
                                   key={duration.label}
                                   type="button"
-                                  onClick={() => setPredictionCloseMinutes(duration.value)}
+                                  onClick={() => setPredictionCloseMinutes((prev) => (prev === duration.value ? null : duration.value))}
                                   style={{ height: 30, padding: "0 12px", borderRadius: 999, border: "none", background: active ? "#0f0f0f" : "#171717", color: active ? "#fff" : "#696969", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
                                 >
                                   {duration.label}
