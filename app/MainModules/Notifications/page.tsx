@@ -146,18 +146,22 @@ export default function NotificationCenter() {
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.notifications)) {
+        const lastAllReadAt = typeof window !== "undefined" ? Number(localStorage.getItem("notifications_all_read_at") || 0) : 0;
         const dedupeMap = new Map<string, any>();
         for (const notif of data.notifications) {
           const key = getClientDedupeKey(notif);
+          const notifTime = new Date(notif.sent_at || notif.createdAt || 0).getTime();
+          const isMarkedReadLocally = lastAllReadAt > 0 && notifTime > 0 && notifTime <= lastAllReadAt;
+
           if (!dedupeMap.has(key)) {
-            dedupeMap.set(key, notif);
+            const isRead = isMarkedReadLocally || Boolean(notif.isRead !== undefined ? notif.isRead : notif.read);
+            dedupeMap.set(key, { ...notif, isRead, read: isRead });
           } else {
             const existing = dedupeMap.get(key);
-            const isExistingRead = existing.isRead !== undefined ? existing.isRead : existing.read;
-            const isCurrentRead = notif.isRead !== undefined ? notif.isRead : notif.read;
-            if (isExistingRead && !isCurrentRead) {
-              dedupeMap.set(key, { ...existing, ...notif, read: false, isRead: false });
-            }
+            const isExistingRead = Boolean(existing.isRead !== undefined ? existing.isRead : existing.read);
+            const isCurrentRead = Boolean(notif.isRead !== undefined ? notif.isRead : notif.read);
+            const isRead = isMarkedReadLocally || isExistingRead || isCurrentRead;
+            dedupeMap.set(key, { ...existing, ...notif, isRead, read: isRead });
           }
         }
         setItems(Array.from(dedupeMap.values()));
@@ -240,11 +244,12 @@ export default function NotificationCenter() {
 
   async function markRead(notification: any, ctaClicked = false) {
     const notifId = notification.id || notification.notification_id;
-    // Optimistic update — mark as read and optionally cta_clicked
+    const targetKey = getClientDedupeKey(notification);
+    // Optimistic update — mark as read and optionally cta_clicked ONLY for this notification
     setItems((prev) =>
       prev.map((n) =>
-        (n.id === notifId || n.notification_id === notifId)
-          ? { ...n, isRead: true, ...(ctaClicked && { cta_clicked: true }) }
+        (n.id === notifId || n.notification_id === notifId || (targetKey && getClientDedupeKey(n) === targetKey))
+          ? { ...n, isRead: true, read: true, ...(ctaClicked && { cta_clicked: true }) }
           : n
       )
     );
@@ -252,6 +257,7 @@ export default function NotificationCenter() {
       await fetch("/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        keepalive: true,
         body: JSON.stringify({
           action: "markRead",
           id: notifId,
@@ -268,11 +274,15 @@ export default function NotificationCenter() {
   }
 
   async function markAllRead() {
-    setItems((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("notifications_all_read_at", String(Date.now()));
+    }
+    setItems((prev) => prev.map((n) => ({ ...n, isRead: true, read: true })));
     try {
       await fetch("/api/notifications", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        keepalive: true,
         body: JSON.stringify({
           action: "markAllRead",
           email: effectiveEmail,
@@ -284,11 +294,11 @@ export default function NotificationCenter() {
     }
   }
 
-  function handleCta(n: any) {
-    markRead(n, true);
+  async function handleCta(n: any) {
+    await markRead(n, true);
     const target = n.cta_target || n.ctaTarget;
     if (target) {
-      window.location.href = target;
+      router.push(target);
     }
   }
 
