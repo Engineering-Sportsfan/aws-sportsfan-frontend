@@ -6154,9 +6154,45 @@ function DynamicPredictionCard({
     winningTarget: "",
   };
 
+  // 1. Dynamic Options Extraction (Support 2 to 6 options, fallback to legacy left/right)
+  const rawOptions: any[] = useMemo(() => {
+    if (Array.isArray((pred as any).options) && (pred as any).options.length > 0) {
+      return (pred as any).options;
+    }
+    if (Array.isArray((item as any).options) && (item as any).options.length > 0) {
+      return (item as any).options;
+    }
+    const leftText = pred.leftChoice?.text || "Yes";
+    const rightText = pred.rightChoice?.text || "No";
+    return [
+      { id: "left", text: leftText, votes: Number(pred.leftChoice?.votes) || 0, multiplier: (pred.leftChoice as any)?.multiplier },
+      { id: "right", text: rightText, votes: Number(pred.rightChoice?.votes) || 0, multiplier: (pred.rightChoice as any)?.multiplier },
+    ];
+  }, [pred, item]);
+
+  const [options, setOptions] = useState<Array<{ id: string; text: string; votes: number; multiplier?: number }>>(() => {
+    return rawOptions.map((opt: any, idx: number) => ({
+      id: String(opt.id || opt._id || (idx === 0 && !opt.id ? "left" : idx === 1 && !opt.id ? "right" : `opt-${idx}`)),
+      text: typeof opt === "string" ? opt : String(opt.text || opt.title || `Option ${idx + 1}`),
+      votes: Number(opt.votes) || 0,
+      multiplier: opt.multiplier,
+    }));
+  });
+
+  useEffect(() => {
+    setOptions(
+      rawOptions.map((opt: any, idx: number) => ({
+        id: String(opt.id || opt._id || (idx === 0 && !opt.id ? "left" : idx === 1 && !opt.id ? "right" : `opt-${idx}`)),
+        text: typeof opt === "string" ? opt : String(opt.text || opt.title || `Option ${idx + 1}`),
+        votes: Number(opt.votes) || 0,
+        multiplier: opt.multiplier,
+      }))
+    );
+  }, [rawOptions]);
+
   const initialVote = getStoredVote("pred", item.id, userId);
-  const [selectedChoice, setSelectedChoice] = useState<"left" | "right" | null>(
-    initialVote?.choice || (item.userVote as "left" | "right") || null
+  const [selectedChoice, setSelectedChoice] = useState<string | null>(
+    initialVote?.choice || (item.userVote as string) || null
   );
   const [predicted, setPredicted] = useState<boolean>(Boolean(initialVote || item.userVoted));
   const [loading, setLoading] = useState(false);
@@ -6190,38 +6226,20 @@ function DynamicPredictionCard({
     }
   }, [totalEngagedOverride]);
 
-  const calcPredictionResult = useCallback(
-    (
-      choice: "left" | "right",
-      overrideLeftPct?: number,
-      overrideRightPct?: number
-    ) => {
-      const leftVotes = pred.leftChoice.votes || 0;
-      const rightVotes = pred.rightChoice.votes || 0;
-      const total = leftVotes + rightVotes + 1;
-      const leftPct =
-        overrideLeftPct !== undefined
-          ? Math.round(overrideLeftPct)
-          : Math.round(((leftVotes + (choice === "left" ? 1 : 0)) / total) * 100);
-      const rightPct =
-        overrideRightPct !== undefined ? Math.round(overrideRightPct) : 100 - leftPct;
-      return {
-        coinsLocked: pred.coinStake || 25,
-        leftPercentage: leftPct,
-        rightPercentage: rightPct,
-      };
-    },
-    [pred.coinStake, pred.leftChoice.votes, pred.rightChoice.votes]
-  );
+  const totalVotes = useMemo(() => {
+    const sum = options.reduce((acc, curr) => acc + (curr.votes || 0), 0);
+    return Math.max(1, sum);
+  }, [options]);
 
-  const [result, setResult] = useState<{
-    coinsLocked: number;
-    leftPercentage: number;
-    rightPercentage: number;
-  } | null>(() => {
-    const c = initialVote?.choice || (item.userVote as "left" | "right");
-    if (!c) return null;
-    return calcPredictionResult(c, initialVote?.leftPercentage, initialVote?.rightPercentage);
+  const [resultPercentages, setResultPercentages] = useState<Record<string, number> | null>(() => {
+    if (initialVote?.percentages) return initialVote.percentages;
+    if (initialVote?.leftPercentage !== undefined || initialVote?.rightPercentage !== undefined) {
+      const map: Record<string, number> = {};
+      if (rawOptions[0]?.id) map[rawOptions[0].id] = Math.round(initialVote.leftPercentage ?? 50);
+      if (rawOptions[1]?.id) map[rawOptions[1].id] = Math.round(initialVote.rightPercentage ?? 50);
+      return map;
+    }
+    return null;
   });
 
   const startTime = getEngagementStartTime(item);
@@ -6235,19 +6253,56 @@ function DynamicPredictionCard({
 
   const winningTarget = (pred as any).winningTarget || (pred as any).correctAnswer || "";
 
+  // 4. Winner Verification across all options
   const checkIsChoiceWinner = useCallback(
-    (choice: "left" | "right" | null) => {
+    (choice: string | null) => {
       if (!choice || !winningTarget) return false;
-      const wt = winningTarget.trim().toLowerCase();
-      if (wt === "left" && choice === "left") return true;
-      if (wt === "right" && choice === "right") return true;
-      const chosenText =
-        choice === "left"
-          ? pred.leftChoice.text.trim().toLowerCase()
-          : pred.rightChoice.text.trim().toLowerCase();
-      return wt === chosenText;
+      const wt = String(winningTarget).trim().toLowerCase();
+      const c = String(choice).trim().toLowerCase();
+
+      if (wt === c) return true;
+      if (wt === "left" && (c === "left" || c === options[0]?.id.toLowerCase() || c === options[0]?.text.toLowerCase())) return true;
+      if (wt === "right" && (c === "right" || c === options[1]?.id.toLowerCase() || c === options[1]?.text.toLowerCase())) return true;
+
+      const chosenOpt = options.find(
+        (o) => o.id.toLowerCase() === c || o.text.toLowerCase() === c
+      );
+      if (chosenOpt && (wt === chosenOpt.id.toLowerCase() || wt === chosenOpt.text.toLowerCase())) {
+        return true;
+      }
+
+      const matchedOptIndex = options.findIndex(
+        (o, idx) =>
+          wt === o.id.toLowerCase() ||
+          wt === o.text.toLowerCase() ||
+          wt === `option_${idx}` ||
+          wt === String(idx)
+      );
+      if (matchedOptIndex !== -1) {
+        const targetOpt = options[matchedOptIndex];
+        return (
+          c === targetOpt.id.toLowerCase() ||
+          c === targetOpt.text.toLowerCase()
+        );
+      }
+
+      return false;
     },
-    [winningTarget, pred.leftChoice.text, pred.rightChoice.text]
+    [winningTarget, options]
+  );
+
+  const checkIsOptionWinner = useCallback(
+    (opt: { id: string; text: string }) => {
+      if (!winningTarget) return false;
+      const wt = String(winningTarget).trim().toLowerCase();
+      if (wt === opt.id.toLowerCase() || wt === opt.text.toLowerCase()) return true;
+      const optIndex = options.findIndex((o) => o.id === opt.id);
+      if (optIndex === 0 && (wt === "left" || wt === "0" || wt === "option_0")) return true;
+      if (optIndex === 1 && (wt === "right" || wt === "1" || wt === "option_1")) return true;
+      if (wt === String(optIndex) || wt === `option_${optIndex}`) return true;
+      return false;
+    },
+    [winningTarget, options]
   );
 
   const userWon = useMemo(() => {
@@ -6282,29 +6337,38 @@ function DynamicPredictionCard({
     if (stored?.choice) {
       setSelectedChoice(stored.choice);
       setPredicted(true);
-      setResult(calcPredictionResult(stored.choice, stored.leftPercentage, stored.rightPercentage));
+      if (stored.percentages) {
+        setResultPercentages(stored.percentages);
+      } else if (stored.leftPercentage !== undefined || stored.rightPercentage !== undefined) {
+        setResultPercentages({
+          ...(options[0]?.id ? { [options[0].id]: Math.round(stored.leftPercentage ?? 50) } : {}),
+          ...(options[1]?.id ? { [options[1].id]: Math.round(stored.rightPercentage ?? 50) } : {}),
+        });
+      }
+      if (stored.options && Array.isArray(stored.options)) {
+        setOptions(stored.options);
+      }
     }
 
     if (item.userVoted && item.userVote) {
-      const choice = item.userVote as "left" | "right";
+      const choice = item.userVote;
       setSelectedChoice(choice);
       setPredicted(true);
-      setResult(calcPredictionResult(choice));
       setStoredVote("pred", item.id, { choice }, userId);
     } else if (userId) {
       engagementService.checkVoteStatus(item.id, userId).then((res) => {
         if (res.hasVoted && res.selectedOptionId) {
-          const choice = res.selectedOptionId as "left" | "right";
+          const choice = res.selectedOptionId;
           setSelectedChoice(choice);
           setPredicted(true);
-          setResult(calcPredictionResult(choice));
           setStoredVote("pred", item.id, { choice }, userId);
         }
       });
     }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId, calcPredictionResult]);
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
 
-  const handlePredict = async (choice: "left" | "right") => {
+  // 3. Dynamic Predict Handler
+  const handlePredict = async (choiceId: string) => {
     if (!userId || String(userId).toLowerCase().startsWith("anon")) {
       onToast("Please sign in to participate and earn SXPs!");
       return;
@@ -6323,54 +6387,98 @@ function DynamicPredictionCard({
     }
 
     isPredictingRef.current = true;
-    setSelectedChoice(choice);
+    setSelectedChoice(choiceId);
     setPredicted(true);
     setLoading(true);
-    setStoredVote("pred", item.id, { choice, coinsLocked: pred.coinStake || 25 }, userId);
+
+    const updatedOptions = options.map((opt) =>
+      opt.id === choiceId || opt.text === choiceId ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
+    );
+    setOptions(updatedOptions);
+
     const nextCount = Math.max(1, totalEngaged + 1);
     setTotalEngaged(nextCount);
     onSyncEngagedCount?.(nextCount);
 
+    const totalV = updatedOptions.reduce((acc, curr) => acc + (curr.votes || 0), 0);
+    const safeTotal = Math.max(1, totalV);
+    const initialMap: Record<string, number> = {};
+    updatedOptions.forEach((opt) => {
+      initialMap[opt.id] = Math.round(((opt.votes || 0) / safeTotal) * 100);
+    });
+    setResultPercentages(initialMap);
+
+    setStoredVote(
+      "pred",
+      item.id,
+      {
+        choice: choiceId,
+        coinsLocked: pred.coinStake || 25,
+        options: updatedOptions,
+        percentages: initialMap,
+      },
+      userId
+    );
+
     try {
-      const res: any = await engagementService.voteEngagement(item.id, choice, userId, undefined, { userName, userAvatar, userEmail });
-      const computedResult = calcPredictionResult(
-        choice,
-        res?.leftPercentage,
-        res?.rightPercentage
+      const res: any = await engagementService.voteEngagement(
+        item.id,
+        choiceId,
+        userId,
+        undefined,
+        { userName, userAvatar, userEmail }
       );
-      if (res?.coinsLocked) {
-        computedResult.coinsLocked = res.coinsLocked;
+
+      let serverPercentagesMap: Record<string, number> = initialMap;
+      if (res?.percentages && typeof res.percentages === "object") {
+        serverPercentagesMap = res.percentages;
+      } else if (res?.leftPercentage !== undefined || res?.rightPercentage !== undefined) {
+        serverPercentagesMap = {
+          ...(options[0]?.id ? { [options[0].id]: Math.round(res.leftPercentage ?? 50) } : {}),
+          ...(options[1]?.id ? { [options[1].id]: Math.round(res.rightPercentage ?? 50) } : {}),
+        };
       }
-      setResult(computedResult);
+
+      setResultPercentages(serverPercentagesMap);
+
       setStoredVote(
         "pred",
         item.id,
         {
-          choice,
-          coinsLocked: computedResult.coinsLocked,
-          leftPercentage: computedResult.leftPercentage,
-          rightPercentage: computedResult.rightPercentage,
+          choice: choiceId,
+          coinsLocked: res?.coinsLocked || pred.coinStake || 25,
+          options: updatedOptions,
+          percentages: serverPercentagesMap,
+          leftPercentage: res?.leftPercentage,
+          rightPercentage: res?.rightPercentage,
         },
         userId
       );
+
+      if (res?.isCorrect !== undefined) {
+        setServerIsCorrect(Boolean(res.isCorrect));
+      }
+
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
         );
       }
     } catch (err: any) {
-      const prevChoice = (err?.response?.data?.selectedOptionId || choice) as "left" | "right";
+      const prevChoice = err?.response?.data?.selectedOptionId || choiceId;
       setSelectedChoice(prevChoice);
-      const fallbackResult = calcPredictionResult(prevChoice);
-      setResult(fallbackResult);
+      const revertedOptions = options.map((opt) =>
+        opt.id === prevChoice || opt.text === prevChoice ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
+      );
+      setOptions(revertedOptions);
       setStoredVote(
         "pred",
         item.id,
         {
           choice: prevChoice,
-          coinsLocked: fallbackResult.coinsLocked,
-          leftPercentage: fallbackResult.leftPercentage,
-          rightPercentage: fallbackResult.rightPercentage,
+          coinsLocked: pred.coinStake || 25,
+          options: revertedOptions,
+          percentages: initialMap,
         },
         userId
       );
@@ -6424,7 +6532,28 @@ function DynamicPredictionCard({
 
   const formattedTime = formatEngagementPostingTime(item);
 
+  // 2. Responsive grid column layout based on options length
+  const gridColsClass = useMemo(() => {
+    if (options.length === 3) return "grid-cols-3";
+    if (options.length >= 5) return "grid-cols-2 sm:grid-cols-3";
+    return "grid-cols-2";
+  }, [options.length]);
 
+  const getOptionPercentage = (opt: { id: string; text: string; votes: number }, idx: number): number => {
+    if (resultPercentages && resultPercentages[opt.id] !== undefined) {
+      return resultPercentages[opt.id];
+    }
+    if (resultPercentages && resultPercentages[opt.text] !== undefined) {
+      return resultPercentages[opt.text];
+    }
+    if (idx === 0 && initialVote?.leftPercentage !== undefined) {
+      return Math.round(initialVote.leftPercentage);
+    }
+    if (idx === 1 && initialVote?.rightPercentage !== undefined) {
+      return Math.round(initialVote.rightPercentage);
+    }
+    return Math.round(((opt.votes || 0) / totalVotes) * 100);
+  };
 
   return (
     <motion.div
@@ -6486,38 +6615,45 @@ function DynamicPredictionCard({
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3.5 mb-4">
-          <button
-            onClick={() => handlePredict("left")}
-            disabled={predicted || isExpired || loading}
-            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "left"
-              ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-              : predicted || isExpired
-                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-              }`}
-          >
-            <span className="text-xs font-black">{pred.leftChoice.text}</span>
-            <span className="text-[10px] font-black mt-1 text-white/50">
-              {result ? `${result.leftPercentage}%` : null}
-            </span>
-          </button>
+        <div className={`grid ${gridColsClass} gap-3 mb-4`}>
+          {options.map((opt, idx) => {
+            const isSelected = selectedChoice === opt.id || selectedChoice === opt.text;
+            const isWinner = checkIsOptionWinner(opt);
+            const pct = getOptionPercentage(opt, idx);
 
-          <button
-            onClick={() => handlePredict("right")}
-            disabled={predicted || isExpired || loading}
-            className={`rounded-xl p-4 border flex flex-col items-center justify-center transition-all cursor-pointer ${selectedChoice === "right"
-              ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
-              : predicted || isExpired
-                ? "opacity-40 border-white/[0.04] bg-white/[0.01]"
-                : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
-              }`}
-          >
-            <span className="text-xs font-black">{pred.rightChoice.text}</span>
-            <span className="text-[10px] font-black mt-1 text-white/50">
-              {result ? `${result.rightPercentage}%` : null}
-            </span>
-          </button>
+            return (
+              <button
+                key={opt.id}
+                onClick={() => handlePredict(opt.id)}
+                disabled={predicted || isExpired || loading}
+                className={`rounded-xl p-3.5 border flex flex-col items-center justify-center transition-all cursor-pointer relative overflow-hidden text-center group ${isSelected
+                  ? "bg-amber-500/15 border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.15)] text-amber-400"
+                  : isExpired && isWinner
+                    ? "bg-emerald-500/15 border-emerald-500/70 text-emerald-300"
+                    : predicted || isExpired
+                      ? "opacity-40 border-white/[0.04] bg-white/[0.01] text-white/60"
+                      : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] text-white"
+                  }`}
+              >
+                <span className="text-xs font-black leading-tight break-words">{opt.text}</span>
+                {opt.multiplier !== undefined && !predicted && !isExpired && (
+                  <span className="text-[10px] font-mono text-amber-400/80 font-bold mt-0.5">
+                    {opt.multiplier}x
+                  </span>
+                )}
+                {(predicted || isExpired) && (
+                  <span className="text-[10px] font-black mt-1 font-mono text-white/50">
+                    {pct}%
+                  </span>
+                )}
+                {isExpired && isWinner && (
+                  <span className="text-[9px] text-emerald-400 font-extrabold mt-0.5">
+                    ✓ Correct
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
 
