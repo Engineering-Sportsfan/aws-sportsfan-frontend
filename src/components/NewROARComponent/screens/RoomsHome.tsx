@@ -2985,14 +2985,81 @@ import { handleGoBack } from "@/utils/backButton";
 const SPORT_GRADIENT: Record<string, string> = {
   cricket: "linear-gradient(135deg,#7c3aed,#4f46e5)",
   football: "linear-gradient(135deg,#dc2626,#b45309)",
+  hockey: "linear-gradient(135deg,#0284c7,#0369a1)",
+  "asian games": "linear-gradient(135deg,#eab308,#ca8a04)",
+  "asian-games": "linear-gradient(135deg,#eab308,#ca8a04)",
+  asian_games: "linear-gradient(135deg,#eab308,#ca8a04)",
+  asiangames: "linear-gradient(135deg,#eab308,#ca8a04)",
+  asian: "linear-gradient(135deg,#eab308,#ca8a04)",
   default: "linear-gradient(135deg,#e91e8c,#ff6b35)",
 };
 
 const SPORT_IMAGE: Record<string, string> = {
   cricket: "/images/cricket4.png",
   football: "/images/fifa2.png",
+  hockey: "/images/indiavsmalaysiahockey.png",
+  "asian games": "/images/indiavspakistangoldmedalmatch.png",
+  "asian-games": "/images/indiavspakistangoldmedalmatch.png",
+  asian_games: "/images/indiavspakistangoldmedalmatch.png",
+  asiangames: "/images/indiavspakistangoldmedalmatch.png",
+  asian: "/images/indiavspakistangoldmedalmatch.png",
   default: "/images/fifa2.png",
 };
+
+function getSportKey(room?: { sport?: string | null; name?: string | null; description?: string | null } | null): string {
+  if (!room) return "default";
+
+  const rawSport = (room.sport ?? "").toLowerCase().trim();
+  const rawName = (room.name ?? "").toLowerCase().trim();
+  const rawDesc = (room.description ?? "").toLowerCase().trim();
+  const combined = `${rawSport} ${rawName} ${rawDesc}`;
+
+  if (
+    rawSport.includes("hockey") ||
+    rawSport.includes("🏑") ||
+    combined.includes("hockey") ||
+    combined.includes("malaysia")
+  ) {
+    return "hockey";
+  }
+
+  if (
+    rawSport.includes("asian") ||
+    rawSport.includes("🥇") ||
+    combined.includes("asian") ||
+    combined.includes("asiangames") ||
+    combined.includes("gold medal") ||
+    (combined.includes("india") && combined.includes("pakistan") && !combined.includes("cricket"))
+  ) {
+    return "asian games";
+  }
+
+  if (
+    rawSport.includes("cricket") ||
+    rawSport.includes("🏏") ||
+    combined.includes("cricket") ||
+    combined.includes("t20") ||
+    combined.includes("ipl") ||
+    combined.includes("csk") ||
+    combined.includes("rcb") ||
+    combined.includes("mi")
+  ) {
+    return "cricket";
+  }
+
+  if (
+    rawSport.includes("football") ||
+    rawSport.includes("fifa") ||
+    rawSport.includes("soccer") ||
+    rawSport.includes("🌍") ||
+    combined.includes("football") ||
+    combined.includes("fifa")
+  ) {
+    return "football";
+  }
+
+  return rawSport || "default";
+}
 
 const INFINITY_ROOM_ID = "vZFu6xEApNRd1aUbDuHW";
 const SHARE_CARD_BG = "/images/roomprofilecard.png";
@@ -3298,11 +3365,11 @@ function RoomThumbnail({
   isInfinityRoom?: boolean;
   isEnded?: boolean;
 }) {
-  const sport = (room.sport ?? "default").toLowerCase();
-  const gradient = SPORT_GRADIENT[sport] ?? SPORT_GRADIENT.default;
+  const sportKey = getSportKey(room);
+  const gradient = SPORT_GRADIENT[sportKey] ?? SPORT_GRADIENT[(room.sport ?? "").toLowerCase()] ?? SPORT_GRADIENT.default;
   const imgSrc = isInfinityRoom
     ? "/images/infinityroom.png"
-    : SPORT_IMAGE[sport] ?? SPORT_IMAGE.default;
+    : SPORT_IMAGE[sportKey] ?? SPORT_IMAGE[(room.sport ?? "").toLowerCase()] ?? SPORT_IMAGE.default;
 
   return (
     <div
@@ -3364,17 +3431,30 @@ function StartRoomBanner({ onClick }: { onClick: () => void }) {
 }
 
 function SportBadge({ sport }: { sport: string }) {
-  const label = sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
+  const sportKey = getSportKey({ sport });
+  const label =
+    sportKey === "asian games"
+      ? "Asian Games"
+      : sportKey === "hockey"
+      ? "Hockey"
+      : sport.charAt(0).toUpperCase() + sport.slice(1).toLowerCase();
+
   const colors: Record<string, string> = {
     cricket: "rgba(124,58,237,0.30)",
     football: "rgba(220,38,38,0.30)",
+    hockey: "rgba(14,165,233,0.30)",
+    "asian games": "rgba(234,179,8,0.30)",
+    "asian-games": "rgba(234,179,8,0.30)",
+    asian_games: "rgba(234,179,8,0.30)",
+    asiangames: "rgba(234,179,8,0.30)",
+    asian: "rgba(234,179,8,0.30)",
     default: "rgba(233,30,140,0.25)",
   };
-  const bg = colors[sport.toLowerCase()] ?? colors.default;
+  const bg = colors[sportKey] ?? colors[sport.toLowerCase()] ?? colors.default;
 
   return (
     <span
-      className="text-[8px] font-bold uppercase tracking-wider px-1 py-1 rounded-full inline-block"
+      className="text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full inline-block"
       style={{ background: bg, color: "rgba(255,255,255,0.85)" }}
     >
       {label}
@@ -3451,7 +3531,8 @@ function RoomCard({
 
   const isEnded = matchEndAt !== undefined && matchEndAt !== null && matchEndAt < nowMs;
 
-  const sport = (room.sport ?? "default").toLowerCase();
+  const sportKey = getSportKey(room);
+  const sport = room.sport ? room.sport.toLowerCase() : sportKey;
   const presenceLoaded = presence !== undefined;
   const liveFanCount = presence?.fanCount ?? 0;
   const liveFans = presence?.fans ?? [];
@@ -3484,9 +3565,9 @@ function RoomCard({
         <RoomThumbnail room={room} isInfinityRoom={isInfinityRoom} isEnded={isEnded} />
 
         <div className="flex-1 min-w-0">
-          {sport !== "default" && !isInfinityRoom && (
+          {sportKey !== "default" && !isInfinityRoom && (
             <div className="mb-1 flex items-center gap-1.5">
-              <SportBadge sport={sport} />
+              <SportBadge sport={sportKey} />
               {isMock && (
                 <span className="text-[7px] font-bold uppercase tracking-wider px-1 py-1 rounded-full inline-block bg-[#F2B705]/20 text-[#F2B705]">
                   Internal
@@ -3546,7 +3627,7 @@ function RoomCard({
           </motion.button>
         )}
 
-        <motion.button
+        {/* <motion.button
           whileTap={{ scale: 0.96 }}
           onClick={(e) => {
             e.stopPropagation();
@@ -3554,9 +3635,8 @@ function RoomCard({
           }}
           className="flex-[0.42] py-2.5 rounded-full border border-white/15 bg-[#1a1a1e] text-white/85 text-[12px] font-bold flex items-center justify-center gap-1.5 hover:border-white/30 transition-colors duration-150"
         >
-          {/* <BarChart3 size={13} /> */}
           Recap
-        </motion.button>
+        </motion.button> */}
 
         <motion.button
           whileTap={{ scale: 0.96 }}
@@ -3610,7 +3690,7 @@ export default function RoomsHome({
   onRegisterRefresh, onRegisterReplyUpdate, onRegisterInjectPost, onRegisterOptimisticSwap,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"pulse" | "rooms">("pulse");
+  const [activeTab, setActiveTab] = useState<"rooms" | "pulse">("rooms");
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [recapRoom, setRecapRoom] = useState<Room | null>(null);
   const [recapData, setRecapData] = useState<any>(null);
@@ -3995,6 +4075,38 @@ export default function RoomsHome({
       ? `🔥 Check out ${shareRoom.name} on Sportsfan360! Join the room 👉 ${shareUrl} #StartRoaring #Sportsfan360`
       : "Check out Sportsfan360!");
 
+  const handleNativeImageShare = async () => {
+    if (!shareRoom || !cardBlob) return;
+    if (nativeShareBusy) return;
+
+    setNativeShareBusy(true);
+    try {
+      const file = new File([cardBlob], shareFileName(shareRoom), { type: "image/png" });
+
+      if (
+        typeof navigator !== "undefined" &&
+        navigator.canShare?.({ files: [file] })
+      ) {
+        try {
+          await navigator.share({
+            files: [file],
+            title: shareRoom.name,
+            text: `Check out ${shareRoom.name} on Sportsfan360 👉 ${shareUrl}`,
+          });
+          return;
+        } catch (shareErr: any) {
+          if (shareErr?.name === "AbortError") return;
+          console.error("[RoomsHome] navigator.share threw:", shareErr);
+        }
+      }
+
+      downloadBlob(cardBlob, shareFileName(shareRoom));
+      onToast("Image saved! Attach it in your chat to share.");
+    } finally {
+      setNativeShareBusy(false);
+    }
+  };
+
   const openPlatformWithTextAndImage = (openUrl: () => void, toastMsg: string) => {
     if (cardBlob && shareRoom) {
       downloadBlob(cardBlob, shareFileName(shareRoom));
@@ -4112,7 +4224,7 @@ export default function RoomsHome({
       }}
       className="lg:!bottom-0"
     >
-      {/* ── Top Tabs: Roar Pulse | My Rooms ── */}
+      {/* ── Top Tabs: Match Rooms | Roar Pulse ── */}
       <div
         style={{ flexShrink: 0, background: "var(--bg-primary, #0e0e14)" }}
         className="flex items-center justify-between px-3 pt-1 border-b border-white/[0.06]"
@@ -4131,19 +4243,25 @@ export default function RoomsHome({
 
           <button
             type="button"
-            onClick={() => setActiveTab("pulse")}
+            onClick={() => setActiveTab("rooms")}
             className="relative flex items-center gap-1.5 pb-2.5 bg-transparent border-none cursor-pointer"
           >
-            <Activity size={15} color={activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)"} />
+            <Home size={15} color={activeTab === "rooms" ? "#ff6b35" : "rgba(255,255,255,0.4)"} />
             <span
               style={{
                 fontSize: 14, fontWeight: 800,
-                color: activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)",
+                color: activeTab === "rooms" ? "#fff" : "rgba(255,255,255,0.4)",
               }}
             >
-              Roar Pulse
+              Match Rooms
             </span>
-            {activeTab === "pulse" && (
+            <span
+              className="flex items-center justify-center rounded-full text-white"
+              style={{ minWidth: 20, height: 18, fontSize: 10, fontWeight: 800, padding: "0 5px", background: "#e91e8c" }}
+            >
+              {myRoomsBadgeCount}
+            </span>
+            {activeTab === "rooms" && (
               <motion.div
                 layoutId="rooms-home-tab-underline"
                 className="absolute -bottom-[1px] left-0 right-0 h-[2px] rounded-full"
@@ -4155,25 +4273,19 @@ export default function RoomsHome({
 
         <button
           type="button"
-          onClick={() => setActiveTab("rooms")}
+          onClick={() => setActiveTab("pulse")}
           className="relative flex items-center gap-1.5 pb-2.5 bg-transparent border-none cursor-pointer"
         >
-          <Home size={15} color={activeTab === "rooms" ? "#fff" : "rgba(255,255,255,0.4)"} />
+          <Activity size={15} color={activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)"} />
           <span
             style={{
               fontSize: 14, fontWeight: 800,
-              color: activeTab === "rooms" ? "#fff" : "rgba(255,255,255,0.4)",
+              color: activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)",
             }}
           >
-            Match Rooms
+            Roar Pulse
           </span>
-          <span
-            className="flex items-center justify-center rounded-full text-white"
-            style={{ minWidth: 20, height: 18, fontSize: 10, fontWeight: 800, padding: "0 5px", background: "#e91e8c" }}
-          >
-            {myRoomsBadgeCount}
-          </span>
-          {activeTab === "rooms" && (
+          {activeTab === "pulse" && (
             <motion.div
               layoutId="rooms-home-tab-underline"
               className="absolute -bottom-[1px] left-0 right-0 h-[2px] rounded-full"
@@ -4184,8 +4296,7 @@ export default function RoomsHome({
       </div>
 
       {activeTab === "pulse" ? (
-        // <div className="flex-1 min-h-0">
-        <div className="flex-1 min-h-0 lg:pb-0 pb-8 md:pb-15">
+        <div className="flex-1 min-h-0 flex flex-col h-full overflow-hidden">
           {/* <DiscussionRoom
             roomId={PULSE_ROOM_ID}
             roomName={PULSE_ROOM_NAME}
@@ -4221,7 +4332,7 @@ export default function RoomsHome({
         </div>
       ) : (
         <>
-          <div
+          {/* <div
             style={{
               flexShrink: 0,
               padding: "10px 16px 10px",
@@ -4229,7 +4340,7 @@ export default function RoomsHome({
             }}
           >
             <p className="text-[15px] font-bold text-white">Roar Rooms</p>
-          </div>
+          </div> */}
 
           <div
             ref={scrollRef}
@@ -4244,7 +4355,7 @@ export default function RoomsHome({
             }}
           >
 
-            <StartRoomBanner onClick={() => setShowCreateRoom(true)} />
+            {/* <StartRoomBanner onClick={() => setShowCreateRoom(true)} /> */}
 
             {allRooms.map((room, i) => (
               <RoomCard

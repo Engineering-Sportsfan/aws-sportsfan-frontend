@@ -451,6 +451,8 @@ import {
 const SPORTS = [
   { label: "Cricket", emoji: "🏏" },
   { label: "Football", emoji: "🌍" },
+  { label: "Hockey", emoji: "🏑" },
+  { label: "Asian Games", emoji: "🥇" },
   { label: "Tennis", emoji: "🎾" },
   { label: "Kabaddi", emoji: "💪" },
   { label: "Formula 1", emoji: "🏎️" },
