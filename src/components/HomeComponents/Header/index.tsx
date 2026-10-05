@@ -1463,8 +1463,21 @@ export default function Header() {
     };
     fetchMainUnread();
     const interval = setInterval(fetchMainUnread, 30000);
-    return () => clearInterval(interval);
-  }, [authReady, user?.email, user?.userId]);
+
+    const handleNotifUpdate = (e: any) => {
+      if (e?.detail?.all || e?.detail?.cleared) {
+        setMainUnreadCount(0);
+      } else {
+        fetchMainUnread();
+      }
+    };
+    window.addEventListener("sf360:notifications-read", handleNotifUpdate);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("sf360:notifications-read", handleNotifUpdate);
+    };
+  }, [authReady, user?.email, user?.userId, fetchMainUnread]);
 
   // Only show unread count from the DynamoDB-backed notifications API
   const totalUnreadNotifications = mainUnreadCount;

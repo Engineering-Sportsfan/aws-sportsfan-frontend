@@ -379,9 +379,8 @@ import StoreAndExperiences from "@/src/components/NewHomeComponents/StoreAndExpe
 import PlaybookDrops from "@/src/components/NewHomeComponents/PlaybookDrops";
 import AthleticsSpotlight from "@/src/components/NewHomeComponents/AthleticsSpotlight";
 import AskFlip from "@/src/components/NewHomeComponents/AskFlip";
-import FlipCard from "@/src/components/NewHomeComponents/FlipCard";
 import FlipLine from "@/src/components/NewHomeComponents/FlipLine";
-import WelcomeMessage from "@/src/components/NewHomeComponents/WelcomeMessage";
+import FlipBOARD from "@/src/components/NewHomeComponents/FlipBOARD";
 import Onboarding from "@/src/components/NewROARComponent/screens/Onboarding";
 import { useAuth } from "@/context/AuthContext";
 import Greetings from "@/src/components/NewHomeComponents/Greetings";
@@ -835,7 +834,7 @@ function HomePageInner() {
         /> */}
         <Greetings />
         <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
-        <WelcomeMessage />
+        <FlipBOARD />
         <FlipLine selectedSport={selectedSport} />
         <WatchAlongSessions />
         {/* <AthleticsSpotlight sport={selectedSport} /> */}
