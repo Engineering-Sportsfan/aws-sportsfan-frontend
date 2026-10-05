@@ -366,8 +366,9 @@ export function cleanAiResponse(rawAnswer: string, question?: string): string {
 export const welcomeMessageService = {
   async getWelcomeData(): Promise<WelcomeMessageDataResponse | null> {
     try {
-      const res = await axios.get("/api/welcomemessage", {
+      const res = await axios.get(`/api/welcomemessage?_t=${Date.now()}`, {
         timeout: 8000,
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       });
 
       if (res.data?.success && res.data?.data) {
@@ -382,7 +383,10 @@ export const welcomeMessageService = {
 
   async getMorningBriefStories(): Promise<MorningBriefStory[]> {
     try {
-      const res = await axios.get("/api/welcomemessage?type=morning_brief", { timeout: 6000 });
+      const res = await axios.get(`/api/welcomemessage?type=morning_brief&_t=${Date.now()}`, {
+        timeout: 6000,
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      });
       if (res.data?.success && Array.isArray(res.data?.items)) {
         return res.data.items;
       }
@@ -394,7 +398,10 @@ export const welcomeMessageService = {
 
   async getTodaysAgendaEvents(): Promise<AgendaEventItem[]> {
     try {
-      const res = await axios.get("/api/welcomemessage?type=todays_agenda", { timeout: 6000 });
+      const res = await axios.get(`/api/welcomemessage?type=todays_agenda&_t=${Date.now()}`, {
+        timeout: 6000,
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      });
       if (res.data?.success && Array.isArray(res.data?.items)) {
         return res.data.items;
       }
