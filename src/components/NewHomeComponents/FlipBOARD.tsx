@@ -199,26 +199,6 @@ function parseOptionLabelAndCountry(opt: { id?: string; text?: string; label?: s
   return { text, country };
 }
 
-const DEFAULT_FALLBACK_POLL: EngagementItem = {
-  id: "default_poll_today",
-  type: "poll",
-  title: "Who wins Gold in Women's Badminton today?",
-  status: "active",
-  likes: 24,
-  shares: 6,
-  totalEngaged: 120,
-  createdAt: Date.now(),
-  updatedAt: Date.now(),
-  pollData: {
-    question: "Who wins Gold in Women's Badminton today?",
-    totalVotes: 120,
-    options: [
-      { id: "opt_0", text: "P.V. Sindhu", votes: 48 },
-      { id: "opt_1", text: "Chen Yufei", votes: 32 },
-      { id: "opt_2", text: "Akane Yamaguchi", votes: 20 },
-    ],
-  },
-};
 
 // ─── Rich Default Data for Fallbacks ─────────────────────────────────────────
 const DEFAULT_BRIEF_STORIES: MorningBriefStory[] =[];
@@ -302,9 +282,7 @@ export default function FlipBOARD({
   // Poll State (from FlipArena - Latest Poll only)
   const [latestPoll, setLatestPoll] = useState<EngagementItem | null>(null);
   const [pollOptions, setPollOptions] = useState<Array<{ id: string; text: string; country?: string; votes: number }>>([
-    { id: "opt_0", text: "P.V. Sindhu", country: "IN", votes: 48 },
-    { id: "opt_1", text: "Chen Yufei", country: "CN", votes: 32 },
-    { id: "opt_2", text: "Akane Yamaguchi", country: "JP", votes: 20 },
+   
   ]);
   const [selectedPollOptionId, setSelectedPollOptionId] = useState<string | null>(null);
   const [hasVotedPoll, setHasVotedPoll] = useState(false);
@@ -490,12 +468,9 @@ export default function FlipBOARD({
             })
             .catch(() => {});
         }
-      } else {
-        setLatestPoll(DEFAULT_FALLBACK_POLL);
       }
     } catch (err) {
       console.warn("[FlipBOARD] Error fetching latest poll from FlipArena:", err);
-      setLatestPoll(DEFAULT_FALLBACK_POLL);
     } finally {
       setLoadingLatestPoll(false);
     }
@@ -1168,8 +1143,7 @@ export default function FlipBOARD({
               <h4 className="text-[13.5px] sm:text-[14px] font-extrabold text-white leading-snug">
                 {latestPoll?.pollData?.question ||
                   (latestPoll as any)?.question ||
-                  latestPoll?.title ||
-                  "Who wins Gold in Women's Badminton today?"}
+                  latestPoll?.title}
               </h4>
 
               {/* Poll Options */}
