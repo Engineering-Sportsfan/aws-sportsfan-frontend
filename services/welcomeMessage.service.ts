@@ -53,6 +53,16 @@ export interface AgendaEventItem {
   summary?: string;
   order?: number;
   active?: boolean;
+  // Optional Dynamic Action CTAs
+  predictId?: string;
+  predictTitle?: string;
+  predictUrl?: string;
+  discussPostId?: string;
+  discussTitle?: string;
+  discussUrl?: string;
+  debateRoomId?: string;
+  debateTitle?: string;
+  debateUrl?: string;
 }
 
 /**
@@ -306,6 +316,16 @@ export interface MorningBriefStory {
   icon: string;
   order?: number;
   active?: boolean;
+  // Dynamic Action CTAs (Admin configured)
+  predictId?: string;
+  predictTitle?: string;
+  predictUrl?: string;
+  discussPostId?: string;
+  discussTitle?: string;
+  discussUrl?: string;
+  debateRoomId?: string;
+  debateTitle?: string;
+  debateUrl?: string;
 }
 
 export interface WelcomeConfig {
