@@ -5963,7 +5963,22 @@ function DynamicPollCard({
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{item.title}</p>
+      {(() => {
+        const pollTitle = item.title?.trim() || "";
+        const pollQuestion = (item.pollData?.question || (item as any).question || "").trim();
+        const showBoth = pollTitle && pollQuestion && pollTitle.toLowerCase() !== pollQuestion.toLowerCase();
+
+        return showBoth ? (
+          <div className="mb-3.5 space-y-1">
+            <h4 className="text-[13px] font-extrabold text-white leading-snug">{pollTitle}</h4>
+            <p className="text-xs font-semibold text-white/80 leading-relaxed">{pollQuestion}</p>
+          </div>
+        ) : (
+          <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">
+            {pollQuestion || pollTitle}
+          </p>
+        );
+      })()}
 
       {isScheduled ? (
         <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center my-2 space-y-1">
@@ -6604,7 +6619,22 @@ function DynamicPredictionCard({
         </div>
       </div>
 
-      <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">{pred.question || item.title}</p>
+      {(() => {
+        const predTitle = item.title?.trim() || "";
+        const predQuestion = (pred.question || (item as any).question || "").trim();
+        const showBoth = predTitle && predQuestion && predTitle.toLowerCase() !== predQuestion.toLowerCase();
+
+        return showBoth ? (
+          <div className="mb-3.5 space-y-1">
+            <h4 className="text-[13px] font-extrabold text-white leading-snug">{predTitle}</h4>
+            <p className="text-xs font-semibold text-white/80 leading-relaxed">{predQuestion}</p>
+          </div>
+        ) : (
+          <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">
+            {predQuestion || predTitle}
+          </p>
+        );
+      })()}
 
       {isScheduled ? (
         <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-center my-2 space-y-1">
