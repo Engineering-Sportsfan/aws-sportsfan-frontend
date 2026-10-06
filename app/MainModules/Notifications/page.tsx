@@ -18,6 +18,8 @@ import {
   ArrowLeft,
   Trash2,
   X,
+  Bell,
+  Calendar,
 } from "lucide-react";
 import { handleGoBack } from "@/utils/backButton";
 
@@ -39,6 +41,7 @@ const TOKENS = {
 const FEATURE_META: Record<string, { icon: any; label: string }> = {
   fliparena: { icon: Swords, label: "Flip Arena" },
   flipline: { icon: MessageSquare, label: "FlipLINE" },
+  schedule: { icon: Trophy, label: "Schedule & Live" },
   store: { icon: Info, label: "Store" },
   reward: { icon: Star, label: "Rewards" },
   general: { icon: AlertCircle, label: "General" }
@@ -143,7 +146,52 @@ export default function NotificationCenter() {
     const uidParam = effectiveUid;
     const actualIdParam = effectiveActualUserId;
 
+    const lastAllReadAt = typeof window !== "undefined" ? Number(localStorage.getItem("notifications_all_read_at") || 0) : 0;
+    const lastAllClearedAt = typeof window !== "undefined" ? Number(localStorage.getItem("notifications_all_cleared_at") || 0) : 0;
+    let clearedIds: string[] = [];
+    try {
+      clearedIds = JSON.parse(localStorage.getItem("notifications_cleared_ids") || "[]");
+    } catch {}
+
+    const dedupeMap = new Map<string, any>();
+
+    const addNotifToMap = (notif: any) => {
+      const key = getClientDedupeKey(notif);
+      const notifId = notif.id || notif.notification_id;
+      const notifTime = new Date(notif.sent_at || notif.createdAt || 0).getTime();
+
+      // Skip if previously cleared by this user
+      if (notifId && clearedIds.includes(notifId)) return;
+      if (lastAllClearedAt > 0 && notifTime > 0 && notifTime <= lastAllClearedAt) return;
+
+      const isMarkedReadLocally = lastAllReadAt > 0 && notifTime > 0 && notifTime <= lastAllReadAt;
+
+      if (!dedupeMap.has(key)) {
+        const isRead = isMarkedReadLocally || Boolean(notif.isRead !== undefined ? notif.isRead : notif.read);
+        dedupeMap.set(key, { ...notif, isRead, read: isRead });
+      } else {
+        const existing = dedupeMap.get(key);
+        const isExistingRead = Boolean(existing.isRead !== undefined ? existing.isRead : existing.read);
+        const isCurrentRead = Boolean(notif.isRead !== undefined ? notif.isRead : notif.read);
+        const isRead = isMarkedReadLocally || isExistingRead || isCurrentRead;
+        dedupeMap.set(key, { ...existing, ...notif, isRead, read: isRead });
+      }
+    };
+
+    // 1. Load locally stored scheduled & live match reminder notifications
+    if (typeof window !== "undefined") {
+      try {
+        const userStorageKey = `sf_reminder_notifications_${uidParam || emailParam || actualIdParam || "anon"}`;
+        const localList: any[] = JSON.parse(localStorage.getItem(userStorageKey) || "[]");
+        const globalList: any[] = JSON.parse(localStorage.getItem("sf_reminder_notifications") || "[]");
+        [...localList, ...globalList].forEach(addNotifToMap);
+      } catch (e) {
+        console.warn("[Notifications] Local storage load notice:", e);
+      }
+    }
+
     if (!emailParam && !uidParam && !actualIdParam) {
+      setItems(Array.from(dedupeMap.values()));
       setLoading(false);
       setIsRefreshing(false);
       return;
@@ -161,41 +209,18 @@ export default function NotificationCenter() {
       });
       const data = await res.json();
       if (data.success && Array.isArray(data.notifications)) {
-        const lastAllReadAt = typeof window !== "undefined" ? Number(localStorage.getItem("notifications_all_read_at") || 0) : 0;
-        const lastAllClearedAt = typeof window !== "undefined" ? Number(localStorage.getItem("notifications_all_cleared_at") || 0) : 0;
-        let clearedIds: string[] = [];
-        try {
-          clearedIds = JSON.parse(localStorage.getItem("notifications_cleared_ids") || "[]");
-        } catch {}
-
-        const dedupeMap = new Map<string, any>();
-        for (const notif of data.notifications) {
-          const key = getClientDedupeKey(notif);
-          const notifId = notif.id || notif.notification_id;
-          const notifTime = new Date(notif.sent_at || notif.createdAt || 0).getTime();
-
-          // Skip if previously cleared by this user
-          if (notifId && clearedIds.includes(notifId)) continue;
-          if (lastAllClearedAt > 0 && notifTime > 0 && notifTime <= lastAllClearedAt) continue;
-
-          const isMarkedReadLocally = lastAllReadAt > 0 && notifTime > 0 && notifTime <= lastAllReadAt;
-
-          if (!dedupeMap.has(key)) {
-            const isRead = isMarkedReadLocally || Boolean(notif.isRead !== undefined ? notif.isRead : notif.read);
-            dedupeMap.set(key, { ...notif, isRead, read: isRead });
-          } else {
-            const existing = dedupeMap.get(key);
-            const isExistingRead = Boolean(existing.isRead !== undefined ? existing.isRead : existing.read);
-            const isCurrentRead = Boolean(notif.isRead !== undefined ? notif.isRead : notif.read);
-            const isRead = isMarkedReadLocally || isExistingRead || isCurrentRead;
-            dedupeMap.set(key, { ...existing, ...notif, isRead, read: isRead });
-          }
-        }
-        setItems(Array.from(dedupeMap.values()));
+        data.notifications.forEach(addNotifToMap);
       }
     } catch (err) {
       console.error("Failed to fetch notifications:", err);
     } finally {
+      // Sort newest first by sent_at / createdAt
+      const sorted = Array.from(dedupeMap.values()).sort((a, b) => {
+        const timeA = new Date(a.sent_at || a.createdAt || 0).getTime();
+        const timeB = new Date(b.sent_at || b.createdAt || 0).getTime();
+        return timeB - timeA;
+      });
+      setItems(sorted);
       setLoading(false);
       setIsRefreshing(false);
     }
@@ -239,6 +264,15 @@ export default function NotificationCenter() {
       feature_area = "fliparena";
     } else if (nType.startsWith("flipline") || nType.includes("flipline")) {
       feature_area = "flipline";
+    } else if (
+      nType.includes("schedule") ||
+      nType.includes("reminder") ||
+      nType.includes("match") ||
+      nType.includes("live") ||
+      n.category === "schedule" ||
+      n.category === "reminder"
+    ) {
+      feature_area = "schedule";
     } else if (nType.startsWith("store") || n.category === "store") {
       feature_area = "store";
     } else if (
@@ -336,6 +370,8 @@ export default function NotificationCenter() {
     const now = Date.now();
     if (typeof window !== "undefined") {
       localStorage.setItem("notifications_all_cleared_at", String(now));
+      localStorage.removeItem(`sf_reminder_notifications_${effectiveUid || effectiveEmail || "anon"}`);
+      localStorage.removeItem("sf_reminder_notifications");
       window.dispatchEvent(new CustomEvent("sf360:notifications-read", { detail: { all: true, cleared: true } }));
     }
     setItems([]);
@@ -376,6 +412,15 @@ export default function NotificationCenter() {
           existing.push(notifId);
           localStorage.setItem("notifications_cleared_ids", JSON.stringify(existing));
         }
+
+        const userStorageKey = `sf_reminder_notifications_${effectiveUid || effectiveEmail || "anon"}`;
+        const localList: any[] = JSON.parse(localStorage.getItem(userStorageKey) || "[]");
+        const filteredLocal = localList.filter((n) => n.id !== notifId && n.notification_id !== notifId);
+        localStorage.setItem(userStorageKey, JSON.stringify(filteredLocal));
+
+        const allList: any[] = JSON.parse(localStorage.getItem("sf_reminder_notifications") || "[]");
+        const filteredAll = allList.filter((n) => n.id !== notifId && n.notification_id !== notifId);
+        localStorage.setItem("sf_reminder_notifications", JSON.stringify(filteredAll));
       } catch {}
       window.dispatchEvent(new CustomEvent("sf360:notifications-read", { detail: { notifId, cleared: true } }));
     }

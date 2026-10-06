@@ -651,7 +651,7 @@ export default function ArenaEngagementModal({
   return createPortal(
     <AnimatePresence>
       <div
-        className="fixed inset-0 z-[100000] flex items-center justify-center p-2.5 sm:p-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-[max(0.625rem,env(safe-area-inset-bottom))] bg-black/85 backdrop-blur-md overflow-hidden"
+        className="fixed inset-0 z-[9999999] flex items-center justify-center p-2.5 sm:p-4 pt-[max(0.625rem,env(safe-area-inset-top))] pb-[max(0.625rem,env(safe-area-inset-bottom))] bg-black/85 backdrop-blur-md overflow-hidden"
         onClick={(e) => {
           if (e.target === e.currentTarget && !createdSuccess) onClose();
         }}
