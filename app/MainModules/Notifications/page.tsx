@@ -3,7 +3,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Check, Circle, AlertCircle, Info, Star, Swords, MessageSquare, Flame, Trophy, Sparkles, RefreshCw, ArrowLeft } from "lucide-react";
+import {
+  Check,
+  Circle,
+  AlertCircle,
+  Info,
+  Star,
+  Swords,
+  MessageSquare,
+  Flame,
+  Trophy,
+  Sparkles,
+  RefreshCw,
+  ArrowLeft,
+  Trash2,
+  X,
+} from "lucide-react";
 import { handleGoBack } from "@/utils/backButton";
 
 const TOKENS = {
@@ -147,10 +162,22 @@ export default function NotificationCenter() {
       const data = await res.json();
       if (data.success && Array.isArray(data.notifications)) {
         const lastAllReadAt = typeof window !== "undefined" ? Number(localStorage.getItem("notifications_all_read_at") || 0) : 0;
+        const lastAllClearedAt = typeof window !== "undefined" ? Number(localStorage.getItem("notifications_all_cleared_at") || 0) : 0;
+        let clearedIds: string[] = [];
+        try {
+          clearedIds = JSON.parse(localStorage.getItem("notifications_cleared_ids") || "[]");
+        } catch {}
+
         const dedupeMap = new Map<string, any>();
         for (const notif of data.notifications) {
           const key = getClientDedupeKey(notif);
+          const notifId = notif.id || notif.notification_id;
           const notifTime = new Date(notif.sent_at || notif.createdAt || 0).getTime();
+
+          // Skip if previously cleared by this user
+          if (notifId && clearedIds.includes(notifId)) continue;
+          if (lastAllClearedAt > 0 && notifTime > 0 && notifTime <= lastAllClearedAt) continue;
+
           const isMarkedReadLocally = lastAllReadAt > 0 && notifTime > 0 && notifTime <= lastAllReadAt;
 
           if (!dedupeMap.has(key)) {
@@ -186,8 +213,6 @@ export default function NotificationCenter() {
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [fetchNotifications]);
-
-  const unreadCount = items.filter((n) => !(n.isRead !== undefined ? n.isRead : n.read)).length;
 
   // Normalize feature area mapping & client-side deduplication guarantee
   const dedupeClientMap = new Map<string, any>();
@@ -237,14 +262,20 @@ export default function NotificationCenter() {
     };
   });
 
+  const unreadCount = itemsWithFeature.filter((n) => !n.isRead).length;
+
   const featuresPresent = Array.from(new Set(itemsWithFeature.map((n) => n.feature_area)));
   const visible = itemsWithFeature.filter(
     (n) => filter === "all" || n.feature_area === filter
   );
 
   async function markRead(notification: any, ctaClicked = false) {
+    // If already read, never reduce the counter or re-trigger
+    if (notification.isRead && !ctaClicked) return;
+
     const notifId = notification.id || notification.notification_id;
     const targetKey = getClientDedupeKey(notification);
+
     // Optimistic update — mark as read and optionally cta_clicked ONLY for this notification
     setItems((prev) =>
       prev.map((n) =>
@@ -253,6 +284,11 @@ export default function NotificationCenter() {
           : n
       )
     );
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("sf360:notifications-read", { detail: { notifId } }));
+    }
+
     try {
       await fetch("/api/notifications", {
         method: "PATCH",
@@ -276,6 +312,7 @@ export default function NotificationCenter() {
   async function markAllRead() {
     if (typeof window !== "undefined") {
       localStorage.setItem("notifications_all_read_at", String(Date.now()));
+      window.dispatchEvent(new CustomEvent("sf360:notifications-read", { detail: { all: true } }));
     }
     setItems((prev) => prev.map((n) => ({ ...n, isRead: true, read: true })));
     try {
@@ -294,6 +331,72 @@ export default function NotificationCenter() {
     }
   }
 
+  async function clearAllNotifications() {
+    if (items.length === 0) return;
+    const now = Date.now();
+    if (typeof window !== "undefined") {
+      localStorage.setItem("notifications_all_cleared_at", String(now));
+      window.dispatchEvent(new CustomEvent("sf360:notifications-read", { detail: { all: true, cleared: true } }));
+    }
+    setItems([]);
+    try {
+      await fetch("/api/notifications", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          all: true,
+          email: effectiveEmail,
+          userId: effectiveUid,
+        })
+      });
+    } catch (err) {
+      console.error("Failed to clear all notifications:", err);
+    }
+  }
+
+  async function clearSingleNotification(notification: any, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    const notifId = notification.id || notification.notification_id;
+    const targetKey = getClientDedupeKey(notification);
+
+    setItems((prev) =>
+      prev.filter(
+        (n) =>
+          n.id !== notifId &&
+          n.notification_id !== notifId &&
+          (!targetKey || getClientDedupeKey(n) !== targetKey)
+      )
+    );
+
+    if (typeof window !== "undefined") {
+      try {
+        const existing = JSON.parse(localStorage.getItem("notifications_cleared_ids") || "[]");
+        if (notifId && !existing.includes(notifId)) {
+          existing.push(notifId);
+          localStorage.setItem("notifications_cleared_ids", JSON.stringify(existing));
+        }
+      } catch {}
+      window.dispatchEvent(new CustomEvent("sf360:notifications-read", { detail: { notifId, cleared: true } }));
+    }
+
+    try {
+      await fetch("/api/notifications", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          id: notifId,
+          sk: notification.SK || notification.sk,
+          email: effectiveEmail,
+          userId: effectiveUid,
+        })
+      });
+    } catch (err) {
+      console.error("Failed to delete notification:", err);
+    }
+  }
+
   async function handleCta(n: any) {
     await markRead(n, true);
     const target = n.cta_target || n.ctaTarget;
@@ -305,7 +408,7 @@ export default function NotificationCenter() {
   return (
     <div
       style={{ background: TOKENS.bg, minHeight: "100vh" }}
-      className="w-full p-6 font-sans"
+      className="w-full p-4 sm:p-6 font-sans"
     >
       <div
         className="w-full max-w-3xl mx-auto rounded-2xl overflow-hidden shadow-2xl"
@@ -316,10 +419,10 @@ export default function NotificationCenter() {
       >
         {/* Header */}
         <div
-          className="flex items-center justify-between px-5 py-4"
+          className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-4"
           style={{ borderBottom: `1px solid ${TOKENS.border}` }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => handleGoBack(router)}
               data-nav="back"
@@ -344,7 +447,7 @@ export default function NotificationCenter() {
             </button>
 
             <span
-              className="uppercase text-xs font-black tracking-widest"
+              className="uppercase text-xs sm:text-sm font-black tracking-widest truncate"
               style={{
                 color: TOKENS.textPrimary,
                 letterSpacing: "0.14em",
@@ -354,10 +457,11 @@ export default function NotificationCenter() {
             </span>
 
             <span
-              className="font-mono text-xs font-bold px-2 py-0.5 rounded"
+              className="font-mono text-xs font-bold px-2 py-0.5 rounded shrink-0"
               style={{
-                background: TOKENS.borderSoft,
-                color: TOKENS.gold,
+                background: unreadCount > 0 ? "rgba(255, 215, 0, 0.15)" : TOKENS.borderSoft,
+                color: unreadCount > 0 ? TOKENS.gold : TOKENS.textFaint,
+                border: unreadCount > 0 ? "1px solid rgba(255, 215, 0, 0.3)" : "none",
               }}
             >
               {String(unreadCount).padStart(2, "0")} NEW
@@ -367,34 +471,47 @@ export default function NotificationCenter() {
               onClick={() => fetchNotifications(true)}
               disabled={isRefreshing}
               title="Refresh Notifications"
-              className="p-1 rounded-full text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-full text-zinc-400 hover:text-white transition-colors cursor-pointer shrink-0"
             >
               <RefreshCw size={13} className={isRefreshing ? "animate-spin text-amber-400" : ""} />
             </button>
           </div>
 
-          {unreadCount > 0 && (
-            <button
-              onClick={markAllRead}
-              className="flex items-center gap-1 text-xs font-semibold transition-colors cursor-pointer"
-              style={{ color: TOKENS.textMuted }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.color = TOKENS.textPrimary)
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.color = TOKENS.textMuted)
-              }
-            >
-              <Check size={13} />
-              Mark all read
-            </button>
-          )}
+          {/* Action Buttons: Mark all read & Clear all */}
+          <div className="flex items-center gap-2 shrink-0">
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/[0.05] hover:bg-white/10 border border-white/10 transition-colors cursor-pointer"
+                style={{ color: TOKENS.textMuted }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.color = TOKENS.textPrimary)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.color = TOKENS.textMuted)
+                }
+              >
+                <Check size={13} />
+                <span>Mark all read</span>
+              </button>
+            )}
+
+            {items.length > 0 && (
+              <button
+                onClick={clearAllNotifications}
+                className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 hover:text-white transition-colors cursor-pointer"
+              >
+                <Trash2 size={13} />
+                <span>Clear all</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Feature filters */}
         {featuresPresent.length > 1 && (
           <div
-            className="flex items-center gap-1.5 px-4 py-2.5 overflow-x-auto"
+            className="flex items-center gap-1.5 px-4 py-2.5 overflow-x-auto scrollbar-none"
             style={{ borderBottom: `1px solid ${TOKENS.borderSoft}` }}
           >
             <Chip
@@ -414,7 +531,7 @@ export default function NotificationCenter() {
           </div>
         )}
 
-        {/* Notifications */}
+        {/* Notifications list */}
         <div className="max-h-[calc(100vh-180px)] overflow-y-auto">
           {authLoading && !effectiveEmail && !effectiveUid ? (
             <div className="py-10 flex flex-col items-center gap-2">
@@ -488,7 +605,7 @@ export default function NotificationCenter() {
                 className="text-xs"
                 style={{ color: TOKENS.textFaint }}
               >
-                Nothing here yet — create or participate in FlipArena cards to trigger notifications!
+                Nothing here right now — you&apos;re completely up to date!
               </span>
             </div>
           ) : (
@@ -507,7 +624,7 @@ export default function NotificationCenter() {
                   onClick={() =>
                     !n.isRead && markRead(n)
                   }
-                  className="relative flex gap-3 px-4 py-3.5 cursor-pointer transition-colors"
+                  className="relative flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors group"
                   style={{
                     borderBottom: `1px solid ${TOKENS.borderSoft}`,
                     background: n.isRead
@@ -524,7 +641,7 @@ export default function NotificationCenter() {
                   }
                 >
                   <div
-                    className="w-[3px] rounded-full shrink-0"
+                    className="w-[3px] self-stretch rounded-full shrink-0"
                     style={{
                       background:
                         PRIORITY_COLOR[n.priority] ?? TOKENS.low,
@@ -551,16 +668,9 @@ export default function NotificationCenter() {
                         strokeWidth={2}
                       />
                     )}
-
-                    {n.live && (
-                      <span
-                        className="absolute -top-1 -right-1 w-2 h-2 rounded-full animate-pulse"
-                        style={{ background: TOKENS.green }}
-                      />
-                    )}
                   </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 pr-6">
                     <div className="flex items-start justify-between gap-2">
                       <span
                         className="text-sm font-bold leading-snug"
@@ -601,12 +711,26 @@ export default function NotificationCenter() {
                     )}
                   </div>
 
-                  {!n.isRead && (
-                    <span
-                      className="absolute top-4 right-4 w-1.5 h-1.5 rounded-full"
-                      style={{ background: TOKENS.green }}
-                    />
-                  )}
+                  {/* Actions column on right: Green dot if unread + Dismiss (X) */}
+                  <div className="flex items-center gap-2 shrink-0 pt-0.5">
+                    {!n.isRead && (
+                      <span
+                        title="Unread notification"
+                        className="w-2 h-2 rounded-full shrink-0 shadow-[0_0_8px_#00c864]"
+                        style={{ background: TOKENS.green }}
+                      />
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={(e) => clearSingleNotification(n, e)}
+                      title="Dismiss notification"
+                      aria-label="Dismiss notification"
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 p-1 rounded hover:bg-white/10 text-zinc-400 hover:text-rose-400 transition-all cursor-pointer"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </div>
               );
             })
