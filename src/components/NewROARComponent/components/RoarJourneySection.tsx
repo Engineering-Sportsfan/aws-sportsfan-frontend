@@ -111,18 +111,38 @@ function buildShareText(
     const origin = typeof window !== "undefined" ? window.location.origin : "https://sportsfan-frontend.vercel.app";
     const url = shareUrl || `${origin}/MainModules/Profile`;
     
-    const badgesSection = badgeNames.length > 0
-        ? [
-            `🏅 Badges Earned (${badgeNames.length}):`,
-            ...badgeNames.map((name, idx) => {
-                const src = badgeSrcs[idx];
-                const fullSrc = src ? (src.startsWith("http") ? src : `${origin}${src.startsWith("/") ? "" : "/"}${src}`) : "";
-                return fullSrc ? `  🎖️ ${name}: ${fullSrc}` : `  🎖️ ${name}`;
-            }),
-          ]
-        : badgeCount > 0
-        ? [`🏅 Badges Earned: ${badgeCount}`]
-        : [];
+    const ROOKIE_FAN_BADGE_SRC = "/images/badges/rookiefan.png";
+    const ROOKIE_FAN_BADGE_NAME = "Rookie Fan";
+
+    // Find badges that are not rookie fan
+    const otherBadgeIndices = badgeSrcs
+        .map((src, idx) => ({ src, idx }))
+        .filter(({ src }) => src && !src.toLowerCase().includes("rookiefan"));
+
+    let latestName = ROOKIE_FAN_BADGE_NAME;
+    let latestSrc = ROOKIE_FAN_BADGE_SRC;
+
+    if (otherBadgeIndices.length > 0) {
+        const last = otherBadgeIndices[otherBadgeIndices.length - 1];
+        latestSrc = last.src || ROOKIE_FAN_BADGE_SRC;
+        latestName = badgeNames[last.idx] || "Badge";
+    } else if (badgeNames.length > 0 && badgeSrcs.length > 0) {
+        const rookieIdx = badgeSrcs.findIndex((s) => s && s.toLowerCase().includes("rookiefan"));
+        if (rookieIdx !== -1) {
+            latestName = badgeNames[rookieIdx] || ROOKIE_FAN_BADGE_NAME;
+            latestSrc = badgeSrcs[rookieIdx] || ROOKIE_FAN_BADGE_SRC;
+        } else {
+            latestName = badgeNames[badgeNames.length - 1] || ROOKIE_FAN_BADGE_NAME;
+            latestSrc = badgeSrcs[badgeSrcs.length - 1] || ROOKIE_FAN_BADGE_SRC;
+        }
+    }
+
+    const fullSrc = latestSrc ? (latestSrc.startsWith("http") ? latestSrc : `${origin}${latestSrc.startsWith("/") ? "" : "/"}${latestSrc}`) : "";
+
+    const badgesSection = [
+        "🏅 Badge Earned:",
+        fullSrc ? `  🎖️ ${latestName}: ${fullSrc}` : `  🎖️ ${latestName}`,
+    ];
 
     const titleLine = username ? `🔥 ${username}'s Sportsfan360 Journey` : "🔥 My Sportsfan360 Journey";
 
@@ -185,6 +205,17 @@ export function RoarJourneySection({
     const [bgFailed, setBgFailed] = useState(false);
 
     const shareUrl = resolveProfileShareUrl(userId, username);
+
+    const ROOKIE_FAN_BADGE_SRC = "/images/badges/rookiefan.png";
+    const otherBadges = (badgeSrcs || []).filter(
+        (src) => src && !src.toLowerCase().includes("rookiefan")
+    );
+    const latestBadgeSrc =
+        otherBadges.length > 0
+            ? otherBadges[otherBadges.length - 1]
+            : (badgeSrcs?.find((src) => src && src.toLowerCase().includes("rookiefan")) || ROOKIE_FAN_BADGE_SRC);
+
+    const displayedBadges = latestBadgeSrc ? [latestBadgeSrc] : [ROOKIE_FAN_BADGE_SRC];
 
     // Detect mobile
     useEffect(() => {
@@ -406,7 +437,7 @@ export function RoarJourneySection({
         ctx.textAlign = "center";
         ctx.fillText("BADGES EARNED", cardX + cardW / 2, cardY + 132);
 
-        const validBadgeSrcs = badgeSrcs.filter(Boolean).slice(0, 8);
+        const validBadgeSrcs = displayedBadges.filter(Boolean);
         if (validBadgeSrcs.length > 0) {
             const loadedBadgeImages = await Promise.all(
                 validBadgeSrcs.map((src) => loadCanvasImage(src))
@@ -504,7 +535,6 @@ export function RoarJourneySection({
         }
     };
 
-    const displayedBadges = badgeSrcs.slice(0, 4);
 
     return (
         <div style={{ padding: "0 14px 18px" }}>
