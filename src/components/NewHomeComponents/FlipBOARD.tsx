@@ -45,7 +45,11 @@ import {
   cleanAiResponse,
 } from "@/services/welcomeMessage.service";
 import ArenaEngagementModal from "./ArenaEngagementModal";
-import type { EngagementType } from "@/types/engagements";
+import CreatePostDialog from "../CreatePost-Component/CreatePostDialog";
+import axios from "axios";
+import type { EngagementType, EngagementItem } from "@/types/engagements";
+import { useAuth } from "@/context/AuthContext";
+import { engagementService } from "@/services/engagement.service";
 
 export type { RadarCardItem, AgendaEventItem, MorningBriefStory, WelcomeConfig };
 
@@ -86,54 +90,118 @@ function formatAiAnswerText(text: string | null) {
   );
 }
 
+// ─── Single-Vote Local Persistence Helpers ──────────────────────────────────
+function getStoredVote(type: string, itemId: string, userId?: string): any {
+  if (typeof window === "undefined") return null;
+  try {
+    if (userId) {
+      const u = localStorage.getItem(`sf_${type}_voted_${itemId}_${userId}`);
+      if (u) return JSON.parse(u);
+    }
+    const d = localStorage.getItem(`sf_${type}_voted_${itemId}`);
+    if (d) return JSON.parse(d);
+  } catch {}
+  return null;
+}
+
+function setStoredVote(type: string, itemId: string, data: any, userId?: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const serialized = JSON.stringify(data);
+    localStorage.setItem(`sf_${type}_voted_${itemId}`, serialized);
+    if (userId) {
+      localStorage.setItem(`sf_${type}_voted_${itemId}_${userId}`, serialized);
+    }
+  } catch {}
+}
+
+function getEngagementPostingTime(item: EngagementItem): number {
+  const raw =
+    (item as any).postingTime ||
+    (item as any).postedAt ||
+    (item.quizData as any)?.postingTime ||
+    (item.pollData as any)?.postingTime ||
+    (item.predictionData as any)?.postingTime ||
+    (item.fanBattleData as any)?.postingTime ||
+    item.quizData?.startTime ||
+    item.quizData?.scheduledStartTime ||
+    item.pollData?.startTime ||
+    item.pollData?.scheduledStartTime ||
+    item.predictionData?.startTime ||
+    item.predictionData?.scheduledStartTime ||
+    item.fanBattleData?.startTime ||
+    item.fanBattleData?.scheduledStartTime ||
+    item.startTime ||
+    item.scheduledStartTime ||
+    (item.memeData as any)?.createdAt ||
+    item.createdAt ||
+    0;
+
+  if (typeof raw === "number") return raw;
+  const parsed = new Date(raw).getTime();
+  return isNaN(parsed) || parsed <= 0 ? (Number(item.createdAt) || 0) : parsed;
+}
+
+function resolveCurrentUser(user: any) {
+  let cached: any = null;
+  if (typeof window !== "undefined") {
+    try {
+      const stored = localStorage.getItem("auth_user");
+      if (stored) cached = JSON.parse(stored);
+    } catch {}
+  }
+  const activeUserId =
+    user?.userId ||
+    (user as any)?.actualUserId ||
+    user?.uid ||
+    (user as any)?.id ||
+    cached?.userId ||
+    cached?.actualUserId ||
+    cached?.uid ||
+    cached?.id ||
+    user?.email ||
+    cached?.email ||
+    "";
+
+  const userEmail = user?.email || cached?.email || "";
+  const userName =
+    user?.name ||
+    user?.displayName ||
+    (user as any)?.userName ||
+    cached?.name ||
+    cached?.displayName ||
+    (userEmail ? userEmail.split("@")[0] : "SportsFan");
+  const rawAvatar =
+    user?.photoURL ||
+    user?.avatarUrl ||
+    (user as any)?.avatar ||
+    cached?.photoURL ||
+    cached?.avatarUrl ||
+    cached?.avatar ||
+    "";
+  const userAvatar = typeof rawAvatar === "string" && !rawAvatar.includes("dicebear") ? rawAvatar : "";
+
+  return { activeUserId, userEmail, userName, userAvatar };
+}
+
+function parseOptionLabelAndCountry(opt: { id?: string; text?: string; label?: string; country?: string }) {
+  let text = (opt.text || opt.label || "").trim();
+  let country = opt.country;
+
+  if (!country && text) {
+    const match = text.match(/\(([A-Z]{2,3})\)$/);
+    if (match) {
+      country = match[1];
+      text = text.replace(/\s*\([A-Z]{2,3}\)$/, "").trim();
+    }
+  }
+
+  return { text, country };
+}
+
+
 // ─── Rich Default Data for Fallbacks ─────────────────────────────────────────
-const DEFAULT_BRIEF_STORIES: MorningBriefStory[] = [
-  {
-    id: "brief-1",
-    storyNumber: 1,
-    sport: "Cricket",
-    icon: "🏏",
-    title: "Women's Cricket Final",
-    description: "India face Sri Lanka in the gold medal match — biggest game of the Asian Games for Indian cricket.",
-    order: 1,
-  },
-  {
-    id: "brief-2",
-    storyNumber: 2,
-    sport: "Shooting",
-    icon: "🎯",
-    title: "Shooting Medal Push",
-    description: "Indian shooters target the podium in 10m Air Rifle Mixed Team and Skeet Qualification today.",
-    order: 2,
-  },
-  {
-    id: "brief-3",
-    storyNumber: 3,
-    sport: "Badminton",
-    icon: "🏸",
-    title: "Badminton Knockouts",
-    description: "India's men's and women's teams enter the quarter-finals — both sides aiming for the semis.",
-    order: 3,
-  },
-  {
-    id: "brief-4",
-    storyNumber: 4,
-    sport: "Hockey",
-    icon: "🏑",
-    title: "Men's Hockey Opener",
-    description: "India return to Pool A action looking to build on yesterday's win with a stronger second outing.",
-    order: 4,
-  },
-  {
-    id: "brief-5",
-    storyNumber: 5,
-    sport: "Boxing",
-    icon: "🥊",
-    title: "Boxing Debut",
-    description: "Sakshi Chaudhary begins her campaign in Women's 54kg — a medal hopeful in her first Asian Games.",
-    order: 5,
-  },
-];
+const DEFAULT_BRIEF_STORIES: MorningBriefStory[] =[];
 
 const DEFAULT_AGENDA_EVENTS: AgendaEventItem[] = [];
 
@@ -188,21 +256,38 @@ export default function FlipBOARD({
   // Modal State
   const [isFullBoardOpen, setIsFullBoardOpen] = useState(false);
   const [modalActiveTab, setModalActiveTab] = useState<"brief" | "schedule" | "board">("brief");
-  const [scheduleFilter, setScheduleFilter] = useState<"all" | "live" | "upcoming" | "finals">("all");
+  const [scheduleFilter, setScheduleFilter] = useState<"all" | "live" | "upcoming" | "finished">("all");
   const [showAllBriefStories, setShowAllBriefStories] = useState(false);
   const [showAllAgendaEvents, setShowAllAgendaEvents] = useState(false);
-  const [selectedCardDetail, setSelectedCardDetail] = useState<RadarCardItem | AgendaEventItem | null>(null);
-  const [notifiedEvents, setNotifiedEvents] = useState<string[]>([]);
+  const [notifiedEvents, setNotifiedEvents] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("sf_notified_event_ids");
+        if (stored) return JSON.parse(stored);
+      } catch {}
+    }
+    return [];
+  });
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [selectedCardDetail, setSelectedCardDetail] = useState<RadarCardItem | AgendaEventItem | null>(null);
 
   // Arena Engagement Creation Modal State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createInitialType, setCreateInitialType] = useState<EngagementType>("poll");
 
-  // Poll State (Brief View)
-  const [selectedPollOption, setSelectedPollOption] = useState<number | null>(null);
+  const { user } = useAuth();
+  const currentUser = resolveCurrentUser(user);
+  const activeUserId = currentUser.activeUserId;
+
+  // Poll State (from FlipArena - Latest Poll only)
+  const [latestPoll, setLatestPoll] = useState<EngagementItem | null>(null);
+  const [pollOptions, setPollOptions] = useState<Array<{ id: string; text: string; country?: string; votes: number }>>([
+   
+  ]);
+  const [selectedPollOptionId, setSelectedPollOptionId] = useState<string | null>(null);
   const [hasVotedPoll, setHasVotedPoll] = useState(false);
-  const [pollVotes, setPollVotes] = useState({ 0: 48, 1: 32, 2: 20 });
+  const [loadingLatestPoll, setLoadingLatestPoll] = useState(true);
+  const isVotingPollRef = useRef(false);
 
   // Ask Flip AI state
   const [briefQuestion, setBriefQuestion] = useState("");
@@ -231,6 +316,31 @@ export default function FlipBOARD({
     if (e) e.stopPropagation();
     setCreateInitialType(type);
     setIsCreateModalOpen(true);
+  };
+
+  // FlipLine Create Post Dialog Modal State & Submission Handler
+  const [isCreatePostDialogOpen, setIsCreatePostDialogOpen] = useState(false);
+
+  const handleCreateFlipLinePost = async (
+    formData: FormData,
+    userId: string,
+    userName: string,
+    userEmail?: string
+  ) => {
+    const res = await axios.post("/api/flipline", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    if (typeof res.data === "string" && res.data.includes("<html")) {
+      throw new Error("Server returned an invalid HTML response. Please check backend connection.");
+    }
+    if (res.data && res.data.success === false) {
+      throw new Error(res.data.error || "Failed to create post. Please try again.");
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("flipline-post-created"));
+    }
+    showToast("🎉 Your FlipLine post was published!");
+    return res.data;
   };
 
   // Lock body scroll when popup modal is open
@@ -279,23 +389,115 @@ export default function FlipBOARD({
     }
   }, []);
 
+  // ─── Fetch Latest Poll from FlipArena (engagementService) ───────────
+  const fetchLatestPoll = useCallback(async () => {
+    try {
+      setLoadingLatestPoll(true);
+      let items = await engagementService.getEngagements({
+        type: "poll",
+        status: "active",
+        userId: activeUserId,
+      });
+
+      if (!items || items.length === 0) {
+        items = await engagementService.getEngagements({
+          type: "poll",
+          userId: activeUserId,
+        });
+      }
+
+      if (!items || items.length === 0) {
+        const allItems = await engagementService.getEngagements({
+          userId: activeUserId,
+        });
+        items = (allItems || []).filter((it) => it.type === "poll");
+      }
+
+      if (items && items.length > 0) {
+        // Sort descending by posting time / creation time to get the single latest poll
+        const sorted = [...items].sort(
+          (a, b) => getEngagementPostingTime(b) - getEngagementPostingTime(a)
+        );
+        const topPoll = sorted[0];
+        setLatestPoll(topPoll);
+
+        const rawOpts = topPoll.pollData?.options || [];
+        const formattedOpts = rawOpts.map((opt: any, idx: number) => {
+          let text = typeof opt === "string" ? opt : opt.text || opt.label || `Option ${idx + 1}`;
+          let country = typeof opt === "object" && opt.country ? opt.country : undefined;
+          if (!country && typeof text === "string") {
+            const match = text.match(/\(([A-Z]{2,3})\)$/);
+            if (match) {
+              country = match[1];
+              text = text.replace(/\s*\([A-Z]{2,3}\)$/, "").trim();
+            }
+          }
+          return {
+            id: typeof opt === "object" && opt.id ? String(opt.id) : String(idx),
+            text,
+            country,
+            votes: Number(opt.votes) || 0,
+          };
+        });
+
+        if (formattedOpts.length > 0) {
+          setPollOptions(formattedOpts);
+        }
+
+        // Check local vote storage
+        const stored = getStoredVote("poll", topPoll.id, activeUserId);
+        if (stored?.selectedId) {
+          setSelectedPollOptionId(stored.selectedId);
+          setHasVotedPoll(true);
+          if (stored.options && Array.isArray(stored.options)) {
+            setPollOptions(stored.options);
+          }
+        } else if (topPoll.userVoted && topPoll.userVote) {
+          setSelectedPollOptionId(topPoll.userVote);
+          setHasVotedPoll(true);
+          setStoredVote("poll", topPoll.id, { selectedId: topPoll.userVote, options: formattedOpts }, activeUserId);
+        } else if (activeUserId) {
+          engagementService
+            .checkVoteStatus(topPoll.id, activeUserId)
+            .then((res) => {
+              if (res.hasVoted && res.selectedOptionId) {
+                setSelectedPollOptionId(res.selectedOptionId);
+                setHasVotedPoll(true);
+                setStoredVote("poll", topPoll.id, { selectedId: res.selectedOptionId, options: formattedOpts }, activeUserId);
+              }
+            })
+            .catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn("[FlipBOARD] Error fetching latest poll from FlipArena:", err);
+    } finally {
+      setLoadingLatestPoll(false);
+    }
+  }, [activeUserId]);
+
   useEffect(() => {
     loadDynamicHomeData();
+    fetchLatestPoll();
 
     // Re-sync when window receives focus so any changes made in admin are immediately visible
     const handleFocus = () => {
       loadDynamicHomeData();
+      fetchLatestPoll();
     };
     window.addEventListener("focus", handleFocus);
 
     // Periodic 30s auto-refresh in background
-    const interval = setInterval(loadDynamicHomeData, 30000);
+    const interval = setInterval(() => {
+      loadDynamicHomeData();
+      fetchLatestPoll();
+    }, 30000);
 
     return () => {
       window.removeEventListener("focus", handleFocus);
       clearInterval(interval);
     };
-  }, [loadDynamicHomeData]);
+  }, [loadDynamicHomeData, fetchLatestPoll]);
 
   // Live 15-second clock ticker to automatically transition event statuses in real time
   const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
@@ -319,28 +521,54 @@ export default function FlipBOARD({
   // Filtered Schedule Events for Modal
   const filteredScheduleEvents = useMemo(() => {
     if (scheduleFilter === "all") return dynamicAgendaEvents;
+
     if (scheduleFilter === "live") {
-      return dynamicAgendaEvents.filter(
-        (e) => e.statusType === "live" || e.statusLabel?.toLowerCase() === "live"
-      );
+      return dynamicAgendaEvents.filter((e) => {
+        const rawStatus = (e.statusType || "").toLowerCase();
+        const rawLabel = (e.statusLabel || "").toLowerCase();
+        return rawStatus === "live" || rawLabel === "live";
+      });
     }
+
     if (scheduleFilter === "upcoming") {
-      return dynamicAgendaEvents.filter(
-        (e) =>
-          e.statusType === "up_next" ||
-          e.statusType === "scheduled" ||
-          (e.statusType !== "live" && e.statusType !== "completed")
-      );
+      // UP NEXT and SCHEDULED events go in UPCOMING
+      return dynamicAgendaEvents.filter((e) => {
+        const rawStatus = (e.statusType || "").toLowerCase();
+        const rawLabel = (e.statusLabel || "").toLowerCase();
+        const isLive = rawStatus === "live" || rawLabel === "live";
+        const isFinished =
+          rawStatus === "completed" ||
+          rawLabel === "completed" ||
+          rawLabel === "finished";
+
+        if (isLive || isFinished) return false;
+
+        return (
+          rawStatus === "up_next" ||
+          rawStatus === "scheduled" ||
+          rawStatus === "auto" ||
+          rawLabel === "up next" ||
+          rawLabel === "upcoming" ||
+          rawLabel === "scheduled" ||
+          true
+        );
+      });
     }
-    if (scheduleFilter === "finals") {
-      return dynamicAgendaEvents.filter(
-        (e) =>
-          (e.subEvent && e.subEvent.toLowerCase().includes("final")) ||
-          (e.detail && e.detail.toLowerCase().includes("final")) ||
-          (e.statusLabel && e.statusLabel.toLowerCase().includes("final")) ||
-          (e.sport && e.sport.toLowerCase().includes("final"))
-      );
+
+    if (scheduleFilter === "finished") {
+      // COMPLETED events go in FINISHED
+      return dynamicAgendaEvents.filter((e) => {
+        const rawStatus = (e.statusType || "").toLowerCase();
+        const rawLabel = (e.statusLabel || "").toLowerCase();
+        return (
+          rawStatus === "completed" ||
+          rawLabel === "completed" ||
+          rawLabel === "finished" ||
+          (rawStatus !== "live" && rawStatus !== "up_next" && (rawLabel === "final" || (Boolean(e.subEvent) && e.subEvent.toLowerCase().includes("final") && rawStatus === "completed")))
+        );
+      });
     }
+
     return dynamicAgendaEvents;
   }, [dynamicAgendaEvents, scheduleFilter]);
 
@@ -356,36 +584,253 @@ export default function FlipBOARD({
   };
 
   // Handle Poll Vote
-  const handleVotePoll = (optionIdx: number) => {
-    if (hasVotedPoll) return;
-    setSelectedPollOption(optionIdx);
+  const handleVotePoll = async (optId: string) => {
+    if (hasVotedPoll || isVotingPollRef.current) return;
+    const currentPollId = latestPoll?.id || "default_poll_today";
+    if (getStoredVote("poll", currentPollId, activeUserId)) {
+      setHasVotedPoll(true);
+      return;
+    }
+
+    isVotingPollRef.current = true;
+    setSelectedPollOptionId(optId);
     setHasVotedPoll(true);
     setUserSxp((prev) => prev + 15);
     setUserExp((prev) => Math.min(maxExp, prev + 15));
-    setPollVotes((prev) => {
-      const updated = { ...prev };
-      if (optionIdx === 0) updated[0] += 5;
-      else if (optionIdx === 1) updated[1] += 5;
-      else updated[2] += 5;
-      return updated;
-    });
+
+    const updatedOptions = pollOptions.map((opt) =>
+      opt.id === optId ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
+    );
+    setPollOptions(updatedOptions);
+    setStoredVote(
+      "poll",
+      currentPollId,
+      { selectedId: optId, options: updatedOptions },
+      activeUserId
+    );
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("sf360:points-updated", { detail: { points: 15 } })
+      );
+    }
     showToast("🗳️ +15 SXP earned! Thanks for voting in today's poll!");
+
+    if (latestPoll && latestPoll.id && latestPoll.id !== "default_poll_today") {
+      try {
+        const res: any = await engagementService.voteEngagement(
+          latestPoll.id,
+          optId,
+          activeUserId,
+          undefined,
+          {
+            userName: currentUser.userName,
+            userAvatar: currentUser.userAvatar,
+            userEmail: currentUser.userEmail,
+          }
+        );
+        if (res?.options && Array.isArray(res.options)) {
+          const synced = res.options.map((opt: any, idx: number) => {
+            let text = typeof opt === "string" ? opt : opt.text || opt.label || `Option ${idx + 1}`;
+            let country = typeof opt === "object" && opt.country ? opt.country : undefined;
+            if (!country && typeof text === "string") {
+              const match = text.match(/\(([A-Z]{2,3})\)$/);
+              if (match) {
+                country = match[1];
+                text = text.replace(/\s*\([A-Z]{2,3}\)$/, "").trim();
+              }
+            }
+            return {
+              id: String(opt.id || idx),
+              text,
+              country,
+              votes: Number(opt.votes) || 0,
+            };
+          });
+          setPollOptions(synced);
+          setStoredVote(
+            "poll",
+            latestPoll.id,
+            { selectedId: optId, options: synced },
+            activeUserId
+          );
+        }
+      } catch (err: any) {
+        console.warn("[FlipBOARD] Poll vote sync error:", err);
+      } finally {
+        isVotingPollRef.current = false;
+      }
+    } else {
+      isVotingPollRef.current = false;
+    }
   };
 
-  // Toggle Event Reminder
-  const toggleReminder = (id: string, e?: React.MouseEvent) => {
+  // Toggle Event Reminder & Schedule Notification for this user
+  const toggleReminder = async (id: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+
+    const targetEvent = dynamicAgendaEvents.find((evt) => evt.id === id);
+    const eventTitle = targetEvent ? `${targetEvent.sport} - ${targetEvent.subEvent}` : "Match";
+
     setNotifiedEvents((prev) => {
       const exists = prev.includes(id);
+      let updated: string[];
+
       if (exists) {
-        showToast("🔔 Reminder removed");
-        return prev.filter((item) => item !== id);
+        updated = prev.filter((item) => item !== id);
+        showToast(`🔔 Reminder removed for ${eventTitle}`);
       } else {
-        showToast("🔔 Reminder set! We'll notify you before match starts.");
-        return [...prev, id];
+        updated = [...prev, id];
+        showToast(`🔔 Reminder set for ${eventTitle}! We'll notify you when it goes LIVE.`);
+
+        // Schedule / Create Notification for this user
+        const notifId = `ntf_rem_${id}_${Date.now()}`;
+        const newNotif = {
+          id: notifId,
+          notification_id: notifId,
+          title: `🔔 Reminder: ${targetEvent?.sport || "Match"} - ${targetEvent?.subEvent || "Scheduled Event"}`,
+          body: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${targetEvent?.time || "Today"}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
+          message: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${targetEvent?.time || "Today"}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
+          notification_type: "schedule_reminder",
+          category: "schedule",
+          priority: "NORMAL",
+          isRead: false,
+          read: false,
+          sent_at: new Date().toISOString(),
+          createdAt: Date.now(),
+          cta_label: "View Schedule",
+          cta_target: "/MainModules/FlipLine",
+          recipientEmail: currentUser.userEmail || undefined,
+          userId: activeUserId || undefined,
+          eventId: id,
+        };
+
+        // 1. Save to local storage for instant offline & page reflection
+        try {
+          const userStorageKey = `sf_reminder_notifications_${activeUserId || currentUser.userEmail || "anon"}`;
+          const existing = JSON.parse(localStorage.getItem(userStorageKey) || "[]");
+          existing.unshift(newNotif);
+          localStorage.setItem(userStorageKey, JSON.stringify(existing.slice(0, 50)));
+
+          const allStorageKey = "sf_reminder_notifications";
+          const allExisting = JSON.parse(localStorage.getItem(allStorageKey) || "[]");
+          allExisting.unshift(newNotif);
+          localStorage.setItem(allStorageKey, JSON.stringify(allExisting.slice(0, 50)));
+        } catch {}
+
+        // 2. Post to backend /api/notifications
+        try {
+          fetch("/api/notifications", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(newNotif),
+          }).catch(() => {});
+        } catch {}
+
+        // 3. Dispatch real-time toast event
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("sf360:new-notification", {
+              detail: {
+                id: notifId,
+                title: newNotif.title,
+                body: newNotif.body,
+                ctaTarget: "/MainModules/Notifications",
+              },
+            })
+          );
+        }
       }
+
+      // Persist notified events list
+      try {
+        localStorage.setItem("sf_notified_event_ids", JSON.stringify(updated));
+        if (activeUserId) {
+          localStorage.setItem(`sf_notified_event_ids_${activeUserId}`, JSON.stringify(updated));
+        }
+      } catch {}
+
+      return updated;
     });
   };
+
+  // Watch for reminded events becoming LIVE and trigger Live Notifications
+  useEffect(() => {
+    if (!dynamicAgendaEvents || dynamicAgendaEvents.length === 0) return;
+
+    dynamicAgendaEvents.forEach((evt) => {
+      if (notifiedEvents.includes(evt.id)) {
+        const isLive = evt.statusType === "live" || evt.statusLabel?.toLowerCase() === "live";
+        if (isLive) {
+          const liveNotifiedKey = `sf_live_notified_${evt.id}_${activeUserId || "anon"}`;
+          const alreadyNotified = typeof window !== "undefined" ? localStorage.getItem(liveNotifiedKey) : null;
+
+          if (!alreadyNotified) {
+            if (typeof window !== "undefined") {
+              localStorage.setItem(liveNotifiedKey, "true");
+            }
+
+            const liveNotifId = `ntf_live_${evt.id}_${Date.now()}`;
+            const liveNotif = {
+              id: liveNotifId,
+              notification_id: liveNotifId,
+              title: `🔴 LIVE NOW: ${evt.sport} - ${evt.subEvent}`,
+              body: `${evt.sport} (${evt.subEvent}) is now LIVE! Jump in to watch live scores & join the fan banter!`,
+              message: `${evt.sport} (${evt.subEvent}) is now LIVE! Jump in to watch live scores & join the fan banter!`,
+              notification_type: "live_match",
+              category: "schedule",
+              priority: "HIGH",
+              isRead: false,
+              read: false,
+              sent_at: new Date().toISOString(),
+              createdAt: Date.now(),
+              cta_label: "Watch Live 🔴",
+              cta_target: "/MainModules/FlipLine",
+              recipientEmail: currentUser.userEmail || undefined,
+              userId: activeUserId || undefined,
+              eventId: evt.id,
+            };
+
+            // Save to localStorage
+            try {
+              const userStorageKey = `sf_reminder_notifications_${activeUserId || currentUser.userEmail || "anon"}`;
+              const existing = JSON.parse(localStorage.getItem(userStorageKey) || "[]");
+              existing.unshift(liveNotif);
+              localStorage.setItem(userStorageKey, JSON.stringify(existing.slice(0, 50)));
+
+              const allStorageKey = "sf_reminder_notifications";
+              const allExisting = JSON.parse(localStorage.getItem(allStorageKey) || "[]");
+              allExisting.unshift(liveNotif);
+              localStorage.setItem(allStorageKey, JSON.stringify(allExisting.slice(0, 50)));
+            } catch {}
+
+            // Post to backend
+            try {
+              fetch("/api/notifications", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(liveNotif),
+              }).catch(() => {});
+            } catch {}
+
+            // Dispatch popup toast event
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(
+                new CustomEvent("sf360:new-notification", {
+                  detail: {
+                    id: liveNotifId,
+                    title: liveNotif.title,
+                    body: liveNotif.body,
+                    ctaTarget: "/MainModules/Notifications",
+                  },
+                })
+              );
+            }
+          }
+        }
+      }
+    });
+  }, [dynamicAgendaEvents, notifiedEvents, activeUserId, currentUser.userEmail]);
 
   // Open Full Board Modal with specific tab
   const openFullModal = (tab: "brief" | "schedule" | "board" = "brief") => {
@@ -696,24 +1141,25 @@ export default function FlipBOARD({
               </div>
 
               <h4 className="text-[13.5px] sm:text-[14px] font-extrabold text-white leading-snug">
-                Who wins Gold in Women&apos;s Badminton today?
+                {latestPoll?.pollData?.question ||
+                  (latestPoll as any)?.question ||
+                  latestPoll?.title}
               </h4>
 
               {/* Poll Options */}
               <div className="space-y-1.5">
-                {[
-                  { label: "P.V. Sindhu", country: "IN" },
-                  { label: "Chen Yufei", country: "CN" },
-                  { label: "Akane Yamaguchi", country: "JP" },
-                ].map((opt, oIdx) => {
-                  const isSelected = selectedPollOption === oIdx;
-                  const pct = pollVotes[oIdx as keyof typeof pollVotes] || 33;
+                {pollOptions.map((opt, oIdx) => {
+                  const isSelected = selectedPollOptionId === opt.id || selectedPollOptionId === opt.text;
+                  const totalVotes = pollOptions.reduce((sum, o) => sum + (o.votes || 0), 0) || 1;
+                  const pct = Math.round(((opt.votes || 0) / totalVotes) * 100);
+                  const { text: optionText, country: optionCountry } = parseOptionLabelAndCountry(opt);
 
                   return (
                     <button
-                      key={oIdx}
+                      key={opt.id || oIdx}
                       type="button"
-                      onClick={() => handleVotePoll(oIdx)}
+                      disabled={hasVotedPoll}
+                      onClick={() => handleVotePoll(opt.id)}
                       className={`w-full text-left px-3.5 py-2.5 rounded-xl border text-[12px] sm:text-[12.5px] font-bold transition-all relative overflow-hidden flex items-center justify-between ${
                         isSelected
                           ? "bg-[#2b103b] border-[#EC4899] text-white shadow-[0_0_12px_rgba(236,72,153,0.3)]"
@@ -732,15 +1178,17 @@ export default function FlipBOARD({
                         />
                       )}
 
-                      <div className="flex items-center gap-2 relative z-10">
-                        <span className="text-[10.5px] font-black px-1.5 py-0.5 rounded bg-white/10 text-gray-300 uppercase">
-                          {opt.country}
-                        </span>
-                        <span>{opt.label}</span>
+                      <div className="flex items-center gap-2 relative z-10 min-w-0 pr-2">
+                        {optionCountry && (
+                          <span className="text-[10.5px] font-black px-1.5 py-0.5 rounded bg-white/10 text-gray-300 uppercase shrink-0">
+                            {optionCountry}
+                          </span>
+                        )}
+                        <span className="truncate">{optionText}</span>
                       </div>
 
                       {hasVotedPoll && (
-                        <span className="text-[11.5px] font-black text-gray-300 relative z-10">
+                        <span className="text-[11.5px] font-black text-gray-300 relative z-10 shrink-0">
                           {pct}%
                         </span>
                       )}
@@ -781,12 +1229,12 @@ export default function FlipBOARD({
             </div>
 
             {/* Bottom Bar: Dots & Full board link */}
-            <div className="flex items-center justify-between pt-2 border-t border-white/5">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-end pt-2 border-t border-white/5">
+              {/* <div className="flex items-center gap-1.5">
                 <span className="w-4 h-1.5 rounded-full bg-[#EC4899] shadow-[0_0_6px_#EC4899]" />
                 <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
                 <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
-              </div>
+              </div> */}
 
               <button
                 type="button"
@@ -1049,20 +1497,13 @@ export default function FlipBOARD({
                       <div className="space-y-4">
                         {/* Quick Action Chips Row */}
                         <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
-                          <button
-                            type="button"
-                            onClick={handleShareBrief}
-                            className="px-3.5 py-1.5 rounded-full bg-white/[0.05] border border-white/10 hover:border-[#EC4899]/50 text-gray-200 hover:text-white font-bold text-[12px] flex items-center gap-1.5 shrink-0 cursor-pointer transition-all"
-                          >
-                            <Share2 size={13} className="text-[#EC4899]" />
-                            <span>Share Brief</span>
-                          </button>
+                        
 
                           <button
                             type="button"
                             onClick={() => {
                               setIsFullBoardOpen(false);
-                              router.push("/MainModules/FlipLine");
+                              router.push("/MainModules/WatchAlong");
                             }}
                             className="px-3.5 py-1.5 rounded-full bg-[#06241a] border border-[#10B981]/50 text-[#10B981] font-bold text-[12px] flex items-center gap-1.5 shrink-0 cursor-pointer transition-all"
                           >
@@ -1112,31 +1553,72 @@ export default function FlipBOARD({
                               </div>
 
                               {/* Story Actions Row */}
-                              <div className="flex items-center gap-2 pt-1 border-t border-white/5 pl-9">
+                              <div className="flex items-center flex-wrap gap-2 pt-1.5 border-t border-white/5 pl-9">
+                                {/* 1. Predict CTA (Render ONLY if selected by admin) */}
+                                {(Boolean(story.predictId) || Boolean(story.predictUrl)) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsFullBoardOpen(false);
+                                      if (story.predictUrl) {
+                                        router.push(story.predictUrl);
+                                      } else if (story.predictId) {
+                                        router.push(`/MainModules/FlipArena?engagementId=${story.predictId}&type=prediction`);
+                                      } else {
+                                        router.push("/MainModules/FlipArena");
+                                      }
+                                    }}
+                                    className="px-3 py-1 rounded-full border border-[#EC4899]/70 bg-[#EC4899]/10 text-[#EC4899] hover:bg-[#EC4899]/25 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                  >
+                                    <span>Predict &gt;</span>
+                                  </button>
+                                )}
+
+                                {/* 2. Discuss CTA (Render ONLY if selected by admin) */}
+                                {(Boolean(story.discussPostId) || Boolean(story.discussUrl)) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsFullBoardOpen(false);
+                                      if (story.discussUrl) {
+                                        router.push(story.discussUrl);
+                                      } else if (story.discussPostId) {
+                                        router.push(`/MainModules/FlipLine?postId=${story.discussPostId}`);
+                                      } else {
+                                        router.push("/MainModules/FlipLine");
+                                      }
+                                    }}
+                                    className="px-3 py-1 rounded-full border border-[#3B82F6]/60 bg-[#3B82F6]/10 text-[#60A5FA] hover:bg-[#3B82F6]/25 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                  >
+                                    <span>Discuss</span>
+                                  </button>
+                                )}
+
+                                {/* 3. Debate CTA (Render ONLY if selected by admin) */}
+                                {(Boolean(story.debateRoomId) || Boolean(story.debateUrl)) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setIsFullBoardOpen(false);
+                                      if (story.debateUrl) {
+                                        router.push(story.debateUrl);
+                                      } else if (story.debateRoomId) {
+                                        router.push(`/MainModules/WatchAlong?roomId=${story.debateRoomId}`);
+                                      } else {
+                                        router.push("/MainModules/WatchAlong");
+                                      }
+                                    }}
+                                    className="px-3 py-1 rounded-full border border-[#10B981]/60 bg-[#10B981]/10 text-[#34D399] hover:bg-[#10B981]/25 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                  >
+                                    <span>Debate</span>
+                                  </button>
+                                )}
+
+                                {/* 4. + Create CTA (ALWAYS renders on frontend) */}
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setIsFullBoardOpen(false);
-                                    router.push("/MainModules/FlipArena");
-                                  }}
-                                  className="px-3 py-1 rounded-full border border-[#EC4899]/70 text-[#EC4899] hover:bg-[#EC4899]/15 font-bold text-[11px] transition-all cursor-pointer"
-                                >
-                                  Predict &gt;
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setIsFullBoardOpen(false);
-                                    router.push("/MainModules/FlipLine");
-                                  }}
-                                  className="px-3 py-1 rounded-full border border-white/15 bg-white/[0.04] text-gray-300 hover:bg-white/10 font-bold text-[11px] transition-all cursor-pointer"
-                                >
-                                  Discuss
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleOpenCreate("poll", e)}
-                                  className="px-3 py-1 rounded-full border border-[#F59E0B]/70 text-[#F59E0B] hover:bg-[#F59E0B]/15 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1"
+                                  onClick={() => setIsCreatePostDialogOpen(true)}
+                                  className="px-3 py-1 rounded-full border border-[#F59E0B]/70 bg-[#F59E0B]/10 text-[#F59E0B] hover:bg-[#F59E0B]/20 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm"
                                 >
                                   <span>+ Create</span>
                                 </button>
@@ -1369,7 +1851,7 @@ export default function FlipBOARD({
                             { key: "all", label: "All" },
                             { key: "live", label: "🔴 Live" },
                             { key: "upcoming", label: "📅 Upcoming" },
-                            { key: "finals", label: "🏆 Finals" },
+                            { key: "finished", label: "🏆 Finished" },
                           ].map((f) => (
                             <button
                               key={f.key}
@@ -1397,6 +1879,10 @@ export default function FlipBOARD({
                           ).map((evt, idx) => {
                             const isLive =
                               evt.statusType === "live" || evt.statusLabel?.toLowerCase() === "live";
+                            const isCompleted =
+                              evt.statusType === "completed" ||
+                              evt.statusLabel?.toLowerCase() === "completed" ||
+                              evt.statusLabel?.toLowerCase() === "finished";
                             const isFinal =
                               (evt.subEvent && evt.subEvent.toLowerCase().includes("final")) ||
                               evt.statusLabel === "FINAL";
@@ -1406,6 +1892,8 @@ export default function FlipBOARD({
                             if (isLive) dotColor = "bg-[#10B981] shadow-[0_0_10px_#10B981]";
                             else if (evt.statusType === "up_next")
                               dotColor = "bg-[#FBBF24] shadow-[0_0_8px_#FBBF24]";
+                            else if (isCompleted)
+                              dotColor = "bg-slate-500 shadow-[0_0_8px_rgba(148,163,184,0.4)]";
                             else if (isFinal) dotColor = "bg-[#F59E0B] shadow-[0_0_8px_#F59E0B]";
 
                             return (
@@ -1460,6 +1948,11 @@ export default function FlipBOARD({
                                         <span className="inline-flex items-center gap-1 text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#2a1e08] text-[#FBBF24] border border-[#FBBF24]/50 uppercase tracking-wider">
                                           <span>UP NEXT</span>
                                         </span>
+                                      ) : isCompleted ? (
+                                        <span className="inline-flex items-center gap-1 text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1e293b] text-[#94a3b8] border border-[#475569]/50 uppercase tracking-wider">
+                                          <span>✓</span>
+                                          <span>FINISHED</span>
+                                        </span>
                                       ) : isFinal ? (
                                         <span className="inline-flex items-center gap-1 text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#2a1b08] text-[#F59E0B] border border-[#F59E0B]/50 uppercase tracking-wider">
                                           <span>🏆</span>
@@ -1474,7 +1967,8 @@ export default function FlipBOARD({
                                   </div>
 
                                   {/* Action Buttons Row */}
-                                  <div className="flex items-center gap-2 pt-1 border-t border-white/5">
+                                  <div className="flex items-center flex-wrap gap-2 pt-1 border-t border-white/5">
+                                    {/* 1. Live or Reminder Button */}
                                     {isLive ? (
                                       <button
                                         type="button"
@@ -1483,7 +1977,7 @@ export default function FlipBOARD({
                                           setIsFullBoardOpen(false);
                                           router.push("/MainModules/FlipLine");
                                         }}
-                                        className="px-3 py-1 rounded-full bg-[#063023] border border-[#10B981]/60 text-[#10B981] hover:bg-[#094734] font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1"
+                                        className="px-3 py-1 rounded-full bg-[#063023] border border-[#10B981]/60 text-[#10B981] hover:bg-[#094734] font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm"
                                       >
                                         <span>Watch Live 🔴</span>
                                       </button>
@@ -1491,7 +1985,7 @@ export default function FlipBOARD({
                                       <button
                                         type="button"
                                         onClick={(e) => toggleReminder(evt.id, e)}
-                                        className={`px-3 py-1 rounded-full font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 ${
+                                        className={`px-3 py-1 rounded-full font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm ${
                                           isNotified
                                             ? "bg-[#2b103b] border border-[#EC4899] text-[#EC4899]"
                                             : "bg-white/[0.04] border border-white/15 text-gray-300 hover:bg-white/10"
@@ -1502,25 +1996,77 @@ export default function FlipBOARD({
                                       </button>
                                     )}
 
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsFullBoardOpen(false);
-                                        router.push("/MainModules/FlipArena");
-                                      }}
-                                      className="px-3 py-1 rounded-full border border-[#EC4899]/70 text-[#EC4899] hover:bg-[#EC4899]/15 font-bold text-[11px] transition-all cursor-pointer"
-                                    >
-                                      Predict &gt;
-                                    </button>
+                                    {/* 2. Predict CTA (Render ONLY if selected by admin) */}
+                                    {(Boolean(evt.predictId) || Boolean(evt.predictUrl)) && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setIsFullBoardOpen(false);
+                                          if (evt.predictUrl) {
+                                            router.push(evt.predictUrl);
+                                          } else if (evt.predictId) {
+                                            router.push(`/MainModules/FlipArena?engagementId=${evt.predictId}&type=prediction`);
+                                          } else {
+                                            router.push("/MainModules/FlipArena");
+                                          }
+                                        }}
+                                        className="px-3 py-1 rounded-full border border-[#EC4899]/70 bg-[#EC4899]/10 text-[#EC4899] hover:bg-[#EC4899]/25 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                      >
+                                        <span>Predict &gt;</span>
+                                      </button>
+                                    )}
 
+                                    {/* 3. Discuss CTA (Render ONLY if selected by admin) */}
+                                    {(Boolean(evt.discussPostId) || Boolean(evt.discussUrl)) && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setIsFullBoardOpen(false);
+                                          if (evt.discussUrl) {
+                                            router.push(evt.discussUrl);
+                                          } else if (evt.discussPostId) {
+                                            router.push(`/MainModules/FlipLine?postId=${evt.discussPostId}`);
+                                          } else {
+                                            router.push("/MainModules/FlipLine");
+                                          }
+                                        }}
+                                        className="px-3 py-1 rounded-full border border-[#3B82F6]/60 bg-[#3B82F6]/10 text-[#60A5FA] hover:bg-[#3B82F6]/25 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                      >
+                                        <span>Discuss</span>
+                                      </button>
+                                    )}
+
+                                    {/* 4. Debate CTA (Render ONLY if selected by admin) */}
+                                    {(Boolean(evt.debateRoomId) || Boolean(evt.debateUrl)) && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setIsFullBoardOpen(false);
+                                          if (evt.debateUrl) {
+                                            router.push(evt.debateUrl);
+                                          } else if (evt.debateRoomId) {
+                                            router.push(`/MainModules/WatchAlong?roomId=${evt.debateRoomId}`);
+                                          } else {
+                                            router.push("/MainModules/WatchAlong");
+                                          }
+                                        }}
+                                        className="px-3 py-1 rounded-full border border-[#10B981]/60 bg-[#10B981]/10 text-[#34D399] hover:bg-[#10B981]/25 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                                      >
+                                        <span>Debate</span>
+                                      </button>
+                                    )}
+
+                                    {/* 5. + Create CTA (ALWAYS renders on frontend) */}
                                     <button
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        handleOpenCreate("prediction", e);
+                                        setIsCreatePostDialogOpen(true);
                                       }}
-                                      className="px-3 py-1 rounded-full border border-[#F59E0B]/70 text-[#F59E0B] hover:bg-[#F59E0B]/15 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1"
+                                      className="px-3 py-1 rounded-full border border-[#F59E0B]/70 bg-[#F59E0B]/10 text-[#F59E0B] hover:bg-[#F59E0B]/20 font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 shadow-sm"
                                     >
                                       <span>+ Create</span>
                                     </button>
@@ -1939,26 +2485,65 @@ export default function FlipBOARD({
                   </div>
 
                   {/* Actions */}
-                  <div className="p-3.5 border-t border-white/10 bg-[#0c0f1a] flex items-center gap-2">
+                  <div className="p-3.5 border-t border-white/10 bg-[#0c0f1a] flex items-center flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => {
                         setSelectedCardDetail(null);
                         openFullModal("schedule");
                       }}
-                      className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-[#EC4899] to-[#F43F5E] text-white font-extrabold text-[12.5px] text-center cursor-pointer hover:opacity-95 transition-all"
+                      className="flex-1 py-2 px-3 rounded-xl bg-gradient-to-r from-[#EC4899] to-[#F43F5E] text-white font-extrabold text-[12px] text-center cursor-pointer hover:opacity-95 transition-all min-w-[120px]"
                     >
                       View Full Schedule
                     </button>
+                    {(Boolean((selectedCardDetail as any).predictId) || Boolean((selectedCardDetail as any).predictUrl)) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = (selectedCardDetail as any).predictUrl || ((selectedCardDetail as any).predictId ? `/MainModules/FlipArena?engagementId=${(selectedCardDetail as any).predictId}&type=prediction` : "/MainModules/FlipArena");
+                          setSelectedCardDetail(null);
+                          router.push(url);
+                        }}
+                        className="px-3 py-2 rounded-xl border border-[#EC4899]/70 bg-[#EC4899]/10 text-[#EC4899] hover:bg-[#EC4899]/25 font-bold text-[11.5px] transition-all cursor-pointer"
+                      >
+                        Predict &gt;
+                      </button>
+                    )}
+                    {(Boolean((selectedCardDetail as any).discussPostId) || Boolean((selectedCardDetail as any).discussUrl)) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = (selectedCardDetail as any).discussUrl || ((selectedCardDetail as any).discussPostId ? `/MainModules/FlipLine?postId=${(selectedCardDetail as any).discussPostId}` : "/MainModules/FlipLine");
+                          setSelectedCardDetail(null);
+                          router.push(url);
+                        }}
+                        className="px-3 py-2 rounded-xl border border-[#3B82F6]/60 bg-[#3B82F6]/10 text-[#60A5FA] hover:bg-[#3B82F6]/25 font-bold text-[11.5px] transition-all cursor-pointer"
+                      >
+                        Discuss
+                      </button>
+                    )}
+                    {(Boolean((selectedCardDetail as any).debateRoomId) || Boolean((selectedCardDetail as any).debateUrl)) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = (selectedCardDetail as any).debateUrl || ((selectedCardDetail as any).debateRoomId ? `/MainModules/WatchAlong?roomId=${(selectedCardDetail as any).debateRoomId}` : "/MainModules/WatchAlong");
+                          setSelectedCardDetail(null);
+                          router.push(url);
+                        }}
+                        className="px-3 py-2 rounded-xl border border-[#10B981]/60 bg-[#10B981]/10 text-[#34D399] hover:bg-[#10B981]/25 font-bold text-[11.5px] transition-all cursor-pointer"
+                      >
+                        Debate
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={(e) => {
+                      onClick={() => {
                         setSelectedCardDetail(null);
-                        handleOpenCreate("prediction", e);
+                        setIsCreatePostDialogOpen(true);
                       }}
-                      className="px-4 py-2.5 rounded-xl border border-[#F59E0B]/70 text-[#F59E0B] hover:bg-[#F59E0B]/15 font-extrabold text-[12.5px] transition-all cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                      className="px-3.5 py-2 rounded-xl border border-[#F59E0B]/70 bg-[#F59E0B]/10 text-[#F59E0B] hover:bg-[#F59E0B]/20 font-extrabold text-[12px] transition-all cursor-pointer flex items-center justify-center gap-1 shrink-0"
                     >
-                      <span>✨ Create</span>
+                      <span>+ Create</span>
                     </button>
                   </div>
                 </motion.div>
@@ -1967,6 +2552,13 @@ export default function FlipBOARD({
           </AnimatePresence>,
           document.body
         )}
+
+      {/* FlipLine Create Post Dialog Modal */}
+      <CreatePostDialog
+        isOpen={isCreatePostDialogOpen}
+        onClose={() => setIsCreatePostDialogOpen(false)}
+        onSubmit={handleCreateFlipLinePost}
+      />
     </div>
   );
 }

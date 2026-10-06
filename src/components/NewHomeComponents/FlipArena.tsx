@@ -3931,9 +3931,70 @@ const ARENA_FILTER_CHIPS: Array<{
   { id: "meme", label: "Meme", emoji: "🎭", isHash: false },
 ];
 
-// ─── Standard Points Constants ──────────────────────────────────────────────
-const PARTICIPATION_POINTS = 2; // Every section awards strictly +2 SXPs for participation
-const CORRECT_OPTION_BONUS = 10; // Quiz, Poll, Prediction correct answer awards +10 SXPs bonus
+// ─── Dynamic Points Hook (Synced with Admin Gamification Rules) ─────────────
+const PARTICIPATION_POINTS = 2; // Default fallback constant
+const CORRECT_OPTION_BONUS = 10; // Default fallback constant
+
+let cachedPointRules = {
+  battle: 2,
+  poll: 2,
+  quiz: 2,
+  prediction: 2,
+  meme: 2,
+  quizBonus: 10,
+  pollBonus: 10,
+  predictionBonus: 10,
+  create: 2,
+};
+function useDynamicArenaPoints() {
+  const [points, setPoints] = useState(cachedPointRules);
+  useEffect(() => {
+    axios
+      .get("/api/admin/gamification/rules")
+      .then((res) => {
+        const raw = res.data;
+        const rules = Array.isArray(raw)
+          ? raw
+          : Array.isArray(raw?.rules)
+            ? raw.rules
+            : Array.isArray(raw?.data)
+              ? raw.data
+              : Array.isArray(raw?.items)
+                ? raw.items
+                : [];
+        if (Array.isArray(rules) && rules.length > 0) {
+          const findPts = (ids: string[], fallback: number) => {
+            for (const id of ids) {
+              const r = rules.find((item: any) =>
+                String(item.id || item.actionId || "").toUpperCase() === id.toUpperCase()
+              );
+              if (r) {
+                const rawVal = r.points !== undefined ? r.points : (r.value !== undefined ? r.value : r.amount);
+                const parsed = Number(rawVal);
+                if (!isNaN(parsed) && parsed > 0) return parsed;
+              }
+            }
+            return fallback;
+          };
+          const updated = {
+            battle: findPts(["ENGAGEMENT_PARTICIPATE_FAN_BATTLE", "ENGAGEMENT_PARTICIPATE_BATTLE"], 2),
+            poll: findPts(["ENGAGEMENT_PARTICIPATE_POLL"], 2),
+            quiz: findPts(["ENGAGEMENT_PARTICIPATE_QUIZ"], 2),
+            prediction: findPts(["ENGAGEMENT_PARTICIPATE_PREDICTION"], 2),
+            meme: findPts(["ENGAGEMENT_PARTICIPATE_MEME"], 2),
+            quizBonus: findPts(["ENGAGEMENT_ACCURACY_BONUS_QUIZ"], 10),
+            pollBonus: findPts(["ENGAGEMENT_ACCURACY_BONUS_POLL", "ENGAGEMENT_WINNING_POLL_BONUS"], 10),
+            predictionBonus: findPts(["ENGAGEMENT_ACCURACY_BONUS_PREDICTION", "PREDICTION_ACCURATE"], 10),
+            create: findPts(["ENGAGEMENT_CREATE_EVENT", "ENGAGEMENT_CREATE_QUIZ", "ENGAGEMENT_CREATE_POLL"], 2),
+          };
+          cachedPointRules = updated;
+          setPoints(updated);
+        }
+      })
+      .catch(() => {});
+  }, []);
+  return points;
+}
 
 interface FlipArenaProps {
   selectedSport: string;
@@ -4338,6 +4399,8 @@ function DynamicFanBattleCard({
   totalEngagedOverride?: number;
   onSyncEngagedCount?: (count: number) => void;
 }) {
+  const points = useDynamicArenaPoints();
+  const battlePts = points.battle;
   const initialStored = getStoredVote("fb", item.id, userId);
   const [selectedSide, setSelectedSide] = useState<"left" | "right" | null>(
     initialStored?.side || (item.userVote as "left" | "right") || null
@@ -4483,9 +4546,10 @@ function DynamicFanBattleCard({
         totalVotes: res?.totalVotes ?? (left.votes + right.votes + 1),
       };
       setResult(calculatedResult);
-      if (typeof window !== "undefined") {
+      const earned = Number(res?.pointsAwarded ?? res?.participationPointsAwarded ?? battlePts);
+      if (typeof window !== "undefined" && earned > 0) {
         window.dispatchEvent(
-          new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
+          new CustomEvent("sf360:points-updated", { detail: { points: earned } })
         );
       }
     } catch (err: any) {
@@ -4756,6 +4820,9 @@ function DynamicQuizCard({
   onOpenLeaderboard?: () => void;
   onSyncEngagedCount?: (count: number) => void;
 }) {
+  const points = useDynamicArenaPoints();
+  const quizPts = points.quiz;
+  const quizBonusPts = points.quizBonus;
   // ── BUG FIX B: hold onSyncEngagedCount in a ref so the per-question
   // fetch effect doesn't re-run when the parent re-renders.
   const onSyncEngagedCountRef = useRef(onSyncEngagedCount);
@@ -4850,7 +4917,7 @@ function DynamicQuizCard({
     rawQuestions.forEach((q, idx) => {
       const ans = getEffectiveAnswer(q, idx);
       if (ans) {
-        sum += (ans.earnedPoints || (PARTICIPATION_POINTS + (ans.isCorrect ? CORRECT_OPTION_BONUS : 0)));
+        sum += (ans.earnedPoints || (quizPts + (ans.isCorrect ? quizBonusPts : 0)));
       }
     });
     return sum;
@@ -4892,11 +4959,11 @@ function DynamicQuizCard({
         if (ans.isCorrect) {
           correctQCount++;
         }
-        earnedSum += (ans.earnedPoints || (PARTICIPATION_POINTS + (ans.isCorrect ? CORRECT_OPTION_BONUS : 0)));
+        earnedSum += (ans.earnedPoints || (quizPts + (ans.isCorrect ? quizBonusPts : 0)));
       }
     });
 
-    const maxPossible = totalQuestions * (PARTICIPATION_POINTS + CORRECT_OPTION_BONUS);
+    const maxPossible = totalQuestions * (quizPts + quizBonusPts);
     return {
       answeredCount: answeredQCount,
       correctCount: correctQCount,
@@ -4904,7 +4971,7 @@ function DynamicQuizCard({
       possibleScore: maxPossible,
       isFullyCompleted: answeredQCount >= totalQuestions,
     };
-  }, [rawQuestions, totalQuestions, getEffectiveAnswer]);
+  }, [rawQuestions, totalQuestions, getEffectiveAnswer, quizPts, quizBonusPts]);
 
   const [selectedId, setSelectedId] = useState<string | null>(
     initialQ?.selectedId || (totalQuestions === 1 && item.userVoted && item.userVote ? item.userVote : null)
@@ -5060,7 +5127,7 @@ function DynamicQuizCard({
                 initialRecovered[idx] = {
                   selectedId: optId,
                   isCorrect: right,
-                  earnedPoints: PARTICIPATION_POINTS + (right ? CORRECT_OPTION_BONUS : 0),
+                  earnedPoints: quizPts + (right ? quizBonusPts : 0),
                 };
                 break;
               }
@@ -5090,7 +5157,7 @@ function DynamicQuizCard({
             if (matchingVoter) {
               const picked = matchingVoter.selectedOptionId || opt.id || opt.text;
               const right = checkIsOptionCorrect(picked, q);
-              const points = PARTICIPATION_POINTS + (right ? CORRECT_OPTION_BONUS : 0);
+              const points = quizPts + (right ? quizBonusPts : 0);
               recovered[idx] = { selectedId: picked, isCorrect: right, earnedPoints: points };
               setStoredVote(quizAnswerKey(idx, q.id), parentId, recovered[idx], userId);
               setStoredVote(quizAnswerKey(idx, q.id), item.id, recovered[idx], userId);
@@ -5137,7 +5204,7 @@ function DynamicQuizCard({
                 ? status.isCorrect
                 : checkIsOptionCorrect(status.selectedOptionId, rawQuestions[0])
             );
-            const points = PARTICIPATION_POINTS + (right ? CORRECT_OPTION_BONUS : 0);
+            const points = quizPts + (right ? quizBonusPts : 0);
             setDbAnswers((prev) => {
               if (prev[0]) return prev;
               return {
@@ -5211,7 +5278,7 @@ function DynamicQuizCard({
     }
 
     const isRight = checkIsOptionCorrect(optId, currentQ);
-    const earnedPoints = PARTICIPATION_POINTS + (isRight ? CORRECT_OPTION_BONUS : 0);
+    const earnedPoints = quizPts + (isRight ? quizBonusPts : 0);
     const answerPayload = { selectedId: optId, isCorrect: isRight, earnedPoints };
 
     setDbAnswers((prev) => ({ ...prev, [currentQIndex]: answerPayload }));
@@ -5257,7 +5324,7 @@ function DynamicQuizCard({
       return Boolean(getEffectiveAnswer(q, idx)?.isCorrect);
     }).length;
 
-    const totalPossible = totalQuestions * (PARTICIPATION_POINTS + CORRECT_OPTION_BONUS);
+    const totalPossible = totalQuestions * (quizPts + quizBonusPts);
 
     if (totalQuestions === 1 || currentAnsweredCount >= totalQuestions) {
       setQuizFinished(true);
@@ -5301,7 +5368,7 @@ function DynamicQuizCard({
           userEmail,
         }
       );
-      const earned = Number(res?.pointsAwarded ?? earnedPoints);
+      const earned = Number(res?.pointsAwarded ?? res?.quizPointsAwarded ?? earnedPoints);
       if (typeof window !== "undefined" && earned > 0) {
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", { detail: { points: earned } })
@@ -5580,8 +5647,8 @@ function DynamicQuizCard({
                 <span>{isCorrect ? "🎉" : "💡"}</span>
                 <span>
                   {isCorrect
-                    ? `Correct! +${CORRECT_OPTION_BONUS} SXPs Bonus (+${PARTICIPATION_POINTS + CORRECT_OPTION_BONUS} SXP Total)`
-                    : `+${PARTICIPATION_POINTS} SXPs for participating · The correct answer is ${correctOptionId}`}
+                    ? `Correct! +${quizBonusPts} SXPs Bonus (+${quizPts + quizBonusPts} SXPs Total)`
+                    : `+${quizPts} SXPs for participating · The correct answer is ${correctOptionId}`}
                 </span>
               </div>
             </motion.div>
@@ -5692,6 +5759,9 @@ function DynamicPollCard({
   totalEngagedOverride?: number;
   onSyncEngagedCount?: (count: number) => void;
 }) {
+  const points = useDynamicArenaPoints();
+  const pollPts = points.poll;
+  const pollBonusPts = points.pollBonus;
   const initialVote = getStoredVote("poll", item.id, userId);
   const [selectedId, setSelectedId] = useState<string | null>(
     initialVote?.selectedId || item.userVote || null
@@ -5771,13 +5841,13 @@ function DynamicPollCard({
         localStorage.setItem(bonusClaimKey, "true");
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", {
-            detail: { points: CORRECT_OPTION_BONUS },
+            detail: { points: pollBonusPts },
           })
         );
       }
-      onToast(`🏆 Poll Ended! You won +${CORRECT_OPTION_BONUS} SXPs bonus for picking the correct answer!`);
+      onToast(`🏆 Poll Ended! You won +${pollBonusPts} SXPs bonus for picking the correct answer!`);
     }
-  }, [isExpired, userWon, serverIsCorrect, bonusAwarded, bonusClaimKey, onToast, userId]);
+  }, [isExpired, userWon, serverIsCorrect, bonusAwarded, bonusClaimKey, onToast, userId, pollBonusPts]);
 
   useEffect(() => {
     if (item.userLiked) {
@@ -5851,9 +5921,10 @@ function DynamicPollCard({
       if (res?.isCorrect !== undefined) {
         setServerIsCorrect(Boolean(res.isCorrect));
       }
-      if (typeof window !== "undefined") {
+      const earned = Number(res?.pointsAwarded ?? res?.participationPointsAwarded ?? pollPts);
+      if (typeof window !== "undefined" && earned > 0) {
         window.dispatchEvent(
-          new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
+          new CustomEvent("sf360:points-updated", { detail: { points: earned } })
         );
       }
     } catch (err: any) {
@@ -6064,10 +6135,12 @@ function DynamicPollCard({
               <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
                 <span className="flex items-center gap-1.5">
                   <span>🎉</span>
-                  <span>Correct Option! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
+                  <span>
+                    Correct Option! You earned +{pollBonusPts} SXPs Bonus (+{pollPts + pollBonusPts} SXPs Total)
+                  </span>
                 </span>
                 <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                  +10 SXPs
+                  +{pollBonusPts} SXPs
                 </span>
               </div>
             ) : (
@@ -6076,13 +6149,15 @@ function DynamicPollCard({
                   Poll ended {correctAnswer ? `· Winner: ` : ""}
                   {correctAnswer && <strong className="text-emerald-400">{correctAnswer}</strong>}
                 </span>
-                <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
+                <span className="text-[10px] text-white/40 shrink-0">
+                  +{pollPts} SXPs participation
+                </span>
               </div>
             )
           ) : (
             <div className="text-[11px] font-black text-center text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
               <span>🔒</span>
-              <span>Vote submitted · +2 SXPs earned!</span>
+              <span>Vote submitted · +{pollPts} SXPs earned!</span>
             </div>
           )}
         </motion.div>
@@ -6157,6 +6232,9 @@ function DynamicPredictionCard({
   totalEngagedOverride?: number;
   onSyncEngagedCount?: (count: number) => void;
 }) {
+  const points = useDynamicArenaPoints();
+  const predPts = points.prediction;
+  const predBonusPts = points.predictionBonus;
   const pred = item.predictionData || {
     question: item.title || "Will India score > 350 runs?",
     category: "cricket",
@@ -6331,13 +6409,13 @@ function DynamicPredictionCard({
         localStorage.setItem(bonusClaimKey, "true");
         window.dispatchEvent(
           new CustomEvent("sf360:points-updated", {
-            detail: { points: CORRECT_OPTION_BONUS },
+            detail: { points: predBonusPts },
           })
         );
       }
-      onToast(`🏆 Prediction Ended! You won +${CORRECT_OPTION_BONUS} SXPs bonus for your correct prediction!`);
+      onToast(`🏆 Prediction Ended! You won +${predBonusPts} SXPs bonus for your correct prediction!`);
     }
-  }, [isExpired, userWon, serverIsCorrect, bonusAwarded, bonusClaimKey, onToast, userId]);
+  }, [isExpired, userWon, serverIsCorrect, bonusAwarded, bonusClaimKey, onToast, userId, predBonusPts]);
 
   useEffect(() => {
     if (item.userLiked) {
@@ -6474,9 +6552,10 @@ function DynamicPredictionCard({
         setServerIsCorrect(Boolean(res.isCorrect));
       }
 
-      if (typeof window !== "undefined") {
+      const earned = Number(res?.pointsAwarded ?? res?.participationPointsAwarded ?? predPts);
+      if (typeof window !== "undefined" && earned > 0) {
         window.dispatchEvent(
-          new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
+          new CustomEvent("sf360:points-updated", { detail: { points: earned } })
         );
       }
     } catch (err: any) {
@@ -6694,10 +6773,12 @@ function DynamicPredictionCard({
               <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
                 <span className="flex items-center gap-1.5">
                   <span>🎉</span>
-                  <span>Prediction Won! You earned +10 SXPs Bonus (+12 SXPs Total)</span>
+                  <span>
+                    Prediction Won! You earned +{predBonusPts} SXPs Bonus (+{predPts + predBonusPts} SXPs Total)
+                  </span>
                 </span>
                 <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                  +10 SXPs
+                  +{predBonusPts} SXPs
                 </span>
               </div>
             ) : (
@@ -6705,13 +6786,15 @@ function DynamicPredictionCard({
                 <span>
                   Prediction closed
                 </span>
-                <span className="text-[10px] text-white/40 shrink-0">+2 SXPs participation</span>
+                <span className="text-[10px] text-white/40 shrink-0">
+                  +{predPts} SXPs participation
+                </span>
               </div>
             )
           ) : (
             <div className="text-[11px] font-black text-center text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
               <span>🔒</span>
-              <span>+2 SXPs earned!</span>
+              <span>+{predPts} SXPs earned!</span>
             </div>
           )}
         </motion.div>
@@ -6788,6 +6871,8 @@ function DynamicMemeCard({
   totalEngagedOverride?: number;
   onSyncEngagedCount?: (count: number) => void;
 }) {
+  const points = useDynamicArenaPoints();
+  const memePts = points.meme;
   const { user } = useAuth();
   const currentUserId = userId || user?.userId || (user as any)?.actualUserId || user?.email;
   const currentUserEmail = user?.email || (user as any)?.userEmail || "";
@@ -6934,9 +7019,10 @@ function DynamicMemeCard({
         setReactions(res.reactions);
         setHeatPercentage(res.heatPercentage || calculateHeatPct(res.reactions));
       }
-      if (typeof window !== "undefined") {
+      const earned = Number(res?.pointsAwarded ?? res?.participationPointsAwarded ?? memePts);
+      if (typeof window !== "undefined" && earned > 0) {
         window.dispatchEvent(
-          new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
+          new CustomEvent("sf360:points-updated", { detail: { points: earned } })
         );
       }
     } catch {
@@ -7084,7 +7170,7 @@ function DynamicMemeCard({
       <div className="space-y-2">
         <div className="flex items-center justify-between text-[10px] font-bold text-white/50 px-1">
           <span>{hasVoted ? "Your locked rating:" : "Rate how funny/hot this is:"}</span>
-          <span className="text-orange-400 font-mono">+2 SXPs participation</span>
+          <span className="text-orange-400 font-mono">+{memePts} SXPs participation</span>
         </div>
 
         <div className="grid grid-cols-5 gap-1.5">
@@ -7125,7 +7211,7 @@ function DynamicMemeCard({
           {hasVoted ? (
             <>
               <Check size={14} />
-              <span>Rating Locked · +2 SXPs Earned</span>
+              <span>Rating Locked · +{memePts} SXPs Earned</span>
             </>
           ) : !selectedRating ? (
             <span>Select a rating above</span>
@@ -7567,6 +7653,7 @@ export default function FlipArena({
   setActiveTab,
   isPreview = true,
 }: FlipArenaProps) {
+  const points = useDynamicArenaPoints();
   const { user } = useAuth();
   const currentUser = resolveCurrentUser(user);
   const activeUserId = currentUser.activeUserId;
@@ -7786,9 +7873,10 @@ export default function FlipArena({
     engagementService.invalidateCache();
     fetchEngagements();
 
-    if (typeof window !== "undefined") {
+    const pointsGranted = Number((savedItem as any)?.pointsAwarded ?? (savedItem as any)?.points ?? points.create);
+    if (typeof window !== "undefined" && !isEdit && pointsGranted > 0) {
       window.dispatchEvent(
-        new CustomEvent("sf360:points-updated", { detail: { points: PARTICIPATION_POINTS } })
+        new CustomEvent("sf360:points-updated", { detail: { points: pointsGranted } })
       );
       window.dispatchEvent(new CustomEvent("arena-engagement-created", { detail: savedItem }));
     }
@@ -7804,7 +7892,7 @@ export default function FlipArena({
               : savedItem.type === "fan_battle"
                 ? "Fan Battle"
                 : "Meme";
-      showToast(`${typeLabel} Created Successfully! +${PARTICIPATION_POINTS} SXPs earned 🚀`);
+      showToast(`${typeLabel} Created Successfully! +${points.create} SXPs earned 🚀`);
     } else {
       showToast("Event updated successfully!");
     }
@@ -8014,7 +8102,18 @@ export default function FlipArena({
         <div className="flex items-center justify-between gap-2 w-full md:w-auto">
           <div>
             <h2 className="text-base font-black tracking-tight">Today's Arena</h2>
-            <p className="text-[10px] text-white/35 mt-0.5">Earn +2 SXPs participation · +10 SXPs for correct answers</p>
+            <p className="text-[10px] text-white/35 mt-0.5">
+            Earn SXPs for Participation & Correct Answers
+              {/* {filter === "battle"
+                ? `Earn +${points.battle} SXPs participation`
+                : filter === "meme"
+                  ? `Earn +${points.meme} SXPs participation`
+                  : filter === "poll"
+                    ? `Earn +${points.poll} SXPs participation · +${points.pollBonus} SXPs for correct answers`
+                    : filter === "prediction"
+                      ? `Earn +${points.prediction} SXPs participation · +${points.predictionBonus} SXPs for correct answers`
+                      : `Earn +${points.quiz} SXPs participation · +${points.quizBonus} SXPs for correct answers`} */}
+            </p>
           </div>
 
           {/* Mobile Leaderboard Button (opposite title) */}
@@ -8214,7 +8313,7 @@ export default function FlipArena({
               }
               className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-extrabold text-xs inline-flex items-center gap-1.5 shadow-lg shadow-pink-500/20 cursor-pointer"
             >
-              <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+2 SXPs)
+              <Plus size={13} /> Create First {filter === "all" ? "Event" : filter.toUpperCase()} (+{points.create} SXPs)
             </button>
           </div>
         ) : (

@@ -107,6 +107,16 @@ const nextConfig = {
           destination: `${apiTarget}/api/campus-ambassadors/:path*`,
         },
 
+                // Admin & Gamification Rules
+        {
+          source: "/api/admin",
+          destination: `${apiTarget}/api/admin`,
+        },
+        {
+          source: "/api/admin/:path*",
+          destination: `${apiTarget}/api/admin/:path*`,
+        },
+
 
         // ── Cricket Articles Rewrites ──
         {
