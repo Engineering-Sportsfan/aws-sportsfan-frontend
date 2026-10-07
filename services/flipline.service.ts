@@ -203,9 +203,11 @@ export const fliplineService = {
   likeFlipCard: async (
     sk: string,
     action: "like" | "unlike",
-    userId?: string
+    userId?: string,
+    userName?: string,
+    userAvatar?: string
   ): Promise<{ success: boolean; likes?: number; likedBy?: string[] }> => {
-    const res = await axios.patch("/api/flipline", { sk, action, userId });
+    const res = await axios.patch("/api/flipline", { sk, action, userId, userName, userAvatar });
     return res.data;
   },
 
@@ -248,13 +250,17 @@ export const fliplineService = {
     sk: string,
     commentId: string,
     action: "like_comment" | "unlike_comment",
-    userId?: string
+    userId?: string,
+    userName?: string,
+    userAvatar?: string
   ): Promise<{ success: boolean; comment: FlipLineComment; comments: FlipLineComment[] }> => {
     const res = await axios.patch("/api/flipline", {
       sk,
       action,
       commentId,
       userId,
+      userName,
+      userAvatar,
     });
     return res.data;
   },
@@ -303,7 +309,9 @@ export const fliplineService = {
     commentId: string,
     replyId: string,
     action: "like_reply" | "unlike_reply",
-    userId?: string
+    userId?: string,
+    userName?: string,
+    userAvatar?: string
   ): Promise<{ success: boolean; reply: FlipLineReply; comment: FlipLineComment; comments: FlipLineComment[] }> => {
     const res = await axios.patch("/api/flipline", {
       sk,
@@ -311,6 +319,8 @@ export const fliplineService = {
       commentId,
       replyId,
       userId,
+      userName,
+      userAvatar,
     });
     return res.data;
   },

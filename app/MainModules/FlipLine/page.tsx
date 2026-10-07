@@ -9,6 +9,8 @@ function FlipLineContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const targetCardId = searchParams.get('cardId') || searchParams.get('postId') || searchParams.get('id');
+  const targetCommentId = searchParams.get('commentId');
+  const targetReplyId = searchParams.get('replyId');
 
   const [dbCards, setDbCards] = useState<FlipCard[]>([]);
   const [liveCards, setLiveCards] = useState<FlipCard[]>([]);
@@ -188,6 +190,8 @@ function FlipLineContent() {
       loading={loading}
       onCardUpdate={handleCardUpdate}
       targetCardId={targetCardId}
+      targetCommentId={targetCommentId}
+      targetReplyId={targetReplyId}
     />
   );
 }
