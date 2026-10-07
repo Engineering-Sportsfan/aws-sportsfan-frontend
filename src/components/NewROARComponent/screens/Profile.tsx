@@ -4750,7 +4750,7 @@ export default function Profile({
 
   const { leaderboard: globalLeaderboard, currentUserPoints, currentUserRank } = useLeaderboard();
 
-  const [pointsTab, setPointsTab] = useState<"fliparena" | "global">("fliparena");
+  const [pointsTab, setPointsTab] = useState<"fliparena" | "roar" | "global">("fliparena");
   const [arenaStats, setArenaStats] = useState<{ points: number; rank: number; accuracy: string; correct: number; total: number } | null>(null);
   const [arenaLoading, setArenaLoading] = useState(false);
    const [userEngagements, setUserEngagements] = useState<EngagementItem[]>([]);
@@ -4882,12 +4882,27 @@ export default function Profile({
     };
   }, [fetchArena]);
 
+  const arenaPoints = Number(arenaStats?.points ?? profileMetadata?.user?.arenaPoints ?? user?.arenaPoints ?? profileMetadata?.user?.quizPoints ?? user?.quizPoints ?? 0);
+
+  const roarPoints = useMemo(() => {
+    const u = profileMetadata?.user || user;
+    if (u?.roarPoints !== undefined && u?.roarPoints !== null) {
+      return Number(u.roarPoints) || 0;
+    }
+    if (u?.reputationScore !== undefined && u?.reputationScore !== null) {
+      return Number(u.reputationScore) || 0;
+    }
+    const rawTotal = Number(u?.totalPoints ?? u?.points ?? u?.score ?? 0);
+    return Math.max(0, rawTotal - arenaPoints);
+  }, [profileMetadata?.user, user, arenaPoints]);
+
   const globalStats = useMemo(() => {
     const list = Array.isArray(globalLeaderboard) ? globalLeaderboard : [];
     const idx = list.findIndex(isTarget);
     const entry: any = idx >= 0 ? list[idx] : null;
 
     const u = profileMetadata?.user || user;
+    const combinedPoints = roarPoints + arenaPoints;
     const fallbackProfilePoints = Number(
       u?.totalPoints ??
       u?.reputationScore ??
@@ -4898,7 +4913,7 @@ export default function Profile({
     );
 
     if (!isOtherProfile) {
-      const bestPoints = Math.max(
+      const bestPoints = combinedPoints > 0 ? combinedPoints : Math.max(
         Number(currentUserPoints ?? 0),
         Number(entry?.totalPoints ?? 0),
         Number(entry?.points ?? 0),
@@ -4908,16 +4923,21 @@ export default function Profile({
       return { points: bestPoints, rank };
     }
 
-    const otherPoints = Math.max(
+    const otherPoints = combinedPoints > 0 ? combinedPoints : Math.max(
       Number(entry?.totalPoints ?? 0),
       Number(entry?.points ?? 0),
       fallbackProfilePoints
     );
     const otherRank = entry?.rank ?? (idx >= 0 ? idx + 1 : 0);
     return { points: otherPoints, rank: otherRank };
-  }, [globalLeaderboard, isTarget, isOtherProfile, currentUserPoints, currentUserRank, profileMetadata?.user, user]);
+  }, [globalLeaderboard, isTarget, isOtherProfile, currentUserPoints, currentUserRank, profileMetadata?.user, user, roarPoints, arenaPoints]);
 
-  const levelInfo = useMemo(() => calculateLevelData(globalStats.points), [globalStats.points]);
+  const totalGlobalPoints = useMemo(() => {
+    const combined = roarPoints + arenaPoints;
+    return combined > 0 ? combined : globalStats.points;
+  }, [roarPoints, arenaPoints, globalStats.points]);
+
+  const levelInfo = useMemo(() => calculateLevelData(totalGlobalPoints), [totalGlobalPoints]);
 
   const actCounts = user?.activityCounts ?? {};
   const apiPredictions = profileMetadata?.predictions || user?.predictions || [];
@@ -6179,7 +6199,7 @@ export default function Profile({
           <div style={{ padding: "18px 14px 0" }}>
             <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
               <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-                {([["fliparena", "FlipARENA"], ["global", "Global"]] as const).map(([id, label]) => (
+                {([["fliparena", "FlipARENA"], ["roar", "RoAR"], ["global", "Global"]] as const).map(([id, label]) => (
                   <button key={id} onClick={() => setPointsTab(id)}
                     style={{
                       flex: 1, padding: "7px 0", borderRadius: 20, border: "none", cursor: "pointer",
@@ -6200,7 +6220,7 @@ export default function Profile({
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
                       {[
                         { label: "SXPs", value: (arenaStats?.points ?? 0).toLocaleString() },
-                        { label: "Rank", value: arenaStats ? `#${arenaStats.rank}` : "—" },
+                        { label: "Rank", value: arenaStats?.rank ? `#${arenaStats.rank}` : "—" },
                         { label: "Accuracy", value: arenaStats?.accuracy ?? "0%" },
                       ].map(({ label, value }) => (
                         <div key={label} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 12, background: "rgba(255,255,255,0.04)" }}>
@@ -6214,11 +6234,31 @@ export default function Profile({
                     </p>
                   </>
                 )
+              ) : pointsTab === "roar" ? (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
+                    {[
+                      { label: "SXPs", value: roarPoints.toLocaleString() },
+                      { label: "Rank", value: user?.rank ? `#${user.rank}` : (globalStats.rank > 0 ? `#${globalStats.rank}` : "—") },
+                      { label: "Accuracy", value: statAccuracy !== "N/A" ? statAccuracy : "0%" },
+                    ].map(({ label, value }) => (
+                      <div key={label} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 12, background: "rgba(255,255,255,0.04)" }}>
+                        <div className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{value}</div>
+                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "10px 0 0", textAlign: "center" }}>
+                    {statPosts + statDebates + statPredictions > 0
+                      ? `${statPosts} ${statPosts === 1 ? "post" : "posts"} · ${statDebates} ${statDebates === 1 ? "debate" : "debates"} · ${statPredictions} ${statPredictions === 1 ? "prediction" : "predictions"}`
+                      : "No RoAR activity yet."}
+                  </p>
+                </>
               ) : (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}>
                     {[
-                      { label: "Total SXP", value: globalStats.points.toLocaleString() },
+                      { label: "Total SXP", value: totalGlobalPoints.toLocaleString() },
                       { label: "Global Rank", value: globalStats.rank > 0 ? `#${globalStats.rank}` : "—" },
                       { label: "Level", value: `LVL ${levelInfo.level}` },
                     ].map(({ label, value }) => (
