@@ -283,15 +283,206 @@ function matchesSportFilter(card: FlipCard, target: string): boolean {
   );
 }
 
-/* ─── Channel filter chips (matching Figma specs) ─── */
-const FILTER_CHIPS = [
-  { id: 'all', label: 'All', emoji: '', isHash: true },
-  { id: 'cricket', label: 'Cricket', emoji: '🏏', isHash: false },
-  { id: 'athletics', label: 'Athletics', emoji: '🏃', isHash: false },
-  { id: 'football', label: 'Football', emoji: '⚽', isHash: false },
-  { id: 'expert', label: 'Expert', emoji: '🎯', isHash: false },
-  { id: 'analysts', label: 'Analysts', emoji: '🎙', isHash: false },
+/* ─── Dynamic Filter Chips from /api/admin/sports and /api/admin/channels ─── */
+export interface FlipLineFilterChip {
+  id: string;
+  label: string;
+  emoji: string;
+  isHash?: boolean;
+  type?: 'all' | 'sport' | 'channel';
+}
+
+const SPORT_EMOJI_MAP: Record<string, string> = {
+  cricket: '🏏',
+  football: '⚽',
+  soccer: '⚽',
+  athletics: '🏃',
+  running: '🏃',
+  track: '🏃',
+  basketball: '🏀',
+  tennis: '🎾',
+  badminton: '🏸',
+  hockey: '🏑',
+  formula1: '🏎️',
+  f1: '🏎️',
+  motorsport: '🏁',
+  kabaddi: '🤼',
+  wrestling: '🤼',
+  boxing: '🥊',
+  mma: '🥋',
+  golf: '⛳',
+  baseball: '⚾',
+  tabletennis: '🏓',
+  volleyball: '🏐',
+  swimming: '🏊',
+  chess: '♟️',
+  esports: '🎮',
+  gaming: '🎮',
+  general: '🏆',
+};
+
+const CHANNEL_EMOJI_MAP: Record<string, string> = {
+  expert: '🎯',
+  experts: '🎯',
+  analyst: '🎙',
+  analysts: '🎙',
+  fan: '🗣️',
+  fans: '🗣️',
+  official: '⚡',
+  sf360: '⚡',
+  drops: '🎁',
+  drop: '🎁',
+  news: '📰',
+  roar: '🦁',
+  roars: '🦁',
+  watchalong: '📺',
+  community: '👥',
+};
+
+function getSportEmoji(id: string, name?: string): string {
+  const key = id.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (SPORT_EMOJI_MAP[key]) return SPORT_EMOJI_MAP[key];
+  if (SPORT_EMOJI_MAP[id.toLowerCase()]) return SPORT_EMOJI_MAP[id.toLowerCase()];
+  if (name) {
+    const nameKey = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (SPORT_EMOJI_MAP[nameKey]) return SPORT_EMOJI_MAP[nameKey];
+  }
+  return '🏆';
+}
+
+function getChannelEmoji(id: string, name?: string): string {
+  const key = id.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (CHANNEL_EMOJI_MAP[key]) return CHANNEL_EMOJI_MAP[key];
+  if (CHANNEL_EMOJI_MAP[id.toLowerCase()]) return CHANNEL_EMOJI_MAP[id.toLowerCase()];
+  if (name) {
+    const nameKey = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (CHANNEL_EMOJI_MAP[nameKey]) return CHANNEL_EMOJI_MAP[nameKey];
+  }
+  return '🎯';
+}
+
+const DEFAULT_FILTER_CHIPS: FlipLineFilterChip[] = [
+  { id: 'all', label: 'All', emoji: '', isHash: true, type: 'all' },
+  { id: 'cricket', label: 'Cricket', emoji: '🏏', isHash: false, type: 'sport' },
+  { id: 'football', label: 'Football', emoji: '⚽', isHash: false, type: 'sport' },
+  { id: 'athletics', label: 'Athletics', emoji: '🏃', isHash: false, type: 'sport' },
+  { id: 'expert', label: 'Expert', emoji: '🎯', isHash: false, type: 'channel' },
+  { id: 'analyst', label: 'Analysts', emoji: '🎙', isHash: false, type: 'channel' },
 ];
+
+async function fetchAdminData(endpoint: string): Promise<any> {
+  const backendBase =
+    process.env.NEXT_PUBLIC_BACKEND_URL ||
+    process.env.NEXT_PUBLIC_ADMIN_URL ||
+    'http://localhost:3001';
+
+  // 1. Try relative endpoint (uses next.config rewrites)
+  try {
+    const res = await fetch(endpoint, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch { }
+
+  // 2. Fallback to direct backend URL
+  try {
+    const fullUrl = `${backendBase.replace(/\/$/, '')}${endpoint}`;
+    const res = await fetch(fullUrl, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      return data;
+    }
+  } catch { }
+
+  return null;
+}
+
+export function useFlipLineFilters() {
+  const [filterChips, setFilterChips] = useState<FlipLineFilterChip[]>(DEFAULT_FILTER_CHIPS);
+  const [loadingFilters, setLoadingFilters] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadFilters() {
+      try {
+        setLoadingFilters(true);
+        const [sportsRes, channelsRes] = await Promise.all([
+          fetchAdminData('/api/admin/sports'),
+          fetchAdminData('/api/admin/channels'),
+        ]);
+
+        const rawSports = Array.isArray(sportsRes?.sports)
+          ? sportsRes.sports
+          : Array.isArray(sportsRes?.data)
+            ? sportsRes.data
+            : Array.isArray(sportsRes)
+              ? sportsRes
+              : [];
+
+        const rawChannels = Array.isArray(channelsRes?.channels)
+          ? channelsRes.channels
+          : Array.isArray(channelsRes?.data)
+            ? channelsRes.data
+            : Array.isArray(channelsRes)
+              ? channelsRes
+              : [];
+
+        // 1. Always start with "All"
+        const merged: FlipLineFilterChip[] = [
+          { id: 'all', label: 'All', emoji: '', isHash: true, type: 'all' },
+        ];
+        const seenIds = new Set<string>(['all']);
+
+        // 2. Show first sports from /api/admin/sports
+        rawSports.forEach((sport: any) => {
+          const rawId = String(sport.id || sport.name || '').toLowerCase().trim();
+          const label = String(sport.name || sport.title || sport.sport || sport.id || '').trim();
+          if (!rawId || seenIds.has(rawId)) return;
+          seenIds.add(rawId);
+          merged.push({
+            id: rawId,
+            label,
+            emoji: getSportEmoji(rawId, label),
+            isHash: false,
+            type: 'sport',
+          });
+        });
+
+        // 3. Then channels from /api/admin/channels
+        rawChannels.forEach((channel: any) => {
+          const rawId = String(channel.id || channel.sk || channel.name || '').toLowerCase().trim();
+          const label = String(channel.name || channel.label || channel.title || channel.id || '').trim();
+          if (!rawId || rawId === 'all' || seenIds.has(rawId)) return;
+          seenIds.add(rawId);
+          merged.push({
+            id: rawId,
+            label,
+            emoji: getChannelEmoji(rawId, label),
+            isHash: false,
+            type: 'channel',
+          });
+        });
+
+        if (isMounted && merged.length > 1) {
+          setFilterChips(merged);
+        }
+      } catch (err) {
+        console.warn('Failed to load FlipLine dynamic filters:', err);
+      } finally {
+        if (isMounted) setLoadingFilters(false);
+      }
+    }
+
+    loadFilters();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  return { filterChips, loadingFilters };
+}
 
 function getCardChannels(card: FlipCard): string[] {
   const c = card as any;
@@ -322,16 +513,36 @@ function isAnalystCard(card: FlipCard): boolean {
 }
 
 function matchesChannelFilter(card: FlipCard, filterId: string): boolean {
-  switch (filterId) {
-    case 'all':
-      return true;
-    case 'expert':
-      return isExpertCard(card);
-    case 'analysts':
-      return isAnalystCard(card);
-    default:
-      return matchesSportFilter(card, filterId);
+  if (!filterId || filterId === 'all') return true;
+
+  const fid = filterId.toLowerCase().trim();
+  const ch = getCardChannels(card);
+
+  // Direct sport match
+  if (matchesSportFilter(card, fid)) return true;
+
+  // Direct channel / tags match
+  if (ch.includes(fid)) return true;
+
+  // Specific aliases or plural forms
+  if (fid === 'expert' || fid === 'experts') {
+    return isExpertCard(card);
   }
+  if (fid === 'analyst' || fid === 'analysts') {
+    return isAnalystCard(card);
+  }
+  if (fid === 'fan' || fid === 'fans') {
+    return String(card.type || '').toLowerCase() === 'fan' || ch.includes('fan') || ch.includes('fans');
+  }
+  if (fid === 'official') {
+    return String(card.type || '').toLowerCase() === 'official' || ch.includes('official');
+  }
+
+  const cardType = String(card.type || '').toLowerCase();
+  const cardSport = String(card.sport || '').toLowerCase();
+  if (cardType === fid || cardSport === fid) return true;
+
+  return false;
 }
 
 function applyChannelFilter(cards: FlipCard[], activeFilter: string, selectedSport?: string): FlipCard[] {
@@ -352,6 +563,8 @@ function FlipLineSection({
   loading,
   onCardUpdate,
   highlightedCardId,
+  targetCommentId,
+  targetReplyId,
 }: {
   selectedSport: string;
   onViewFull: () => void;
@@ -359,7 +572,10 @@ function FlipLineSection({
   loading: boolean;
   onCardUpdate?: (updatedCard: FlipCard) => void;
   highlightedCardId?: string | null;
+    targetCommentId?: string | null;
+    targetReplyId?: string | null;
 }) {
+  const { filterChips, loadingFilters } = useFlipLineFilters();
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [askOpen, setAskOpen] = useState<number | string | null>(null);
   const [activeFilter, setActiveFilter] = useState<string>('all');
@@ -416,8 +632,8 @@ function FlipLineSection({
   const baseCards = density === 'key' ? safeCards.filter((c) => c?.isKey) : safeCards;
   const displayCards = applyChannelFilter(baseCards, activeFilter, selectedSport);
 
-  const mobilePrimaryChips = FILTER_CHIPS.slice(0, 3); // All, Cricket, Football
-  const extraChips = FILTER_CHIPS.slice(3); // Athletics, Expert, Analysts
+  const mobilePrimaryChips = filterChips.slice(0, 3);
+  const extraChips = filterChips.slice(3);
 
   return (
     <div className="w-full mb-3 sm:mb-5 relative">
@@ -426,6 +642,12 @@ function FlipLineSection({
         <span className="text-[12px] sm:text-[13px] font-black uppercase tracking-wider text-[#9AA3AF]">
           SPORT
         </span>
+        {loadingFilters && (
+          <div className="flex items-center gap-1.5 text-[10.5px] text-[#9AA3AF] font-bold">
+            <Loader2 size={11} className="animate-spin text-[#FF2D8A]" />
+            <span>Loading filters...</span>
+          </div>
+        )}
       </div>
 
       {/* Sport Filter Chips (Figma Styled) */}
@@ -585,6 +807,8 @@ function FlipLineSection({
         setAskOpen={setAskOpen}
         onCardUpdate={onCardUpdate}
         highlightedCardId={highlightedCardId}
+        targetCommentId={targetCommentId}
+        targetReplyId={targetReplyId}
         activeFilter={activeFilter}
         onSelectFilter={setActiveFilter}
         allCards={baseCards}
@@ -614,6 +838,8 @@ export function FlipLineFullScreen({
   loading,
   onCardUpdate,
   targetCardId,
+  targetCommentId: propCommentId,
+  targetReplyId: propReplyId,
 }: {
   onBack: () => void;
   selectedSport?: string;
@@ -621,19 +847,28 @@ export function FlipLineFullScreen({
   loading: boolean;
   onCardUpdate?: (updatedCard: FlipCard) => void;
   targetCardId?: string | number | null;
+    targetCommentId?: string | null;
+    targetReplyId?: string | null;
 }) {
   const [density, setDensity] = useState<'full' | 'key'>('full');
   const [askOpen, setAskOpen] = useState<number | string | null>(null);
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<string>('all');
+  const { filterChips, loadingFilters } = useFlipLineFilters();
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(targetCardId ? String(targetCardId) : null);
+  const [targetCommentId, setTargetCommentId] = useState<string | null>(propCommentId || null);
+  const [targetReplyId, setTargetReplyId] = useState<string | null>(propReplyId || null);
   const scrolledRef = useRef(false);
 
   useEffect(() => {
     if (targetCardId) {
       setTargetId(String(targetCardId));
-    } else if (typeof window !== 'undefined') {
+    }
+    if (propCommentId) setTargetCommentId(propCommentId);
+    if (propReplyId) setTargetReplyId(propReplyId);
+
+    if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const urlCardId = params.get('cardId') || params.get('postId') || params.get('id');
       if (urlCardId) {
@@ -642,8 +877,12 @@ export function FlipLineFullScreen({
         const hashId = window.location.hash.replace(/^#(flipline-card-|card-)?/, '');
         if (hashId) setTargetId(hashId);
       }
+      const urlCommentId = params.get('commentId');
+      if (urlCommentId) setTargetCommentId(urlCommentId);
+      const urlReplyId = params.get('replyId');
+      if (urlReplyId) setTargetReplyId(urlReplyId);
     }
-  }, [targetCardId]);
+  }, [targetCardId, propCommentId, propReplyId]);
 
   useEffect(() => {
     if (!targetId || loading || !Array.isArray(cards) || cards.length === 0 || scrolledRef.current) return;
@@ -742,7 +981,7 @@ export function FlipLineFullScreen({
         className="flex items-center gap-2 px-4 py-2.5 overflow-x-auto no-scrollbar border-b border-[#2A2F36] bg-[#111418]"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
       >
-        {FILTER_CHIPS.map((chip) => {
+        {filterChips.map((chip) => {
           const isActive = activeFilter === chip.id;
           return (
             <button
@@ -780,6 +1019,8 @@ export function FlipLineFullScreen({
             setAskOpen={setAskOpen}
             onCardUpdate={onCardUpdate}
             highlightedCardId={highlightedCardId}
+            targetCommentId={targetCommentId}
+            targetReplyId={targetReplyId}
             activeFilter={activeFilter}
             onSelectFilter={setActiveFilter}
             allCards={baseCards}
@@ -808,6 +1049,8 @@ interface FlipTimelineProps {
   setAskOpen: (id: number | string | null) => void;
   onCardUpdate?: (updatedCard: FlipCard) => void;
   highlightedCardId?: string | null;
+  targetCommentId?: string | null;
+  targetReplyId?: string | null;
   activeFilter?: string;
   onSelectFilter?: (filterId: string) => void;
   allCards?: FlipCard[];
@@ -826,6 +1069,8 @@ export function FlipCardItem({
   handleCtaClick,
   onCardUpdate,
   isHighlighted = false,
+  targetCommentId,
+  targetReplyId,
 }: {
   card: FlipCard;
   index: number;
@@ -838,6 +1083,8 @@ export function FlipCardItem({
   handleCtaClick: (ctaType: 'room' | 'watchalong' | 'drop' | string) => void;
   onCardUpdate?: (updatedCard: FlipCard) => void;
   isHighlighted?: boolean;
+    targetCommentId?: string | null;
+    targetReplyId?: string | null;
 }) {
   const { user, getUserName, getUserDisplayName } = useAuth();
   const currentUserId =
@@ -846,9 +1093,12 @@ export function FlipCardItem({
   const currentUserHandle = user?.name
     ? `@${user.name.toLowerCase().replace(/\s+/g, '')}`
     : '@fan';
+  // Priority: 1. Gmail / Google profile image (photoURL, picture, image), 2. Custom Avatar (avatar, avatarUrl, profilePicture), 3. Admin photo
+  const userGooglePhoto = user?.photoURL || (user as any)?.picture || (user as any)?.image || undefined;
+  const userCustomAvatar = (user as any)?.avatarUrl || user?.avatar || (user as any)?.profilePicture || undefined;
   const currentUserAdminPhoto = user?.addfliplineAdminPhoto || undefined;
-  const currentUserAuthorPhoto = user?.avatar || user?.photoURL || undefined;
-  const currentUserAvatar = currentUserAdminPhoto || currentUserAuthorPhoto || undefined;
+  const currentUserAuthorPhoto = userGooglePhoto || userCustomAvatar || currentUserAdminPhoto || undefined;
+  const currentUserAvatar = userGooglePhoto || userCustomAvatar || currentUserAdminPhoto || undefined;
 
   const currentUserEmail = user?.email;
   const isCurrentUser =
@@ -863,7 +1113,9 @@ export function FlipCardItem({
       .join(' ')
     : 'SportsFan360';
   const displayHandle = isCurrentUser ? '@you' : card.handle === '@you' ? '@fan' : (card.handle || '@sportsfan360');
-  const displayPhoto = card.adminPhoto || card.authorPhoto || (isCurrentUser ? (currentUserAdminPhoto || currentUserAuthorPhoto) : undefined);
+  const displayPhoto = isCurrentUser
+    ? (userGooglePhoto || userCustomAvatar || currentUserAdminPhoto)
+    : ((card as any).photoURL || card.authorPhoto || (card as any).userAvatar || card.adminPhoto || (card as any).avatar);
 
   // Card like state
   const [likesCount, setLikesCount] = useState<number>(Number(card.likes) || 0);
@@ -909,6 +1161,33 @@ export function FlipCardItem({
     }
   }, [card.comments]);
 
+  // Deep-link auto expand comments and scroll to targeted comment or reply
+  useEffect(() => {
+    const hasTargetComment =
+      targetCommentId &&
+      Array.isArray(card.comments) &&
+      card.comments.some(
+        (c) =>
+          c.id === targetCommentId ||
+          (Array.isArray(c.replies) && c.replies.some((r) => r.id === targetCommentId || r.id === targetReplyId))
+      );
+
+    if (isHighlighted || hasTargetComment) {
+      if (targetCommentId || targetReplyId) {
+        setCommentOpen(true);
+        const timer = setTimeout(() => {
+          const targetEl =
+            (targetReplyId && document.getElementById(`reply-${targetReplyId}`)) ||
+            (targetCommentId && document.getElementById(`comment-${targetCommentId}`));
+          if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [isHighlighted, targetCommentId, targetReplyId, card.comments]);
+
   const cardSk = card.sk || `CARD#${card.timeMs}#${card.id}`;
 
   // ── 1. Card Like / Unlike Handler ──────────────────────────────────────────
@@ -934,7 +1213,13 @@ export function FlipCardItem({
     onCardUpdate?.(updatedCard);
 
     try {
-      const res = await fliplineService.likeFlipCard(cardSk, action, currentUserId);
+      const res = await fliplineService.likeFlipCard(
+        cardSk,
+        action,
+        currentUserId,
+        currentUserName,
+        currentUserAvatar
+      );
       if (res && typeof res.likes === 'number') {
         setLikesCount(res.likes);
         if (Array.isArray(res.likedBy)) {
@@ -1058,7 +1343,14 @@ export function FlipCardItem({
     setCommentsList(nextComments);
 
     try {
-      const res = await fliplineService.likeComment(cardSk, comment.id, action, currentUserId);
+      const res = await fliplineService.likeComment(
+        cardSk,
+        comment.id,
+        action,
+        currentUserId,
+        currentUserName,
+        currentUserAvatar
+      );
       if (res?.success && Array.isArray(res.comments)) {
         setCommentsList(res.comments);
         onCardUpdate?.({
@@ -1198,7 +1490,15 @@ export function FlipCardItem({
     setCommentsList(nextComments);
 
     try {
-      const res = await fliplineService.likeReply(cardSk, commentId, reply.id, action, currentUserId);
+      const res = await fliplineService.likeReply(
+        cardSk,
+        commentId,
+        reply.id,
+        action,
+        currentUserId,
+        currentUserName,
+        currentUserAvatar
+      );
       if (res?.success && Array.isArray(res.comments)) {
         setCommentsList(res.comments);
         onCardUpdate?.({
@@ -1973,10 +2273,16 @@ export function FlipCardItem({
                         const isReplying = replyingToCommentId === comm.id;
                         const replies = Array.isArray(comm.replies) ? comm.replies : [];
 
+                        const isCommentTargeted = targetCommentId === comm.id;
+
                         return (
                           <div
                             key={comm.id}
-                            className="bg-[#15181D] border border-[#2A2F36] rounded-xl p-3 flex flex-col gap-2 transition-all hover:border-[#2A2F36]/80"
+                            id={`comment-${comm.id}`}
+                            className={`rounded-xl p-3 flex flex-col gap-2 transition-all ${isCommentTargeted
+                                ? 'bg-[#181C23] border-2 border-[#FF2D8A] ring-2 ring-[#FF2D8A]/30 shadow-[0_0_16px_rgba(255,45,138,0.3)]'
+                                : 'bg-[#15181D] border border-[#2A2F36] hover:border-[#2A2F36]/80'
+                              }`}
                           >
                             {/* Comment Header */}
                             <div className="flex items-center justify-between text-[11px]">
@@ -2115,10 +2421,16 @@ export function FlipCardItem({
                                     (isReplyAuthor ? currentUserAvatar : undefined);
                                   const repLiked = (rep.likedBy || []).includes(currentUserId);
 
+                                  const isReplyTargeted = targetReplyId === rep.id;
+
                                   return (
                                     <div
                                       key={rep.id}
-                                      className="bg-[#111418] border border-[#2A2F36] rounded-lg p-2 flex flex-col gap-1"
+                                      id={`reply-${rep.id}`}
+                                      className={`rounded-lg p-2 flex flex-col gap-1 transition-all ${isReplyTargeted
+                                          ? 'bg-[#181C23] border-2 border-[#FF8A00] ring-2 ring-[#FF8A00]/30 shadow-[0_0_14px_rgba(255,138,0,0.35)]'
+                                          : 'bg-[#111418] border border-[#2A2F36]'
+                                        }`}
                                     >
                                       <div className="flex items-center justify-between text-[10.5px]">
                                         <div className="flex items-center gap-1.5 min-w-0">
@@ -2323,13 +2635,8 @@ export function FlipLineEmptyState({
   onSelectFilter?: (filterId: string) => void;
   allCards?: FlipCard[];
 }) {
-  const sportOptions = [
-    { id: 'cricket', label: 'Cricket', emoji: '🏏' },
-    { id: 'athletics', label: 'Athletics', emoji: '👟' },
-    { id: 'football', label: 'Football', emoji: '⚽' },
-    { id: 'expert', label: 'Expert', emoji: '🎯' },
-    { id: 'analysts', label: 'Analysts', emoji: '🎙' },
-  ];
+  const { filterChips } = useFlipLineFilters();
+  const sportOptions = filterChips.filter((opt) => opt.id !== 'all');
 
   // Exclude current filter
   const alternateOptions = sportOptions.filter(
@@ -2421,6 +2728,8 @@ export function FlipTimeline({
   setAskOpen,
   onCardUpdate,
   highlightedCardId,
+  targetCommentId,
+  targetReplyId,
   activeFilter = 'all',
   onSelectFilter,
   allCards = [],
@@ -2529,6 +2838,8 @@ export function FlipTimeline({
                 router={router}
                 handleCtaClick={handleCtaClick}
                 onCardUpdate={onCardUpdate}
+                targetCommentId={targetCommentId}
+                targetReplyId={targetReplyId}
                 isHighlighted={
                   Boolean(
                     highlightedCardId &&
@@ -2559,6 +2870,8 @@ export default function FlipLine({
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'flipline' | 'fliparena'>('flipline');
   const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
+  const [targetCommentId, setTargetCommentId] = useState<string | null>(null);
+  const [targetReplyId, setTargetReplyId] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -2567,6 +2880,11 @@ export default function FlipLine({
       if (urlCardId) {
         setHighlightedCardId(String(urlCardId));
       }
+      const urlCommentId = params.get('commentId');
+      if (urlCommentId) setTargetCommentId(urlCommentId);
+      const urlReplyId = params.get('replyId');
+      if (urlReplyId) setTargetReplyId(urlReplyId);
+
       const urlItemId = params.get('itemId') || params.get('engagementId') || params.get('quizId');
       const urlTab = params.get('tab');
       if (urlItemId || urlTab === 'fliparena') {
@@ -2818,6 +3136,8 @@ export default function FlipLine({
           loading={loading}
           onCardUpdate={handleCardUpdate}
           highlightedCardId={highlightedCardId}
+            targetCommentId={targetCommentId}
+            targetReplyId={targetReplyId}
         />
       )}
     </div>

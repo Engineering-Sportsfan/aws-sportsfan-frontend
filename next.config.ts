@@ -84,6 +84,12 @@ const nextConfig = {
           destination: `${apiTarget}/api/flipline/:path*`,
         },
 
+        // ── Admin (Sports, Channels, etc.) Rewrites ──
+        {
+          source: "/api/admin/:path*",
+          destination: `${apiTarget}/api/admin/:path*`,
+        },
+
         // Medal Tally
 
         {
