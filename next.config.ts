@@ -113,6 +113,16 @@ const nextConfig = {
           destination: `${apiTarget}/api/campus-ambassadors/:path*`,
         },
 
+                // Admin & Gamification Rules
+        {
+          source: "/api/admin",
+          destination: `${apiTarget}/api/admin`,
+        },
+        {
+          source: "/api/admin/:path*",
+          destination: `${apiTarget}/api/admin/:path*`,
+        },
+
 
         // ── Cricket Articles Rewrites ──
         {
@@ -357,6 +367,29 @@ const nextConfig = {
           source: "/api/global-search/:path*",
           destination: `${apiTarget}/api/global-search/:path*`,
         },
+
+        
+        // Channels
+        {
+          source: "/api/admin/channels",
+          destination: `${apiTarget}/api/admin/channels`,
+        },
+        {
+          source: "/api/admin/channels/:path*",
+          destination: `${apiTarget}/api/admin/channels/:path*`,
+        },
+
+         // Sports
+        {
+          source: "/api/admin/sports",
+          destination: `${apiTarget}/api/admin/sports`,
+        },
+        {
+          source: "/api/admin/sports/:path*",
+          destination: `${apiTarget}/api/admin/sports/:path*`,
+        },
+
+
 
         // Static content
         {
