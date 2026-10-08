@@ -3831,7 +3831,8 @@ export default function Profile({
     }
 
     // Include the user's earned badge (e.g., ORACLE, BOLD_CALLER, CRICKET_HEAD, CONTRARIAN, OG_FAN, SEASONED_FAN) if present
-    const badgeKey = (currentUserBadge || userBadge || "").toUpperCase().replace(/\s+/g, "_");
+    const effectiveBadge = currentUserBadge || (isOtherProfile ? "" : userBadge) || "";
+    const badgeKey = effectiveBadge.toUpperCase().replace(/\s+/g, "_");
     if (badgeKey && badgeKey !== "ROOKIE_FAN" && badgeKey !== "RISING_FAN" && badgeKey !== "BOT") {
       const exists = updated.some((b: any) => b.id?.toUpperCase() === badgeKey || b.name?.toUpperCase()?.replace(/\s+/g, "_") === badgeKey);
       if (!exists && (BADGE_CONFIG[badgeKey] || BADGE_DETAIL[badgeKey])) {
@@ -4946,6 +4947,9 @@ export default function Profile({
   const apiPosts = profileMetadata?.posts || user?.posts || [];
 
   const sourceActivities = useMemo(() => {
+    if (isOtherProfile) {
+      return fetchedActivities || [];
+    }
     const map = new Map<string, any>();
     (activities || []).forEach((a: any) => {
       if (a?.id) map.set(String(a.id), a);
@@ -4956,7 +4960,7 @@ export default function Profile({
       else map.set(JSON.stringify(a), a);
     });
     return Array.from(map.values());
-  }, [activities, fetchedActivities]);
+  }, [isOtherProfile, activities, fetchedActivities]);
 
   const isLoadingActivities = fetchedActivitiesLoading;
 
@@ -5049,6 +5053,26 @@ export default function Profile({
     const userPosts = Array.isArray(user?.posts) ? user.posts.length : 0;
     const userHotTakes = Array.isArray(user?.hotTakes) ? user.hotTakes.length : 0;
 
+    if (isOtherProfile) {
+      return Math.max(
+        matchingEngagements.length,
+        (actCounts.ROAR_POST ?? 0) +
+        (actCounts.ROAR_DEBATE ?? 0) +
+        (actCounts.ROAR_PREDICTION ?? 0) +
+        (actCounts.ROAR_HOT_TAKE ?? 0),
+        user?.postsCount ?? user?.postCount ?? user?.posts_count ?? 0,
+        (user as any)?.stats?.postCount ?? 0,
+        (user as any)?.stats?.postsCount ?? 0,
+        (user as any)?.stats?.posts ?? 0,
+        (user as any)?.roarStats?.posts ?? 0,
+        apiHotTakes.length + apiPosts.length,
+        apiHotTakes.length,
+        apiPosts.length,
+        userPosts + userHotTakes,
+        postActivities.length
+      );
+    }
+
     return Math.max(
       matchingEngagements.length,
       (actCounts.ROAR_POST ?? 0) +
@@ -5072,7 +5096,7 @@ export default function Profile({
       profileStats?.posts ?? 0,
       profileStats?.hotTakes ? (profileStats.hotTakes + (profileStats.posts ?? 0)) : 0
     );
-  }, [userEngagements, isTargetCreator, actCounts, activityCounts, user, apiHotTakes, apiPosts, postActivities, profileStats]);
+  }, [isOtherProfile, userEngagements, isTargetCreator, actCounts, activityCounts, user, apiHotTakes, apiPosts, postActivities, profileStats]);
 
   const statDebates = useMemo(() => {
     const isDeb = (e: any) => {
@@ -5089,6 +5113,23 @@ export default function Profile({
     );
 
     const userDebates = Array.isArray(user?.debates) ? user.debates.length : 0;
+
+    if (isOtherProfile) {
+      return Math.max(
+        matchingEngagements.length,
+        (actCounts.ROAR_DEBATE_PARTICIPATE ?? 0) + (actCounts.ROAR_DEBATE ?? 0),
+        actCounts.ROAR_DEBATE_PARTICIPATE ?? 0,
+        actCounts.ROAR_DEBATE ?? 0,
+        user?.debatesCount ?? user?.debateCount ?? user?.debates_count ?? 0,
+        (user as any)?.stats?.debateCount ?? 0,
+        (user as any)?.stats?.debatesCount ?? 0,
+        (user as any)?.stats?.debates ?? 0,
+        (user as any)?.roarStats?.debates ?? 0,
+        apiDebates.length,
+        userDebates,
+        debateActivities.length
+      );
+    }
 
     return Math.max(
       matchingEngagements.length,
@@ -5108,7 +5149,7 @@ export default function Profile({
       debateActivities.length,
       profileStats?.debates ?? 0
     );
-  }, [userEngagements, isTargetCreator, actCounts, activityCounts, user, apiDebates, debateActivities, profileStats]);
+  }, [isOtherProfile, userEngagements, isTargetCreator, actCounts, activityCounts, user, apiDebates, debateActivities, profileStats]);
 
   const statPredictions = useMemo(() => {
     const isPred = (e: any) => {
@@ -5126,6 +5167,24 @@ export default function Profile({
     );
 
     const userPredictions = Array.isArray(user?.predictions) ? user.predictions.length : 0;
+
+    if (isOtherProfile) {
+      return Math.max(
+        matchingEngagements.length,
+        (actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0) + (actCounts.ROAR_PREDICTION ?? 0),
+        actCounts.ROAR_PREDICTION_PARTICIPATE ?? 0,
+        actCounts.ROAR_PREDICTION ?? 0,
+        user?.predictionCount ?? user?.predictionsCount ?? user?.predictions_count ?? 0,
+        (user as any)?.stats?.predictionCount ?? 0,
+        (user as any)?.stats?.predictionsCount ?? 0,
+        (user as any)?.stats?.predictions ?? 0,
+        (user as any)?.roarStats?.predictions ?? 0,
+        user?.predictionStats?.total ?? user?.predictionStats?.totalPredictions ?? user?.predictionStats?.count ?? 0,
+        apiPredictions.length,
+        userPredictions,
+        predictionActivities.length
+      );
+    }
 
     return Math.max(
       matchingEngagements.length,
@@ -5146,13 +5205,15 @@ export default function Profile({
       predictionActivities.length,
       profileStats?.predictions ?? 0
     );
-  }, [userEngagements, isTargetCreator, actCounts, activityCounts, user, apiPredictions, predictionActivities, profileStats]);
+  }, [isOtherProfile, userEngagements, isTargetCreator, actCounts, activityCounts, user, apiPredictions, predictionActivities, profileStats]);
 
-  const statComments = Math.max(
-    actCounts.ROAR_COMMENT ?? 0,
-    activityCounts.ROAR_COMMENT ?? 0,
-    user?.commentsCount ?? user?.commentCount ?? 0
-  );
+  const statComments = isOtherProfile
+    ? Math.max(actCounts.ROAR_COMMENT ?? 0, user?.commentsCount ?? user?.commentCount ?? 0)
+    : Math.max(
+        actCounts.ROAR_COMMENT ?? 0,
+        activityCounts.ROAR_COMMENT ?? 0,
+        user?.commentsCount ?? user?.commentCount ?? 0
+      );
 
   const statPolls = useMemo(() => {
     const isPoll = (e: any) => {
@@ -5253,8 +5314,12 @@ export default function Profile({
       community: Math.max(statPosts + statDebates + statPredictions, user?.communityCount ?? 0),
       fanBattle: Math.max(statPredictions, user?.fanBattleCount ?? 0),
       media: Math.max(postActivities.filter((p: any) => p.metadata?.hasMedia || p.hasMedia).length, user?.mediaCount ?? 0),
-      shares: Math.max(actCounts.ROAR_SHARE ?? 0, activityCounts.ROAR_SHARE ?? 0, user?.sharesCount ?? 0),
-      trivia: Math.max(actCounts.ROAR_QUIZ ?? 0, activityCounts.ROAR_QUIZ ?? 0, user?.triviaCount ?? 0),
+      shares: isOtherProfile
+        ? Math.max(actCounts.ROAR_SHARE ?? 0, user?.sharesCount ?? 0)
+        : Math.max(actCounts.ROAR_SHARE ?? 0, activityCounts.ROAR_SHARE ?? 0, user?.sharesCount ?? 0),
+      trivia: isOtherProfile
+        ? Math.max(actCounts.ROAR_QUIZ ?? 0, user?.triviaCount ?? 0)
+        : Math.max(actCounts.ROAR_QUIZ ?? 0, activityCounts.ROAR_QUIZ ?? 0, user?.triviaCount ?? 0),
     };
 
     return DEFAULT_FEATURE_DEFINITIONS.map((def) => {
