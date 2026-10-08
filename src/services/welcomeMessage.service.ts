@@ -27,11 +27,13 @@ export interface RadarCardItem {
   };
   summary?: string;
   order?: number;
+  date?: string;
   active?: boolean;
 }
 
 export interface AgendaEventItem {
   id: string;
+  date?: string;
   time: string;
   sport: string;
   subEvent: string;
@@ -53,6 +55,91 @@ export interface AgendaEventItem {
   summary?: string;
   order?: number;
   active?: boolean;
+  // Optional CTA Links
+  predictId?: string;
+  predictTitle?: string;
+  predictUrl?: string;
+  discussPostId?: string;
+  discussTitle?: string;
+  discussUrl?: string;
+  debateRoomId?: string;
+  debateTitle?: string;
+  debateUrl?: string;
+}
+
+/**
+ * Returns current date string in India Standard Time (IST, UTC+5:30) in "YYYY-MM-DD" format.
+ */
+export function getIndiaDateString(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+/**
+ * Returns current time string in India Standard Time (IST, UTC+5:30) in "hh:mm AM/PM" format.
+ */
+export function getIndiaTimeString(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+}
+
+/**
+ * Checks if a given date string (YYYY-MM-DD) matches today's date in India Standard Time.
+ */
+export function isTodayInIndia(dateStr?: string, now: Date = new Date()): boolean {
+  if (!dateStr || !dateStr.trim()) return true;
+  const todayIST = getIndiaDateString(now);
+  return dateStr.trim() === todayIST;
+}
+
+/**
+ * Formats event date & time for FlipBOARD display:
+ * - If the date is today in IST (or unspecified): shows only time (e.g. "08:00 AM").
+ * - If the date is not today: shows date and time (e.g. "09 Oct · 08:00 AM").
+ */
+export function formatEventDisplayDateTime(
+  dateStr?: string,
+  timeStr?: string,
+  now: Date = new Date()
+): string {
+  const cleanTime = (timeStr || "").trim();
+  const cleanDate = (dateStr || "").trim();
+
+  if (!cleanDate || isTodayInIndia(cleanDate, now)) {
+    return cleanTime || "Today";
+  }
+
+  try {
+    const parts = cleanDate.split("-");
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const parsedDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
+      const formattedDate = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Kolkata",
+        month: "short",
+        day: "numeric",
+      }).format(parsedDate);
+
+      if (cleanTime) {
+        return `${formattedDate} · ${cleanTime}`;
+      }
+      return formattedDate;
+    }
+  } catch (err) {
+    console.warn("Error formatting event date:", err);
+  }
+
+  return cleanTime ? `${cleanDate} · ${cleanTime}` : cleanDate;
 }
 
 /**
@@ -304,8 +391,20 @@ export interface MorningBriefStory {
   description: string;
   sport: string;
   icon: string;
+  date?: string;
+  time?: string;
   order?: number;
   active?: boolean;
+  // Optional dynamic CTA fields
+  predictId?: string;
+  predictTitle?: string;
+  predictUrl?: string;
+  discussPostId?: string;
+  discussTitle?: string;
+  discussUrl?: string;
+  debateRoomId?: string;
+  debateTitle?: string;
+  debateUrl?: string;
 }
 
 export interface WelcomeConfig {
