@@ -1552,7 +1552,7 @@ export default function FlipBOARD({
         </div>
 
         {/* ─── 2. Daily Check-in Card (Green Card) ─── */}
-        <div className="w-full mb-4 rounded-2xl p-3 sm:p-3.5 bg-gradient-to-r from-[#041a12] via-[#062419] to-[#041a12] border border-[#10B981]/35 flex items-center justify-between gap-3 shadow-[0_0_18px_rgba(16,185,129,0.08)] relative z-10">
+        {/* <div className="w-full mb-4 rounded-2xl p-3 sm:p-3.5 bg-gradient-to-r from-[#041a12] via-[#062419] to-[#041a12] border border-[#10B981]/35 flex items-center justify-between gap-3 shadow-[0_0_18px_rgba(16,185,129,0.08)] relative z-10">
           <div className="flex flex-col min-w-0">
             <h4 className="text-[13.5px] sm:text-[14px] font-black text-[#10B981] leading-tight">
               Daily Check-in
@@ -1574,7 +1574,7 @@ export default function FlipBOARD({
             <span>{isCheckInDone ? "Checked" : "Check In"}</span>
             <span>✓</span>
           </button>
-        </div>
+        </div> */}
 
         {/* ─── 3. Navigation Tabs: BRIEF vs SCHEDULE ─── */}
         <div className="flex items-center border-b border-white/10 mb-3.5 relative z-10">
