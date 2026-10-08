@@ -305,28 +305,6 @@ function getEngagementShareUrl(item: EngagementItem): string {
   return `${origin}/MainModules/FlipArena?itemId=${encodeURIComponent(targetId)}&type=${encodeURIComponent(itemType)}`;
 }
 
-const DEFAULT_LATEST_POLL: EngagementItem = {
-  id: "default_poll_today",
-  type: "poll",
-  title: "Who will take the most wickets in today's match?",
-  likes: 124,
-  shares: 38,
-  totalEngaged: 855,
-  status: "active",
-  createdAt: Date.now(),
-  pollData: {
-    question: "Who will take the most wickets in today's match?",
-    options: [
-      { id: "1", text: "Jasprit Bumrah 🏏", votes: 420 },
-      { id: "2", text: "Maheesh Theekshana 🌀", votes: 195 },
-      { id: "3", text: "Ravindra Jadeja 🍌", votes: 240 },
-    ],
-    durationMinutes: 1440,
-    startTime: Date.now() - 3600000,
-    expiresAt: Date.now() + 82800000,
-  },
-};
-
 // ─── FlipArena DynamicPollCard Component ─────────────────────────────────────
 function DynamicPollCard({
   item,
@@ -374,11 +352,7 @@ function DynamicPollCard({
   const [serverIsCorrect, setServerIsCorrect] = useState<boolean | null>(null);
 
   const [options, setOptions] = useState<Array<{ id: string; text: string; votes: number }>>(
-    item.pollData?.options || [
-      { id: "1", text: "Jasprit Bumrah 🏏", votes: 420 },
-      { id: "2", text: "Maheesh Theekshana 🌀", votes: 195 },
-      { id: "3", text: "Ravindra Jadeja 🍌", votes: 240 },
-    ]
+    item.pollData?.options || []
   );
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
@@ -1052,9 +1026,12 @@ export default function FlipBOARD({
           (a, b) => getEngagementPostingTime(b) - getEngagementPostingTime(a)
         );
         setLatestPoll(sorted[0]);
+      } else {
+        setLatestPoll(null);
       }
     } catch (err) {
       console.warn("[FlipBOARD] Error fetching latest poll from FlipArena:", err);
+      setLatestPoll(null);
     } finally {
       setLoadingLatestPoll(false);
     }
@@ -1064,12 +1041,16 @@ export default function FlipBOARD({
     loadDynamicHomeData();
     fetchLatestPoll();
 
-    // Re-sync when window receives focus so any changes made in admin are immediately visible
+    // Re-sync when window receives focus or an engagement is created so changes are immediately visible
     const handleFocus = () => {
       loadDynamicHomeData();
       fetchLatestPoll();
     };
+    const handleCreated = () => {
+      fetchLatestPoll();
+    };
     window.addEventListener("focus", handleFocus);
+    window.addEventListener("arena-engagement-created", handleCreated);
 
     // Periodic 30s auto-refresh in background
     const interval = setInterval(() => {
@@ -1079,6 +1060,7 @@ export default function FlipBOARD({
 
     return () => {
       window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("arena-engagement-created", handleCreated);
       clearInterval(interval);
     };
   }, [loadDynamicHomeData, fetchLatestPoll]);
@@ -1650,18 +1632,41 @@ export default function FlipBOARD({
 
             {/* Today's Poll Card - Exactly matching FlipArena before and after voting */}
             <div className="w-full">
-              <DynamicPollCard
-                item={latestPoll || DEFAULT_LATEST_POLL}
-                userId={activeUserId}
-                userName={currentUser.userName}
-                userAvatar={currentUser.userAvatar}
-                userEmail={currentUser.userEmail}
-                now={currentTime.getTime()}
-                onToast={showToast}
-                onOpenEngagedModal={(item) => {
-                  router.push(`/MainModules/FlipArena?itemId=${encodeURIComponent(item.id)}&type=poll`);
-                }}
-              />
+              {loadingLatestPoll ? (
+                <div className="w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-emerald-500/50 border-y border-r border-white/[0.06] rounded-2xl p-4 shadow-xl animate-pulse space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="h-3 bg-white/10 rounded w-28" />
+                    <div className="h-3 bg-white/10 rounded w-16" />
+                  </div>
+                  <div className="h-4 bg-white/15 rounded w-4/5" />
+                  <div className="space-y-2 pt-1">
+                    <div className="h-11 bg-white/[0.03] border border-white/5 rounded-xl" />
+                    <div className="h-11 bg-white/[0.03] border border-white/5 rounded-xl" />
+                    <div className="h-11 bg-white/[0.03] border border-white/5 rounded-xl" />
+                  </div>
+                </div>
+              ) : latestPoll ? (
+                <DynamicPollCard
+                  item={latestPoll}
+                  userId={activeUserId}
+                  userName={currentUser.userName}
+                  userAvatar={currentUser.userAvatar}
+                  userEmail={currentUser.userEmail}
+                  now={currentTime.getTime()}
+                  onToast={showToast}
+                  onOpenEngagedModal={(item) => {
+                    router.push(`/MainModules/FlipArena?itemId=${encodeURIComponent(item.id)}&type=poll`);
+                  }}
+                />
+              ) : (
+                <div className="w-full max-w-lg mx-auto bg-[#0e111a] border border-white/[0.06] rounded-2xl p-6 text-center shadow-xl space-y-2">
+                  <span className="text-2xl opacity-75">📊</span>
+                  <h4 className="text-xs font-bold text-white/90">No active poll right now</h4>
+                  <p className="text-[11px] text-white/50 max-w-xs mx-auto leading-relaxed">
+                    Check back soon or create your own poll in FlipArena!
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Action Buttons Row */}

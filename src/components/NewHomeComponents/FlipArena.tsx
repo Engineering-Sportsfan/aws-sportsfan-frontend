@@ -5831,11 +5831,7 @@ function DynamicPollCard({
   const [serverIsCorrect, setServerIsCorrect] = useState<boolean | null>(null);
 
   const [options, setOptions] = useState(
-    item.pollData?.options || [
-      { id: "1", text: "Jasprit Bumrah 🏏", votes: 420 },
-      { id: "2", text: "Maheesh Theekshana 🌀", votes: 195 },
-      { id: "3", text: "Ravindra Jadeja 🍌", votes: 240 },
-    ]
+    item.pollData?.options || []
   );
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
