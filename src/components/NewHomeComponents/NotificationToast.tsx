@@ -121,10 +121,22 @@ export default function NotificationToast() {
     const onNewNotification = (e: Event) => {
       const detail = (e as CustomEvent<NotificationEventDetail>).detail ?? {};
       const newId = detail.id || `toast_${Date.now()}`;
+      const title = detail.title || "New notification";
+      const body = detail.body || "";
+
+      // Check session storage to prevent repeated toasts with identical content in short succession
+      const dedupeKey = `last_toast_${title}_${body}`;
+      if (typeof window !== "undefined") {
+        const lastToastedTime = Number(sessionStorage.getItem(dedupeKey) || 0);
+        if (lastToastedTime > 0 && Date.now() - lastToastedTime < 10000) {
+          return; // Skip duplicate toast within 10 seconds
+        }
+        sessionStorage.setItem(dedupeKey, String(Date.now()));
+      }
 
       setToast({
         id: newId,
-        title: detail.title || "New notification",
+        title,
         body: detail.body,
         ctaTarget: detail.ctaTarget || "/MainModules/Notifications",
       });

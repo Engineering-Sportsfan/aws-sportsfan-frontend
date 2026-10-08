@@ -69,16 +69,34 @@ function timeAgo(dateString?: string | number) {
 
 function getClientDedupeKey(n: any): string {
   if (!n) return "";
+  const notifType = (n.notification_type || n.type || "").toLowerCase();
+  if (
+    n.eventId &&
+    (notifType === "schedule_reminder" ||
+      notifType.includes("reminder") ||
+      notifType === "live_match" ||
+      notifType.includes("live"))
+  ) {
+    return `REM#${notifType}#${n.eventId}`;
+  }
   let baseId = (n.id || n.notification_id || "").trim();
   if (!baseId && n.SK && typeof n.SK === "string" && n.SK.startsWith("NOTIF#")) {
     baseId = n.SK.split("#").pop() || "";
   }
   if (baseId) {
-    const stripped = baseId
+    let stripped = baseId
       .replace(/_[^_@]+@[^.]+.*$/, "")
       .replace(/_u_[^_]+$/, "")
       .replace(/_anon_[^_]+$/, "")
       .trim();
+
+    // Strip dynamic timestamps from reminder IDs to ensure identical deduping
+    if (stripped.startsWith("ntf_rem_")) {
+      stripped = stripped.replace(/^(ntf_rem_[^_]+)(?:_\d+)+$/, "$1");
+    } else if (stripped.startsWith("ntf_live_")) {
+      stripped = stripped.replace(/^(ntf_live_[^_]+)(?:_\d+)+$/, "$1");
+    }
+
     if (stripped.startsWith("ntf_") || stripped.length > 8) {
       return `ID#${stripped}`;
     }
@@ -89,10 +107,9 @@ function getClientDedupeKey(n: any): string {
   if (baseId) {
     return `ID#${baseId}`;
   }
-  const type = (n.notification_type || n.type || "unknown").toLowerCase();
   const entity = n.entity_id || n.entityId || n.title || "";
   const body = n.body || n.message || "";
-  return `SIG#${type}###${entity}###${body}`;
+  return `SIG#${notifType}###${entity}###${body}`;
 }
 
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
@@ -156,6 +173,8 @@ export default function NotificationCenter() {
     const dedupeMap = new Map<string, any>();
 
     const addNotifToMap = (notif: any) => {
+      if (!notif) return;
+      if (!notif.title && !notif.body && !notif.message) return; // Skip malformed empty cards
       const key = getClientDedupeKey(notif);
       const notifId = notif.id || notif.notification_id;
       const notifTime = new Date(notif.sent_at || notif.createdAt || 0).getTime();
@@ -232,9 +251,9 @@ export default function NotificationCenter() {
     }
   }, [authLoading, effectiveEmail, effectiveUid, effectiveActualUserId, fetchNotifications]);
 
-  // Auto-refresh when window receives focus
+  // Auto-refresh when window receives focus in background without resetting loading state
   useEffect(() => {
-    const onFocus = () => fetchNotifications(false);
+    const onFocus = () => fetchNotifications(true);
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
   }, [fetchNotifications]);
@@ -669,7 +688,9 @@ export default function NotificationCenter() {
                 <div
                   key={getClientDedupeKey(n) || n.notification_id || n.id || n.SK}
                   onClick={() => {
-                    if (n.cta_target || n.ctaTarget) {
+                    const nType = (n.notification_type || n.type || "").toLowerCase();
+                    const isScheduleReminder = nType === "schedule_reminder" || nType.includes("reminder");
+                    if (!isScheduleReminder && (n.cta_target || n.ctaTarget) && (n.cta_label || n.ctaLabel)) {
                       handleCta(n);
                     } else if (!n.isRead) {
                       markRead(n);
@@ -765,21 +786,28 @@ export default function NotificationCenter() {
                       {n.body || n.message}
                     </p>
 
-                    {(n.cta_label || n.ctaLabel || n.cta_target || n.ctaTarget) && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCta(n);
-                        }}
-                        className="mt-2 text-xs font-bold px-3 py-1.5 rounded-full transition-transform active:scale-95 cursor-pointer"
-                        style={{
-                          background: TOKENS.gold,
-                          color: TOKENS.bg,
-                        }}
-                      >
-                        {n.cta_label || n.ctaLabel || "View"}
-                      </button>
-                    )}
+                    {(() => {
+                      const nType = (n.notification_type || n.type || "").toLowerCase();
+                      const isScheduleReminder = nType === "schedule_reminder" || nType.includes("reminder");
+                      const ctaLabel = n.cta_label || n.ctaLabel;
+                      if (isScheduleReminder || !ctaLabel) return null;
+
+                      return (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCta(n);
+                          }}
+                          className="mt-2 text-xs font-bold px-3 py-1.5 rounded-full transition-transform active:scale-95 cursor-pointer"
+                          style={{
+                            background: TOKENS.gold,
+                            color: TOKENS.bg,
+                          }}
+                        >
+                          {ctaLabel}
+                        </button>
+                      );
+                    })()}
                   </div>
 
                   {/* Actions column on right: Green dot if unread + Dismiss (X) */}

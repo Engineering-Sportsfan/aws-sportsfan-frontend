@@ -5058,30 +5058,66 @@ function DynamicQuizCard({
 
   // Handle timeout / partial expiration notification
   const isExpired = Boolean(item.expiresAt && Number(item.expiresAt) > 0 && now > Number(item.expiresAt));
+  const wasExpiredOnMountRef = useRef<boolean>(
+    Boolean(item.expiresAt && Number(item.expiresAt) > 0 && Date.now() > Number(item.expiresAt))
+  );
   const partialNotifiedRef = useRef(false);
 
   useEffect(() => {
-    if (isExpired && hasAlreadyEngaged && !quizFinished && !partialNotifiedRef.current) {
-      partialNotifiedRef.current = true;
+    if (isExpired && hasAlreadyEngaged && !quizFinished) {
       const progress = calculateQuizProgress();
-      if (progress.answeredCount > 0) {
-        const partialMsg = `Quiz Time Expired! You answered ${progress.answeredCount}/${totalQuestions} questions and earned +${progress.earnedScore} SXPs. Tap to view your final score.`;
+      setQuizFinished(true);
+      setStoredVote(
+        "quiz_finish",
+        item.id,
+        {
+          finished: true,
+          score: progress.earnedScore,
+          answeredCount: progress.answeredCount,
+          correctCount: progress.correctCount,
+          possibleScore: progress.possibleScore,
+          expired: true,
+        },
+        userId
+      );
+
+      const notifStorageKey = `sf_quiz_expired_notified_${item.id}_${userId || "anon"}`;
+      const alreadyNotified =
+        typeof window !== "undefined"
+          ? Boolean(localStorage.getItem(notifStorageKey))
+          : false;
+
+      // Only dispatch real-time toast IF the quiz expired live in this session (was NOT already expired on initial mount)
+      // and has not been notified before.
+      if (!wasExpiredOnMountRef.current && !alreadyNotified && !partialNotifiedRef.current) {
+        partialNotifiedRef.current = true;
         if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("sf360:new-notification", {
-              detail: {
-                title: "FlipARENA",
-                body: partialMsg,
-                ctaLabel: "View Score",
-                ctaTarget: `/MainModules/FlipArena?itemId=${item.id}&type=quiz`,
-                type: "fliparena.quiz_expired_partial",
-              },
-            })
-          );
+          localStorage.setItem(notifStorageKey, "true");
+        }
+        if (progress.answeredCount > 0) {
+          const partialMsg = `Quiz Time Expired! You answered ${progress.answeredCount}/${totalQuestions} questions and earned +${progress.earnedScore} SXPs. Tap to view your final score.`;
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("sf360:new-notification", {
+                detail: {
+                  title: "FlipARENA",
+                  body: partialMsg,
+                  ctaLabel: "View Score",
+                  ctaTarget: `/MainModules/FlipArena?itemId=${item.id}&type=quiz`,
+                  type: "fliparena.quiz_expired_partial",
+                },
+              })
+            );
+          }
+        }
+      } else {
+        partialNotifiedRef.current = true;
+        if (typeof window !== "undefined" && !alreadyNotified) {
+          localStorage.setItem(notifStorageKey, "true");
         }
       }
     }
-  }, [isExpired, hasAlreadyEngaged, quizFinished, calculateQuizProgress, totalQuestions, item.id]);
+  }, [isExpired, hasAlreadyEngaged, quizFinished, calculateQuizProgress, totalQuestions, item.id, userId]);
 
   // Initial like & finish sync on mount
   useEffect(() => {
@@ -5097,8 +5133,10 @@ function DynamicQuizCard({
     if (finish?.finished) {
       setQuizFinished(true);
       if (finish.score !== undefined) setTotalScore(Number(finish.score));
+    } else if (isExpired && hasAlreadyEngaged) {
+      setQuizFinished(true);
     }
-  }, [item.id, userId, item.userLiked]);
+  }, [item.id, userId, item.userLiked, isExpired, hasAlreadyEngaged]);
 
   // ── BUG FIX B: per-question voter count fetch — use ref, drop onSyncEngagedCount from deps
   useEffect(() => {
@@ -5793,11 +5831,7 @@ function DynamicPollCard({
   const [serverIsCorrect, setServerIsCorrect] = useState<boolean | null>(null);
 
   const [options, setOptions] = useState(
-    item.pollData?.options || [
-      { id: "1", text: "Jasprit Bumrah 🏏", votes: 420 },
-      { id: "2", text: "Maheesh Theekshana 🌀", votes: 195 },
-      { id: "3", text: "Ravindra Jadeja 🍌", votes: 240 },
-    ]
+    item.pollData?.options || []
   );
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
