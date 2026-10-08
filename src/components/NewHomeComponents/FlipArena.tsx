@@ -5058,30 +5058,66 @@ function DynamicQuizCard({
 
   // Handle timeout / partial expiration notification
   const isExpired = Boolean(item.expiresAt && Number(item.expiresAt) > 0 && now > Number(item.expiresAt));
+  const wasExpiredOnMountRef = useRef<boolean>(
+    Boolean(item.expiresAt && Number(item.expiresAt) > 0 && Date.now() > Number(item.expiresAt))
+  );
   const partialNotifiedRef = useRef(false);
 
   useEffect(() => {
-    if (isExpired && hasAlreadyEngaged && !quizFinished && !partialNotifiedRef.current) {
-      partialNotifiedRef.current = true;
+    if (isExpired && hasAlreadyEngaged && !quizFinished) {
       const progress = calculateQuizProgress();
-      if (progress.answeredCount > 0) {
-        const partialMsg = `Quiz Time Expired! You answered ${progress.answeredCount}/${totalQuestions} questions and earned +${progress.earnedScore} SXPs. Tap to view your final score.`;
+      setQuizFinished(true);
+      setStoredVote(
+        "quiz_finish",
+        item.id,
+        {
+          finished: true,
+          score: progress.earnedScore,
+          answeredCount: progress.answeredCount,
+          correctCount: progress.correctCount,
+          possibleScore: progress.possibleScore,
+          expired: true,
+        },
+        userId
+      );
+
+      const notifStorageKey = `sf_quiz_expired_notified_${item.id}_${userId || "anon"}`;
+      const alreadyNotified =
+        typeof window !== "undefined"
+          ? Boolean(localStorage.getItem(notifStorageKey))
+          : false;
+
+      // Only dispatch real-time toast IF the quiz expired live in this session (was NOT already expired on initial mount)
+      // and has not been notified before.
+      if (!wasExpiredOnMountRef.current && !alreadyNotified && !partialNotifiedRef.current) {
+        partialNotifiedRef.current = true;
         if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent("sf360:new-notification", {
-              detail: {
-                title: "FlipARENA",
-                body: partialMsg,
-                ctaLabel: "View Score",
-                ctaTarget: `/MainModules/FlipArena?itemId=${item.id}&type=quiz`,
-                type: "fliparena.quiz_expired_partial",
-              },
-            })
-          );
+          localStorage.setItem(notifStorageKey, "true");
+        }
+        if (progress.answeredCount > 0) {
+          const partialMsg = `Quiz Time Expired! You answered ${progress.answeredCount}/${totalQuestions} questions and earned +${progress.earnedScore} SXPs. Tap to view your final score.`;
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("sf360:new-notification", {
+                detail: {
+                  title: "FlipARENA",
+                  body: partialMsg,
+                  ctaLabel: "View Score",
+                  ctaTarget: `/MainModules/FlipArena?itemId=${item.id}&type=quiz`,
+                  type: "fliparena.quiz_expired_partial",
+                },
+              })
+            );
+          }
+        }
+      } else {
+        partialNotifiedRef.current = true;
+        if (typeof window !== "undefined" && !alreadyNotified) {
+          localStorage.setItem(notifStorageKey, "true");
         }
       }
     }
-  }, [isExpired, hasAlreadyEngaged, quizFinished, calculateQuizProgress, totalQuestions, item.id]);
+  }, [isExpired, hasAlreadyEngaged, quizFinished, calculateQuizProgress, totalQuestions, item.id, userId]);
 
   // Initial like & finish sync on mount
   useEffect(() => {
@@ -5097,8 +5133,10 @@ function DynamicQuizCard({
     if (finish?.finished) {
       setQuizFinished(true);
       if (finish.score !== undefined) setTotalScore(Number(finish.score));
+    } else if (isExpired && hasAlreadyEngaged) {
+      setQuizFinished(true);
     }
-  }, [item.id, userId, item.userLiked]);
+  }, [item.id, userId, item.userLiked, isExpired, hasAlreadyEngaged]);
 
   // ── BUG FIX B: per-question voter count fetch — use ref, drop onSyncEngagedCount from deps
   useEffect(() => {
@@ -5793,11 +5831,7 @@ function DynamicPollCard({
   const [serverIsCorrect, setServerIsCorrect] = useState<boolean | null>(null);
 
   const [options, setOptions] = useState(
-    item.pollData?.options || [
-      { id: "1", text: "Jasprit Bumrah 🏏", votes: 420 },
-      { id: "2", text: "Maheesh Theekshana 🌀", votes: 195 },
-      { id: "3", text: "Ravindra Jadeja 🍌", votes: 240 },
-    ]
+    item.pollData?.options || []
   );
   const [liked, setLiked] = useState(false);
   const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
@@ -6895,7 +6929,7 @@ function DynamicMemeCard({
 
   const meme = item.memeData || {
     imageUrl: (item as any).imageUrl || "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
-    caption: item.subtitle || item.title || "Matchday meme energy!",
+    caption: item.subtitle || (item as any).description || item.title || "",
     authorName: "SportsFan",
     authorHandle: "@SportsFan",
     authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
@@ -6904,6 +6938,10 @@ function DynamicMemeCard({
     reactions: { mild: 0, funny: 0, hot: 0, fire: 0, nuclear: 0 },
     commentsCount: 0,
   };
+
+  const displayTitle = (item.title || (item as any).headline || "").trim();
+  const rawDesc = ((item as any).description || item.subtitle || meme.caption || (item as any).caption || "").trim();
+  const displayDescription = rawDesc && rawDesc !== displayTitle ? rawDesc : (!displayTitle ? rawDesc : "");
 
   // ── Robust Dual Image & Option Extraction ──
   const rawOpts = (meme as any).options || (item as any).options || [];
@@ -7302,37 +7340,41 @@ function DynamicMemeCard({
         </div>
       </div>
 
-      {/* Caption */}
-      <p className="text-xs font-semibold text-white/90 mb-3 leading-relaxed">
-        {meme.caption}
-      </p>
+      {/* Title (if available) */}
+      {displayTitle && (
+        <h4 className="text-xs sm:text-sm font-black text-white mb-1.5 leading-snug">
+          {displayTitle}
+        </h4>
+      )}
+
+      {/* Description (if available) */}
+      {displayDescription && (
+        <p className="text-xs font-semibold text-white/80 mb-3 leading-relaxed">
+          {displayDescription}
+        </p>
+      )}
 
       {/* Dual Meme Layout (2 Memes Side-by-Side + Poll Options Below) */}
       {isDualMeme ? (
         <div className="space-y-3 mb-3">
-          {/* 1. Two Meme Images Side-by-Side */}
+          {/* 1. Two Meme Images Side-by-Side with Labels Below */}
           <div className="grid grid-cols-2 gap-2.5">
             {dualOptions.map((opt, idx) => {
               const isSelected = selectedDualOption === opt.id;
+              const labelText = opt.label || (idx === 0 ? "Meme A" : "Meme B");
               return (
                 <div
                   key={opt.id}
-                  className={`relative rounded-xl overflow-hidden bg-black/40 border transition-all ${
+                  className={`flex flex-col rounded-xl overflow-hidden bg-black/40 border transition-all ${
                     isSelected
                       ? "border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.25)] ring-1 ring-orange-500"
                       : "border-white/[0.08]"
                   }`}
                 >
-                  <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-black text-white flex items-center gap-1">
-                    <span>{opt.label || (idx === 0 ? "Meme A" : "Meme B")}</span>
-                    {isSelected && (
-                      <span className="text-orange-400 font-bold ml-0.5">✓</span>
-                    )}
-                  </div>
-                  <div className="w-full h-44 sm:h-48 overflow-hidden flex items-center justify-center bg-black/50 relative">
+                  <div className="w-full h-40 sm:h-48 overflow-hidden flex items-center justify-center bg-black/50 relative">
                     <img
                       src={opt.imageUrl || (idx === 0 ? imgA : imgB) || "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80"}
-                      alt={opt.label || `Meme ${idx === 0 ? "A" : "B"}`}
+                      alt={labelText}
                       className="w-full h-full object-cover"
                       onError={(e: any) => {
                         e.target.src = idx === 0 
@@ -7340,6 +7382,15 @@ function DynamicMemeCard({
                           : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80";
                       }}
                     />
+                  </div>
+                  {/* Label Below Image */}
+                  <div className="py-2 px-2.5 text-center bg-white/[0.03] border-t border-white/[0.06] flex items-center justify-center gap-1.5">
+                    <span className="text-xs font-black text-white/90 truncate">
+                      {labelText}
+                    </span>
+                    {isSelected && (
+                      <span className="text-orange-400 font-bold text-xs">✓</span>
+                    )}
                   </div>
                 </div>
               );
