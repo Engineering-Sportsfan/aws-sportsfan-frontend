@@ -3985,7 +3985,7 @@ function useDynamicArenaPoints() {
             quizBonus: findPts(["ENGAGEMENT_ACCURACY_BONUS_QUIZ"], 10),
             pollBonus: findPts(["ENGAGEMENT_ACCURACY_BONUS_POLL", "ENGAGEMENT_WINNING_POLL_BONUS"], 10),
             predictionBonus: findPts(["ENGAGEMENT_ACCURACY_BONUS_PREDICTION", "PREDICTION_ACCURATE"], 10),
-            create: findPts(["ENGAGEMENT_CREATE_EVENT", "ENGAGEMENT_CREATE_QUIZ", "ENGAGEMENT_CREATE_POLL"], 2),
+            create: findPts(["ENGAGEMENT_CREATE_EVENT", "ENGAGEMENT_CREATE_QUIZ", "ENGAGEMENT_CREATE_POLL", "ENGAGEMENT_CREATE_MEME"], 2),
           };
           cachedPointRules = updated;
           setPoints(updated);
@@ -4370,6 +4370,15 @@ function resolveCurrentUser(user: any) {
   return { activeUserId, userEmail, userName, userAvatar };
 }
 
+function formatCompetitorName(name?: string): string {
+  if (!name) return "";
+  const trimmed = name.trim();
+  return trimmed
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
 // ─── 1. Fan Battle Card Component (+2 SXPs Participation) ────────────────────
 function DynamicFanBattleCard({
   item,
@@ -4665,7 +4674,7 @@ function DynamicFanBattleCard({
         <button
           onClick={() => handleVote("left")}
           disabled={loading || selectedSide !== null || isScheduled}
-          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${isScheduled
+          className={`col-span-3 rounded-xl p-3 sm:p-4 border transition-all cursor-pointer relative overflow-hidden flex flex-col items-center justify-center min-h-[96px] ${isScheduled
             ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
             : selectedSide === "left"
               ? "bg-[#FF3D57]/10 border-[#FF3D57] shadow-[0_0_15px_rgba(255,61,87,0.15)]"
@@ -4674,9 +4683,12 @@ function DynamicFanBattleCard({
                 : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
             }`}
         >
-          <span className="text-2xl font-black block">{left.code}</span>
-          <span className="text-xs font-black block mt-2 text-white">{left.name}</span>
-          <span className="text-[9px] text-white/40 block mt-1 font-semibold">{left.stat}</span>
+          <span className="text-base sm:text-lg font-black block text-white tracking-tight break-words text-center leading-snug">
+            {formatCompetitorName(left.name || left.code)}
+          </span>
+          {left.stat && left.stat.trim() && left.stat.trim().toLowerCase() !== "top contender" && (
+            <span className="text-[10px] text-white/40 block mt-1 font-semibold text-center">{left.stat}</span>
+          )}
           {result && (
             <motion.span
               initial={{ scale: 0.8, opacity: 0 }}
@@ -4699,7 +4711,7 @@ function DynamicFanBattleCard({
         <button
           onClick={() => handleVote("right")}
           disabled={loading || selectedSide !== null || isScheduled}
-          className={`col-span-3 rounded-xl p-3 border transition-all cursor-pointer relative overflow-hidden ${isScheduled
+          className={`col-span-3 rounded-xl p-3 sm:p-4 border transition-all cursor-pointer relative overflow-hidden flex flex-col items-center justify-center min-h-[96px] ${isScheduled
             ? "opacity-50 cursor-not-allowed bg-white/[0.01] border-white/[0.05]"
             : selectedSide === "right"
               ? "bg-[#FF7B02]/10 border-[#FF7B02] shadow-[0_0_15px_rgba(255,123,2,0.15)]"
@@ -4708,9 +4720,12 @@ function DynamicFanBattleCard({
                 : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04] active:scale-[0.98]"
             }`}
         >
-          <span className="text-2xl font-black block">{right.code}</span>
-          <span className="text-xs font-black block mt-2 text-white">{right.name}</span>
-          <span className="text-[9px] text-white/40 block mt-1 font-semibold">{right.stat}</span>
+          <span className="text-base sm:text-lg font-black block text-white tracking-tight break-words text-center leading-snug">
+            {formatCompetitorName(right.name || right.code)}
+          </span>
+          {right.stat && right.stat.trim() && right.stat.trim().toLowerCase() !== "top contender" && (
+            <span className="text-[10px] text-white/40 block mt-1 font-semibold text-center">{right.stat}</span>
+          )}
           {result && (
             <motion.span
               initial={{ scale: 0.8, opacity: 0 }}
@@ -6877,7 +6892,7 @@ function DynamicPredictionCard({
   );
 }
 
-// ─── 5. Meme Card Component (5 Heat Rating Tiers +2 SXPs Participation) ───────
+// ─── 5. Meme Card Component (Supports Dual Meme & 5 Heat Rating Tiers) ───────
 function DynamicMemeCard({
   item,
   userId,
@@ -6917,7 +6932,7 @@ function DynamicMemeCard({
   const currentUserName = user?.name || (user as any)?.userName || (user as any)?.displayName || "";
 
   const meme = item.memeData || {
-    imageUrl: "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
+    imageUrl: (item as any).imageUrl || "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
     caption: item.subtitle || item.title || "Matchday meme energy!",
     authorName: "SportsFan",
     authorHandle: "@SportsFan",
@@ -6928,9 +6943,103 @@ function DynamicMemeCard({
     commentsCount: 0,
   };
 
-  const initialStored = getStoredVote("meme", item.id, currentUserId);
+  // ── Robust Dual Image & Option Extraction ──
+  const rawOpts = (meme as any).options || (item as any).options || [];
+  const opt0 = rawOpts[0] || {};
+  const opt1 = rawOpts[1] || {};
+
+  const imgA =
+    (meme as any).imageUrlA ||
+    (meme as any).imageA ||
+    (meme as any).memeA?.imageUrl ||
+    (item as any).imageUrlA ||
+    (item as any).imageA ||
+    opt0.imageUrl ||
+    opt0.image ||
+    opt0.url ||
+    meme.imageUrl ||
+    "";
+
+  const imgB =
+    (meme as any).imageUrlB ||
+    (meme as any).imageB ||
+    (meme as any).memeB?.imageUrl ||
+    (item as any).imageUrlB ||
+    (item as any).imageB ||
+    opt1.imageUrl ||
+    opt1.image ||
+    opt1.url ||
+    "";
+
+  const labelA =
+    (meme as any).labelA ||
+    (item as any).labelA ||
+    (meme as any).memeA?.label ||
+    opt0.label ||
+    opt0.text ||
+    "Meme A";
+
+  const labelB =
+    (meme as any).labelB ||
+    (item as any).labelB ||
+    (meme as any).memeB?.label ||
+    opt1.label ||
+    opt1.text ||
+    "Meme B";
+
+  const isDualMeme = Boolean(
+    (meme as any).memeType === "dual" ||
+    (item as any).memeType === "dual" ||
+    (item as any).type === "meme_dual" ||
+    (meme as any).isDual ||
+    (item as any).isDual ||
+    Boolean(imgB && imgB.trim() !== "" && imgB !== imgA) ||
+    Boolean((meme as any).imageUrlB) ||
+    Boolean((item as any).imageUrlB) ||
+    (Array.isArray(rawOpts) && rawOpts.length >= 2) ||
+    item.tags?.some((t: string) => String(t).toLowerCase().includes("dual"))
+  );
+
+  const [dualOptions, setDualOptions] = useState<Array<{ id: string; label: string; imageUrl: string; votes: number }>>([
+    {
+      id: "meme_a",
+      label: labelA,
+      imageUrl: imgA || "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
+      votes: Number((meme as any).votesA || (item as any).votesA || opt0.votes) || 0,
+    },
+    {
+      id: "meme_b",
+      label: labelB,
+      imageUrl: imgB || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80",
+      votes: Number((meme as any).votesB || (item as any).votesB || opt1.votes) || 0,
+    },
+  ]);
+
+  useEffect(() => {
+    if (isDualMeme) {
+      setDualOptions([
+        {
+          id: "meme_a",
+          label: labelA,
+          imageUrl: imgA || "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
+          votes: Number((meme as any).votesA || (item as any).votesA || opt0.votes) || 0,
+        },
+        {
+          id: "meme_b",
+          label: labelB,
+          imageUrl: imgB || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80",
+          votes: Number((meme as any).votesB || (item as any).votesB || opt1.votes) || 0,
+        },
+      ]);
+    }
+  }, [item, meme, isDualMeme, imgA, imgB, labelA, labelB]);
+
+  const initialStored = getStoredVote(isDualMeme ? "meme_dual" : "meme", item.id, currentUserId) || getStoredVote("meme", item.id, currentUserId);
+  const [selectedDualOption, setSelectedDualOption] = useState<string | null>(
+    initialStored?.selectedOptionId || (isDualMeme && item.userVote ? String(item.userVote) : null)
+  );
   const [selectedRating, setSelectedRating] = useState<MemeReactionType | null>(
-    initialStored?.reaction || (item.userVote as MemeReactionType) || null
+    initialStored?.reaction || (!isDualMeme && item.userVote ? (item.userVote as MemeReactionType) : null)
   );
   const [hasVoted, setHasVoted] = useState(Boolean(initialStored || item.userVoted));
   const [loadingVote, setLoadingVote] = useState(false);
@@ -6942,7 +7051,7 @@ function DynamicMemeCard({
     return Boolean(localStorage.getItem(`sf_shared_${item.id}_${currentUserId || "anon"}`));
   });
 
-  const hasUserParticipated = Boolean(hasVoted || selectedRating !== null || item.userVoted || initialStored);
+  const hasUserParticipated = Boolean(hasVoted || selectedRating !== null || selectedDualOption !== null || item.userVoted || initialStored);
   const [totalEngaged, setTotalEngaged] = useState<number>(() => {
     return totalEngagedOverride !== undefined
       ? totalEngagedOverride
@@ -6986,6 +7095,11 @@ function DynamicMemeCard({
     meme.heatPercentage || calculateHeatPct(reactions)
   );
 
+  // Calculate Dual Meme Total Votes & Percentages
+  const totalDualVotes = useMemo(() => {
+    return dualOptions.reduce((acc, curr) => acc + (curr.votes || 0), 0) || 1;
+  }, [dualOptions]);
+
   useEffect(() => {
     if (item.userLiked) {
       setLiked(true);
@@ -6995,24 +7109,85 @@ function DynamicMemeCard({
       });
     }
 
-    const stored = getStoredVote("meme", item.id, currentUserId);
-    if (stored?.reaction) {
+    const stored = getStoredVote(isDualMeme ? "meme_dual" : "meme", item.id, currentUserId) || getStoredVote("meme", item.id, currentUserId);
+    if (stored?.selectedOptionId) {
+      setSelectedDualOption(stored.selectedOptionId);
+      setHasVoted(true);
+      if (stored.options) setDualOptions(stored.options);
+    } else if (stored?.reaction) {
       setSelectedRating(stored.reaction);
       setHasVoted(true);
     } else if (item.userVoted && item.userVote) {
-      setSelectedRating(item.userVote as MemeReactionType);
+      if (isDualMeme) {
+        setSelectedDualOption(String(item.userVote));
+      } else {
+        setSelectedRating(item.userVote as MemeReactionType);
+      }
       setHasVoted(true);
-      setStoredVote("meme", item.id, { reaction: item.userVote }, currentUserId);
     } else if (currentUserId) {
       engagementService.checkVoteStatus(item.id, currentUserId).then((res) => {
         if (res.hasVoted && res.selectedOptionId) {
-          setSelectedRating(res.selectedOptionId as MemeReactionType);
+          if (isDualMeme) {
+            setSelectedDualOption(res.selectedOptionId);
+          } else {
+            setSelectedRating(res.selectedOptionId as MemeReactionType);
+          }
           setHasVoted(true);
-          setStoredVote("meme", item.id, { reaction: res.selectedOptionId }, currentUserId);
         }
       });
     }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, currentUserId]);
+  }, [item.id, item.userLiked, item.userVoted, item.userVote, currentUserId, isDualMeme]);
+
+  // Dual Meme Choice Vote Handler
+  const handleDualMemeVote = async (optId: string) => {
+    if (!currentUserId || String(currentUserId).toLowerCase().startsWith("anon")) {
+      onToast("Please sign in to vote and earn SXPs!");
+      return;
+    }
+    if (hasVoted || loadingVote) return;
+
+    setLoadingVote(true);
+    setSelectedDualOption(optId);
+    setHasVoted(true);
+
+    const nextOptions = dualOptions.map((opt) =>
+      opt.id === optId ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
+    );
+    setDualOptions(nextOptions);
+    setStoredVote("meme_dual", item.id, { selectedOptionId: optId, options: nextOptions }, currentUserId);
+    setStoredVote("meme", item.id, { selectedOptionId: optId, options: nextOptions }, currentUserId);
+    const nextCount = Math.max(1, totalEngaged + 1);
+    setTotalEngaged(nextCount);
+    onSyncEngagedCount?.(nextCount);
+
+    try {
+      const res: any = await engagementService.voteEngagement(
+        item.id,
+        optId,
+        currentUserId,
+        undefined,
+        {
+          userName: currentUserName,
+          userAvatar,
+          userEmail: currentUserEmail,
+        }
+      );
+      if (res?.options && Array.isArray(res.options)) {
+        setDualOptions(res.options);
+        setStoredVote("meme_dual", item.id, { selectedOptionId: optId, options: res.options }, currentUserId);
+      }
+      const earned = Number(res?.pointsAwarded ?? res?.participationPointsAwarded ?? memePts);
+      if (typeof window !== "undefined" && earned > 0) {
+        window.dispatchEvent(
+          new CustomEvent("sf360:points-updated", { detail: { points: earned } })
+        );
+      }
+      onToast(`🎉 Voted! +${memePts} SXPs Earned!`);
+    } catch {
+    } finally {
+      setLoadingVote(false);
+    }
+  };
 
   const handleSelectRating = (tier: MemeReactionType) => {
     if (hasVoted) return;
@@ -7115,7 +7290,6 @@ function DynamicMemeCard({
     }
   };
 
-
   const formattedTime = formatEngagementPostingTime(item);
 
   const RATING_TIERS: Array<{
@@ -7158,7 +7332,7 @@ function DynamicMemeCard({
         <div className="flex items-center gap-1.5 uppercase">
           <span className="text-orange-400 flex items-center gap-1">
             <Flame size={11} className="text-orange-400" />
-            <span>MEME</span>
+            <span>{isDualMeme ? "DUAL MEME" : "MEME"}</span>
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -7171,96 +7345,227 @@ function DynamicMemeCard({
         {meme.caption}
       </p>
 
-      {/* Meme Image */}
-      <div className="w-full rounded-xl overflow-hidden bg-black/40 border border-white/[0.08] mb-3 relative group">
-        <img
-          src={meme.imageUrl}
-          alt={meme.caption || "Meme"}
-          className="w-full h-auto max-h-[360px] object-cover mx-auto"
-          onError={(e: any) => {
-            e.target.src = "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80";
-          }}
-        />
-      </div>
+      {/* Dual Meme Layout (2 Memes Side-by-Side + Poll Options Below) */}
+      {isDualMeme ? (
+        <div className="space-y-3 mb-3">
+          {/* 1. Two Meme Images Side-by-Side */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {dualOptions.map((opt, idx) => {
+              const isSelected = selectedDualOption === opt.id;
+              return (
+                <div
+                  key={opt.id}
+                  className={`relative rounded-xl overflow-hidden bg-black/40 border transition-all ${
+                    isSelected
+                      ? "border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.25)] ring-1 ring-orange-500"
+                      : "border-white/[0.08]"
+                  }`}
+                >
+                  <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-black text-white flex items-center gap-1">
+                    <span>{opt.label || (idx === 0 ? "Meme A" : "Meme B")}</span>
+                    {isSelected && (
+                      <span className="text-orange-400 font-bold ml-0.5">✓</span>
+                    )}
+                  </div>
+                  <div className="w-full h-44 sm:h-48 overflow-hidden flex items-center justify-center bg-black/50 relative">
+                    <img
+                      src={opt.imageUrl || (idx === 0 ? imgA : imgB) || "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80"}
+                      alt={opt.label || `Meme ${idx === 0 ? "A" : "B"}`}
+                      className="w-full h-full object-cover"
+                      onError={(e: any) => {
+                        e.target.src = idx === 0 
+                          ? "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80" 
+                          : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80";
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
 
-      {/* Dynamic Heat Gauge Meter */}
-      <div className="p-3 rounded-xl bg-gradient-to-r from-orange-500/10 via-rose-500/10 to-purple-500/10 border border-orange-500/20 mb-3">
-        <div className="flex items-center justify-between text-xs font-bold mb-1.5">
-          <span className="flex items-center gap-1.5 text-orange-400 font-black">
-            <Flame size={14} className="animate-pulse" />
-            <span>Heat Meter</span>
-          </span>
-          <span className="font-mono font-black text-amber-300 text-xs">
-            {heatPercentage}% Heat ({totalHeatVotes} {totalHeatVotes === 1 ? "vote" : "votes"})
-          </span>
-        </div>
-        <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${heatPercentage}%` }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500"
-          />
-        </div>
-      </div>
+          {/* 2. Poll-Style Voting Options Below */}
+          <div className="space-y-2 mt-2">
+            <div className="flex items-center justify-between text-[10px] font-bold text-white/50 px-1">
+              <span>{hasVoted ? "Your vote:" : "Cast your vote for the best meme:"}</span>
+              <span className="text-orange-400 font-mono">+{memePts} SXPs participation</span>
+            </div>
 
-      {/* 5-Flame Rating Selection */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between text-[10px] font-bold text-white/50 px-1">
-          <span>{hasVoted ? "Your locked rating:" : "Rate how funny/hot this is:"}</span>
-          <span className="text-orange-400 font-mono">+{memePts} SXPs participation</span>
-        </div>
+            <div className="space-y-2">
+              {dualOptions.map((opt, idx) => {
+                const isSelected = selectedDualOption === opt.id;
+                const pct = Math.round(((opt.votes || 0) / totalDualVotes) * 100);
 
-        <div className="grid grid-cols-5 gap-1.5">
-          {RATING_TIERS.map((tier) => {
-            const isSelected = selectedRating === tier.id;
-            return (
-              <button
-                key={tier.id}
-                onClick={() => handleSelectRating(tier.id)}
-                disabled={hasVoted}
-                className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer ${isSelected
-                  ? tier.activeBorder + " shadow-md"
-                  : "border-white/[0.06] bg-white/[0.02] " + tier.bgHover
-                  } ${hasVoted ? "cursor-default opacity-80" : "active:scale-95"}`}
+                let borderStyle = "border-white/[0.08] bg-white/[0.02]";
+                if (isSelected) {
+                  borderStyle = "border-orange-500 bg-orange-500/10 shadow-[0_0_12px_rgba(249,115,22,0.15)]";
+                }
+
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => handleDualMemeVote(opt.id)}
+                    disabled={hasVoted || loadingVote}
+                    className={`w-full rounded-xl p-3 border text-left transition-all relative overflow-hidden group ${borderStyle} ${
+                      hasVoted
+                        ? "cursor-default"
+                        : "hover:bg-white/[0.05] hover:border-white/20 active:scale-[0.99] cursor-pointer"
+                    }`}
+                  >
+                    {/* Animated Percentage Fill Bar (Poll Style) */}
+                    {hasVoted && (
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${pct}%` }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className={`absolute inset-y-0 left-0 ${
+                          isSelected
+                            ? "bg-gradient-to-r from-orange-500/25 to-rose-500/25"
+                            : "bg-white/[0.08]"
+                        }`}
+                      />
+                    )}
+
+                    <div className="relative z-10 flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                            isSelected
+                              ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white"
+                              : "bg-white/10 text-white/70"
+                          }`}
+                        >
+                          {idx === 0 ? "A" : "B"}
+                        </span>
+                        <span className="text-xs font-extrabold text-white">
+                          {opt.label || (idx === 0 ? "Meme A" : "Meme B")}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isSelected && (
+                          <span className="text-[10px] font-black text-orange-400 flex items-center gap-1 bg-orange-500/20 border border-orange-500/30 px-2 py-0.5 rounded-md">
+                            <Check size={11} /> Your Pick
+                          </span>
+                        )}
+                        {hasVoted && (
+                          <span className="text-xs font-mono font-black text-white/90">
+                            {pct}% <span className="text-[10px] text-white/40 font-normal">({opt.votes || 0})</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {hasVoted && (
+              <motion.div
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="py-2 px-3 rounded-xl bg-orange-500/10 border border-orange-500/20 text-center text-[11px] font-black text-orange-300 flex items-center justify-center gap-1.5"
               >
-                <Flame size={16} className={`${tier.flameColor} ${isSelected ? "animate-bounce" : ""}`} fill={isSelected ? "currentColor" : "none"} />
-                <span className="text-[10px] font-black text-white/90 mt-1">{tier.label}</span>
-                {hasVoted && (
-                  <span className="text-[9px] font-mono text-white/40 mt-0.5">
-                    {reactions[tier.id] || 0}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+                <span>🎉</span>
+                <span>Vote locked in · +{memePts} SXPs earned!</span>
+              </motion.div>
+            )}
+          </div>
         </div>
+      ) : (
+        <>
+          {/* Single Meme Image */}
+          <div className="w-full rounded-xl overflow-hidden bg-black/40 border border-white/[0.08] mb-3 relative group">
+            <img
+              src={meme.imageUrl}
+              alt={meme.caption || "Meme"}
+              className="w-full h-auto max-h-[360px] object-cover mx-auto"
+              onError={(e: any) => {
+                e.target.src = "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80";
+              }}
+            />
+          </div>
 
-        <button
-          onClick={handleSubmitVote}
-          disabled={!selectedRating || hasVoted || loadingVote}
-          className={`w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${hasVoted
-            ? "bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 cursor-default"
-            : selectedRating
-              ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-lg shadow-orange-500/20 active:scale-98 cursor-pointer"
-              : "bg-white/5 border border-white/10 text-white/30 cursor-not-allowed"
-            }`}
-        >
-          {hasVoted ? (
-            <>
-              <Check size={14} />
-              <span>Rating Locked · +{memePts} SXPs Earned</span>
-            </>
-          ) : !selectedRating ? (
-            <span>Select a rating above</span>
-          ) : (
-            <>
-              <Flame size={14} className="animate-pulse" />
-              <span>Vote {selectedRating.charAt(0).toUpperCase() + selectedRating.slice(1)}</span>
-            </>
-          )}
-        </button>
-      </div>
+          {/* Dynamic Heat Gauge Meter */}
+          <div className="p-3 rounded-xl bg-gradient-to-r from-orange-500/10 via-rose-500/10 to-purple-500/10 border border-orange-500/20 mb-3">
+            <div className="flex items-center justify-between text-xs font-bold mb-1.5">
+              <span className="flex items-center gap-1.5 text-orange-400 font-black">
+                <Flame size={14} className="animate-pulse" />
+                <span>Heat Meter</span>
+              </span>
+              <span className="font-mono font-black text-amber-300 text-xs">
+                {heatPercentage}% Heat ({totalHeatVotes} {totalHeatVotes === 1 ? "vote" : "votes"})
+              </span>
+            </div>
+            <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden relative">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${heatPercentage}%` }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+                className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500"
+              />
+            </div>
+          </div>
+
+          {/* 5-Flame Rating Selection */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-[10px] font-bold text-white/50 px-1">
+              <span>{hasVoted ? "Your locked rating:" : "Rate how funny/hot this is:"}</span>
+              <span className="text-orange-400 font-mono">+{memePts} SXPs participation</span>
+            </div>
+
+            <div className="grid grid-cols-5 gap-1.5">
+              {RATING_TIERS.map((tier) => {
+                const isSelected = selectedRating === tier.id;
+                return (
+                  <button
+                    key={tier.id}
+                    onClick={() => handleSelectRating(tier.id)}
+                    disabled={hasVoted}
+                    className={`flex flex-col items-center justify-center p-2 rounded-xl border transition-all cursor-pointer ${isSelected
+                      ? tier.activeBorder + " shadow-md"
+                      : "border-white/[0.06] bg-white/[0.02] " + tier.bgHover
+                      } ${hasVoted ? "cursor-default opacity-80" : "active:scale-95"}`}
+                  >
+                    <Flame size={16} className={`${tier.flameColor} ${isSelected ? "animate-bounce" : ""}`} fill={isSelected ? "currentColor" : "none"} />
+                    <span className="text-[10px] font-black text-white/90 mt-1">{tier.label}</span>
+                    {hasVoted && (
+                      <span className="text-[9px] font-mono text-white/40 mt-0.5">
+                        {reactions[tier.id] || 0}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={handleSubmitVote}
+              disabled={!selectedRating || hasVoted || loadingVote}
+              className={`w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${hasVoted
+                ? "bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 cursor-default"
+                : selectedRating
+                  ? "bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-lg shadow-orange-500/20 active:scale-98 cursor-pointer"
+                  : "bg-white/5 border border-white/10 text-white/30 cursor-not-allowed"
+                }`}
+            >
+              {hasVoted ? (
+                <>
+                  <Check size={14} />
+                  <span>Rating Locked · +{memePts} SXPs Earned</span>
+                </>
+              ) : !selectedRating ? (
+                <span>Select a rating above</span>
+              ) : (
+                <>
+                  <Flame size={14} className="animate-pulse" />
+                  <span>Vote {selectedRating.charAt(0).toUpperCase() + selectedRating.slice(1)}</span>
+                </>
+              )}
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Engagement Footer */}
       <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
@@ -7822,7 +8127,16 @@ export default function FlipArena({
       }
 
       if (liveItems && liveItems.length > 0) {
-        setEngagements(liveItems);
+        setEngagements((prev) => {
+          const now = Date.now();
+          const recentLocal = prev.filter((p) => {
+            const pTime = getEngagementPostingTime(p);
+            const isRecent = now - pTime < 180000;
+            const existsInLive = liveItems.some((l) => l.id === p.id);
+            return isRecent && !existsInLive;
+          });
+          return [...recentLocal, ...liveItems];
+        });
 
         // Pre-fetch accurate registered voter counts for all loaded items on feed load
         liveItems.forEach((it) => {
@@ -7845,11 +8159,11 @@ export default function FlipArena({
             .catch(() => { });
         });
       } else {
-        setEngagements([]);
+        setEngagements((prev) => (prev.length > 0 ? prev : []));
       }
     } catch (err) {
       console.warn("Could not fetch live engagements:", err);
-      setEngagements([]);
+      setEngagements((prev) => (prev.length > 0 ? prev : []));
     } finally {
       setLoadingEngagements(false);
       isFetchingEngagementsRef.current = false;
@@ -7861,8 +8175,34 @@ export default function FlipArena({
   }, [fetchEngagements]);
 
   useEffect(() => {
-    const handleGlobalCreated = () => {
+    const handleGlobalCreated = (e: any) => {
+      const detail = e?.detail;
+      const rawItem = detail?.item || (detail?.id ? detail : null);
+      if (rawItem && rawItem.id) {
+        const normalizedItem: EngagementItem = {
+          ...rawItem,
+          title:
+            rawItem.title ||
+            (rawItem as any)?.question ||
+            rawItem.pollData?.question ||
+            rawItem.predictionData?.question ||
+            rawItem.quizData?.question ||
+            rawItem.quizData?.questions?.[0]?.question ||
+            rawItem.subtitle ||
+            "Arena Event",
+          postingTime: getEngagementPostingTime(rawItem) || Date.now(),
+          startTime: getEngagementStartTime(rawItem) || Date.now(),
+        };
+        setEngagements((prev) => {
+          if (detail?.isEdit) {
+            return prev.map((it) => (it.id === normalizedItem.id ? normalizedItem : it));
+          }
+          const filtered = prev.filter((it) => it.id !== normalizedItem.id);
+          return [normalizedItem, ...filtered];
+        });
+      }
       lastFetchTimeRef.current = 0;
+      isFetchingEngagementsRef.current = false;
       engagementService.invalidateCache();
       fetchEngagements();
     };
@@ -7901,13 +8241,45 @@ export default function FlipArena({
   };
 
   const handleItemSaved = (savedItem: EngagementItem, isEdit: boolean) => {
+    const normalizedItem: EngagementItem = {
+      ...savedItem,
+      title:
+        savedItem.title ||
+        (savedItem as any)?.question ||
+        savedItem.pollData?.question ||
+        savedItem.predictionData?.question ||
+        savedItem.quizData?.question ||
+        savedItem.quizData?.questions?.[0]?.question ||
+        savedItem.subtitle ||
+        "Arena Event",
+      postingTime: getEngagementPostingTime(savedItem) || Date.now(),
+      startTime: getEngagementStartTime(savedItem) || Date.now(),
+    };
+
     setEngagements((prev) => {
       if (isEdit) {
-        return prev.map((it) => (it.id === savedItem.id ? savedItem : it));
+        return prev.map((it) => (it.id === normalizedItem.id ? normalizedItem : it));
       }
-      return [savedItem, ...prev];
+      const filtered = prev.filter((it) => it.id !== normalizedItem.id);
+      return [normalizedItem, ...filtered];
     });
 
+    // Auto-adjust active filter so user immediately sees their created item
+    const itemType = (normalizedItem.type || "").toLowerCase().trim();
+    if (filter !== "all") {
+      const matchesFilter =
+        (filter === "battle" && itemType === "fan_battle") ||
+        (filter === "quiz" && itemType === "quiz") ||
+        (filter === "poll" && itemType === "poll") ||
+        (filter === "prediction" && itemType === "prediction") ||
+        (filter === "meme" && itemType === "meme");
+      if (!matchesFilter) {
+        setFilter("all");
+      }
+    }
+
+    lastFetchTimeRef.current = 0;
+    isFetchingEngagementsRef.current = false;
     engagementService.invalidateCache();
     fetchEngagements();
 
@@ -7916,7 +8288,6 @@ export default function FlipArena({
       window.dispatchEvent(
         new CustomEvent("sf360:points-updated", { detail: { points: pointsGranted } })
       );
-      window.dispatchEvent(new CustomEvent("arena-engagement-created", { detail: savedItem }));
     }
 
     if (!isEdit) {
@@ -8033,7 +8404,7 @@ export default function FlipArena({
   const filteredEngagements = useMemo(() => {
     return engagements
       .filter((item) => {
-        if (!item || !item.title || !item.type) return false;
+        if (!item || !item.type) return false;
 
         // Always include the highlighted shared item even if filter differs
         if (
