@@ -48,9 +48,9 @@
 //       setOpen(true);
 //       if (phog) {
 //         phog.capture("open_reaction", { post_id: postId, room_id: roomId, room_name: roomName || "" });
-        try {
-          trackMeaningfulInteraction("reaction", { post_id: postId, room_id: roomId, room_name: roomName || "" });
-        } catch (e) {}
+//         try {
+//           trackMeaningfulInteraction("reaction", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+//         } catch (e) {}
 //       }
 //     }, 280);
 //   }, [phog, postId, roomId, roomName]);
@@ -677,13 +677,13 @@ export default function ReactionPicker({ currentReaction, count, onReact, disabl
       if (phog) {
         phog.capture("open_reaction", { post_id: postId, room_id: roomId, room_name: roomName || "" });
       }
-    }, 280);
+    }, 120);
   }, [phog, postId, roomId, roomName]);
 
   const scheduleClose = useCallback(() => {
     if (isTouchDevice()) return; // touch closes only via outside-tap or emoji select (see effect below)
     if (hoverTimer.current) { clearTimeout(hoverTimer.current); hoverTimer.current = null; }
-    closeTimer.current = setTimeout(() => { setOpen(false); setHovered(null); }, 350);
+    closeTimer.current = setTimeout(() => { setOpen(false); setHovered(null); }, 500);
   }, []);
 
   const cancelClose = useCallback(() => {
@@ -695,30 +695,23 @@ export default function ReactionPicker({ currentReaction, count, onReact, disabl
     if (closeTimer.current) clearTimeout(closeTimer.current);
   }, []);
 
-  // Touch devices: mobile browsers often synthesize a `mouseleave` right
-  // after `touchend`, which was triggering scheduleClose() and silently
-  // closing the picker a few hundred ms after it opened — even though the
-  // user never tapped away. scheduleClose() is now a no-op on touch (see
-  // above), and instead we close ONLY when the user taps outside the
-  // picker, or selects an emoji (handled in handleReactSelect).
+  // Closes picker when clicking / tapping outside
   useEffect(() => {
-    if (!open || !isTouchDevice()) return;
+    if (!open) return;
     const handleOutside = (e: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
         setHovered(null);
       }
     };
-    // Defer attaching the listener so the very tap that opened the picker
-    // doesn't also register as the "outside tap" that closes it.
     const id = setTimeout(() => {
       document.addEventListener("touchstart", handleOutside, true);
-      document.addEventListener("click", handleOutside, true);
+      document.addEventListener("mousedown", handleOutside, true);
     }, 0);
     return () => {
       clearTimeout(id);
       document.removeEventListener("touchstart", handleOutside, true);
-      document.removeEventListener("click", handleOutside, true);
+      document.removeEventListener("mousedown", handleOutside, true);
     };
   }, [open]);
 
@@ -791,7 +784,7 @@ export default function ReactionPicker({ currentReaction, count, onReact, disabl
     }
 
     // Desktop: click now opens the picker immediately instead of instantly
-    // reacting with "heart" — removes dependency on the 280ms hover delay.
+    // reacting with "heart" — removes dependency on hover delay.
     if (open) { setOpen(false); return; }
     if (currentReaction) { onReact(null); return; }
 
@@ -824,7 +817,7 @@ export default function ReactionPicker({ currentReaction, count, onReact, disabl
     <div
       ref={containerRef}
       style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
-      onMouseEnter={scheduleOpen}
+      onMouseEnter={() => { cancelClose(); scheduleOpen(); }}
       onMouseLeave={scheduleClose}
     >
       {/* ── Reaction popover ── */}
@@ -860,6 +853,18 @@ export default function ReactionPicker({ currentReaction, count, onReact, disabl
               visibility: leftPx === null ? "hidden" : "visible", // avoid flash at wrong position on first frame
             }}
           >
+            {/* Invisible hit-bridge so mouse cursor never leaves container bounds when moving between button and popover */}
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                left: -20,
+                right: -20,
+                height: 24,
+                pointerEvents: "auto",
+              }}
+            />
+
             {/* Arrow — points at the actual button regardless of shift */}
             <div style={{
               position: "absolute", bottom: -5,

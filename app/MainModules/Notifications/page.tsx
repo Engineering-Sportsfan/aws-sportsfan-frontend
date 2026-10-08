@@ -384,6 +384,7 @@ export default function NotificationCenter() {
           all: true,
           email: effectiveEmail,
           userId: effectiveUid,
+          actualUserId: effectiveActualUserId,
         })
       });
     } catch (err) {
@@ -435,6 +436,7 @@ export default function NotificationCenter() {
           sk: notification.SK || notification.sk,
           email: effectiveEmail,
           userId: effectiveUid,
+          actualUserId: effectiveActualUserId,
         })
       });
     } catch (err) {
@@ -666,9 +668,13 @@ export default function NotificationCenter() {
               return (
                 <div
                   key={getClientDedupeKey(n) || n.notification_id || n.id || n.SK}
-                  onClick={() =>
-                    !n.isRead && markRead(n)
-                  }
+                  onClick={() => {
+                    if (n.cta_target || n.ctaTarget) {
+                      handleCta(n);
+                    } else if (!n.isRead) {
+                      markRead(n);
+                    }
+                  }}
                   className="relative flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors group"
                   style={{
                     borderBottom: `1px solid ${TOKENS.borderSoft}`,
@@ -693,27 +699,47 @@ export default function NotificationCenter() {
                     }}
                   />
 
-                  <div
-                    className="relative flex items-center justify-center w-8 h-8 rounded-lg shrink-0 mt-0.5 overflow-hidden"
-                    style={{ background: TOKENS.borderSoft }}
-                  >
-                    {n.actor_avatar ? (
-                      <img
-                        src={n.actor_avatar}
-                        alt={n.actor_name || "User"}
-                        className="w-full h-full object-cover rounded-lg"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLElement).style.display = "none";
-                        }}
-                      />
-                    ) : (
-                      <Icon
-                        size={14}
-                        color={TOKENS.textMuted}
-                        strokeWidth={2}
-                      />
-                    )}
-                  </div>
+                  {(() => {
+                    const notifAvatar =
+                      n.photoURL ||
+                      n.actor_photoURL ||
+                      n.actorPhoto ||
+                      n.actor_avatar ||
+                      n.actorAvatar ||
+                      n.userAvatar ||
+                      n.user_avatar ||
+                      n.avatar ||
+                      null;
+
+                    return (
+                      <div
+                        className="relative flex items-center justify-center w-8 h-8 rounded-lg shrink-0 mt-0.5 overflow-hidden"
+                        style={{ background: TOKENS.borderSoft }}
+                      >
+                        {notifAvatar ? (
+                          <img
+                            src={notifAvatar}
+                            alt={n.actor_name || "User"}
+                            className="w-full h-full object-cover rounded-lg"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLElement).style.display = "none";
+                              const fallbackEl = e.currentTarget.parentElement?.querySelector(".notif-fallback-icon") as HTMLElement;
+                              if (fallbackEl) fallbackEl.style.display = "flex";
+                            }}
+                          />
+                        ) : null}
+                        <div
+                          className={`notif-fallback-icon items-center justify-center w-full h-full ${notifAvatar ? "hidden" : "flex"}`}
+                        >
+                          <Icon
+                            size={14}
+                            color={TOKENS.textMuted}
+                            strokeWidth={2}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div className="flex-1 min-w-0 pr-6">
                     <div className="flex items-start justify-between gap-2">

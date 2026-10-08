@@ -84,6 +84,12 @@ const nextConfig = {
           destination: `${apiTarget}/api/flipline/:path*`,
         },
 
+        // ── Admin (Sports, Channels, etc.) Rewrites ──
+        {
+          source: "/api/admin/:path*",
+          destination: `${apiTarget}/api/admin/:path*`,
+        },
+
         // Medal Tally
 
         {
@@ -361,6 +367,29 @@ const nextConfig = {
           source: "/api/global-search/:path*",
           destination: `${apiTarget}/api/global-search/:path*`,
         },
+
+        
+        // Channels
+        {
+          source: "/api/admin/channels",
+          destination: `${apiTarget}/api/admin/channels`,
+        },
+        {
+          source: "/api/admin/channels/:path*",
+          destination: `${apiTarget}/api/admin/channels/:path*`,
+        },
+
+         // Sports
+        {
+          source: "/api/admin/sports",
+          destination: `${apiTarget}/api/admin/sports`,
+        },
+        {
+          source: "/api/admin/sports/:path*",
+          destination: `${apiTarget}/api/admin/sports/:path*`,
+        },
+
+
 
         // Static content
         {

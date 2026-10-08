@@ -14,7 +14,7 @@ import { roarApi } from "@/lib/roarApi";
 import {
     Image, ChevronLeft, Flame, TrendingUp, Zap, History, PenTool,
     Brain, Users, Volume2, VolumeX, Share2, Send, ChevronDown, ChevronUp,
-    Clock, MoreVertical, Trash2, MessageSquare, Hash,
+    Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle,
 } from "lucide-react";
 import EmojiPicker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
@@ -89,12 +89,15 @@ function formatChannelName(rawName?: string, rawSlug?: string): { name: string; 
         ? "🏏"
         : cleanSlug.includes("foot") || cleanSlug.includes("soccer")
             ? "⚽"
-            : cleanSlug.includes("basket")
-                ? "🏀"
-                : cleanSlug.includes("tennis")
-                    ? "🎾"
-                    : "💬";
-
+            : cleanSlug.includes("athletic") || cleanSlug.includes("running")
+                ? "🏃"
+                : cleanSlug.includes("multi")
+                    ? "🏆"
+                    : cleanSlug.includes("basket")
+                        ? "🏀"
+                        : cleanSlug.includes("tennis")
+                            ? "🎾"
+                            : "💬";
     return { name, slug: cleanSlug, icon };
 }
 
@@ -393,6 +396,375 @@ function threadSort(flat: any[]): any[] {
     return result;
 }
 
+const BOT_AVATAR_MAP: Record<string, string> = {
+    dolly: "/images/dolly.png",
+    radha: "/images/radha.png",
+    krishna: "/images/krishna.png",
+};
+
+function getBotAvatarUrl(name?: string): string {
+    const key = (name || "").trim().toLowerCase();
+    return BOT_AVATAR_MAP[key] ?? BOT_AVATAR_MAP.dolly;
+}
+
+function getKnownBotAvatarUrl(name?: string): string | undefined {
+    const key = (name || "").trim().toLowerCase();
+    return BOT_AVATAR_MAP[key];
+}
+
+const abbrevOf = (name?: string) => (name || "").trim().slice(0, 2).toUpperCase() || "??";
+
+function DollyCardHeader({ post, typeLabel, typeColor, typeIcon, onFanProfile }: {
+    post: any; typeLabel: string; typeColor: string; typeIcon: React.ReactNode; onFanProfile?: (fan: any) => void;
+}) {
+    const botName = post.botName || post.authorUsername || "Dolly";
+    return (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, cursor: onFanProfile ? "pointer" : "default" }}
+            onClick={(e) => {
+                e.stopPropagation();
+                onFanProfile?.({
+                    username: botName,
+                    avatarUrl: getBotAvatarUrl(botName),
+                    isBot: true,
+                });
+            }}
+        >
+            <img src={getBotAvatarUrl(botName)} alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+            <span style={{ fontWeight: 700, fontSize: 10, color: "#fff" }}>{botName}</span>
+            <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)" }}>{post.timeAgo}</span>
+            <span className={`text-[7px] font-extrabold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1`} style={{ background: `${typeColor}22`, color: typeColor, border: `1px solid ${typeColor}40` }}>
+                {typeIcon} {typeLabel}
+            </span>
+        </div>
+    );
+}
+
+function TriviaCard({ post, onToast, onPostClick, roomId, onFanProfile }: {
+    post: any; onToast: (m: string) => void; onPostClick?: (post: any) => void; roomId?: string; onFanProfile?: (fan: any) => void;
+}) {
+    const questions: { question: string; options: { label: string; text?: string; isCorrect?: boolean }[] }[] = post.triviaQuestions ?? [];
+    const [answers, setAnswers] = useState<Record<number, { selected: string; correctOption?: string; isCorrect?: boolean }>>(() => {
+        const initial: Record<number, { selected: string; correctOption?: string; isCorrect?: boolean }> = {};
+        Object.entries(post.userTriviaAnswers ?? {}).forEach(([idx, val]: [string, any]) => {
+            initial[Number(idx)] = { selected: val.selectedOption ?? val.selected, correctOption: val.correctOption, isCorrect: val.isCorrect };
+        });
+        return initial;
+    });
+    const [submittingIdx, setSubmittingIdx] = useState<number | null>(null);
+    const isExpired = Boolean(post.closesAt && post.closesAt <= Date.now());
+
+    const handleAnswer = useCallback(async (qIndex: number, label: string) => {
+        if (answers[qIndex] || submittingIdx !== null || isExpired) return;
+        setSubmittingIdx(qIndex);
+        setAnswers(prev => ({ ...prev, [qIndex]: { selected: label } }));
+        try {
+            const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/trivia-answer`, {
+                questionIndex: qIndex, selectedOption: label,
+            }, { timeout: REQUEST_TIMEOUT_MS });
+            const correctOption = res.data?.correctOption;
+            const isCorrect = res.data?.isCorrect;
+            setAnswers(prev => ({ ...prev, [qIndex]: { selected: label, correctOption, isCorrect } }));
+            onToast(isCorrect ? "Correct! Points awarded" : `Wrong! Correct answer was ${correctOption ?? "revealed"}`);
+        } catch (err: any) {
+            if (err?.response?.status !== 409) {
+                setAnswers(prev => { const next = { ...prev }; delete next[qIndex]; return next; });
+                onToast("Failed to submit answer");
+            }
+        } finally {
+            setSubmittingIdx(null);
+        }
+    }, [answers, submittingIdx, isExpired, roomId, post.id, onToast]);
+
+    return (
+        <div style={{ padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <DollyCardHeader post={post} typeLabel="Trivia" typeColor="#E91E8C" typeIcon={<Brain size={8} />} onFanProfile={onFanProfile} />
+
+            {questions.map((q, qIndex) => {
+                const answered = answers[qIndex];
+                const hasAnswered = Boolean(answered);
+                return (
+                    <div key={qIndex} style={{ marginBottom: qIndex < questions.length - 1 ? 12 : 3 }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
+                            <p style={{ fontWeight: 700, fontSize: 11, lineHeight: 1.3, margin: 0, color: "#fff", cursor: "pointer" }} onClick={() => onPostClick && onPostClick(post)}>
+                                {questions.length > 1 ? `${qIndex + 1}. ` : ""}{q.question}
+                            </p>
+                            {isExpired && !hasAnswered && (
+                                <span style={{ flexShrink: 0, fontSize: 8, fontWeight: 800, color: "#c084fc", background: "rgba(147,51,234,0.18)", border: "1px solid rgba(147,51,234,0.35)", borderRadius: 0, padding: "2px 6px", whiteSpace: "nowrap" }}>
+                                    Time up!
+                                </span>
+                            )}
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+                            {(() => {
+                                const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
+                                const revealedCorrectLabel = q.options.find(o => o.isCorrect)?.label;
+                                const correctLabel = answered?.correctOption ?? revealedCorrectLabel;
+                                return q.options.map((opt, optIndex) => {
+                                    const label = opt.label;
+                                    const optionLetter = OPTION_LETTERS[optIndex] ?? String(optIndex + 1);
+                                    const isSelected = answered?.selected === label;
+                                    const isCorrect = hasAnswered && correctLabel === label;
+                                    const isWrong = hasAnswered && isSelected && !!correctLabel && correctLabel !== label;
+                                    const style: React.CSSProperties = isCorrect
+                                        ? { background: "rgba(34,197,94,0.14)", border: "1.5px solid rgba(34,197,94,0.5)" }
+                                        : isWrong
+                                            ? { background: "rgba(244,67,54,0.1)", border: "1.5px solid rgba(244,67,54,0.4)" }
+                                            : hasAnswered
+                                                ? { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", opacity: 0.5 }
+                                                : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" };
+                                    const badgeStyle: React.CSSProperties = isCorrect
+                                        ? { background: "#22c55e", color: "#0a0a10" }
+                                        : { background: "rgba(147,51,234,0.25)", color: "#c084fc" };
+                                    return (
+                                        <motion.div key={label} whileTap={!hasAnswered && submittingIdx === null ? { scale: 0.96 } : {}}
+                                            onClick={(e) => { e.stopPropagation(); handleAnswer(qIndex, label); }}
+                                            style={{ ...style, borderRadius: 0, padding: "6px 8px", display: "flex", alignItems: "center", gap: 6, cursor: (hasAnswered || isExpired) ? "default" : "pointer", transition: "all 0.2s" }}
+                                        >
+                                            <span style={{ width: 16, height: 16, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800, flexShrink: 0, ...badgeStyle }}>
+                                                {isCorrect ? <CheckCircle2 size={10} /> : optionLetter}
+                                            </span>
+                                            <span style={{ fontSize: 10, fontWeight: 700, color: isCorrect ? "#4ade80" : isWrong ? "#f87171" : "#e5e5f0" }}>
+                                                {opt.text || label}
+                                            </span>
+                                        </motion.div>
+                                    );
+                                });
+                            })()}
+                        </div>
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
+function BattleSwipeCard({
+    post, roomId, qIndex, playerA, playerB, initialVote, onToast,
+}: {
+    post: any; roomId?: string; qIndex: number;
+    playerA: { name: string; team?: string; image?: string };
+    playerB: { name: string; team?: string; image?: string };
+    initialVote?: "playerA" | "playerB";
+    onToast: (m: string) => void;
+}) {
+    const [votedSide, setVotedSide] = useState<"playerA" | "playerB" | undefined>(initialVote);
+    const [candidateIdx, setCandidateIdx] = useState(0);
+    const [dragX, setDragX] = useState(0);
+    const [flash, setFlash] = useState<"green" | "red" | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [showInstruction, setShowInstruction] = useState(true);
+    const [hasInteracted, setHasInteracted] = useState(false);
+
+    useEffect(() => {
+        if (hasInteracted) {
+            setShowInstruction(false);
+            return;
+        }
+        const timer = setTimeout(() => setShowInstruction(false), 5000);
+        return () => clearTimeout(timer);
+    }, [hasInteracted]);
+
+    const candidate = candidateIdx === 0 ? playerA : playerB;
+    const candidateSide: "playerA" | "playerB" = candidateIdx === 0 ? "playerA" : "playerB";
+
+    const vibrate = (pattern: number | number[]) => {
+        try {
+            if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+                navigator.vibrate(pattern);
+            }
+        } catch { }
+    };
+
+    const castVote = useCallback(async (side: "playerA" | "playerB") => {
+        if (submitting || votedSide) return;
+        setSubmitting(true);
+        setFlash("green");
+        setVotedSide(side);
+        vibrate(30);
+        setHasInteracted(true);
+
+        const failsafe = setTimeout(() => setSubmitting(false), REQUEST_TIMEOUT_MS + 3000);
+        try {
+            await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/vote`, {
+                vote: side,
+                questionIndex: qIndex
+            }, { timeout: REQUEST_TIMEOUT_MS });
+            onToast(`You voted for ${side === "playerA" ? playerA.name : playerB.name}!`);
+        } catch (err: any) {
+            if (err?.response?.status !== 409) {
+                setVotedSide(undefined);
+                onToast("Failed to submit vote");
+            }
+        } finally {
+            clearTimeout(failsafe);
+            setSubmitting(false);
+        }
+    }, [submitting, votedSide, roomId, post.id, qIndex, playerA, playerB, onToast]);
+
+    const reject = useCallback(() => {
+        setFlash("red");
+        vibrate(20);
+        setHasInteracted(true);
+        setTimeout(() => {
+            setFlash(null);
+            setDragX(0);
+            setCandidateIdx(i => (i === 0 ? 1 : 0));
+        }, 180);
+    }, []);
+
+    const handleDragEnd = (_e: any, info: { offset: { x: number } }) => {
+        if (info.offset.x > 90) {
+            castVote(candidateSide);
+        } else if (info.offset.x < -90) {
+            reject();
+        } else {
+            setDragX(0);
+        }
+    };
+
+    if (votedSide) {
+        const winner = votedSide === "playerA" ? playerA : playerB;
+        const loser = votedSide === "playerA" ? playerB : playerA;
+        return (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
+                <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+                <span className="text-[10px] text-gray-200">
+                    You picked <strong className="text-emerald-400">{winner.name}</strong> over {loser.name}
+                </span>
+            </div>
+        );
+    }
+
+    const showFullInstruction = showInstruction && !hasInteracted;
+
+    return (
+        <div className="mt-1">
+            {showFullInstruction && (
+                <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="flex items-center justify-center gap-2 px-3 py-1.5 mb-2 rounded-lg bg-gradient-to-r from-rose-500/12 to-orange-500/8 border border-rose-500/20"
+                >
+                    <span className="text-sm">👆</span>
+                    <span className="text-[10px] text-white/70">
+                        <strong className="text-white">Swipe right</strong> to vote for <strong className="text-rose-400">{candidate.name}</strong> ·
+                        <strong className="text-white"> Swipe left</strong> to see the other option
+                    </span>
+                    <button
+                        onClick={() => setShowInstruction(false)}
+                        className="bg-transparent border-none text-white/30 cursor-pointer text-xs px-1"
+                    >
+                        ✕
+                    </button>
+                </motion.div>
+            )}
+
+            <div className="flex justify-center items-center gap-1.5 mb-1.5">
+                {[0, 1].map((idx) => (
+                    <div
+                        key={idx}
+                        className={`h-1 rounded-full transition-all duration-300 ${idx === candidateIdx
+                            ? "w-5 bg-gradient-to-r from-rose-500 to-orange-500"
+                            : "w-1.5 bg-white/20"
+                            }`}
+                    />
+                ))}
+                <span className="text-[8px] text-white/30 font-semibold ml-1">
+                    {candidateIdx + 1} of 2
+                </span>
+            </div>
+
+            <motion.div
+                drag="x"
+                dragConstraints={{ left: 0, right: 0 }}
+                dragElastic={0.7}
+                dragMomentum={false}
+                onDrag={(_e, info) => setDragX(info.offset.x)}
+                onDragEnd={handleDragEnd}
+                animate={flash ? { x: flash === "green" ? 260 : -260, opacity: 0 } : { x: 0, opacity: 1 }}
+                transition={{ duration: 0.22 }}
+                whileTap={{ scale: 0.98 }}
+                className="relative rounded-xl p-3 text-center bg-white/5 border border-white/10 flex flex-col items-center gap-1 cursor-grab touch-none select-none overflow-hidden"
+            >
+                <div
+                    className="absolute inset-0 pointer-events-none transition-colors duration-75"
+                    style={{
+                        background: `rgba(${dragX > 0 ? '34,197,94' : '244,67,54'},${Math.min(Math.abs(dragX) / 100, 0.4)})`
+                    }}
+                />
+
+                {Math.abs(dragX) > 20 && (
+                    <div className={`absolute top-1.5 ${dragX > 0 ? 'left-2' : 'right-2'} text-[10px] font-extrabold rounded border-2 px-1.5 py-0.5 bg-black/60 z-10 ${dragX > 0 ? 'text-emerald-400 border-emerald-400' : 'text-red-400 border-red-400'
+                        }`}>
+                        {dragX > 0 ? "VOTE ✅" : "SKIP ➡️"}
+                    </div>
+                )}
+
+                {candidate.image ? (
+                    <img
+                        src={candidate.image}
+                        alt={candidate.name}
+                        className="w-10 h-10 rounded-full object-cover"
+                        draggable={false}
+                    />
+                ) : (
+                    <span className="font-display text-2xl font-black text-white leading-none">
+                        {abbrevOf(candidate.team || candidate.name)}
+                    </span>
+                )}
+
+                <span className="font-bold text-xs text-white leading-tight">
+                    {candidate.name}
+                </span>
+
+                {candidate.team && (
+                    <span className="text-[10px] text-white/50">
+                        {candidate.team}
+                    </span>
+                )}
+            </motion.div>
+        </div>
+    );
+}
+
+function BattleCard({ post, onToast, onPostClick, roomId, onFanProfile }: {
+    post: any; onToast: (m: string) => void; onPostClick?: (post: any) => void; roomId?: string; onFanProfile?: (fan: any) => void;
+}) {
+    const questions: { question?: string; playerA: { name: string; team?: string; image?: string }; playerB: { name: string; team?: string; image?: string } }[] = post.battleQuestions ?? [];
+    const votesByQuestion: Record<number, "playerA" | "playerB"> = post.userPredictionVotes ?? {};
+    const isExpired = Boolean(post.closesAt && post.closesAt <= Date.now());
+
+    return (
+        <div style={{ padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+            <DollyCardHeader post={post} typeLabel="Battle" typeColor="#f97316" typeIcon={<Zap size={8} />} onFanProfile={onFanProfile} />
+
+            {questions.map((q, qIndex) => {
+                const alreadyVoted = votesByQuestion[qIndex];
+                return (
+                    <div key={qIndex} style={{ marginBottom: qIndex < questions.length - 1 ? 12 : 3 }}>
+                        {q.question && (
+                            <p style={{ fontWeight: 600, fontSize: 10, lineHeight: 1.3, marginBottom: 6, color: "rgba(255,255,255,0.75)", cursor: "pointer" }} onClick={() => onPostClick && onPostClick(post)}>
+                                {q.question}
+                            </p>
+                        )}
+                        {isExpired && !alreadyVoted ? (
+                            <p style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontStyle: "italic" }}>Voting closed</p>
+                        ) : (
+                            <BattleSwipeCard
+                                post={post} roomId={roomId} qIndex={qIndex}
+                                playerA={q.playerA} playerB={q.playerB}
+                                initialVote={alreadyVoted}
+                                onToast={onToast}
+                            />
+                        )}
+                    </div>
+                );
+            })}
+        </div>
+    );
+}
+
 function InlineSection({
     postId, roomId, roomName, isOpen, onOpenFull, accentColor, currentAvatarUrl,
     onCommentPosted, onCommentDeleted, currentUserId, currentUsername, onFanProfile, onToast,
@@ -572,10 +944,11 @@ function InlineSection({
                             return (
                                 <div key={commentId} style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingLeft: isReply ? 24 : 0, minWidth: 0, width: "100%" }}>
                                     <div style={{ width: 14, height: 14, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: onFanProfile ? "pointer" : "default" }}
-                                        onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid }); }}
+                                        onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: getKnownBotAvatarUrl(r.authorUsername) || r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid, isBot: Boolean(getKnownBotAvatarUrl(r.authorUsername)) }); }}
                                     >
                                         {(() => {
                                             const resolvedAvatar =
+                                                getKnownBotAvatarUrl(r.authorUsername) ||
                                                 r.authorAvatarUrl ||
                                                 r.avatarUrl ||
                                                 (r.authorUsername === currentUsername ? currentAvatarUrl : undefined);
@@ -587,7 +960,7 @@ function InlineSection({
                                     <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
                                         <span
                                             style={{ fontWeight: 700, color: "#fff", fontSize: 10, display: "block", wordBreak: "break-word", cursor: onFanProfile ? "pointer" : "default" }}
-                                            onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid }); }}
+                                            onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: getKnownBotAvatarUrl(r.authorUsername) || r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid, isBot: Boolean(getKnownBotAvatarUrl(r.authorUsername)) }); }}
                                         >
                                             {r.authorUsername ?? "Fan"}
                                         </span>
@@ -911,42 +1284,40 @@ export default function OpenRoomDiscussionRoom({
 
     const channelsFetchTokenRef = useRef<symbol | null>(null);
 
-    // ── Fetch Channels ──
+    // ── Fetch Universal Channels ──
     const fetchChannels = useCallback(async () => {
-        if (!roomId) return;
         const requestId = Symbol();
         channelsFetchTokenRef.current = requestId;
         setChannelsLoading(true);
         try {
-            const res = await axios.get(`/api/roar/rooms/${roomId}/channels`, { timeout: REQUEST_TIMEOUT_MS });
+            const res = await axios.get(`/api/admin/sports`, { timeout: REQUEST_TIMEOUT_MS });
             if (channelsFetchTokenRef.current !== requestId) return; // stale response, ignore
-            const rawChannels: any[] = res.data?.channels ?? [];
-            const fetchedChannels: Channel[] = rawChannels.map((ch: any) => {
-                const id = String(ch.channelId || "").replace(/^CHANNEL#/, "");
-                const { name, slug, icon } = formatChannelName(ch.name, ch.slug);
+            const rawChannels: any[] = res.data?.sports ?? res.data?.channels ?? res.data?.data ?? (Array.isArray(res.data) ? res.data : []);
+            const fetchedChannels: Channel[] = rawChannels.map((ch: any, idx: number) => {
+                const id = String(ch.id || ch.channelId || ch.sport || "").replace(/^CHANNEL#|^SPORT#/, "");
+                const { name, slug, icon } = formatChannelName(ch.name || ch.title || ch.sport, ch.slug || ch.id);
                 return {
                     channelId: id,
                     name,
                     slug,
                     icon: ch.icon || icon,
-                    isActive: ch.isActive !== false,
-                    order: typeof ch.order === "number" ? ch.order : 0,
+                    isActive: ch.isActive !== false && ch.status !== "inactive",
+                    order: typeof ch.order === "number" ? ch.order : idx,
                 };
             }).filter((ch: Channel) => Boolean(ch.channelId));
-
             fetchedChannels.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
             setChannels(fetchedChannels);
             setSelectedChannelId(prev => prev ?? "all");
         } catch (error) {
             if (channelsFetchTokenRef.current !== requestId) return;
-            console.error("Failed to fetch channels:", error);
+            console.error("Failed to fetch universal channels:", error);
             setChannels([]);
         } finally {
             if (channelsFetchTokenRef.current === requestId) setChannelsLoading(false);
         }
-    }, [roomId]);
+    }, []);
 
-    // ── Load channels on mount ──
+    // ── Load universal channels on mount ──
     useEffect(() => {
         fetchChannels();
     }, [fetchChannels]);
@@ -1088,13 +1459,16 @@ export default function OpenRoomDiscussionRoom({
     const fetchTopReactions = useCallback(async (msgId: string) => {
         if (topReactionsCache.current[msgId] !== undefined) return;
         topReactionsCache.current[msgId] = [];
+        if (!roomId) return;
         try {
-            const url = `/api/roar/posts/${msgId}/reactions${roomId ? `?roomId=${encodeURIComponent(roomId)}` : ""}`;
+            const url = `/api/roar/rooms/${roomId}/messages/${msgId}/reactions`;
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
-            const reactors: { reaction: string }[] = res.data?.reactors ?? [];
-            const counts: Record<string, number> = {};
-            reactors.forEach(r => { counts[r.reaction] = (counts[r.reaction] ?? 0) + 1; });
-            const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 3).map(([type]) => type);
+            const counts: Record<string, number> = res.data?.counts ?? {};
+            const top = Object.entries(counts)
+                .filter(([, n]) => (n as number) > 0)
+                .sort(([, a], [, b]) => (b as number) - (a as number))
+                .slice(0, 3)
+                .map(([type]) => type);
             topReactionsCache.current[msgId] = top;
             setTopReactionsMap(prev => ({ ...prev, [msgId]: top }));
         } catch { topReactionsCache.current[msgId] = []; }
@@ -1116,9 +1490,11 @@ export default function OpenRoomDiscussionRoom({
                 username: displayUsername(m.authorUsername),
                 authorUid: m.authorUid,
                 badge: m.authorBadge,
-                avatarUrl: isMine
-                    ? (myEffectiveAvatar || sanitizedAuthorAvatar || undefined)
-                    : (sanitizedAuthorAvatar || undefined)
+                avatarUrl:
+                    getKnownBotAvatarUrl(m.authorUsername) ??
+                    (isMine
+                        ? (myEffectiveAvatar || sanitizedAuthorAvatar || undefined)
+                        : (sanitizedAuthorAvatar || undefined))
             },
             text: m.text,
             fireCount: m.fireCount ?? 0,
@@ -1581,15 +1957,17 @@ export default function OpenRoomDiscussionRoom({
 
     const handleReact = useCallback(async (msgId: string, reaction: Reaction | null) => {
         if (!roomId || pendingReactRef.current[msgId]) return;
-        const post = posts.find(p => p.id === msgId);
-        const prev = localReactionsRef.current[msgId] ?? { reaction: post?.userReaction ?? null, heartCount: post?.heartCount ?? 0 };
-        const sameReaction = prev.reaction === reaction;
+        const post = posts.find(p => p.id === msgId) || morePosts.find(p => p.id === msgId);
+        const prevReactionState = localReactionsRef.current[msgId] ?? { reaction: post?.userReaction ?? null, heartCount: post?.heartCount ?? 0 };
+        const sameReaction = prevReactionState.reaction === reaction;
         const newReaction = sameReaction ? null : reaction;
-        const wasActive = prev.reaction !== null;
+        const wasActive = prevReactionState.reaction !== null;
         const newActive = newReaction !== null;
         const countDelta = newActive && !wasActive ? 1 : (!newActive && wasActive ? -1 : 0);
-        const optimisticState = { reaction: newReaction, heartCount: Math.max(0, prev.heartCount + countDelta) };
+        const optimisticState = { reaction: newReaction, heartCount: Math.max(0, prevReactionState.heartCount + countDelta) };
         setLocalReactions(p => ({ ...p, [msgId]: optimisticState }));
+        setPosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: optimisticState.heartCount, userReaction: newReaction } : p));
+        setMorePosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: optimisticState.heartCount, userReaction: newReaction } : p));
         lastLocalReactAtRef.current[msgId] = Date.now();
         pendingReactRef.current[msgId] = true;
         try {
@@ -1612,17 +1990,23 @@ export default function OpenRoomDiscussionRoom({
                 { timeout: REQUEST_TIMEOUT_MS }
             );
             if (res.data && typeof res.data.heartCount === "number") {
-                setLocalReactions(p => ({ ...p, [msgId]: { ...optimisticState, heartCount: res.data.heartCount } }));
+                const finalCount = res.data.heartCount;
+                setLocalReactions(p => ({ ...p, [msgId]: { ...optimisticState, heartCount: finalCount } }));
+                setPosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: finalCount, userReaction: newReaction } : p));
+                setMorePosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: finalCount, userReaction: newReaction } : p));
                 lastLocalReactAtRef.current[msgId] = Date.now();
             }
-        } catch {
-            setLocalReactions(p => ({ ...p, [msgId]: prev }));
+        } catch (err) {
+            console.error("Reaction failed:", err);
+            setLocalReactions(p => ({ ...p, [msgId]: prevReactionState }));
+            setPosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: prevReactionState.heartCount, userReaction: prevReactionState.reaction } : p));
+            setMorePosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: prevReactionState.heartCount, userReaction: prevReactionState.reaction } : p));
             onToast("Failed to save reaction");
         } finally {
             clearTimeout(failsafe);
             pendingReactRef.current[msgId] = false;
         }
-    }, [roomId, posts, onToast]);
+    }, [roomId, posts, morePosts, onToast, phog, roomName]);
 
     // ── Delete post ──
     const handleDeletePost = useCallback(async (postId: string) => {
@@ -1680,15 +2064,15 @@ export default function OpenRoomDiscussionRoom({
             }
 
             try {
-              if (phog) {
-                phog.capture("meaningful_interaction", {
-                  interaction_type: "comment",
-                  room_id: roomId,
-                  room_name: roomName || "",
-                  text,
-                });
-              }
-            } catch (e) {}
+                if (phog) {
+                    phog.capture("meaningful_interaction", {
+                        interaction_type: "comment",
+                        room_id: roomId,
+                        room_name: roomName || "",
+                        text,
+                    });
+                }
+            } catch (e) { }
             const res = await axios.post(
                 `/api/roar/rooms/${roomId}/messages`,
                 payload,
@@ -1716,11 +2100,11 @@ export default function OpenRoomDiscussionRoom({
                         id: m.msgId || clientMsgId,
                         authorUid: m.authorUid,
                         authorEmail: m.authorEmail,
-                        fan: { 
-                            username: displayUsername(m.authorUsername || userUsername), 
-                            authorUid: m.authorUid || currentUserId, 
-                            badge: m.authorBadge, 
-                            avatarUrl: getEffectiveUserAvatar() || sanitizeAvatarUrl(m.authorAvatarUrl || m.avatarUrl) || undefined 
+                        fan: {
+                            username: displayUsername(m.authorUsername || userUsername),
+                            authorUid: m.authorUid || currentUserId,
+                            badge: m.authorBadge,
+                            avatarUrl: getEffectiveUserAvatar() || sanitizeAvatarUrl(m.authorAvatarUrl || m.avatarUrl) || undefined
                         },
                         text: m.text,
                         fireCount: m.fireCount ?? 0,
@@ -1851,7 +2235,7 @@ export default function OpenRoomDiscussionRoom({
             trackAdvocacy("content_shared", { post_id: post.id, room_id: roomId, room_name: roomName || "" });
             if (phog) {
             }
-        } catch (e) {}
+        } catch (e) { }
         if (typeof navigator !== "undefined" && navigator.clipboard) {
             navigator.clipboard.writeText(window.location.origin + `/MainModules/ROAR?post=${post.id}`).then(() => onToast("Post link copied to clipboard!"));
         } else {
@@ -1864,7 +2248,7 @@ export default function OpenRoomDiscussionRoom({
             trackAdvocacy("content_shared", { room_id: roomId, room_name: roomName || "", type: "room_share" });
             if (phog) {
             }
-        } catch (e) {}
+        } catch (e) { }
         if (typeof navigator !== "undefined" && navigator.share) navigator.share({ title: "SF360 Infinity Room", url: window.location.href });
         else { navigator.clipboard.writeText(window.location.href).then(() => onToast("Link copied!")); }
     };
@@ -2140,9 +2524,35 @@ export default function OpenRoomDiscussionRoom({
                     </div>
                 ) : (
                     filteredPosts.map((p) => {
+                        if (p.type === "trivia" && p.triviaQuestions?.length > 0) {
+                            return (
+                                <TriviaCard
+                                    key={p.id}
+                                    post={p}
+                                    onToast={onToast}
+                                    onPostClick={onPostClick}
+                                    roomId={roomId}
+                                    onFanProfile={onFanProfile}
+                                />
+                            );
+                        }
+                        if (p.type === "battle" && p.battleQuestions?.length > 0) {
+                            return (
+                                <BattleCard
+                                    key={p.id}
+                                    post={p}
+                                    onToast={onToast}
+                                    onPostClick={onPostClick}
+                                    roomId={roomId}
+                                    onFanProfile={onFanProfile}
+                                />
+                            );
+                        }
+
                         const isMine = isCurrentUserAuthor(p);
-                        const postAvatar = isMine ? (getEffectiveUserAvatar() || p.fan?.avatarUrl) : p.fan?.avatarUrl;
-                        const defaultPayload = { id: p.id, text: p.text, fan: { ...p.fan, avatarUrl: postAvatar }, timeAgo: p.timeAgo, createdAt: p.createdAt, type: p.type || "post", isDbPost: true, roomId, mediaUrls: p.mediaUrls };
+                        const isBot = Boolean(getKnownBotAvatarUrl(p.fan?.username));
+                        const postAvatar = getKnownBotAvatarUrl(p.fan?.username) ?? (isMine ? (getEffectiveUserAvatar() || p.fan?.avatarUrl) : p.fan?.avatarUrl);
+                        const defaultPayload = { id: p.id, text: p.text, fan: { ...p.fan, avatarUrl: postAvatar, isBot }, timeAgo: p.timeAgo, createdAt: p.createdAt, type: p.type || "post", isDbPost: true, roomId, mediaUrls: p.mediaUrls };
                         const replyCount = p.replyCount || 0;
                         const defaultOpen = replyCount > 0;
                         const isOpen = openInlinePostId === p.id || (defaultOpen && !explicitlyClosedPostIds.has(p.id));
@@ -2155,11 +2565,11 @@ export default function OpenRoomDiscussionRoom({
                             >
                                 {/* Post Header */}
                                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minWidth: 0 }} onClick={e => e.stopPropagation()}>
-                                    <div style={{ flexShrink: 0, cursor: "pointer" }} onClick={e => { e.stopPropagation(); onFanProfile?.({ ...p.fan, avatarUrl: postAvatar }); }}>
+                                    <div style={{ flexShrink: 0, cursor: "pointer" }} onClick={e => { e.stopPropagation(); onFanProfile?.({ ...p.fan, avatarUrl: postAvatar, isBot }); }}>
                                         <AvatarWithBadge username={p.fan.username} badge={p.fan.badge} size="sm" avatarUrl={postAvatar} />
                                     </div>
                                     <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
-                                        <span style={{ fontWeight: 700, fontSize: 10, color: "#fff", whiteSpace: "nowrap", cursor: "pointer" }} onClick={e => { e.stopPropagation(); onFanProfile?.(p.fan); }}>
+                                        <span style={{ fontWeight: 700, fontSize: 10, color: "#fff", whiteSpace: "nowrap", cursor: "pointer" }} onClick={e => { e.stopPropagation(); onFanProfile?.({ ...p.fan, avatarUrl: postAvatar, isBot }); }}>
                                             {p.fan.username}
                                         </span>
                                         <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)", whiteSpace: "nowrap" }}>{p.timeAgo}</span>
@@ -2395,69 +2805,69 @@ export default function OpenRoomDiscussionRoom({
                                     </div>
                                 )}
 
-                                        {/* Action Bar */}
-                                        <div style={{ marginTop: 0 }}>
-                                            <div style={{ display: "flex", gap: 6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 4, alignItems: "center" }}>
-                                                {renderReactionPicker(p)}
-                                                <button
-                                                    onClick={e => {
-                                                        e.stopPropagation();
-                                                        if (isOpen) {
-                                                            if (openInlinePostId === p.id) setOpenInlinePostId(null);
-                                                            setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.add(p.id); return next; });
-                                                        } else {
-                                                            setOpenInlinePostId(p.id);
-                                                            setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.delete(p.id); return next; });
-                                                        }
-                                                    }}
-                                                    style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: isOpen ? accent : "#9494ad", fontSize: 11, fontWeight: 600, transition: "color 0.15s", padding: 0 }}
-                                                >
-                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                                                    </svg>
-                                                    <span style={{ fontSize: 9 }}>{replyCount}</span>
-                                                    {isOpen ? <ChevronUp size={10} style={{ opacity: 0.7 }} /> : <ChevronDown size={10} style={{ opacity: 0.5 }} />}
-                                                </button>
-                                                <button onClick={e => { e.stopPropagation(); handleSharePost(p); }} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#9494ad", fontSize: 11, fontWeight: 600 }}>
-                                                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-                                                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                                                    </svg>
-                                                </button>
-                                                {renderReactionsTrigger(p)}
-                                            </div>
+                                {/* Action Bar */}
+                                <div style={{ marginTop: 0 }}>
+                                    <div style={{ display: "flex", gap: 6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 4, alignItems: "center" }}>
+                                        {renderReactionPicker(p)}
+                                        <button
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                if (isOpen) {
+                                                    if (openInlinePostId === p.id) setOpenInlinePostId(null);
+                                                    setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.add(p.id); return next; });
+                                                } else {
+                                                    setOpenInlinePostId(p.id);
+                                                    setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.delete(p.id); return next; });
+                                                }
+                                            }}
+                                            style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: isOpen ? accent : "#9494ad", fontSize: 11, fontWeight: 600, transition: "color 0.15s", padding: 0 }}
+                                        >
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                            </svg>
+                                            <span style={{ fontSize: 9 }}>{replyCount}</span>
+                                            {isOpen ? <ChevronUp size={10} style={{ opacity: 0.7 }} /> : <ChevronDown size={10} style={{ opacity: 0.5 }} />}
+                                        </button>
+                                        <button onClick={e => { e.stopPropagation(); handleSharePost(p); }} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#9494ad", fontSize: 11, fontWeight: 600 }}>
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                                            </svg>
+                                        </button>
+                                        {renderReactionsTrigger(p)}
+                                    </div>
 
-                                            <AnimatePresence>
-                                                {isOpen && roomId && (
-                                                    <InlineSection
-                                                        key={`inline-${p.id}`}
-                                                        postId={p.id}
-                                                        roomId={roomId}
-                                                        roomName={roomName}
-                                                        isOpen={isOpen}
-                                                        onOpenFull={() => {
-                                                            setOpenInlinePostId(null);
-                                                            onPostClick?.(defaultPayload);
-                                                        }}
-                                                        accentColor={accent}
-                                                        currentAvatarUrl={getEffectiveUserAvatar() || userAvatarUrl}
-                                                        currentUserId={currentUserId}
-                                                        currentUsername={userUsername}
-                                                        onFanProfile={onFanProfile}
-                                                        onToast={onToast}
-                                                        onCommentPosted={() => {
-                                                            setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: (x.replyCount || 0) + 1 } : x));
-                                                            playSound("comment");
-                                                            onToast("Comment posted!");
-                                                        }}
-                                                        onCommentDeleted={() => {
-                                                            setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: Math.max(0, (x.replyCount || 0) - 1) } : x));
-                                                            onToast("Reply deleted");
-                                                        }}
-                                                    />
-                                                )}
-                                            </AnimatePresence>
-                                        </div>
+                                    <AnimatePresence>
+                                        {isOpen && roomId && (
+                                            <InlineSection
+                                                key={`inline-${p.id}`}
+                                                postId={p.id}
+                                                roomId={roomId}
+                                                roomName={roomName}
+                                                isOpen={isOpen}
+                                                onOpenFull={() => {
+                                                    setOpenInlinePostId(null);
+                                                    onPostClick?.(defaultPayload);
+                                                }}
+                                                accentColor={accent}
+                                                currentAvatarUrl={getEffectiveUserAvatar() || userAvatarUrl}
+                                                currentUserId={currentUserId}
+                                                currentUsername={userUsername}
+                                                onFanProfile={onFanProfile}
+                                                onToast={onToast}
+                                                onCommentPosted={() => {
+                                                    setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: (x.replyCount || 0) + 1 } : x));
+                                                    playSound("comment");
+                                                    onToast("Comment posted!");
+                                                }}
+                                                onCommentDeleted={() => {
+                                                    setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: Math.max(0, (x.replyCount || 0) - 1) } : x));
+                                                    onToast("Reply deleted");
+                                                }}
+                                            />
+                                        )}
+                                    </AnimatePresence>
+                                </div>
                             </motion.div>
                         );
                     })

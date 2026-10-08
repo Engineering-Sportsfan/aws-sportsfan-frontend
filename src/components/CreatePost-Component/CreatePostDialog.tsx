@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { fliplineService, FlipCard } from "@/services/flipline.service";
+import { useFlipLineFilters } from "@/src/components/NewHomeComponents/FlipLine";
 
 const MAX_VIDEO_SIZE_MB = 4.5;
 const MAX_IMAGE_SIZE_MB = 4.5;
@@ -110,6 +111,9 @@ export default function CreatePostDialog({
   onSubmit,
 }: CreatePostDialogProps) {
   const { user } = useAuth();
+  const { filterChips, loadingFilters } = useFlipLineFilters();
+  const availableSportOptions = filterChips.filter((chip) => chip.id !== "all");
+
   const [activeTab, setActiveTab] = useState<"create" | "scheduled">("create");
   const [content, setContent] = useState("");
   const [sport, setSport] = useState<string>("");
@@ -432,6 +436,8 @@ export default function CreatePostDialog({
       formData.append("userHandle", `@${userName.replace(/\s+/g, "").toLowerCase()}`);
       formData.append("content", content.trim());
       formData.append("sport", sport);
+      formData.append("channel", sport);
+      formData.append("channels", sport);
       formData.append("type", userTitle);
       formData.append("source", "FlipLine");
       formData.append("likes", "0");
@@ -620,41 +626,54 @@ export default function CreatePostDialog({
               </div>
             )}
 
-            {/* Sport Selector Pills */}
+            {/* Sport / Channel Selector Pills (Dynamic from APIs) */}
             <div className="flex flex-col gap-1.5 shrink-0">
               <div className="flex items-center justify-between text-[11px] font-semibold">
                 <span className="text-gray-400">
-                  Select Sport <span className="text-pink-500 font-bold">*</span>
+                  Select Category / Sport <span className="text-pink-500 font-bold">*</span>
                 </span>
-                {!sport && (
+                {!sport ? (
                   <span className="text-[10.5px] text-amber-400/90 font-medium">
                     Required to post
                   </span>
+                ) : (
+                  <span className="text-[10.5px] text-pink-400 font-semibold uppercase tracking-wider">
+                    {availableSportOptions.find((s) => s.id === sport)?.label || sport}
+                  </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
-                {[
-                  { id: "cricket", label: "Cricket", emoji: "🏏" },
-                  { id: "football", label: "Football", emoji: "⚽" },
-                  { id: "athletics", label: "Athletics", emoji: "🏃" },
-                ].map((s) => {
-                  const isSelected = sport === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setSport(s.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${isSelected
-                          ? "bg-gradient-to-r from-[#C9115F] to-[#e85d04] text-white border-transparent shadow-md shadow-pink-500/20 ring-2 ring-pink-500/30 scale-[1.02]"
-                          : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border-white/10"
+              {loadingFilters && availableSportOptions.length === 0 ? (
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+                  {[75, 90, 85, 95, 80].map((w, idx) => (
+                    <div
+                      key={idx}
+                      style={{ width: `${w}px` }}
+                      className="h-[30px] rounded-full bg-white/5 border border-white/10 animate-pulse shrink-0"
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
+                  {availableSportOptions.map((s) => {
+                    const isSelected = sport === s.id;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSport(s.id)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0 border ${
+                          isSelected
+                            ? "bg-gradient-to-r from-[#C9115F] to-[#e85d04] text-white border-transparent shadow-md shadow-pink-500/20 ring-2 ring-pink-500/30 scale-[1.02]"
+                            : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border-white/10"
                         }`}
-                    >
-                      <span className="text-xs">{s.emoji}</span>
-                      <span>{s.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
+                      >
+                        <span className="text-xs">{s.emoji}</span>
+                        <span>{s.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             <textarea

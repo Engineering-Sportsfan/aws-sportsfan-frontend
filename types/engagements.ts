@@ -116,6 +116,17 @@ export interface MemePayload {
   userReaction?: MemeReactionType | null;
   caption?: string;
   createdAt?: number;
+  memeType?: "single" | "dual" | string;
+  isDual?: boolean;
+  memeA?: any;
+  memeB?: any;
+  imageUrlA?: string;
+  imageUrlB?: string;
+  labelA?: string;
+  labelB?: string;
+  votesA?: number;
+  votesB?: number;
+  options?: Array<{ id?: string; label?: string; text?: string; imageUrl?: string; image?: string; votes?: number }>;
 }
 
 // ─── Universal Engagement Entity ──────────────────────────────────────────
