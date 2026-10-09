@@ -6929,7 +6929,7 @@ function DynamicMemeCard({
 
   const meme = item.memeData || {
     imageUrl: (item as any).imageUrl || "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80",
-    caption: item.subtitle || item.title || "Matchday meme energy!",
+    caption: item.subtitle || (item as any).description || item.title || "",
     authorName: "SportsFan",
     authorHandle: "@SportsFan",
     authorAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80",
@@ -6938,6 +6938,10 @@ function DynamicMemeCard({
     reactions: { mild: 0, funny: 0, hot: 0, fire: 0, nuclear: 0 },
     commentsCount: 0,
   };
+
+  const displayTitle = (item.title || (item as any).headline || "").trim();
+  const rawDesc = ((item as any).description || item.subtitle || meme.caption || (item as any).caption || "").trim();
+  const displayDescription = rawDesc && rawDesc !== displayTitle ? rawDesc : (!displayTitle ? rawDesc : "");
 
   // ── Robust Dual Image & Option Extraction ──
   const rawOpts = (meme as any).options || (item as any).options || [];
@@ -7336,37 +7340,41 @@ function DynamicMemeCard({
         </div>
       </div>
 
-      {/* Caption */}
-      <p className="text-xs font-semibold text-white/90 mb-3 leading-relaxed">
-        {meme.caption}
-      </p>
+      {/* Title (if available) */}
+      {displayTitle && (
+        <h4 className="text-xs sm:text-sm font-black text-white mb-1.5 leading-snug">
+          {displayTitle}
+        </h4>
+      )}
+
+      {/* Description (if available) */}
+      {displayDescription && (
+        <p className="text-xs font-semibold text-white/80 mb-3 leading-relaxed">
+          {displayDescription}
+        </p>
+      )}
 
       {/* Dual Meme Layout (2 Memes Side-by-Side + Poll Options Below) */}
       {isDualMeme ? (
         <div className="space-y-3 mb-3">
-          {/* 1. Two Meme Images Side-by-Side */}
+          {/* 1. Two Meme Images Side-by-Side with Labels Below */}
           <div className="grid grid-cols-2 gap-2.5">
             {dualOptions.map((opt, idx) => {
               const isSelected = selectedDualOption === opt.id;
+              const labelText = opt.label || (idx === 0 ? "Meme A" : "Meme B");
               return (
                 <div
                   key={opt.id}
-                  className={`relative rounded-xl overflow-hidden bg-black/40 border transition-all ${
+                  className={`flex flex-col rounded-xl overflow-hidden bg-black/40 border transition-all ${
                     isSelected
                       ? "border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.25)] ring-1 ring-orange-500"
                       : "border-white/[0.08]"
                   }`}
                 >
-                  <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-white/15 text-[10px] font-black text-white flex items-center gap-1">
-                    <span>{opt.label || (idx === 0 ? "Meme A" : "Meme B")}</span>
-                    {isSelected && (
-                      <span className="text-orange-400 font-bold ml-0.5">✓</span>
-                    )}
-                  </div>
-                  <div className="w-full h-44 sm:h-48 overflow-hidden flex items-center justify-center bg-black/50 relative">
+                  <div className="w-full h-40 sm:h-48 overflow-hidden flex items-center justify-center bg-black/50 relative">
                     <img
                       src={opt.imageUrl || (idx === 0 ? imgA : imgB) || "https://images.unsplash.com/photo-1533738363-b7f9aef128ce?w=800&auto=format&fit=crop&q=80"}
-                      alt={opt.label || `Meme ${idx === 0 ? "A" : "B"}`}
+                      alt={labelText}
                       className="w-full h-full object-cover"
                       onError={(e: any) => {
                         e.target.src = idx === 0 
@@ -7374,6 +7382,15 @@ function DynamicMemeCard({
                           : "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800&auto=format&fit=crop&q=80";
                       }}
                     />
+                  </div>
+                  {/* Label Below Image */}
+                  <div className="py-2 px-2.5 text-center bg-white/[0.03] border-t border-white/[0.06] flex items-center justify-center gap-1.5">
+                    <span className="text-xs font-black text-white/90 truncate">
+                      {labelText}
+                    </span>
+                    {isSelected && (
+                      <span className="text-orange-400 font-bold text-xs">✓</span>
+                    )}
                   </div>
                 </div>
               );
