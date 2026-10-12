@@ -143,6 +143,14 @@ const nextConfig = {
           source: "/api/flipLong/:path*",
           destination: `${apiTarget}/api/flipLong/:path*`,
         },
+        {
+          source: "/api/fliplong",
+          destination: `${apiTarget}/api/flipLong`,
+        },
+        {
+          source: "/api/fliplong/:path*",
+          destination: `${apiTarget}/api/flipLong/:path*`,
+        },
 
         // ── Welcome Message & Home Cards Rewrites ──
         {
@@ -179,6 +187,24 @@ const nextConfig = {
         {
           source: "/api/cricket-articles/:path*",
           destination: `${apiTarget}/api/cricket-articles/:path*`,
+        },
+
+        // FlipLong
+        {
+          source: "/api/flipLong",
+          destination: `${apiTarget}/api/flipLong`,
+        },
+        {
+          source: "/api/flipLong/:path*",
+          destination: `${apiTarget}/api/flipLong/:path*`,
+        },
+        {
+          source: "/api/fliplong",
+          destination: `${apiTarget}/api/flipLong`,
+        },
+        {
+          source: "/api/fliplong/:path*",
+          destination: `${apiTarget}/api/flipLong/:path*`,
         },
 
         // Player Profile

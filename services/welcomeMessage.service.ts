@@ -97,7 +97,8 @@ export function getIndiaTimeString(date: Date = new Date()): string {
 export function isTodayInIndia(dateStr?: string, now: Date = new Date()): boolean {
   if (!dateStr || !dateStr.trim()) return true;
   const todayIST = getIndiaDateString(now);
-  return dateStr.trim() === todayIST;
+  const clean = dateStr.trim().split("T")[0].replace(/\//g, "-");
+  return clean === todayIST;
 }
 
 /**
@@ -118,11 +119,17 @@ export function formatEventDisplayDateTime(
   }
 
   try {
-    const parts = cleanDate.split("-");
+    const normalizedDate = cleanDate.includes("T") ? cleanDate.split("T")[0] : cleanDate;
+    const parts = normalizedDate.split(/[-/]/);
     if (parts.length === 3) {
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
+      let year = parseInt(parts[0], 10);
+      let month = parseInt(parts[1], 10) - 1;
+      let day = parseInt(parts[2], 10);
+      if (parts[0].length <= 2 && parts[2].length === 4) {
+        day = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10) - 1;
+        year = parseInt(parts[2], 10);
+      }
       const parsedDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
       const formattedDate = new Intl.DateTimeFormat("en-US", {
         timeZone: "Asia/Kolkata",
@@ -177,28 +184,88 @@ export function parseTimeToMinutes(timeStr?: string): number {
 }
 
 /**
+ * Parses event date & time strings into a unified UTC epoch timestamp (milliseconds).
+ * Uses India Standard Time (IST, UTC+5:30) as the reference baseline.
+ */
+export function parseEventDateTimeToTimestamp(
+  dateStr?: string,
+  timeStr?: string,
+  now: Date = new Date()
+): number {
+  const nowISTString = getIndiaDateString(now);
+  let cleanDate = (dateStr || "").trim();
+  if (!cleanDate) {
+    cleanDate = nowISTString;
+  }
+
+  if (cleanDate.includes("T")) {
+    const parsedIso = new Date(cleanDate).getTime();
+    if (!isNaN(parsedIso) && parsedIso > 0) {
+      return parsedIso;
+    }
+  }
+
+  let year = 0;
+  let month = 0;
+  let day = 0;
+
+  const ymdMatch = cleanDate.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (ymdMatch) {
+    year = parseInt(ymdMatch[1], 10);
+    month = parseInt(ymdMatch[2], 10);
+    day = parseInt(ymdMatch[3], 10);
+  } else {
+    const dmyMatch = cleanDate.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmyMatch) {
+      day = parseInt(dmyMatch[1], 10);
+      month = parseInt(dmyMatch[2], 10);
+      year = parseInt(dmyMatch[3], 10);
+    } else {
+      const todayParts = nowISTString.split("-");
+      year = parseInt(todayParts[0], 10);
+      month = parseInt(todayParts[1], 10);
+      day = parseInt(todayParts[2], 10);
+    }
+  }
+
+  const timeMinutes = parseTimeToMinutes(timeStr);
+  let hours = 0;
+  let minutes = 0;
+  if (timeMinutes >= 0) {
+    hours = Math.floor(timeMinutes / 60);
+    minutes = timeMinutes % 60;
+  }
+
+  // India Standard Time (IST, UTC+5:30)
+  const utcOffsetMs = (5 * 60 + 30) * 60 * 1000;
+  return Date.UTC(year, month - 1, day, hours, minutes, 0, 0) - utcOffsetMs;
+}
+
+/**
  * Dynamically resolves agenda event statuses based on current clock time and admin overrides:
  * - Manual mode / Explicit overrides:
  *   - If admin set "completed": strictly remains COMPLETED (never overwritten by clock auto-update).
  *   - If admin set "live": strictly remains LIVE.
  *   - If admin set "up_next": strictly remains UP NEXT.
  *   - If admin set "scheduled": strictly remains SCHEDULED.
- * - Auto mode (time-based):
+ * - Auto mode (date & time based):
+ *   - Correctly integrates both date and time (in IST).
  *   - Before event start time: UP NEXT (for first upcoming) or SCHEDULED.
- *   - At start time (time <= now): automatically transitions to LIVE.
- *   - When next event starts: previous event automatically transitions to COMPLETED.
+ *   - At start time (timestamp <= now): automatically transitions to LIVE (active live window of 2.5h).
+ *   - When duration expires or next event starts: transitions to COMPLETED.
  */
 export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new Date()): AgendaEventItem[] {
   if (!events || events.length === 0) return [];
 
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const nowMs = now.getTime();
+  const MATCH_DURATION_MS = 2.5 * 60 * 60 * 1000; // 2.5 hours active live window
 
-  // Attach parsed time and explicit admin status flags
+  // Attach parsed timestamp and admin flags
   const parsedEvents = events.map((evt, idx) => {
     const rawStatus = (evt.statusType || "").toLowerCase().trim();
     const rawLabel = (evt.statusLabel || "").toUpperCase().trim();
     const isAutoMode = rawStatus === "auto" || evt.statusMode === "auto" || rawLabel === "AUTO";
-    const isExplicitCompleted = rawStatus === "completed" || rawLabel === "COMPLETED";
+    const isExplicitCompleted = rawStatus === "completed" || rawStatus === "finished" || rawLabel === "COMPLETED" || rawLabel === "FINISHED";
     const isExplicitLive = rawStatus === "live" || rawLabel === "LIVE";
     const isExplicitUpNext = rawStatus === "up_next" || rawLabel === "UP NEXT";
     const isExplicitScheduled = rawStatus === "scheduled" || rawLabel === "SCHEDULED";
@@ -206,10 +273,12 @@ export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new 
     // Explicit manual override if marked manual OR if explicit status is set without being auto mode
     const isManual = evt.isManual === true || evt.statusMode === "manual" || (!isAutoMode && (isExplicitCompleted || isExplicitLive || isExplicitUpNext));
 
+    const timestamp = parseEventDateTimeToTimestamp(evt.date, evt.time, now);
+
     return {
       evt,
       idx,
-      minutes: parseTimeToMinutes(evt.time),
+      timestamp,
       order: evt.order ?? idx,
       isAutoMode,
       isExplicitCompleted,
@@ -220,13 +289,13 @@ export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new 
     };
   });
 
-  // Preserve order or chronological time sort
+  // Chronological sort: by full event timestamp, then order, then index
   parsedEvents.sort((a, b) => {
+    if (a.timestamp !== b.timestamp) {
+      return a.timestamp - b.timestamp;
+    }
     if (a.order !== undefined && b.order !== undefined && a.order !== b.order) {
       return a.order - b.order;
-    }
-    if (a.minutes >= 0 && b.minutes >= 0 && a.minutes !== b.minutes) {
-      return a.minutes - b.minutes;
     }
     return a.idx - b.idx;
   });
@@ -240,40 +309,47 @@ export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new 
     }
   }
 
-  // Step 2: Find the latest chronological event whose scheduled start time has arrived (minutes <= currentMinutes)
-  let lastPastIndex = -1;
+  // Step 2: Identify the latest past/started event and the first upcoming future event
+  let lastStartedIndex = -1;
+  let firstFutureIndex = -1;
+
   for (let i = 0; i < parsedEvents.length; i++) {
-    const item = parsedEvents[i];
-    if (item.minutes >= 0 && item.minutes <= currentMinutes) {
-      lastPastIndex = i;
+    if (parsedEvents[i].timestamp <= nowMs) {
+      lastStartedIndex = i;
+    } else if (firstFutureIndex === -1) {
+      firstFutureIndex = i;
     }
   }
 
-  // Step 3: Determine the active live index and upcoming index
+  // Step 3: Determine which index (if any) is actively LIVE and UP NEXT
   let activeLiveIndex = -1;
   let activeUpcomingIndex = -1;
 
   if (manualLiveIndex !== -1) {
     // Admin manually forced an event to LIVE
     activeLiveIndex = manualLiveIndex;
-    activeUpcomingIndex = manualLiveIndex + 1 < parsedEvents.length ? manualLiveIndex + 1 : -1;
-  } else if (lastPastIndex !== -1) {
-    // There are events that have reached or passed their start time
-    const latestPastItem = parsedEvents[lastPastIndex];
-    if (latestPastItem.isExplicitCompleted && latestPastItem.isManual) {
-      // The latest past event was manually marked COMPLETED by admin.
-      // So no event is currently live from past events.
+    activeUpcomingIndex = firstFutureIndex;
+  } else if (lastStartedIndex !== -1) {
+    const latestStartedItem = parsedEvents[lastStartedIndex];
+    const elapsedMs = nowMs - latestStartedItem.timestamp;
+
+    if (latestStartedItem.isExplicitCompleted && latestStartedItem.isManual) {
+      // Manually marked COMPLETED by admin
       activeLiveIndex = -1;
-      activeUpcomingIndex = lastPastIndex + 1 < parsedEvents.length ? lastPastIndex + 1 : -1;
+      activeUpcomingIndex = firstFutureIndex;
+    } else if (elapsedMs <= MATCH_DURATION_MS) {
+      // Started recently (within match duration window) and no newer event has started
+      activeLiveIndex = lastStartedIndex;
+      activeUpcomingIndex = firstFutureIndex;
     } else {
-      // Latest past event is live (auto progression or manual live)
-      activeLiveIndex = lastPastIndex;
-      activeUpcomingIndex = lastPastIndex + 1 < parsedEvents.length ? lastPastIndex + 1 : -1;
+      // Exceeded match duration window -> finished
+      activeLiveIndex = -1;
+      activeUpcomingIndex = firstFutureIndex;
     }
   } else {
-    // Current time is BEFORE the first event of the day
+    // All events are in the future
     activeLiveIndex = -1;
-    activeUpcomingIndex = 0; // First event is UP NEXT
+    activeUpcomingIndex = 0; // Earliest upcoming event
   }
 
   return parsedEvents.map((item, index) => {
@@ -286,7 +362,7 @@ export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new 
         statusType: "completed",
         statusMode: "manual",
         isManual: true,
-        statusLabel: orig.statusLabel && orig.statusLabel.toUpperCase() === "COMPLETED" ? orig.statusLabel : "COMPLETED",
+        statusLabel: orig.statusLabel && orig.statusLabel.toUpperCase() === "FINISHED" ? "FINISHED" : "COMPLETED",
         nodeColor: "gray",
       };
     }
@@ -332,45 +408,26 @@ export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new 
     let computedLabel = "SCHEDULED";
     let computedNodeColor: "gray" | "emerald" | "amber" | "blue" = "blue";
 
-    if (activeLiveIndex !== -1) {
-      // There is an ongoing live event
-      if (index < activeLiveIndex) {
-        computedStatusType = "completed";
-        computedLabel = "COMPLETED";
-        computedNodeColor = "gray";
-      } else if (index === activeLiveIndex) {
-        computedStatusType = "live";
-        computedLabel = "LIVE";
-        computedNodeColor = "emerald";
-      } else if (index === activeUpcomingIndex) {
-        computedStatusType = "up_next";
-        computedLabel = "UP NEXT";
-        computedNodeColor = "amber";
-      } else {
-        computedStatusType = "scheduled";
-        computedLabel = orig.time || "SCHEDULED";
-        computedNodeColor = "blue";
-      }
+    if (activeLiveIndex !== -1 && index === activeLiveIndex) {
+      // Current active LIVE event
+      computedStatusType = "live";
+      computedLabel = "LIVE";
+      computedNodeColor = "emerald";
+    } else if (item.timestamp <= nowMs) {
+      // Event started in the past and is not live -> COMPLETED
+      computedStatusType = "completed";
+      computedLabel = "COMPLETED";
+      computedNodeColor = "gray";
+    } else if (index === activeUpcomingIndex) {
+      // The very next event to start
+      computedStatusType = "up_next";
+      computedLabel = "UP NEXT";
+      computedNodeColor = "amber";
     } else {
-      // No event is currently LIVE
-      if (activeUpcomingIndex !== -1 && index === activeUpcomingIndex) {
-        computedStatusType = "up_next";
-        computedLabel = "UP NEXT";
-        computedNodeColor = "amber";
-      } else if (activeUpcomingIndex !== -1 && index < activeUpcomingIndex) {
-        computedStatusType = "completed";
-        computedLabel = "COMPLETED";
-        computedNodeColor = "gray";
-      } else if (activeUpcomingIndex === -1) {
-        // All events have passed and are completed
-        computedStatusType = "completed";
-        computedLabel = "COMPLETED";
-        computedNodeColor = "gray";
-      } else {
-        computedStatusType = "scheduled";
-        computedLabel = orig.time || "SCHEDULED";
-        computedNodeColor = "blue";
-      }
+      // Future scheduled event
+      computedStatusType = "scheduled";
+      computedLabel = orig.time || "SCHEDULED";
+      computedNodeColor = "blue";
     }
 
     return {
