@@ -9,8 +9,6 @@ import {
   X,
   Eye,
   ArrowLeft,
-  Send,
-  Sparkles,
   Image as ImageIcon,
   Clock,
   User,
