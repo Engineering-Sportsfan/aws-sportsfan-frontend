@@ -6,6 +6,7 @@ import { FileText, Newspaper, Trophy } from "lucide-react";
 import type { CreatePostPayload } from "@/types/PostPolls";
 import CreatePostDialog from "./CreatePost-Component/CreatePostDialog";
 import CreateArticles from "./CreatePost-Component/CreateArticles";
+import CreateFlipLONG from "./CreatePost-Component/CreateFlipLONG";
 import ArenaEngagementModal from "./NewHomeComponents/ArenaEngagementModal";
 import { useAuth } from "@/context/AuthContext";
 import axios from "axios";
@@ -30,6 +31,7 @@ const CREATE_POST_ALLOWED_EMAILS: string[] = [
 export default function GlobalActionBar() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [articleDialogOpen, setArticleDialogOpen] = useState(false);
+  const [flipLongDialogOpen, setFlipLongDialogOpen] = useState(false);
   const [arenaModalOpen, setArenaModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -79,6 +81,11 @@ export default function GlobalActionBar() {
     setArticleDialogOpen(true);
   };
 
+  const handleFlipLongClick = () => {
+    setMenuOpen(false);
+    setFlipLongDialogOpen(true);
+  };
+
   const handleFlipArenaClick = () => {
     setMenuOpen(false);
     setArenaModalOpen(true);
@@ -114,13 +121,23 @@ export default function GlobalActionBar() {
             </button>
 
             <button
+              onClick={handleFlipLongClick}
+              className="flex items-center gap-2 pl-4 pr-5 py-1 rounded-full bg-[#161b22] border border-white/15 shadow-lg text-white text-sm font-medium hover:border-purple-500/60 hover:bg-purple-500/10 transition-all cursor-pointer"
+            >
+              <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600">
+                <FileText size={16} className="text-white" />
+              </span>
+              FlipLONG Video
+            </button>
+
+            <button
               onClick={handleArticlesClick}
               className="flex items-center gap-2 pl-4 pr-5 py-1 rounded-full bg-[#161b22] border border-white/15 shadow-lg text-white text-sm font-medium hover:border-[#C9115F]/60 hover:bg-[#C9115F]/10 transition-all cursor-pointer"
             >
               <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-[#C9115F] to-[#e85d04]">
                 <FileText size={16} className="text-white" />
               </span>
-              FlipLONG
+              Articles
             </button>
           </div>
         )}
@@ -148,6 +165,11 @@ export default function GlobalActionBar() {
         isOpen={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onSubmit={handleCreatePost}
+      />
+
+      <CreateFlipLONG
+        isOpen={flipLongDialogOpen}
+        onClose={() => setFlipLongDialogOpen(false)}
       />
 
       <CreateArticles

@@ -1104,6 +1104,7 @@ export default function FlipBOARD({
         const isLive = rawStatus === "live" || rawLabel === "live";
         const isFinished =
           rawStatus === "completed" ||
+          rawStatus === "finished" ||
           rawLabel === "completed" ||
           rawLabel === "finished";
 
@@ -1115,8 +1116,7 @@ export default function FlipBOARD({
           rawStatus === "auto" ||
           rawLabel === "up next" ||
           rawLabel === "upcoming" ||
-          rawLabel === "scheduled" ||
-          true
+          rawLabel === "scheduled"
         );
       });
     }
@@ -1126,17 +1126,40 @@ export default function FlipBOARD({
       return dynamicAgendaEvents.filter((e) => {
         const rawStatus = (e.statusType || "").toLowerCase();
         const rawLabel = (e.statusLabel || "").toLowerCase();
+        const isLive = rawStatus === "live" || rawLabel === "live";
+        if (isLive) return false;
         return (
           rawStatus === "completed" ||
+          rawStatus === "finished" ||
           rawLabel === "completed" ||
           rawLabel === "finished" ||
-          (rawStatus !== "live" && rawStatus !== "up_next" && (rawLabel === "final" || (Boolean(e.subEvent) && e.subEvent.toLowerCase().includes("final") && rawStatus === "completed")))
+          rawLabel === "final" ||
+          (Boolean(e.subEvent) && e.subEvent.toLowerCase().includes("final") && rawStatus === "completed")
         );
       });
     }
 
     return dynamicAgendaEvents;
   }, [dynamicAgendaEvents, scheduleFilter]);
+
+  // Top 3 events to show in mini widget tab:
+  // Shows live/up_next/upcoming events first, or latest completed events if all are finished
+  const miniScheduleEvents = useMemo(() => {
+    if (dynamicAgendaEvents.length <= 3) return dynamicAgendaEvents;
+
+    const firstActiveIdx = dynamicAgendaEvents.findIndex(
+      (e) => e.statusType === "live" || e.statusType === "up_next" || e.statusType === "scheduled"
+    );
+
+    if (firstActiveIdx === -1) {
+      // All events are completed, show latest 3 completed events
+      return dynamicAgendaEvents.slice(-3);
+    }
+
+    // Include 1 recent completed event before the active event if available, then active/upcoming events
+    const startIdx = Math.max(0, firstActiveIdx > 0 ? firstActiveIdx - 1 : 0);
+    return dynamicAgendaEvents.slice(startIdx, startIdx + 3);
+  }, [dynamicAgendaEvents]);
 
   // Handle Daily Check-in
   const handleDailyCheckIn = (e?: React.MouseEvent) => {
@@ -1185,8 +1208,8 @@ export default function FlipBOARD({
           id: notifId,
           notification_id: notifId,
           title: `🔔 Reminder: ${targetEvent?.sport || "Match"} - ${targetEvent?.subEvent || "Scheduled Event"}`,
-          body: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${targetEvent?.time || "Today"}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
-          message: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${targetEvent?.time || "Today"}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
+          body: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${formatEventDisplayDateTime(targetEvent?.date, targetEvent?.time, currentTime)}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
+          message: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${formatEventDisplayDateTime(targetEvent?.date, targetEvent?.time, currentTime)}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
           notification_type: "schedule_reminder",
           category: "schedule",
           priority: "NORMAL",
@@ -1727,16 +1750,21 @@ export default function FlipBOARD({
               {/* Continuous vertical timeline line */}
               <div className="absolute left-[17px] top-3 bottom-3 w-[1.5px] bg-slate-800 pointer-events-none" />
 
-              {dynamicAgendaEvents.slice(0, 3).map((evt, idx) => {
+              {miniScheduleEvents.map((evt, idx) => {
                 const isLive = evt.statusType === "live" || evt.statusLabel?.toLowerCase() === "live";
+                const isCompleted =
+                  evt.statusType === "completed" ||
+                  evt.statusLabel?.toLowerCase() === "completed" ||
+                  evt.statusLabel?.toLowerCase() === "finished";
                 const isFinal =
                   (evt.subEvent && evt.subEvent.toLowerCase().includes("final")) ||
                   evt.statusLabel === "FINAL";
 
                 let dotColor = "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.6)]";
                 if (isLive) dotColor = "bg-[#10B981] shadow-[0_0_10px_#10B981]";
+                else if (evt.statusType === "up_next") dotColor = "bg-[#FBBF24] shadow-[0_0_8px_#FBBF24]";
+                else if (isCompleted) dotColor = "bg-slate-500 shadow-[0_0_8px_rgba(148,163,184,0.4)]";
                 else if (isFinal) dotColor = "bg-[#F59E0B] shadow-[0_0_8px_#F59E0B]";
-                else if (evt.statusType === "up_next") dotColor = "bg-purple-400 shadow-[0_0_8px_#C084FC]";
 
                 return (
                   <div
@@ -1785,6 +1813,15 @@ export default function FlipBOARD({
                             <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
                             <span>LIVE</span>
                           </span>
+                        ) : evt.statusType === "up_next" ? (
+                          <span className="inline-flex items-center gap-1 text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#2a1e08] text-[#FBBF24] border border-[#FBBF24]/50 uppercase tracking-wider">
+                            <span>UP NEXT</span>
+                          </span>
+                        ) : isCompleted ? (
+                          <span className="inline-flex items-center gap-1 text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#1e293b] text-[#94a3b8] border border-[#475569]/50 uppercase tracking-wider">
+                            <span>✓</span>
+                            <span>FINISHED</span>
+                          </span>
                         ) : isFinal ? (
                           <span className="inline-flex items-center gap-1 text-[9.5px] font-extrabold px-2.5 py-0.5 rounded-full bg-[#2a1b08] text-[#F59E0B] border border-[#F59E0B]/50 uppercase tracking-wider">
                             <span>🏆</span>
@@ -1792,7 +1829,7 @@ export default function FlipBOARD({
                           </span>
                         ) : (
                           <span className="text-[11px] font-black text-gray-400 px-2 py-0.5 rounded bg-white/[0.04] border border-white/5 uppercase font-mono">
-                            {formatEventDisplayDateTime(evt.date, evt.time || evt.statusLabel || "SCHEDULED", currentTime)}
+                            {formatEventDisplayDateTime(evt.date, evt.time || "SCHEDULED", currentTime)}
                           </span>
                         )}
                       </div>
@@ -2439,8 +2476,8 @@ export default function FlipBOARD({
                                           <span>FINAL</span>
                                         </span>
                                       ) : (
-                                        <span className="text-[10px] font-black text-gray-400 px-2 py-0.5 rounded bg-white/[0.04] border border-white/5 uppercase font-mono">
-                                          {formatEventDisplayDateTime(evt.date, evt.statusLabel || "UPCOMING", currentTime)}
+                                        <span className="text-[10px] font-black text-blue-400/90 px-2.5 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 uppercase tracking-wider">
+                                          UPCOMING
                                         </span>
                                       )}
                                     </div>
