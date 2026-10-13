@@ -29,6 +29,7 @@ import {
   Sliders,
   Check,
   Zap,
+  Upload,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useFlipLongJob } from "@/hooks/useFlipLongJob";
@@ -183,7 +184,10 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
     startDirectUpload,
     approveReels,
     publishReelToFlipLine,
+    markMasterPublished,
+    markReelPublished,
     clearActiveJob,
+    discardCurrentAndReset,
     checkStatus,
   } = useFlipLongJob();
 
@@ -200,6 +204,8 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
   const [publishingReelIdx, setPublishingReelIdx] = useState<number | null>(null);
   const [publishedReels, setPublishedReels] = useState<number[]>([]);
   const [publishedMaster, setPublishedMaster] = useState(false);
+  const [isDiscarding, setIsDiscarding] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [submitError, setSubmitError] = useState<string>("");
   const [submitSuccess, setSubmitSuccess] = useState<string>("");
   const [showSchedule, setShowSchedule] = useState(false);
@@ -233,6 +239,12 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
         author: prev.author || activeJob.author || currentUserName,
         sport: prev.sport || activeJob.sport || "general",
       }));
+      if (activeJob.isMasterPublished) {
+        setPublishedMaster(true);
+      }
+      if (activeJob.publishedReelIndices && Array.isArray(activeJob.publishedReelIndices)) {
+        setPublishedReels((prev) => Array.from(new Set([...prev, ...activeJob.publishedReelIndices!])));
+      }
     }
   }, [activeJob, currentUserName]);
 
@@ -381,7 +393,39 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
 
   const handleClose = () => {
     resetFormState();
+    setShowDiscardConfirm(false);
     onClose();
+  };
+
+  // ─── Upload New Video & Database Cleanup ─────────────────────────────────
+  const handleUploadNewVideoClick = () => {
+    // Check if there is an active video job or processed results that have unposted items
+    const hasUnpostedContent =
+      (Boolean(activeJob) || isProcessing || isUploading || (videoData?.status === "success" && Boolean(videoData?.denoised_video))) &&
+      (!publishedMaster || (videoData?.reels && videoData.reels.length > publishedReels.length));
+
+    if (hasUnpostedContent) {
+      setShowDiscardConfirm(true);
+    } else {
+      executeUploadNewVideo();
+    }
+  };
+
+  const executeUploadNewVideo = async () => {
+    setShowDiscardConfirm(false);
+    setIsDiscarding(true);
+    setSubmitError("");
+    setSubmitSuccess("");
+    try {
+      await discardCurrentAndReset({ isMasterPublished: publishedMaster });
+      resetFormState();
+      setActiveTab("pipeline");
+      setSubmitSuccess("Unposted video & reels removed from database. Ready to upload a new video!");
+    } catch (err: any) {
+      setSubmitError(formatErrorMessage(err));
+    } finally {
+      setIsDiscarding(false);
+    }
   };
 
   // ─── 1. Start AI Video Pipeline Upload ────────────────────────────────────
@@ -502,6 +546,7 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
 
       if (res.data?.success || res.status === 201 || res.status === 200) {
         setPublishedMaster(true);
+        markMasterPublished(true);
         setSubmitSuccess(
           showSchedule
             ? "FlipLONG video scheduled successfully!"
@@ -539,6 +584,7 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
       });
 
       setPublishedReels((prev) => [...prev, index]);
+      markReelPublished(index);
       setSubmitSuccess(`Reel "${reel.title}" published directly to FlipLine! ⚡`);
     } catch (err: any) {
       setSubmitError(formatErrorMessage(err));
@@ -565,10 +611,12 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
             userId: user?.userId || (user as any)?.uid || "",
             email: user?.email || "",
           });
+          markReelPublished(i);
         }
       }
 
       setPublishedReels(allIndices);
+      allIndices.forEach((idx) => markReelPublished(idx));
       setSubmitSuccess("All AI Reels approved and published to FlipLine!");
     } catch (err: any) {
       setSubmitError(formatErrorMessage(err));
@@ -688,13 +736,33 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
             </button>
           </div>
 
-          <button
-            onClick={handleClose}
-            className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-white/5 shrink-0"
-            title="Close"
-          >
-            <X size={15} />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Upload New Video Button in Header */}
+            {(Boolean(activeJob) || isVideoDone || isProcessing || isUploading) && (
+              <button
+                type="button"
+                onClick={handleUploadNewVideoClick}
+                disabled={isDiscarding}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer bg-gradient-to-r from-purple-600/30 to-indigo-600/30 hover:from-purple-600 hover:to-indigo-600 text-purple-200 hover:text-white border border-purple-500/40 hover:border-purple-400 shadow-md shadow-purple-500/10 active:scale-95 disabled:opacity-50"
+                title="Upload a new video (deletes unposted content from database)"
+              >
+                {isDiscarding ? (
+                  <Loader2 size={13} className="animate-spin text-purple-300" />
+                ) : (
+                  <Upload size={13} className="text-purple-300 group-hover:text-white" />
+                )}
+                <span>+ Upload New Video</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleClose}
+              className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white flex items-center justify-center transition-all cursor-pointer border border-white/5 shrink-0"
+              title="Close"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
         {/* ─────────────────────────────────────────────────────────────────
@@ -831,6 +899,20 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
                     <br />
                     AI processing happens in the cloud (~2–5 mins). When you return, your processed video and reels will be ready here.
                   </div>
+                </div>
+
+                {/* Discard & Upload New Video Action */}
+                <div className="flex items-center justify-between pt-2 border-t border-purple-500/20">
+                  <span className="text-[11px] text-gray-400">Want to cancel this and upload a new video?</span>
+                  <button
+                    type="button"
+                    onClick={handleUploadNewVideoClick}
+                    disabled={isDiscarding}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-red-500/15 text-gray-300 hover:text-red-300 border border-white/10 hover:border-red-500/30 transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {isDiscarding ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                    <span>Discard & Upload New Video</span>
+                  </button>
                 </div>
               </div>
             )}
@@ -973,11 +1055,17 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
 
                     <button
                       type="button"
-                      onClick={clearActiveJob}
-                      className="text-xs text-gray-500 hover:text-red-400 font-medium transition-colors"
-                      title="Clear and start new video"
+                      onClick={handleUploadNewVideoClick}
+                      disabled={isDiscarding}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-600/20 hover:bg-purple-600/30 text-purple-200 hover:text-white border border-purple-500/40 hover:border-purple-400 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
+                      title="Upload a new video (deletes unposted content from database)"
                     >
-                      Start New Upload
+                      {isDiscarding ? (
+                        <Loader2 size={12} className="animate-spin text-purple-300" />
+                      ) : (
+                        <Upload size={12} className="text-purple-300" />
+                      )}
+                      <span>+ Upload New Video</span>
                     </button>
                   </div>
 
@@ -1047,6 +1135,19 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
                         </>
                       )}
                     </button>
+
+                    {publishedMaster && (
+                      <button
+                        type="button"
+                        onClick={handleUploadNewVideoClick}
+                        disabled={isDiscarding}
+                        className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400 shadow-lg shadow-purple-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 active:scale-95 disabled:opacity-50"
+                        title="Upload another video"
+                      >
+                        {isDiscarding ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                        <span>Upload New Video</span>
+                      </button>
+                    )}
                   </div>
 
                   {showSchedule && (
@@ -1402,6 +1503,89 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
                 </>
               )}
             </button>
+          </div>
+        )}
+
+        {/* ─── ACTION BAR FOR PROCESSED STAGE ─── */}
+        {activeTab === "pipeline" && isVideoDone && (
+          <div className="shrink-0 px-5 py-3 border-t border-white/5 bg-[#0a0c16] flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={handleUploadNewVideoClick}
+              disabled={isDiscarding}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-purple-600/20 hover:bg-purple-600/30 text-purple-200 hover:text-white border border-purple-500/40 hover:border-purple-400 transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50"
+            >
+              {isDiscarding ? <Loader2 size={13} className="animate-spin text-purple-300" /> : <Upload size={13} />}
+              <span>Upload New Video</span>
+            </button>
+
+            <span className="text-[11px] text-gray-500 hidden sm:inline">
+              {publishedMaster
+                ? "✓ Master video published to FlipLONG."
+                : "You can upload a new video anytime. Unposted reels/video will be cleared from database."}
+            </span>
+          </div>
+        )}
+
+        {/* ─── DISCARD & UPLOAD NEW VIDEO CONFIRMATION MODAL ─── */}
+        {showDiscardConfirm && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-150">
+            <div className="bg-[#101222] border border-red-500/30 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl text-white animate-in zoom-in-95 duration-150">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-500/20 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">
+                  <Trash2 size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Upload New Video?</h3>
+                  <p className="text-xs text-gray-400">Database cleanup & new video upload</p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs text-red-200 leading-relaxed space-y-1">
+                <p>
+                  Any currently processed video and generated AI reels that have <strong>not been published anywhere</strong> will be deleted from the database.
+                </p>
+                {publishedMaster && (
+                  <p className="text-emerald-300 font-medium">
+                    ✓ Your published master video is already live on FlipLONG and will be preserved.
+                  </p>
+                )}
+              </div>
+
+              <p className="text-xs text-gray-400 leading-relaxed">
+                You will be able to upload a new video immediately and will continue to see that new video until you again click to upload a new video.
+              </p>
+
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setShowDiscardConfirm(false)}
+                  disabled={isDiscarding}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-300 hover:text-white bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  Keep Current Video
+                </button>
+
+                <button
+                  type="button"
+                  onClick={executeUploadNewVideo}
+                  disabled={isDiscarding}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 shadow-lg shadow-red-500/20 flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+                >
+                  {isDiscarding ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" />
+                      <span>Deleting & Resetting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={13} />
+                      <span>Delete & Upload New Video</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
