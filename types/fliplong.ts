@@ -71,4 +71,6 @@ export interface FlipLongActiveJob {
   status: 'queued' | 'processing' | 'success' | 'failed';
   duration?: string;
   durationSec?: number;
+  isMasterPublished?: boolean;
+  publishedReelIndices?: number[];
 }

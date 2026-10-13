@@ -8,7 +8,7 @@ import {
   ReelItem,
 } from "@/types/fliplong";
 
-const DEFAULT_API_BASE = "https://1a2uuat2d6.execute-api.us-east-1.amazonaws.com/prod";
+const DEFAULT_API_BASE = "/api/ai-pipeline";
 const STORAGE_KEY = "fliplong_active_job";
 const POLLING_INTERVAL_MS = 30000; // 30 seconds
 
@@ -21,7 +21,7 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 1. On Mount: Restore active job from localStorage
+  // 1. On Mount: Restore active job from localStorage and fetch latest data
   useEffect(() => {
     if (typeof window === "undefined") return;
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -88,15 +88,20 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
   // 3. Polling Lifecycle
   useEffect(() => {
     const videoId = activeJob?.videoId;
-    if (!videoId || !isProcessing) {
+    if (!videoId) return;
+
+    // Fetch immediately if processing or if videoData has not been loaded yet
+    if (isProcessing || !videoData) {
+      checkStatus(videoId);
+    }
+
+    if (!isProcessing) {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
       return;
     }
-
-    checkStatus(videoId);
 
     timerRef.current = setInterval(() => {
       checkStatus(videoId);
@@ -108,7 +113,7 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
         timerRef.current = null;
       }
     };
-  }, [activeJob?.videoId, isProcessing, checkStatus]);
+  }, [activeJob?.videoId, isProcessing, videoData, checkStatus]);
 
   // 4. Start 2-Step Resumable Direct Upload to Google Drive
   const startDirectUpload = async (
@@ -266,6 +271,9 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
         headers: { "Content-Type": "application/json" },
       });
 
+      // Update local storage tracking for published reels
+      markReelPublished(reelIndex);
+
       // Update local UI reel item
       setVideoData((prev) => {
         if (!prev || !prev.reels) return prev;
@@ -287,9 +295,40 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
     }
   };
 
-  // 7. Clear Active Job from Storage & State
-  const clearActiveJob = () => {
-    localStorage.removeItem(STORAGE_KEY);
+  // 7. Track Master Video publication status in localStorage & state
+  const markMasterPublished = useCallback((published: boolean = true) => {
+    setActiveJob((prev) => {
+      if (!prev) return prev;
+      const updated = { ...prev, isMasterPublished: published };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  }, []);
+
+  // 8. Track Published Reel Indices in localStorage & state
+  const markReelPublished = useCallback((reelIndex: number) => {
+    setActiveJob((prev) => {
+      if (!prev) return prev;
+      const existingIndices = prev.publishedReelIndices || [];
+      if (existingIndices.includes(reelIndex)) return prev;
+      const updated = {
+        ...prev,
+        publishedReelIndices: [...existingIndices, reelIndex],
+      };
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  }, []);
+
+  // 9. Clear Active Job from Storage & State
+  const clearActiveJob = useCallback(() => {
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
     setActiveJob(null);
     setVideoData(null);
     setIsProcessing(false);
@@ -300,7 +339,50 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-  };
+  }, []);
+
+  // 10. Discard Current Video & Delete Unposted Processed Videos/Reels from Database
+  const discardCurrentAndReset = useCallback(
+    async (options?: { isMasterPublished?: boolean }) => {
+      const targetVideoId = activeJob?.videoId || videoData?.video_id || "";
+      const masterUrl = videoData?.denoised_video || "";
+      const isMasterPub =
+        options?.isMasterPublished ?? activeJob?.isMasterPublished ?? false;
+
+      // 1. Delete all unposted video & reels from backend database stores (DynamoDB Flipline_Videos, RealTimeChat, Firestore)
+      if (targetVideoId || masterUrl) {
+        try {
+          await axios.delete("/api/flipLong", {
+            data: {
+              videoId: targetVideoId,
+              id: targetVideoId,
+              url: masterUrl,
+              publishedMaster: isMasterPub,
+            },
+            params: {
+              videoId: targetVideoId,
+              id: targetVideoId,
+              url: masterUrl,
+              publishedMaster: String(isMasterPub),
+            },
+          });
+        } catch (delErr) {
+          console.warn("Failed to delete unposted video from database:", delErr);
+        }
+
+        // Try AI pipeline delete proxy if available
+        if (targetVideoId) {
+          try {
+            await axios.delete(`/api/ai-pipeline/api/videos/${encodeURIComponent(targetVideoId)}`);
+          } catch {}
+        }
+      }
+
+      // 2. Clear local storage and active job state so user can upload a new video
+      clearActiveJob();
+    },
+    [activeJob, videoData, clearActiveJob]
+  );
 
   return {
     activeJob,
@@ -313,7 +395,10 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
     startDirectUpload,
     approveReels,
     publishReelToFlipLine,
+    markMasterPublished,
+    markReelPublished,
     clearActiveJob,
+    discardCurrentAndReset,
     checkStatus,
   };
 }
