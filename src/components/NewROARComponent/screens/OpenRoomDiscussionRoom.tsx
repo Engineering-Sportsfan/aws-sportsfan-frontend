@@ -101,6 +101,18 @@ function formatChannelName(rawName?: string, rawSlug?: string): { name: string; 
     return { name, slug: cleanSlug, icon };
 }
 
+function getTimestamp(val: any): number {
+    if (!val) return 0;
+    if (typeof val === "number") {
+        return val < 1e11 ? val * 1000 : val;
+    }
+    const t = new Date(val).getTime();
+    if (!isNaN(t)) return t;
+    const num = Number(val);
+    if (!isNaN(num)) return num < 1e11 ? num * 1000 : num;
+    return 0;
+}
+
 function displayUsername(raw: string | undefined | null): string {
     if (!raw) return "RoarUser";
     const trimmed = raw.trim();
@@ -1148,6 +1160,13 @@ export default function OpenRoomDiscussionRoom({
     const [loadingMoreMsgs, setLoadingMoreMsgs] = useState(false);
     const loadingMoreMsgsRef = useRef(false);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
+    const postsRef = useRef<any[]>([]);
+    const morePostsRef = useRef<any[]>([]);
+    useEffect(() => { postsRef.current = posts; }, [posts]);
+    useEffect(() => { morePostsRef.current = morePosts; }, [morePosts]);
+    const pendingScrollRestoreRef = useRef<{ prevScrollHeight: number; prevScrollTop: number } | null>(null);
+    const initialScrollDoneRef = useRef(false);
+    const prevPostCountRef = useRef(0);
     const [pinnedPost, setPinnedPost] = useState<any>(null);
     const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -1608,10 +1627,20 @@ export default function OpenRoomDiscussionRoom({
     // ── Load more messages WITH channel filter ──
     const loadMoreMsgs = useCallback(async () => {
         if (!roomId || loadingMoreMsgsRef.current || !hasMoreMsgs) return;
-        const combined = [...posts, ...morePosts];
+        const combined = [...postsRef.current, ...morePostsRef.current];
         if (combined.length === 0) return;
-        const oldestCreatedAt = combined.reduce((min, p) => (p.createdAt < min ? p.createdAt : min), combined[0].createdAt);
-        loadingMoreMsgsRef.current = true; setLoadingMoreMsgs(true);
+        const oldestCreatedAt = combined.reduce((min, p) => {
+            const time = getTimestamp(p.createdAt);
+            return time < min ? time : min;
+        }, getTimestamp(combined[0].createdAt));
+        loadingMoreMsgsRef.current = true;
+        setLoadingMoreMsgs(true);
+
+        const list = listRef.current;
+        const prevScrollHeight = list?.scrollHeight ?? 0;
+        const prevScrollTop = list?.scrollTop ?? 0;
+        pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
+
         try {
             let url = `/api/roar/rooms/${roomId}/messages?limit=15&lastCreatedAt=${oldestCreatedAt}`;
             if (selectedChannelId && selectedChannelId !== "all") {
@@ -1621,15 +1650,20 @@ export default function OpenRoomDiscussionRoom({
             if (res.data?.success) {
                 const newMsgs: any[] = res.data.messages ?? [];
                 setMorePosts(prev => {
-                    const seenIds = new Set([...posts, ...prev].map(p => p.id ?? p.msgId));
+                    const seenIds = new Set([...postsRef.current, ...prev].map(p => p.id ?? p.msgId));
                     const fresh = newMsgs.filter(m => !seenIds.has(m.msgId)).map(m => mapMessage(m));
                     return [...fresh, ...prev];
                 });
                 setHasMoreMsgs(Boolean(res.data.pagination?.hasMore));
             } else { setHasMoreMsgs(false); }
-        } catch (e) { console.error("Failed to load more messages:", e); }
-        finally { loadingMoreMsgsRef.current = false; setLoadingMoreMsgs(false); }
-    }, [roomId, hasMoreMsgs, posts, morePosts, mapMessage, selectedChannelId]);
+        } catch (e) {
+            console.error("Failed to load more messages:", e);
+            setHasMoreMsgs(false);
+        } finally {
+            loadingMoreMsgsRef.current = false;
+            setLoadingMoreMsgs(false);
+        }
+    }, [roomId, hasMoreMsgs, mapMessage, selectedChannelId]);
 
     const refreshActiveFans = useCallback(async () => {
         if (!roomId) return;
@@ -1851,9 +1885,14 @@ export default function OpenRoomDiscussionRoom({
     }, [onRegisterReplyUpdate]);
 
     const injectPost = useCallback((post: any) => {
-        setPosts(p => [...p, post]);
+        setPosts(p => {
+            const pid = post.id || post.msgId || post.postId;
+            if (pid && p.some(x => x.id === pid)) return p;
+            return [...p, post];
+        });
         playSound("post");
         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+        setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
     }, [playSound]);
 
     const optimisticSwap = useCallback((tempId: string, realMsg?: any) => {
@@ -1889,23 +1928,47 @@ export default function OpenRoomDiscussionRoom({
     useVisibilityInterval(fetchReactionUpdates, 5000);
 
     useEffect(() => {
-        const sentinel = sentinelRef.current;
-        if (!sentinel) return;
-        const observer = new IntersectionObserver((entries) => { if (entries[0]?.isIntersecting) loadMoreMsgs(); }, { root: listRef.current, rootMargin: "200px 0px 0px 0px", threshold: 0 });
-        observer.observe(sentinel);
-        return () => observer.disconnect();
+        const list = listRef.current;
+        if (!list) return;
+
+        const handleScroll = () => {
+            if (!initialScrollDoneRef.current) return;
+            if (list.scrollTop < 250) {
+                loadMoreMsgs();
+            }
+        };
+        list.addEventListener("scroll", handleScroll, { passive: true });
+        return () => list.removeEventListener("scroll", handleScroll);
     }, [loadMoreMsgs]);
 
     useEffect(() => {
-        if (!loading && listRef.current)
-            setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight }), 50);
+        if (!pendingScrollRestoreRef.current) return;
+        const { prevScrollHeight, prevScrollTop } = pendingScrollRestoreRef.current;
+        pendingScrollRestoreRef.current = null;
+        const list = listRef.current;
+        if (list) {
+            const newScrollHeight = list.scrollHeight;
+            list.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+        }
+    }, [morePosts]);
+
+    useEffect(() => {
+        if (!loading && listRef.current) {
+            initialScrollDoneRef.current = false;
+            setTimeout(() => {
+                listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+                setTimeout(() => { initialScrollDoneRef.current = true; }, 150);
+            }, 50);
+        }
     }, [loading]);
 
     useEffect(() => {
         const newCount = posts.length;
-        if (newCount > posts.length && listRef.current) {
+        if (newCount > prevPostCountRef.current && listRef.current) {
             setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+            setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
         }
+        prevPostCountRef.current = newCount;
     }, [posts.length]);
 
     const startPostCooldown = useCallback(() => {
@@ -2089,56 +2152,62 @@ export default function OpenRoomDiscussionRoom({
                     type: mode,
                 };
 
+                const effectiveMsgChannelId = m.channelId || postChannelId;
                 const belongsToView =
                     !selectedChannelId ||
                     selectedChannelId === "all" ||
-                    m.channelId === selectedChannelId ||
-                    (!m.channelId && (displayChannels[0]?.channelId === selectedChannelId || displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general"));
+                    effectiveMsgChannelId === selectedChannelId ||
+                    (!effectiveMsgChannelId && (displayChannels[0]?.channelId === selectedChannelId || displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general"));
 
                 if (belongsToView) {
-                    setPosts(p => [...p, {
-                        id: m.msgId || clientMsgId,
-                        authorUid: m.authorUid,
-                        authorEmail: m.authorEmail,
-                        fan: {
-                            username: displayUsername(m.authorUsername || userUsername),
-                            authorUid: m.authorUid || currentUserId,
-                            badge: m.authorBadge,
-                            avatarUrl: getEffectiveUserAvatar() || sanitizeAvatarUrl(m.authorAvatarUrl || m.avatarUrl) || undefined
-                        },
-                        text: m.text,
-                        fireCount: m.fireCount ?? 0,
-                        heartCount: m.heartCount ?? 0,
-                        mindblownCount: m.mindblownCount ?? 0,
-                        goatCount: m.goatCount ?? 0,
-                        clapCount: m.clapCount ?? 0,
-                        nochanceCount: m.noChanceCount ?? 0,
-                        userReaction: null,
-                        replyCount: 0,
-                        agreeCount: 0,
-                        disagreeCount: 0,
-                        userVote: null,
-                        sideA: m.sideA ?? null,
-                        sideB: m.sideB ?? null,
-                        timeAgo: "now",
-                        createdAt: m.createdAt || Date.now(),
-                        type: m.type,
-                        mediaUrls: m.mediaUrls,
-                        quizQuestion: m.quizQuestion,
-                        quizOptions: m.quizOptions,
-                        quizCorrectOption: m.quizCorrectOption,
-                        quizUserAnswer: m.quizUserAnswer ?? null,
-                        quizTimer: m.quizTimer,
-                        quizPoints: m.quizPoints,
-                        quizParticipants: m.quizParticipants ?? 0,
-                        memGifUrl: m.memGifUrl ?? null,
-                        memTag: m.memTag ?? null,
-                        channelId: m.channelId || postChannelId,
-                    }]);
+                    const targetId = m.msgId || clientMsgId;
+                    setPosts(p => {
+                        if (p.some(x => x.id === targetId)) return p;
+                        return [...p, {
+                            id: targetId,
+                            authorUid: m.authorUid,
+                            authorEmail: m.authorEmail,
+                            fan: {
+                                username: displayUsername(m.authorUsername || userUsername),
+                                authorUid: m.authorUid || currentUserId,
+                                badge: m.authorBadge,
+                                avatarUrl: getEffectiveUserAvatar() || sanitizeAvatarUrl(m.authorAvatarUrl || m.avatarUrl) || undefined
+                            },
+                            text: m.text,
+                            fireCount: m.fireCount ?? 0,
+                            heartCount: m.heartCount ?? 0,
+                            mindblownCount: m.mindblownCount ?? 0,
+                            goatCount: m.goatCount ?? 0,
+                            clapCount: m.clapCount ?? 0,
+                            nochanceCount: m.noChanceCount ?? 0,
+                            userReaction: null,
+                            replyCount: 0,
+                            agreeCount: 0,
+                            disagreeCount: 0,
+                            userVote: null,
+                            sideA: m.sideA ?? null,
+                            sideB: m.sideB ?? null,
+                            timeAgo: "now",
+                            createdAt: m.createdAt || Date.now(),
+                            type: m.type,
+                            mediaUrls: m.mediaUrls,
+                            quizQuestion: m.quizQuestion,
+                            quizOptions: m.quizOptions,
+                            quizCorrectOption: m.quizCorrectOption,
+                            quizUserAnswer: m.quizUserAnswer ?? null,
+                            quizTimer: m.quizTimer,
+                            quizPoints: m.quizPoints,
+                            quizParticipants: m.quizParticipants ?? 0,
+                            memGifUrl: m.memGifUrl ?? null,
+                            memTag: m.memTag ?? null,
+                            channelId: effectiveMsgChannelId,
+                        }];
+                    });
                     setInput(""); setAttachedUrl(null); setAttachedType(null);
                     playSound("post");
                     startPostCooldown();
                     setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+                    setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
                 }
             }
         } catch { onToast("Failed to send message"); }
@@ -2163,6 +2232,7 @@ export default function OpenRoomDiscussionRoom({
             quizParticipants: 0, memGifUrl: null, memTag: memTag, status: "sending"
         };
         setPosts(p => [...p, optimisticMsg]);
+        setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
         try {
             const payload: any = {
                 text: opt.label,
@@ -2182,23 +2252,25 @@ export default function OpenRoomDiscussionRoom({
             const res = await axios.post(`/api/roar/rooms/${roomId}/messages`, payload, { timeout: REQUEST_TIMEOUT_MS });
             if (res.data?.success) {
                 const m = res.data.message;
+                const effectiveMsgChannelId = m?.channelId || quickReactChannelId;
                 const belongsToView =
                     !selectedChannelId ||
                     selectedChannelId === "all" ||
-                    m?.channelId === selectedChannelId ||
-                    (!m?.channelId && (displayChannels[0]?.channelId === selectedChannelId || displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general"));
+                    effectiveMsgChannelId === selectedChannelId ||
+                    (!effectiveMsgChannelId && (displayChannels[0]?.channelId === selectedChannelId || displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general"));
 
                 if (belongsToView) {
                     setPosts(p => {
                         if (m?.msgId && p.some(post => post.id === m.msgId)) return p.filter(post => post.id !== tempId);
-                        return p.map(post => post.id === tempId ? { ...post, id: m?.msgId || tempId, authorUid: m?.authorUid, authorEmail: m?.authorEmail, status: "sent", timeAgo: "now", createdAt: m?.createdAt || Date.now(), memGifUrl: m?.memGifUrl, channelId: m?.channelId || quickReactChannelId } : post);
+                        return p.map(post => post.id === tempId ? { ...post, id: m?.msgId || tempId, authorUid: m?.authorUid, authorEmail: m?.authorEmail, status: "sent", timeAgo: "now", createdAt: m?.createdAt || Date.now(), memGifUrl: m?.memGifUrl, channelId: effectiveMsgChannelId } : post);
                     });
-                    setNewlyPostedIds(prev => new Set([...prev, m.msgId]));
+                    setNewlyPostedIds(prev => new Set([...prev, m?.msgId || tempId]));
                     playSound("post");
                     if (["wicket", "six", "four", "goal", "redcard", "catch", "frango", "yellowcard"].includes(memTag)) {
                         setCelebration({ memTag });
                     }
                     setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+                    setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
                     onToast(`${opt.emoji} ${opt.label} posted!`);
                 } else {
                     setPosts(p => p.filter(post => post.id !== tempId));
@@ -2303,6 +2375,18 @@ export default function OpenRoomDiscussionRoom({
             return p.type === activeFilter;
         });
     }, [allVisiblePosts, selectedChannelId, activeFilter, displayChannels]);
+
+    type FeedItem = { kind: "post"; data: any; sortKey: number };
+
+    const feedItems: FeedItem[] = React.useMemo(() => {
+        return filteredPosts
+            .map(p => ({
+                kind: "post" as const,
+                data: p,
+                sortKey: getTimestamp(p.createdAt),
+            }))
+            .sort((a, b) => a.sortKey - b.sortKey);
+    }, [filteredPosts]);
 
     const renderReactionPicker = (p: any) => {
         const lo = localReactions[p.id];
@@ -2512,9 +2596,14 @@ export default function OpenRoomDiscussionRoom({
 
             {/* ── MESSAGES LIST ── */}
             <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0">
+                {hasMoreMsgs && !loading && (
+                    <div ref={sentinelRef} style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}>
+                        {loadingMoreMsgs && <div style={{ width: 24, height: 24, borderRadius: "50%", border: "3px solid rgba(255,255,255,0.1)", borderTop: "3px solid #E91E8C", animation: "dr-spin 0.8s linear infinite" }} />}
+                    </div>
+                )}
                 {loading || !dollyLoaded ? (
                     <div className="text-center text-[var(--text-muted)] py-6 text-xs">Loading messages...</div>
-                ) : filteredPosts.length === 0 ? (
+                ) : feedItems.length === 0 ? (
                     <div className="text-center text-[var(--text-muted)] py-6 text-xs">
                         {displayChannels.length > 0 && selectedChannelId && selectedChannelId !== "all" ? (
                             <>No messages in <strong className="text-white">#{currentChannelName}</strong> channel yet. Start the conversation!</>
@@ -2523,7 +2612,8 @@ export default function OpenRoomDiscussionRoom({
                         )}
                     </div>
                 ) : (
-                    filteredPosts.map((p) => {
+                    feedItems.map((item) => {
+                        const p = item.data;
                         if (p.type === "trivia" && p.triviaQuestions?.length > 0) {
                             return (
                                 <TriviaCard
@@ -2871,12 +2961,6 @@ export default function OpenRoomDiscussionRoom({
                             </motion.div>
                         );
                     })
-                )}
-
-                {hasMoreMsgs && !loading && (
-                    <div ref={sentinelRef} style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}>
-                        {loadingMoreMsgs && <div style={{ width: 24, height: 24, borderRadius: "50%", border: "3px solid rgba(255,255,255,0.1)", borderTop: "3px solid #E91E8C", animation: "dr-spin 0.8s linear infinite" }} />}
-                    </div>
                 )}
             </div>
 
