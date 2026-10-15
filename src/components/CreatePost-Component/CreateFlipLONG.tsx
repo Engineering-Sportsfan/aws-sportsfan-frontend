@@ -32,7 +32,7 @@ import {
   Upload,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useFlipLongJob } from "@/hooks/useFlipLongJob";
+import { useFlipLongJob, notifyProcessingComplete } from "@/hooks/useFlipLongJob";
 import { ReelItem } from "@/types/fliplong";
 
 interface Props {
@@ -248,6 +248,34 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
     }
   }, [activeJob, currentUserName]);
 
+  // Check if video processing is completed (Step 1 upload & Step 2 processing)
+  const isVideoDone = videoData?.status === "success" && Boolean(videoData?.denoised_video);
+
+  // Send notification when video processing completes
+  useEffect(() => {
+    if (isVideoDone && activeVideoId) {
+      notifyProcessingComplete({
+        videoId: activeVideoId,
+        title: videoData?.main_title || videoForm.title || activeJob?.title,
+        userEmail: activeJob?.userEmail || user?.email,
+        userId: activeJob?.userId || currentUserId,
+        author: videoForm.author || currentUserName,
+      });
+    }
+  }, [
+    isVideoDone,
+    activeVideoId,
+    videoData?.main_title,
+    videoForm.title,
+    activeJob?.title,
+    activeJob?.userEmail,
+    activeJob?.userId,
+    user?.email,
+    currentUserId,
+    videoForm.author,
+    currentUserName,
+  ]);
+
   // Extract duration from selected video file
   useEffect(() => {
     if (videoFile) {
@@ -451,6 +479,8 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
         sport: videoForm.sport || "general",
         duration: videoDuration,
         durationSec: videoDurationSec,
+        userId: currentUserId,
+        userEmail: user?.email || "",
       });
 
       setSubmitSuccess("Video successfully uploaded to AI Pipeline! Processing in background.");
@@ -678,7 +708,6 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
   if (!isOpen || !mounted) return null;
 
   const portalTarget = document.getElementById("sf360-app-root") ?? document.body;
-  const isVideoDone = videoData?.status === "success" && Boolean(videoData?.denoised_video);
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex flex-col justify-end">

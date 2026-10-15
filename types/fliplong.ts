@@ -73,4 +73,7 @@ export interface FlipLongActiveJob {
   durationSec?: number;
   isMasterPublished?: boolean;
   publishedReelIndices?: number[];
+  userId?: string;
+  userEmail?: string;
+  notificationSent?: boolean;
 }

@@ -20,6 +20,7 @@ import {
   X,
   Bell,
   Calendar,
+  Film,
 } from "lucide-react";
 import { handleGoBack } from "@/utils/backButton";
 
@@ -41,9 +42,11 @@ const TOKENS = {
 const FEATURE_META: Record<string, { icon: any; label: string }> = {
   fliparena: { icon: Swords, label: "Flip Arena" },
   flipline: { icon: MessageSquare, label: "FlipLINE" },
+  fliplong: { icon: Film, label: "FlipLONG" },
   schedule: { icon: Trophy, label: "Schedule & Live" },
   store: { icon: Info, label: "Store" },
   reward: { icon: Star, label: "Rewards" },
+  roar: { icon: Flame, label: "ROAR" },
   general: { icon: AlertCircle, label: "General" }
 };
 
@@ -258,6 +261,13 @@ export default function NotificationCenter() {
     return () => window.removeEventListener("focus", onFocus);
   }, [fetchNotifications]);
 
+  // Real-time listener for newly arrived notifications
+  useEffect(() => {
+    const handleNewNotif = () => fetchNotifications(true);
+    window.addEventListener("sf360:new-notification", handleNewNotif);
+    return () => window.removeEventListener("sf360:new-notification", handleNewNotif);
+  }, [fetchNotifications]);
+
   // Normalize feature area mapping & client-side deduplication guarantee
   const dedupeClientMap = new Map<string, any>();
   for (const n of items) {
@@ -270,8 +280,25 @@ export default function NotificationCenter() {
   const itemsWithFeature = Array.from(dedupeClientMap.values()).map((n) => {
     let feature_area = "general";
     const nType = (n.notification_type || n.type || "").toLowerCase();
+    const cat = (n.category || "").toLowerCase();
 
     if (
+      cat === "roar" ||
+      nType.startsWith("roar") ||
+      nType.includes("reply_to_post") ||
+      nType.includes("reply") ||
+      nType.includes("mentioned") ||
+      nType.includes("reaction_on_post") ||
+      nType.includes("post_pinned") ||
+      nType.includes("room_going_live") ||
+      nType.includes("room_live") ||
+      nType.includes("debate") ||
+      nType.includes("trivia") ||
+      nType.includes("watchalong") ||
+      nType.includes("livecenter")
+    ) {
+      feature_area = "roar";
+    } else if (
       nType.startsWith("fliparena") ||
       nType.includes("arena") ||
       nType.includes("quiz") ||
@@ -281,24 +308,30 @@ export default function NotificationCenter() {
       nType.includes("meme")
     ) {
       feature_area = "fliparena";
-    } else if (nType.startsWith("flipline") || nType.includes("flipline")) {
+    } else if (
+      nType.startsWith("fliplong") ||
+      nType.includes("fliplong") ||
+      cat === "fliplong"
+    ) {
+      feature_area = "fliplong";
+    } else if (nType.startsWith("flipline") || nType.includes("flipline") || cat === "flipline") {
       feature_area = "flipline";
     } else if (
       nType.includes("schedule") ||
       nType.includes("reminder") ||
       nType.includes("match") ||
       nType.includes("live") ||
-      n.category === "schedule" ||
-      n.category === "reminder"
+      cat === "schedule" ||
+      cat === "reminder"
     ) {
       feature_area = "schedule";
-    } else if (nType.startsWith("store") || n.category === "store") {
+    } else if (nType.startsWith("store") || cat === "store") {
       feature_area = "store";
     } else if (
       nType.startsWith("reward") ||
       nType.includes("bonus") ||
       nType.includes("points") ||
-      n.category === "reward"
+      cat === "reward"
     ) {
       feature_area = "reward";
     } else if (n.category) {
@@ -467,7 +500,12 @@ export default function NotificationCenter() {
     await markRead(n, true);
     const target = n.cta_target || n.ctaTarget;
     if (target) {
+      if (typeof window !== "undefined" && target.includes("openFlipLong=true")) {
+        window.dispatchEvent(new CustomEvent("sf360:open-fliplong"));
+      }
       router.push(target);
+    } else if (n.feature_area === "roar" || n.category === "roar") {
+      router.push("/MainModules/ROAR?tab=alerts");
     }
   }
 
@@ -690,7 +728,15 @@ export default function NotificationCenter() {
                   onClick={() => {
                     const nType = (n.notification_type || n.type || "").toLowerCase();
                     const isScheduleReminder = nType === "schedule_reminder" || nType.includes("reminder");
-                    if (!isScheduleReminder && (n.cta_target || n.ctaTarget) && (n.cta_label || n.ctaLabel)) {
+                    const hasCta = Boolean(
+                      n.cta_target ||
+                      n.ctaTarget ||
+                      n.cta_label ||
+                      n.ctaLabel ||
+                      n.cta ||
+                      n.feature_area === "roar"
+                    );
+                    if (!isScheduleReminder && hasCta) {
                       handleCta(n);
                     } else if (!n.isRead) {
                       markRead(n);
@@ -789,7 +835,7 @@ export default function NotificationCenter() {
                     {(() => {
                       const nType = (n.notification_type || n.type || "").toLowerCase();
                       const isScheduleReminder = nType === "schedule_reminder" || nType.includes("reminder");
-                      const ctaLabel = n.cta_label || n.ctaLabel;
+                      const ctaLabel = n.cta_label || n.ctaLabel || n.cta;
                       if (isScheduleReminder || !ctaLabel) return null;
 
                       return (

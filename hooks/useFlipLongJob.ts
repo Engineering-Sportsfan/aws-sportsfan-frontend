@@ -12,6 +12,90 @@ const DEFAULT_API_BASE = "/api/ai-pipeline";
 const STORAGE_KEY = "fliplong_active_job";
 const POLLING_INTERVAL_MS = 30000; // 30 seconds
 
+export async function notifyProcessingComplete(jobMeta: {
+  videoId: string;
+  title?: string;
+  userEmail?: string;
+  userId?: string;
+  author?: string;
+}) {
+  const vid = jobMeta.videoId;
+  if (!vid) return;
+
+  const dedupeKey = `fliplong_notif_sent_${vid}`;
+  if (typeof window !== "undefined") {
+    if (localStorage.getItem(dedupeKey) === "true") {
+      return; // Already notified for this video
+    }
+    localStorage.setItem(dedupeKey, "true");
+  }
+
+  // Resolve user identification from parameters, localStorage auth, or global state
+  let email = jobMeta.userEmail || "";
+  let uid = jobMeta.userId || "";
+
+  if ((!email || !uid) && typeof window !== "undefined") {
+    try {
+      const authUserStr = localStorage.getItem("auth_user");
+      if (authUserStr) {
+        const parsed = JSON.parse(authUserStr);
+        if (!email && parsed.email) email = parsed.email;
+        if (!uid && (parsed.userId || parsed.actualUserId || parsed.uid)) {
+          uid = parsed.userId || parsed.actualUserId || parsed.uid;
+        }
+      }
+    } catch {}
+  }
+
+  const notifId = `ntf_fliplong_${vid}_${Date.now()}`;
+  const videoTitle = jobMeta.title ? `"${jobMeta.title}"` : "your video";
+  const title = "Your processing is completed";
+  const body = `Your processing is completed now you can upload ${videoTitle}.`;
+
+  const payload = {
+    id: notifId,
+    notification_id: notifId,
+    title,
+    body,
+    message: body,
+    notification_type: "fliplong",
+    category: "fliplong",
+    priority: "HIGH",
+    isRead: false,
+    read: false,
+    recipientEmail: email || null,
+    recipientUid: uid || null,
+    userId: uid || null,
+    email: email || null,
+    cta_label: "Upload Now",
+    cta_target: "/?openFlipLong=true",
+    sent_at: new Date().toISOString(),
+    createdAt: Date.now(),
+  };
+
+  // 1. Post to backend notification API
+  try {
+    await axios.post("/api/notifications", payload);
+  } catch (err) {
+    console.warn("Failed to post processing complete notification to backend:", err);
+  }
+
+  // 2. Dispatch real-time custom event for toast and unread indicators
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("sf360:new-notification", {
+        detail: {
+          id: notifId,
+          title,
+          body,
+          ctaTarget: "/?openFlipLong=true",
+        },
+      })
+    );
+    window.dispatchEvent(new Event("sf360:notifications-read"));
+  }
+}
+
 export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
   const [activeJob, setActiveJob] = useState<FlipLongActiveJob | null>(null);
   const [videoData, setVideoData] = useState<ProcessedVideoData | null>(null);
@@ -55,15 +139,29 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
           if (currentData.status === "success") {
             setIsProcessing(false);
             // Update local storage status
+            let parsedJob: FlipLongActiveJob | null = null;
             const saved = localStorage.getItem(STORAGE_KEY);
             if (saved) {
               try {
-                const parsed = JSON.parse(saved);
-                parsed.status = "success";
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
-                setActiveJob(parsed);
+                parsedJob = JSON.parse(saved);
+                if (parsedJob) {
+                  parsedJob.status = "success";
+                  parsedJob.notificationSent = true;
+                  localStorage.setItem(STORAGE_KEY, JSON.stringify(parsedJob));
+                  setActiveJob(parsedJob);
+                }
               } catch {}
             }
+
+            // Send notification to user that video processing is completed
+            notifyProcessingComplete({
+              videoId: vid,
+              title: currentData.main_title || parsedJob?.title,
+              userEmail: parsedJob?.userEmail,
+              userId: parsedJob?.userId,
+              author: parsedJob?.author,
+            });
+
             if (timerRef.current) {
               clearInterval(timerRef.current);
               timerRef.current = null;
@@ -125,6 +223,8 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
       sport: string;
       duration?: string;
       durationSec?: number;
+      userId?: string;
+      userEmail?: string;
     }
   ) => {
     setIsUploading(true);
@@ -182,6 +282,9 @@ export function useFlipLongJob(baseUrl: string = DEFAULT_API_BASE) {
         status: "queued",
         duration: meta.duration || "0:00",
         durationSec: meta.durationSec || 0,
+        userId: meta.userId || "",
+        userEmail: meta.userEmail || "",
+        notificationSent: false,
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(job));

@@ -71,6 +71,27 @@ export default function GlobalActionBar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [menuOpen]);
 
+  // Support opening FlipLONG from URL parameter or custom event (e.g. from Notifications click)
+  useEffect(() => {
+    const handleOpenFlipLong = () => {
+      setMenuOpen(false);
+      setFlipLongDialogOpen(true);
+    };
+
+    window.addEventListener("sf360:open-fliplong", handleOpenFlipLong);
+
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("openFlipLong") === "true") {
+        setFlipLongDialogOpen(true);
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, "", newUrl);
+      }
+    }
+
+    return () => window.removeEventListener("sf360:open-fliplong", handleOpenFlipLong);
+  }, []);
+
   const handleFliplineClick = () => {
     setMenuOpen(false);
     setDialogOpen(true);
