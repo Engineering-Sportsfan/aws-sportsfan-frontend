@@ -833,7 +833,7 @@ function HomePageInner() {
           onEnter={(room) => router.push(`/MainModules/ROAR?room=${room.roomId}`)}
         /> */}
         <Greetings />
-        <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} />
+        {/* <SportScoreSection selectedSport={selectedSport} onSelectSport={setSelectedSport} /> */}
         <FlipBOARD />
         <FlipLine selectedSport={selectedSport} />
         <WatchAlongSessions />
