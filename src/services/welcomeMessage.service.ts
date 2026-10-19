@@ -35,6 +35,10 @@ export interface AgendaEventItem {
   id: string;
   date?: string;
   time: string;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
   sport: string;
   subEvent: string;
   detail: string;
@@ -103,50 +107,74 @@ export function isTodayInIndia(dateStr?: string, now: Date = new Date()): boolea
 
 /**
  * Formats event date & time for FlipBOARD display:
- * - If the date is today in IST (or unspecified): shows only time (e.g. "08:00 AM").
- * - If the date is not today: shows date and time (e.g. "09 Oct · 08:00 AM").
+ * - If start and end are provided: displays range (e.g. "08:00 AM – 11:30 AM" or "09 Oct · 08:00 AM – 11:30 AM").
+ * - If only start is provided: shows time if today (e.g. "08:00 AM") or date + time (e.g. "09 Oct · 08:00 AM").
  */
 export function formatEventDisplayDateTime(
   dateStr?: string,
   timeStr?: string,
-  now: Date = new Date()
+  now: Date = new Date(),
+  endDateStr?: string,
+  endTimeStr?: string
 ): string {
-  const cleanTime = (timeStr || "").trim();
-  const cleanDate = (dateStr || "").trim();
+  const cleanStartTime = (timeStr || "").trim();
+  const cleanStartDate = (dateStr || "").trim();
+  const cleanEndTime = (endTimeStr || "").trim();
+  const cleanEndDate = (endDateStr || "").trim();
 
-  if (!cleanDate || isTodayInIndia(cleanDate, now)) {
-    return cleanTime || "Today";
-  }
-
-  try {
-    const normalizedDate = cleanDate.includes("T") ? cleanDate.split("T")[0] : cleanDate;
-    const parts = normalizedDate.split(/[-/]/);
-    if (parts.length === 3) {
-      let year = parseInt(parts[0], 10);
-      let month = parseInt(parts[1], 10) - 1;
-      let day = parseInt(parts[2], 10);
-      if (parts[0].length <= 2 && parts[2].length === 4) {
-        day = parseInt(parts[0], 10);
-        month = parseInt(parts[1], 10) - 1;
-        year = parseInt(parts[2], 10);
+  // Helper to format a single date (e.g. "Today" or "09 Oct")
+  const formatDatePart = (dStr: string) => {
+    if (!dStr || isTodayInIndia(dStr, now)) return "Today";
+    try {
+      const normalizedDate = dStr.includes("T") ? dStr.split("T")[0] : dStr;
+      const parts = normalizedDate.split(/[-/]/);
+      if (parts.length === 3) {
+        let year = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10) - 1;
+        let day = parseInt(parts[2], 10);
+        if (parts[0].length <= 2 && parts[2].length === 4) {
+          day = parseInt(parts[0], 10);
+          month = parseInt(parts[1], 10) - 1;
+          year = parseInt(parts[2], 10);
+        }
+        const parsedDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
+        return new Intl.DateTimeFormat("en-US", {
+          timeZone: "Asia/Kolkata",
+          month: "short",
+          day: "numeric",
+        }).format(parsedDate);
       }
-      const parsedDate = new Date(Date.UTC(year, month, day, 12, 0, 0));
-      const formattedDate = new Intl.DateTimeFormat("en-US", {
-        timeZone: "Asia/Kolkata",
-        month: "short",
-        day: "numeric",
-      }).format(parsedDate);
+    } catch {}
+    return dStr;
+  };
 
-      if (cleanTime) {
-        return `${formattedDate} · ${cleanTime}`;
-      }
-      return formattedDate;
+  const formattedStartDate = formatDatePart(cleanStartDate);
+  const isStartToday = formattedStartDate === "Today";
+
+  // Case 1: Has end date and/or end time
+  if (cleanEndTime || (cleanEndDate && cleanEndDate !== cleanStartDate)) {
+    const formattedEndDate = cleanEndDate ? formatDatePart(cleanEndDate) : formattedStartDate;
+    const isMultiDay = cleanEndDate && cleanEndDate !== cleanStartDate && formattedEndDate !== formattedStartDate;
+
+    if (isMultiDay) {
+      const startDisplay = cleanStartTime ? `${formattedStartDate}, ${cleanStartTime}` : formattedStartDate;
+      const endDisplay = cleanEndTime ? `${formattedEndDate}, ${cleanEndTime}` : formattedEndDate;
+      return `${startDisplay} – ${endDisplay}`;
     }
-  } catch (err) {
-    console.warn("Error formatting event date:", err);
+
+    // Same day start and end
+    const timeRange = cleanStartTime && cleanEndTime ? `${cleanStartTime} – ${cleanEndTime}` : (cleanStartTime || cleanEndTime);
+    if (isStartToday) {
+      return timeRange || "Today";
+    }
+    return `${formattedStartDate} · ${timeRange}`;
   }
 
-  return cleanTime ? `${cleanDate} · ${cleanTime}` : cleanDate;
+  // Case 2: Only start date/time (default/classic)
+  if (isStartToday) {
+    return cleanStartTime || "Today";
+  }
+  return cleanStartTime ? `${formattedStartDate} · ${cleanStartTime}` : formattedStartDate;
 }
 
 /**
@@ -243,24 +271,26 @@ export function parseEventDateTimeToTimestamp(
 
 /**
  * Dynamically resolves agenda event statuses based on current clock time and admin overrides:
- * - Manual mode / Explicit overrides:
- *   - If admin set "completed": strictly remains COMPLETED (never overwritten by clock auto-update).
- *   - If admin set "live": strictly remains LIVE.
- *   - If admin set "up_next": strictly remains UP NEXT.
- *   - If admin set "scheduled": strictly remains SCHEDULED.
- * - Auto mode (date & time based):
- *   - Correctly integrates both date and time (in IST).
- *   - Before event start time: UP NEXT (for first upcoming) or SCHEDULED.
- *   - At start time (timestamp <= now): automatically transitions to LIVE (active live window of 2.5h).
- *   - When duration expires or next event starts: transitions to COMPLETED.
+ * - Incorporates start date/time and optional end date/time.
+ * - When in auto mode:
+ *   - Before start: UP NEXT (within 45 mins) or SCHEDULED.
+ *   - Between start and end: LIVE.
+ *   - After end: COMPLETED.
+ * - 24-Hour Expiration Filter:
+ *   - If the event has finished and more than 24 hours have passed, it is filtered out and NOT shown on frontend.
  */
-export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new Date()): AgendaEventItem[] {
+export function resolveDynamicAgendaEvents(
+  events: AgendaEventItem[],
+  now = new Date(),
+  filterExpired24h = true
+): AgendaEventItem[] {
   if (!events || events.length === 0) return [];
 
   const nowMs = now.getTime();
-  const MATCH_DURATION_MS = 2.5 * 60 * 60 * 1000; // 2.5 hours active live window
+  const MATCH_DURATION_MS = 2.5 * 60 * 60 * 1000; // 2.5 hours active live window fallback
+  const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
-  // Attach parsed timestamp and admin flags
+  // Attach parsed start and end timestamps and admin flags
   const parsedEvents = events.map((evt, idx) => {
     const rawStatus = (evt.statusType || "").toLowerCase().trim();
     const rawLabel = (evt.statusLabel || "").toUpperCase().trim();
@@ -273,12 +303,31 @@ export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new 
     // Explicit manual override if marked manual OR if explicit status is set without being auto mode
     const isManual = evt.isManual === true || evt.statusMode === "manual" || (!isAutoMode && (isExplicitCompleted || isExplicitLive || isExplicitUpNext));
 
-    const timestamp = parseEventDateTimeToTimestamp(evt.date, evt.time, now);
+    const startDateStr = evt.startDate || evt.date;
+    const startTimeStr = evt.startTime || evt.time;
+    const startTimestamp = parseEventDateTimeToTimestamp(startDateStr, startTimeStr, now);
+
+    // Calculate endTimestamp
+    let endTimestamp: number;
+    const hasCustomEnd = Boolean(evt.endDate || evt.endTime);
+    if (hasCustomEnd) {
+      const effectiveEndDate = evt.endDate || startDateStr;
+      const effectiveEndTime = evt.endTime || (evt.endDate && evt.endDate !== startDateStr ? "11:59 PM" : startTimeStr);
+      let parsedEnd = parseEventDateTimeToTimestamp(effectiveEndDate, effectiveEndTime, now);
+      // If end time is earlier than start time on the same date, assume it ends next day
+      if (parsedEnd <= startTimestamp && effectiveEndDate === startDateStr) {
+        parsedEnd += 24 * 60 * 60 * 1000;
+      }
+      endTimestamp = parsedEnd;
+    } else {
+      endTimestamp = startTimestamp + MATCH_DURATION_MS;
+    }
 
     return {
       evt,
       idx,
-      timestamp,
+      startTimestamp,
+      endTimestamp,
       order: evt.order ?? idx,
       isAutoMode,
       isExplicitCompleted,
@@ -289,10 +338,10 @@ export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new 
     };
   });
 
-  // Chronological sort: by full event timestamp, then order, then index
+  // Chronological sort: by start timestamp, then order, then index
   parsedEvents.sort((a, b) => {
-    if (a.timestamp !== b.timestamp) {
-      return a.timestamp - b.timestamp;
+    if (a.startTimestamp !== b.startTimestamp) {
+      return a.startTimestamp - b.startTimestamp;
     }
     if (a.order !== undefined && b.order !== undefined && a.order !== b.order) {
       return a.order - b.order;
@@ -300,145 +349,155 @@ export function resolveDynamicAgendaEvents(events: AgendaEventItem[], now = new 
     return a.idx - b.idx;
   });
 
-  // Step 1: Check if there's an explicit manual LIVE event set by admin
-  let manualLiveIndex = -1;
-  for (let i = 0; i < parsedEvents.length; i++) {
-    if (parsedEvents[i].isExplicitLive && parsedEvents[i].isManual) {
-      manualLiveIndex = i;
-      break;
-    }
-  }
-
-  // Step 2: Identify the latest past/started event and the first upcoming future event
-  let lastStartedIndex = -1;
-  let firstFutureIndex = -1;
-
-  for (let i = 0; i < parsedEvents.length; i++) {
-    if (parsedEvents[i].timestamp <= nowMs) {
-      lastStartedIndex = i;
-    } else if (firstFutureIndex === -1) {
-      firstFutureIndex = i;
-    }
-  }
-
-  // Step 3: Determine which index (if any) is actively LIVE and UP NEXT
-  let activeLiveIndex = -1;
-  let activeUpcomingIndex = -1;
-
-  if (manualLiveIndex !== -1) {
-    // Admin manually forced an event to LIVE
-    activeLiveIndex = manualLiveIndex;
-    activeUpcomingIndex = firstFutureIndex;
-  } else if (lastStartedIndex !== -1) {
-    const latestStartedItem = parsedEvents[lastStartedIndex];
-    const elapsedMs = nowMs - latestStartedItem.timestamp;
-
-    if (latestStartedItem.isExplicitCompleted && latestStartedItem.isManual) {
-      // Manually marked COMPLETED by admin
-      activeLiveIndex = -1;
-      activeUpcomingIndex = firstFutureIndex;
-    } else if (elapsedMs <= MATCH_DURATION_MS) {
-      // Started recently (within match duration window) and no newer event has started
-      activeLiveIndex = lastStartedIndex;
-      activeUpcomingIndex = firstFutureIndex;
-    } else {
-      // Exceeded match duration window -> finished
-      activeLiveIndex = -1;
-      activeUpcomingIndex = firstFutureIndex;
-    }
-  } else {
-    // All events are in the future
-    activeLiveIndex = -1;
-    activeUpcomingIndex = 0; // Earliest upcoming event
-  }
-
-  return parsedEvents.map((item, index) => {
+  // Determine dynamic statuses and 24-hour expiration for all items
+  const resolved: {
+    event: AgendaEventItem;
+    isFinished: boolean;
+    finishedTimestamp: number;
+    isOver24hFinished: boolean;
+  }[] = parsedEvents.map((item, index) => {
     const orig = item.evt;
 
-    // 1. Explicit admin "completed" status strictly takes precedence (never overwritten by auto)
-    if (item.isExplicitCompleted && item.isManual) {
+    // 1. Explicit admin "completed" status strictly takes precedence
+    if (item.isExplicitCompleted) {
+      const isFinished = true;
+      const finishedTimestamp = item.endTimestamp <= nowMs ? item.endTimestamp : nowMs;
+      const isOver24hFinished = nowMs - finishedTimestamp > TWENTY_FOUR_HOURS_MS;
+
       return {
-        ...orig,
-        statusType: "completed",
-        statusMode: "manual",
-        isManual: true,
-        statusLabel: orig.statusLabel && orig.statusLabel.toUpperCase() === "FINISHED" ? "FINISHED" : "COMPLETED",
-        nodeColor: "gray",
+        event: {
+          ...orig,
+          statusType: "completed",
+          statusMode: item.isManual ? "manual" : undefined,
+          isManual: item.isManual,
+          statusLabel: orig.statusLabel && orig.statusLabel.toUpperCase() === "COMPLETED" ? "COMPLETED" : "FINISHED",
+          nodeColor: "gray",
+        },
+        isFinished,
+        finishedTimestamp,
+        isOver24hFinished,
       };
     }
 
-    // 2. Explicit admin "live" status strictly takes precedence
+    // 2. If end date & time has passed, mark as FINISHED on frontend
+    if (nowMs >= item.endTimestamp) {
+      const isFinished = true;
+      const finishedTimestamp = item.endTimestamp;
+      const isOver24hFinished = nowMs - finishedTimestamp > TWENTY_FOUR_HOURS_MS;
+
+      return {
+        event: {
+          ...orig,
+          statusType: "completed",
+          statusLabel: "FINISHED",
+          nodeColor: "gray",
+        },
+        isFinished,
+        finishedTimestamp,
+        isOver24hFinished,
+      };
+    }
+
+    // 3. Explicit admin "live" status strictly takes precedence (when not past end time)
     if (item.isExplicitLive && item.isManual) {
       return {
-        ...orig,
-        statusType: "live",
-        statusMode: "manual",
-        isManual: true,
-        statusLabel: "LIVE",
-        nodeColor: "emerald",
+        event: {
+          ...orig,
+          statusType: "live",
+          statusMode: "manual",
+          isManual: true,
+          statusLabel: "LIVE",
+          nodeColor: "emerald",
+        },
+        isFinished: false,
+        finishedTimestamp: item.endTimestamp,
+        isOver24hFinished: false,
       };
     }
 
-    // 3. Explicit admin "up_next" status takes precedence
+    // 4. Explicit admin "up_next"
     if (item.isExplicitUpNext && item.isManual) {
       return {
-        ...orig,
-        statusType: "up_next",
-        statusMode: "manual",
-        isManual: true,
-        statusLabel: "UP NEXT",
-        nodeColor: "amber",
+        event: {
+          ...orig,
+          statusType: "up_next",
+          statusMode: "manual",
+          isManual: true,
+          statusLabel: "UP NEXT",
+          nodeColor: "amber",
+        },
+        isFinished: false,
+        finishedTimestamp: item.endTimestamp,
+        isOver24hFinished: false,
       };
     }
 
-    // 4. Explicit admin "scheduled" status in manual mode
+    // 5. Explicit admin "scheduled" status in manual mode
     if (item.isExplicitScheduled && item.isManual && !item.isAutoMode) {
       return {
-        ...orig,
-        statusType: "scheduled",
-        statusMode: "manual",
-        isManual: true,
-        statusLabel: orig.statusLabel || orig.time || "SCHEDULED",
-        nodeColor: "blue",
+        event: {
+          ...orig,
+          statusType: "scheduled",
+          statusMode: "manual",
+          isManual: true,
+          statusLabel: orig.statusLabel || orig.time || "SCHEDULED",
+          nodeColor: "blue",
+        },
+        isFinished: false,
+        finishedTimestamp: item.endTimestamp,
+        isOver24hFinished: false,
       };
     }
 
-    // 5. Dynamic Auto Time Resolution:
+    // 6. Dynamic Auto Time Resolution:
     let computedStatusType: "completed" | "live" | "up_next" | "scheduled" = "scheduled";
     let computedLabel = "SCHEDULED";
     let computedNodeColor: "gray" | "emerald" | "amber" | "blue" = "blue";
+    let isFinished = false;
 
-    if (activeLiveIndex !== -1 && index === activeLiveIndex) {
-      // Current active LIVE event
+    if (nowMs < item.startTimestamp) {
+      const timeToStart = item.startTimestamp - nowMs;
+      const isUpNext = timeToStart <= 45 * 60 * 1000;
+      computedStatusType = isUpNext ? "up_next" : "scheduled";
+      computedLabel = isUpNext ? "UP NEXT" : (orig.time || "SCHEDULED");
+      computedNodeColor = isUpNext ? "amber" : "blue";
+      isFinished = false;
+    } else if (nowMs >= item.startTimestamp && nowMs < item.endTimestamp) {
       computedStatusType = "live";
       computedLabel = "LIVE";
       computedNodeColor = "emerald";
-    } else if (item.timestamp <= nowMs) {
-      // Event started in the past and is not live -> COMPLETED
-      computedStatusType = "completed";
-      computedLabel = "COMPLETED";
-      computedNodeColor = "gray";
-    } else if (index === activeUpcomingIndex) {
-      // The very next event to start
-      computedStatusType = "up_next";
-      computedLabel = "UP NEXT";
-      computedNodeColor = "amber";
+      isFinished = false;
     } else {
-      // Future scheduled event
-      computedStatusType = "scheduled";
-      computedLabel = orig.time || "SCHEDULED";
-      computedNodeColor = "blue";
+      computedStatusType = "completed";
+      computedLabel = "FINISHED";
+      computedNodeColor = "gray";
+      isFinished = true;
     }
 
+    const finishedTimestamp = item.endTimestamp;
+    const isOver24hFinished = isFinished && (nowMs - finishedTimestamp > TWENTY_FOUR_HOURS_MS);
+
     return {
-      ...orig,
-      statusType: computedStatusType,
-      statusLabel: computedLabel,
-      nodeColor: computedNodeColor,
-      isManual: false,
-      statusMode: item.isAutoMode ? "auto" : undefined,
+      event: {
+        ...orig,
+        statusType: computedStatusType,
+        statusLabel: computedLabel,
+        nodeColor: computedNodeColor,
+        isManual: false,
+        statusMode: item.isAutoMode ? "auto" : undefined,
+      },
+      isFinished,
+      finishedTimestamp,
+      isOver24hFinished,
     };
   });
+
+  // Filter out events that finished > 24 hours ago if filterExpired24h is enabled
+  const filtered = filterExpired24h
+    ? resolved.filter((r) => !r.isOver24hFinished)
+    : resolved;
+
+  return filtered.map((r) => r.event);
 }
 
 export interface MorningBriefStory {

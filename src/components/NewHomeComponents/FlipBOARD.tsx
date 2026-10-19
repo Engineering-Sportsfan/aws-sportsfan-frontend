@@ -54,6 +54,11 @@ import axios from "axios";
 import type { EngagementType, EngagementItem } from "@/types/engagements";
 import { useAuth } from "@/context/AuthContext";
 import { engagementService } from "@/services/engagement.service";
+import {
+  DynamicArenaCard,
+  isUserEngagedWithEngagement,
+  isEngagementClosed,
+} from "./FlipArena";
 
 export type { RadarCardItem, AgendaEventItem, MorningBriefStory, WelcomeConfig };
 
@@ -297,504 +302,13 @@ function formatEngagementPostingTime(item: EngagementItem): string {
   return `${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${timeStr}`;
 }
 
+// ─── Engagement Share URL Helper ─────────────────────────────────────────────
 function getEngagementShareUrl(item: EngagementItem): string {
   if (typeof window === "undefined") return "";
   const origin = window.location.origin;
   const itemType = item.type || "quiz";
   const targetId = (item as any)._parentEngagementId || item.id;
   return `${origin}/MainModules/FlipArena?itemId=${encodeURIComponent(targetId)}&type=${encodeURIComponent(itemType)}`;
-}
-
-// ─── FlipArena DynamicPollCard Component ─────────────────────────────────────
-function DynamicPollCard({
-  item,
-  userId,
-  userName,
-  userAvatar,
-  userEmail,
-  now,
-  onToast,
-  isHighlighted = false,
-  onOpenEngagedModal,
-  isEngagedExpanded = false,
-  totalEngagedOverride,
-  onSyncEngagedCount,
-}: {
-  item: EngagementItem;
-  userId?: string;
-  userName?: string;
-  userAvatar?: string;
-  userEmail?: string;
-  now: number;
-  onToast: (msg: string) => void;
-  isHighlighted?: boolean;
-  onOpenEngagedModal?: (item: EngagementItem) => void;
-  isEngagedExpanded?: boolean;
-  totalEngagedOverride?: number;
-  onSyncEngagedCount?: (count: number) => void;
-}) {
-  const points = useDynamicArenaPoints();
-  const pollPts = points.poll;
-  const pollBonusPts = points.pollBonus;
-  const initialVote = getStoredVote("poll", item.id, userId);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    initialVote?.selectedId || item.userVote || null
-  );
-  const [voted, setVoted] = useState<boolean>(Boolean(initialVote || item.userVoted));
-  const [loading, setLoading] = useState(false);
-  const isVotingRef = useRef(false);
-
-  const bonusClaimKey = `sf_poll_bonus_claimed_${item.id}_${userId || "anon"}`;
-  const [bonusAwarded, setBonusAwarded] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return localStorage.getItem(bonusClaimKey) === "true";
-  });
-  const [serverIsCorrect, setServerIsCorrect] = useState<boolean | null>(null);
-
-  const [options, setOptions] = useState<Array<{ id: string; text: string; votes: number }>>(
-    item.pollData?.options || []
-  );
-  const [liked, setLiked] = useState(false);
-  const [likesCount, setLikesCount] = useState<number>(Number(item.likes) || 0);
-  const [sharesCount, setSharesCount] = useState<number>(Number(item.shares) || 0);
-  const [hasShared, setHasShared] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return Boolean(localStorage.getItem(`sf_shared_${item.id}_${userId || "anon"}`));
-  });
-
-  const hasUserParticipated = Boolean(voted || selectedId !== null || item.userVoted || initialVote);
-  const [totalEngaged, setTotalEngaged] = useState<number>(() => {
-    return totalEngagedOverride !== undefined
-      ? totalEngagedOverride
-      : hasUserParticipated
-      ? Math.max(1, Number(item.totalEngaged) || 0)
-      : Number(item.totalEngaged) || 0;
-  });
-
-  useEffect(() => {
-    if (totalEngagedOverride !== undefined) {
-      setTotalEngaged(totalEngagedOverride);
-    }
-  }, [totalEngagedOverride]);
-
-  const startTime = getEngagementStartTime(item);
-  const isScheduled = startTime > now;
-  const timeToStartMs = Math.max(0, startTime - now);
-
-  const durationMins = Number(item.pollData?.durationMinutes || item.pollData?.timerMinutes || 10);
-  const expiresAt = item.pollData?.expiresAt || startTime + durationMins * 60 * 1000;
-  const isExpired = now >= expiresAt;
-  const timeRemainingMs = Math.max(0, expiresAt - now);
-
-  const totalVotes = options.reduce((sum, o) => sum + (o.votes || 0), 0) || 1;
-  const correctAnswer = item.pollData?.correctAnswer || item.pollData?.answer || "";
-
-  const checkIsOptionWinner = useCallback(
-    (opt: any) => {
-      if (!correctAnswer || !opt) return false;
-      const ca = correctAnswer.trim().toLowerCase();
-      const optId = String(opt.id || "").trim().toLowerCase();
-      const optText = String(opt.text || "").trim().toLowerCase();
-      return ca === optId || ca === optText;
-    },
-    [correctAnswer]
-  );
-
-  const userWon = useMemo(() => {
-    if (!voted || !selectedId || !correctAnswer) return false;
-    const selectedOpt = options.find((o) => o.id === selectedId || o.text === selectedId);
-    return checkIsOptionWinner(selectedOpt);
-  }, [voted, selectedId, correctAnswer, options, checkIsOptionWinner]);
-
-  useEffect(() => {
-    if (isExpired && (userWon || serverIsCorrect) && !bonusAwarded && userId) {
-      setBonusAwarded(true);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(bonusClaimKey, "true");
-        window.dispatchEvent(
-          new CustomEvent("sf360:points-updated", {
-            detail: { points: pollBonusPts },
-          })
-        );
-      }
-      onToast(`🏆 Poll Ended! You won +${pollBonusPts} SXPs bonus for picking the correct answer!`);
-    }
-  }, [isExpired, userWon, serverIsCorrect, bonusAwarded, bonusClaimKey, onToast, userId, pollBonusPts]);
-
-  useEffect(() => {
-    if (item.userLiked) {
-      setLiked(true);
-    } else if (userId) {
-      engagementService.checkLikeStatus(item.id, userId).then((isLiked) => {
-        if (isLiked) setLiked(true);
-      });
-    }
-
-    const stored = getStoredVote("poll", item.id, userId);
-    if (stored?.selectedId) {
-      setSelectedId(stored.selectedId);
-      setVoted(true);
-      if (stored.options) setOptions(stored.options);
-    }
-
-    if (item.userVoted && item.userVote) {
-      setSelectedId(item.userVote);
-      setVoted(true);
-      setStoredVote("poll", item.id, { selectedId: item.userVote }, userId);
-    } else if (userId) {
-      engagementService.checkVoteStatus(item.id, userId).then((res) => {
-        if (res.hasVoted && res.selectedOptionId) {
-          setSelectedId(res.selectedOptionId);
-          setVoted(true);
-          setStoredVote("poll", item.id, { selectedId: res.selectedOptionId }, userId);
-        }
-      });
-    }
-  }, [item.id, item.userLiked, item.userVoted, item.userVote, userId]);
-
-  useEffect(() => {
-    if (item.pollData?.options && item.pollData.options.length > 0) {
-      setOptions(item.pollData.options);
-    }
-  }, [item.pollData?.options]);
-
-  const handleVote = async (optId: string) => {
-    if (!userId || String(userId).toLowerCase().startsWith("anon")) {
-      onToast("Please sign in to participate and earn SXPs!");
-      return;
-    }
-    if (isScheduled) {
-      onToast(`This poll opens in ${formatCountdown(timeToStartMs)}!`);
-      return;
-    }
-    if (isExpired) {
-      onToast("This poll has ended!");
-      return;
-    }
-    if (voted || loading || isVotingRef.current || getStoredVote("poll", item.id, userId)) {
-      onToast("You have already voted in this poll!");
-      return;
-    }
-
-    isVotingRef.current = true;
-    setSelectedId(optId);
-    setVoted(true);
-    setLoading(true);
-    const nextCount = Math.max(1, totalEngaged + 1);
-    setTotalEngaged(nextCount);
-    onSyncEngagedCount?.(nextCount);
-
-    const nextOptions = options.map((opt) =>
-      opt.id === optId ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
-    );
-    setOptions(nextOptions);
-    setStoredVote("poll", item.id, { selectedId: optId, options: nextOptions }, userId);
-
-    try {
-      const res: any = await engagementService.voteEngagement(
-        item.id,
-        optId,
-        userId,
-        undefined,
-        { userName, userAvatar, userEmail }
-      );
-      if (res?.options && Array.isArray(res.options)) {
-        setOptions(res.options);
-        setStoredVote("poll", item.id, { selectedId: optId, options: res.options }, userId);
-      }
-      if (res?.isCorrect !== undefined) {
-        setServerIsCorrect(Boolean(res.isCorrect));
-      }
-      const earned = Number(res?.pointsAwarded ?? res?.participationPointsAwarded ?? pollPts);
-      if (typeof window !== "undefined" && earned > 0) {
-        window.dispatchEvent(
-          new CustomEvent("sf360:points-updated", { detail: { points: earned } })
-        );
-      }
-    } catch (err: any) {
-      const prevOption = err?.response?.data?.selectedOptionId || optId;
-      setSelectedId(prevOption);
-      const reverted = options.map((opt) =>
-        opt.id === prevOption ? { ...opt, votes: (opt.votes || 0) + 1 } : opt
-      );
-      setOptions(reverted);
-      setStoredVote("poll", item.id, { selectedId: prevOption, options: reverted }, userId);
-    } finally {
-      setLoading(false);
-      isVotingRef.current = false;
-    }
-  };
-
-  const handleLike = async () => {
-    const nextLiked = !liked;
-    const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
-    setLiked(nextLiked);
-    setLikesCount(nextCount);
-
-    try {
-      const res = await engagementService.toggleLikeEngagement(item.id, userId, {
-        userName,
-        userAvatar,
-        userEmail,
-      });
-      if (res?.likesCount !== undefined) {
-        setLikesCount(res.likesCount);
-        setLiked(res.liked);
-      }
-    } catch {}
-  };
-
-  const handleShare = async () => {
-    const targetId = (item as any)._parentEngagementId || item.id;
-    if (!hasShared) {
-      setHasShared(true);
-      setSharesCount((prev) => prev + 1);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(`sf_shared_${targetId}_${userId || "anon"}`, "true");
-      }
-      engagementService
-        .shareEngagement(targetId)
-        .then((res: any) => {
-          if (res?.sharesCount !== undefined) {
-            setSharesCount(Number(res.sharesCount));
-          }
-        })
-        .catch(() => {});
-    }
-
-    const shareUrl = getEngagementShareUrl(item);
-    const text = `📊 Poll: "${item.title}" — Cast your vote on SportsFan360:`;
-    if (navigator.share) {
-      navigator.share({ title: item.title, text: `${text} ${shareUrl}`, url: shareUrl }).catch(() => {});
-    } else {
-      await navigator.clipboard.writeText(shareUrl);
-      onToast("Poll link copied to clipboard! 📋");
-    }
-  };
-
-  const formattedTime = formatEngagementPostingTime(item);
-
-  return (
-    <motion.div
-      id={`engagement-${item.id}`}
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -12 }}
-      className={`w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-emerald-500 border-y border-r border-white/[0.06] rounded-2xl overflow-hidden p-4 shadow-xl relative transition-all duration-300 ${
-        isHighlighted
-          ? "ring-2 ring-emerald-500 shadow-[0_0_35px_rgba(16,185,129,0.35)] scale-[1.01]"
-          : ""
-      }`}
-    >
-      {isHighlighted && (
-        <div className="mb-3 -mt-1 py-1 px-2.5 rounded-lg bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/40 text-[10px] font-black text-emerald-300 flex items-center justify-between">
-          <span className="flex items-center gap-1.5">
-            <Sparkles size={11} className="text-emerald-400 animate-pulse" />
-            <span>SHARED POLL</span>
-          </span>
-          <span className="text-[9px] text-white/50 font-mono">Opened via link</span>
-        </div>
-      )}
-      <div className="flex items-center justify-between text-[9px] font-black text-white/40 mb-3 uppercase tracking-wider">
-        <div className="flex items-center gap-1.5">
-          <span className="text-emerald-400">📊 LIVE POLL</span>
-          {isScheduled ? (
-            <>
-              <span>•</span>
-              <span className="text-amber-400 font-mono flex items-center gap-1">
-                <Clock size={10} /> OPENS IN {formatCountdown(timeToStartMs)}
-              </span>
-            </>
-          ) : isExpired ? (
-            <>
-              <span>•</span>
-              <span className="text-rose-400 font-mono">🔒 CLOSED</span>
-            </>
-          ) : (
-            <>
-              <span>•</span>
-              <span className="text-emerald-400 font-mono flex items-center gap-1">
-                <Clock size={10} /> CLOSES IN {formatCountdown(timeRemainingMs)}
-              </span>
-            </>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <span>{formattedTime}</span>
-        </div>
-      </div>
-
-      {(() => {
-        const pollTitle = item.title?.trim() || "";
-        const pollQuestion = (item.pollData?.question || (item as any).question || "").trim();
-        const showBoth = pollTitle && pollQuestion && pollTitle.toLowerCase() !== pollQuestion.toLowerCase();
-
-        return showBoth ? (
-          <div className="mb-3.5 space-y-1">
-            <h4 className="text-[13px] font-extrabold text-white leading-snug">{pollTitle}</h4>
-            <p className="text-xs font-semibold text-white/80 leading-relaxed">{pollQuestion}</p>
-          </div>
-        ) : (
-          <p className="text-xs font-semibold text-white/80 mb-3.5 leading-relaxed">
-            {pollQuestion || pollTitle}
-          </p>
-        );
-      })()}
-
-      {isScheduled ? (
-        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-center my-2 space-y-1">
-          <Clock size={20} className="mx-auto text-emerald-400 animate-pulse" />
-          <h4 className="text-xs font-black text-white">Poll Scheduled</h4>
-          <p className="text-[11px] text-white/60">
-            Voting opens in <strong className="text-amber-400 font-mono">{formatCountdown(timeToStartMs)}</strong>
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2 mb-4">
-          {options.map((opt) => {
-            const pct = Math.round(((opt.votes || 0) / totalVotes) * 100);
-            const isSelected = selectedId === opt.id || selectedId === opt.text;
-            const isWinner = checkIsOptionWinner(opt);
-
-            let borderStyle = "border-white/[0.06] bg-white/[0.02]";
-            if (isExpired && isWinner) {
-              borderStyle = "border-emerald-500/70 bg-emerald-500/15";
-            } else if (isSelected) {
-              borderStyle = "border-emerald-500 bg-emerald-500/10";
-            }
-
-            return (
-              <button
-                key={opt.id}
-                onClick={() => handleVote(opt.id)}
-                disabled={voted || isExpired || loading}
-                className={`w-full rounded-xl p-3 border text-left transition-all cursor-pointer relative overflow-hidden group ${borderStyle} ${
-                  voted || isExpired ? "cursor-default" : "hover:bg-white/[0.04] active:scale-[0.99]"
-                }`}
-              >
-                {(voted || isExpired) && (
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${pct}%` }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
-                    className={`absolute inset-y-0 left-0 ${
-                      isExpired && isWinner
-                        ? "bg-emerald-500/25"
-                        : isSelected
-                        ? "bg-emerald-500/20"
-                        : "bg-white/[0.04]"
-                    }`}
-                  />
-                )}
-
-                <div className="relative z-10 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`text-xs font-bold ${
-                        isExpired && isWinner
-                          ? "text-emerald-300 font-black"
-                          : isSelected
-                          ? "text-emerald-400 font-black"
-                          : "text-white/80"
-                      }`}
-                    >
-                      {opt.text}
-                    </span>
-                    {isSelected && (
-                      <span className="text-[10px] text-emerald-400 font-bold flex items-center gap-1">
-                        <Check size={11} /> You voted
-                      </span>
-                    )}
-                    {isExpired && isWinner && (
-                      <span className="text-[10px] text-emerald-300 font-extrabold bg-emerald-500/20 border border-emerald-500/40 px-1.5 py-0.2 rounded">
-                        ✓ Correct Option
-                      </span>
-                    )}
-                  </div>
-                  {(voted || isExpired) && (
-                    <span className="text-xs font-black font-mono text-white/50">{pct}%</span>
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {voted && (
-        <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="mb-2">
-          {isExpired ? (
-            userWon || bonusAwarded || serverIsCorrect ? (
-              <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-between text-xs font-black text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.15)]">
-                <span className="flex items-center gap-1.5">
-                  <span>🎉</span>
-                  <span>
-                    Correct Option! You earned +{pollBonusPts} SXPs Bonus (+{pollPts + pollBonusPts} SXPs Total)
-                  </span>
-                </span>
-                <span className="bg-emerald-500 text-black px-2 py-0.5 rounded text-[10px] font-mono shrink-0">
-                  +{pollBonusPts} SXPs
-                </span>
-              </div>
-            ) : (
-              <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-between text-xs text-white/60">
-                <span>
-                  Poll ended {correctAnswer ? `· Winner: ` : ""}
-                  {correctAnswer && <strong className="text-emerald-400">{correctAnswer}</strong>}
-                </span>
-                <span className="text-[10px] text-white/40 shrink-0">
-                  +{pollPts} SXPs participation
-                </span>
-              </div>
-            )
-          ) : (
-            <div className="text-[11px] font-black text-center text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl flex items-center justify-center gap-1.5">
-              <span>🔒</span>
-              <span>Vote submitted · +{pollPts} SXPs earned!</span>
-            </div>
-          )}
-        </motion.div>
-      )}
-
-      <div className="flex items-center justify-between text-[11px] text-white/45 mt-4 pt-3 border-t border-white/[0.04] font-bold">
-        <div className="flex gap-4">
-          <button
-            onClick={handleLike}
-            className={`flex items-center gap-1.5 transition-all cursor-pointer active:scale-110 ${
-              liked ? "text-[#FF3D57]" : "hover:text-white"
-            }`}
-          >
-            <Heart size={13} fill={liked ? "currentColor" : "none"} />
-            <span>{likesCount.toLocaleString()}</span>
-          </button>
-          <button
-            onClick={handleShare}
-            className="flex items-center gap-1.5 hover:text-white transition-colors cursor-pointer"
-          >
-            <Share2 size={13} />
-            <span>{sharesCount > 0 ? `(${sharesCount})` : ""}</span>
-          </button>
-        </div>
-        <button
-          onClick={() => onOpenEngagedModal?.(item)}
-          className="text-[#FF8A00] hover:text-[#FFA033] transition-colors cursor-pointer flex items-center gap-1.5 font-bold group"
-        >
-          <span className="group-hover:underline">
-            {Math.max(
-              hasUserParticipated ? 1 : 0,
-              totalEngagedOverride !== undefined ? totalEngagedOverride : totalEngaged
-            ).toLocaleString()} engaged
-          </span>
-          <ChevronRight
-            size={12}
-            className={`text-[#FF8A00] transition-transform duration-200 ${
-              isEngagedExpanded ? "rotate-90 opacity-100" : "opacity-75 group-hover:opacity-100"
-            }`}
-          />
-        </button>
-      </div>
-    </motion.div>
-  );
 }
 
 
@@ -877,9 +391,19 @@ export default function FlipBOARD({
   const currentUser = resolveCurrentUser(user);
   const activeUserId = currentUser.activeUserId;
 
-  // Poll State (from FlipArena - Latest Poll only)
-  const [latestPoll, setLatestPoll] = useState<EngagementItem | null>(null);
-  const [loadingLatestPoll, setLoadingLatestPoll] = useState(true);
+  // Arena Engagement State (from FlipArena - Latest active engagement, advancing to next if user already engaged)
+  const [latestEngagement, setLatestEngagement] = useState<EngagementItem | null>(null);
+  const [allArenaEngagements, setAllArenaEngagements] = useState<EngagementItem[]>([]);
+  const [loadingLatestEngagement, setLoadingLatestEngagement] = useState(true);
+
+  // Live 15-second clock ticker to automatically transition event statuses & engagement expiration in real time
+  const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Points update listener to sync FlipBOARD SXP/EXP
   useEffect(() => {
@@ -996,83 +520,167 @@ export default function FlipBOARD({
     }
   }, []);
 
-  // ─── Fetch Latest Poll from FlipArena (engagementService) ───────────
-  const fetchLatestPoll = useCallback(async () => {
+  // ─── Fetch Latest Engagement from FlipArena (auto-advance if engaged) ───
+  const fetchLatestEngagement = useCallback(async () => {
     try {
-      setLoadingLatestPoll(true);
+      setLoadingLatestEngagement(true);
+      // 1. Fetch active engagements across all FlipArena formats (poll, quiz, fan_battle, prediction, meme)
       let items = await engagementService.getEngagements({
-        type: "poll",
         status: "active",
         userId: activeUserId,
       });
 
       if (!items || items.length === 0) {
         items = await engagementService.getEngagements({
-          type: "poll",
           userId: activeUserId,
         });
       }
 
       if (!items || items.length === 0) {
-        const allItems = await engagementService.getEngagements({
-          userId: activeUserId,
-        });
-        items = (allItems || []).filter((it) => it.type === "poll");
+        const allItems = await engagementService.getEngagements();
+        items = allItems || [];
       }
 
-      if (items && items.length > 0) {
-        // Sort descending by posting time / creation time to get the single latest poll
-        const sorted = [...items].sort(
+      const now = Date.now();
+
+      // Strictly filter out any engagement that is closed, ended, inactive, expired, or resolved
+      const activeUnclosed = (items || []).filter((it) => !isEngagementClosed(it, now));
+
+      if (activeUnclosed.length > 0) {
+        // Sort descending by posting time / creation time so latest is index 0
+        const sorted = [...activeUnclosed].sort(
           (a, b) => getEngagementPostingTime(b) - getEngagementPostingTime(a)
         );
-        setLatestPoll(sorted[0]);
+        setAllArenaEngagements(sorted);
+
+        // Find the first (latest) active unclosed engagement that the current user has NOT yet engaged with
+        const unengaged = sorted.find((it) => !isUserEngagedWithEngagement(it, activeUserId));
+
+        if (unengaged) {
+          setLatestEngagement(unengaged);
+        } else {
+          // If the user has already engaged with every active engagement, display the latest active one (sorted[0])
+          setLatestEngagement(sorted[0]);
+        }
       } else {
-        setLatestPoll(null);
+        setAllArenaEngagements([]);
+        setLatestEngagement(null);
       }
     } catch (err) {
-      console.warn("[FlipBOARD] Error fetching latest poll from FlipArena:", err);
-      setLatestPoll(null);
+      console.warn("[FlipBOARD] Error fetching latest engagement from FlipArena:", err);
+      setLatestEngagement(null);
     } finally {
-      setLoadingLatestPoll(false);
+      setLoadingLatestEngagement(false);
     }
   }, [activeUserId]);
 
+  // Real-time resolution to ensure displayed engagement is NOT closed, expired, or already engaged
+  const displayEngagement = useMemo(() => {
+    if (!latestEngagement) return null;
+    const now = currentTime.getTime();
+    if (isEngagementClosed(latestEngagement, now) || isUserEngagedWithEngagement(latestEngagement, activeUserId)) {
+      // Find the next available active unclosed engagement that the current user hasn't engaged with
+      const nextUnengaged = allArenaEngagements.find(
+        (it) => !isEngagementClosed(it, now) && !isUserEngagedWithEngagement(it, activeUserId)
+      );
+      if (nextUnengaged) return nextUnengaged;
+
+      // Fallback: if user has engaged with all active, display the latest active unclosed one
+      const anyUnclosed = allArenaEngagements.find((it) => !isEngagementClosed(it, now));
+      return anyUnclosed || latestEngagement;
+    }
+    return latestEngagement;
+  }, [latestEngagement, allArenaEngagements, activeUserId, currentTime]);
+
+  // Check if current user has participated in the displayed engagement
+  const isCurrentEngaged = useMemo(() => {
+    if (!displayEngagement) return false;
+    return isUserEngagedWithEngagement(displayEngagement, activeUserId);
+  }, [displayEngagement, activeUserId]);
+
+  // Find the next engagement in line that is active, unclosed, and the user has not yet engaged with
+  const nextAvailableEngagement = useMemo(() => {
+    if (!allArenaEngagements || allArenaEngagements.length === 0) return null;
+    const now = currentTime.getTime();
+    return (
+      allArenaEngagements.find(
+        (it) =>
+          it.id !== displayEngagement?.id &&
+          !isEngagementClosed(it, now) &&
+          !isUserEngagedWithEngagement(it, activeUserId)
+      ) || null
+    );
+  }, [allArenaEngagements, displayEngagement?.id, activeUserId, currentTime]);
+
+  // Handler to smoothly step to the next unengaged arena battle
+  const handleAdvanceToNextEngagement = useCallback(() => {
+    if (nextAvailableEngagement) {
+      setLatestEngagement(nextAvailableEngagement);
+    } else {
+      fetchLatestEngagement();
+    }
+  }, [nextAvailableEngagement, fetchLatestEngagement]);
+
+  // Auto-advance to next battle 3.5s after voting so user sees their vote feedback first
+  useEffect(() => {
+    const handlePointsAwarded = () => {
+      const timer = setTimeout(() => {
+        if (nextAvailableEngagement) {
+          setLatestEngagement(nextAvailableEngagement);
+        } else {
+          fetchLatestEngagement();
+        }
+      }, 3500);
+      return () => clearTimeout(timer);
+    };
+    window.addEventListener("sf360:points-updated", handlePointsAwarded);
+    return () => {
+      window.removeEventListener("sf360:points-updated", handlePointsAwarded);
+    };
+  }, [nextAvailableEngagement, fetchLatestEngagement]);
+
   useEffect(() => {
     loadDynamicHomeData();
-    fetchLatestPoll();
+    fetchLatestEngagement();
 
-    // Re-sync when window receives focus or an engagement is created so changes are immediately visible
+    // Re-sync when window receives focus or an engagement is created/voted so changes are immediately visible
     const handleFocus = () => {
       loadDynamicHomeData();
-      fetchLatestPoll();
+      fetchLatestEngagement();
     };
     const handleCreated = () => {
-      fetchLatestPoll();
+      fetchLatestEngagement();
+    };
+    const handleVoted = () => {
+      fetchLatestEngagement();
     };
     window.addEventListener("focus", handleFocus);
     window.addEventListener("arena-engagement-created", handleCreated);
+    window.addEventListener("arena-engagement-voted", handleVoted);
 
     // Periodic 30s auto-refresh in background
     const interval = setInterval(() => {
       loadDynamicHomeData();
-      fetchLatestPoll();
+      fetchLatestEngagement();
     }, 30000);
 
     return () => {
       window.removeEventListener("focus", handleFocus);
       window.removeEventListener("arena-engagement-created", handleCreated);
+      window.removeEventListener("arena-engagement-voted", handleVoted);
       clearInterval(interval);
     };
-  }, [loadDynamicHomeData, fetchLatestPoll]);
+  }, [loadDynamicHomeData, fetchLatestEngagement]);
 
-  // Live 15-second clock ticker to automatically transition event statuses in real time
-  const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 15000);
-    return () => clearInterval(timer);
-  }, []);
+
+
+  // Format today's date for FlipBOARD modal header subtitle
+  const formattedTodayDate = useMemo(() => {
+    const dayName = currentTime.toLocaleDateString("en-US", { weekday: "long" });
+    const dayNum = currentTime.toLocaleDateString("en-US", { day: "numeric" });
+    const monthName = currentTime.toLocaleDateString("en-US", { month: "long" });
+    return `Today · ${dayName}, ${dayNum} ${monthName}`;
+  }, [currentTime]);
 
   // Dynamically calculate event statuses based on current clock time
   const dynamicAgendaEvents = useMemo(() => {
@@ -1208,8 +816,8 @@ export default function FlipBOARD({
           id: notifId,
           notification_id: notifId,
           title: `🔔 Reminder: ${targetEvent?.sport || "Match"} - ${targetEvent?.subEvent || "Scheduled Event"}`,
-          body: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${formatEventDisplayDateTime(targetEvent?.date, targetEvent?.time, currentTime)}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
-          message: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${formatEventDisplayDateTime(targetEvent?.date, targetEvent?.time, currentTime)}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
+          body: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${formatEventDisplayDateTime(targetEvent?.date, targetEvent?.time, currentTime, targetEvent?.endDate, targetEvent?.endTime)}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
+          message: `Reminder set! ${targetEvent?.sport || "Event"} (${targetEvent?.subEvent || ""}) scheduled for ${formatEventDisplayDateTime(targetEvent?.date, targetEvent?.time, currentTime, targetEvent?.endDate, targetEvent?.endTime)}${targetEvent?.venue ? ` at ${targetEvent.venue}` : ""}.`,
           notification_type: "schedule_reminder",
           category: "schedule",
           priority: "NORMAL",
@@ -1653,9 +1261,9 @@ export default function FlipBOARD({
               ))}
             </div>
 
-            {/* Today's Poll Card - Exactly matching FlipArena before and after voting */}
+            {/* Arena Engagement Card - Latest unengaged engagement from FlipArena */}
             <div className="w-full">
-              {loadingLatestPoll ? (
+              {loadingLatestEngagement ? (
                 <div className="w-full max-w-lg mx-auto bg-[#0e111a] border-l-2 border-emerald-500/50 border-y border-r border-white/[0.06] rounded-2xl p-4 shadow-xl animate-pulse space-y-3">
                   <div className="flex items-center justify-between">
                     <div className="h-3 bg-white/10 rounded w-28" />
@@ -1668,25 +1276,53 @@ export default function FlipBOARD({
                     <div className="h-11 bg-white/[0.03] border border-white/5 rounded-xl" />
                   </div>
                 </div>
-              ) : latestPoll ? (
-                <DynamicPollCard
-                  item={latestPoll}
-                  userId={activeUserId}
-                  userName={currentUser.userName}
-                  userAvatar={currentUser.userAvatar}
-                  userEmail={currentUser.userEmail}
-                  now={currentTime.getTime()}
-                  onToast={showToast}
-                  onOpenEngagedModal={(item) => {
-                    router.push(`/MainModules/FlipArena?itemId=${encodeURIComponent(item.id)}&type=poll`);
-                  }}
-                />
+              ) : displayEngagement ? (
+                <div className="space-y-2.5">
+                  <DynamicArenaCard
+                    item={displayEngagement}
+                    userId={activeUserId}
+                    userName={currentUser.userName}
+                    userAvatar={currentUser.userAvatar}
+                    userEmail={currentUser.userEmail}
+                    now={currentTime.getTime()}
+                    onToast={showToast}
+                    onOpenEngagedModal={(item: any) => {
+                      router.push(
+                        `/MainModules/FlipArena?itemId=${encodeURIComponent(item.id)}&type=${encodeURIComponent(item.type || "quiz")}`
+                      );
+                    }}
+                  />
+
+                  {/* Advance to next engagement button if user has engaged with current one */}
+                  {isCurrentEngaged && nextAvailableEngagement && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex items-center justify-between px-1"
+                    >
+                      <span className="text-[11px] font-bold text-emerald-400/90 flex items-center gap-1">
+                        <CheckCircle2 size={12} className="text-emerald-400" />
+                        <span>Completed!</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleAdvanceToNextEngagement}
+                        className="text-[11.5px] font-extrabold text-pink-300 hover:text-white bg-pink-500/20 hover:bg-pink-500/35 border border-pink-500/40 px-3 py-1 rounded-full flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95"
+                      >
+                        <span>
+                          Next {nextAvailableEngagement.type === "meme" ? "Meme" : "Arena Battle"}
+                        </span>
+                        <ChevronRight size={13} />
+                      </button>
+                    </motion.div>
+                  )}
+                </div>
               ) : (
                 <div className="w-full max-w-lg mx-auto bg-[#0e111a] border border-white/[0.06] rounded-2xl p-6 text-center shadow-xl space-y-2">
-                  <span className="text-2xl opacity-75">📊</span>
-                  <h4 className="text-xs font-bold text-white/90">No active poll right now</h4>
+                  <span className="text-2xl opacity-75">🔥</span>
+                  <h4 className="text-xs font-bold text-white/90">No active arena engagements right now</h4>
                   <p className="text-[11px] text-white/50 max-w-xs mx-auto leading-relaxed">
-                    Check back soon or create your own poll in FlipArena!
+                    Check back soon or create your own battle, quiz, poll, prediction, or meme in FlipArena!
                   </p>
                 </div>
               )}
@@ -1829,7 +1465,7 @@ export default function FlipBOARD({
                           </span>
                         ) : (
                           <span className="text-[11px] font-black text-gray-400 px-2 py-0.5 rounded bg-white/[0.04] border border-white/5 uppercase font-mono">
-                            {formatEventDisplayDateTime(evt.date, evt.time || "SCHEDULED", currentTime)}
+                            {formatEventDisplayDateTime(evt.date, evt.time || "SCHEDULED", currentTime, evt.endDate, evt.endTime)}
                           </span>
                         )}
                       </div>
@@ -1892,7 +1528,7 @@ export default function FlipBOARD({
                           </span>
                         </h3>
                         <p className="text-[11px] font-semibold text-gray-400 truncate">
-                          {welcomeConfig?.agendaDateTitle || "Asian Games 2026 - Today"}
+                          {formattedTodayDate}
                         </p>
                       </div>
                     </div>
@@ -2429,7 +2065,7 @@ export default function FlipBOARD({
                                     <div className="flex flex-col min-w-0 pr-1">
                                       <span className="text-[11px] font-bold text-gray-400 flex items-center gap-1 font-mono">
                                         <Clock size={11} className="text-gray-400" />
-                                        <span>{formatEventDisplayDateTime(evt.date, evt.time, currentTime)}</span>
+                                        <span>{formatEventDisplayDateTime(evt.date, evt.time, currentTime, evt.endDate, evt.endTime)}</span>
                                       </span>
                                       <div className="flex items-center gap-1.5 mt-0.5">
                                         <span className="text-[18px] leading-none shrink-0">
@@ -2968,12 +2604,12 @@ export default function FlipBOARD({
                         <span>{selectedCardDetail.venue}</span>
                       </div>
                     )}
-                    {(Boolean(selectedCardDetail.time) || Boolean((selectedCardDetail as any).date)) && (
-                      <div className="flex items-center gap-2 text-[12px] text-gray-300 font-mono">
-                        <Clock size={14} className="text-amber-400 shrink-0" />
-                        <span>Scheduled: {formatEventDisplayDateTime((selectedCardDetail as any).date, selectedCardDetail.time, currentTime)}</span>
-                      </div>
-                    )}
+                      {(Boolean(selectedCardDetail.time) || Boolean((selectedCardDetail as any).date)) && (
+                        <div className="flex items-center gap-2 text-[12px] text-gray-300 font-mono">
+                          <Clock size={14} className="text-amber-400 shrink-0" />
+                          <span>Scheduled: {formatEventDisplayDateTime((selectedCardDetail as any).date, selectedCardDetail.time, currentTime, (selectedCardDetail as any).endDate, (selectedCardDetail as any).endTime)}</span>
+                        </div>
+                      )}
 
                     {selectedCardDetail.teams && (
                       <div className="p-3 rounded-xl bg-white/[0.04] border border-white/10 flex flex-col gap-1.5">
