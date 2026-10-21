@@ -67,7 +67,7 @@ export async function notifyProcessingComplete(jobMeta: {
     recipientUid: uid || null,
     userId: uid || null,
     email: email || null,
-    cta_label: "Upload Now",
+    cta_label: "Review & Publish",
     cta_target: "/?openFlipLong=true",
     sent_at: new Date().toISOString(),
     createdAt: Date.now(),
@@ -80,14 +80,32 @@ export async function notifyProcessingComplete(jobMeta: {
     console.warn("Failed to post processing complete notification to backend:", err);
   }
 
-  // 2. Dispatch real-time custom event for toast and unread indicators
+  // 2. Persist locally to sf_reminder_notifications so Notifications page instantly shows it
   if (typeof window !== "undefined") {
+    try {
+      const userKey = `sf_reminder_notifications_${uid || email || "anon"}`;
+      const existingUser: any[] = JSON.parse(localStorage.getItem(userKey) || "[]");
+      if (!existingUser.some((n) => n.id === notifId)) {
+        existingUser.unshift(payload);
+        localStorage.setItem(userKey, JSON.stringify(existingUser.slice(0, 30)));
+      }
+
+      const existingGlobal: any[] = JSON.parse(localStorage.getItem("sf_reminder_notifications") || "[]");
+      if (!existingGlobal.some((n) => n.id === notifId)) {
+        existingGlobal.unshift(payload);
+        localStorage.setItem("sf_reminder_notifications", JSON.stringify(existingGlobal.slice(0, 30)));
+      }
+    } catch (e) {
+      console.warn("Failed to save local fliplong notification:", e);
+    }
+
+    // 3. Dispatch real-time custom event for toast and unread indicators
     window.dispatchEvent(
       new CustomEvent("sf360:new-notification", {
         detail: {
           id: notifId,
-          title,
-          body,
+          title: "Your FlipLONG video is ready!",
+          body: `Your video ${videoTitle} is ready to review and publish.`,
           ctaTarget: "/?openFlipLong=true",
         },
       })
