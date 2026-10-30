@@ -25,6 +25,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { handleGoBack } from "@/utils/backButton";
 import { trackMeaningfulInteraction, trackAdvocacy } from "@/lib/analytics";
+import axios from "axios";
 
 interface FlipLongVideoItem {
   id: string;
@@ -42,6 +43,10 @@ interface FlipLongVideoItem {
   type?: "VIDEO" | "AUDIO";
   sport?: string;
   author?: string;
+  authorPhoto?: string;
+  userId?: string;
+  email?: string;
+  userEmail?: string;
   likes?: number;
   likeCount?: number;
   likedBy?: string[];
@@ -79,6 +84,10 @@ interface PlaybookDrop {
   mediaUrl: string;
   thumbnailUrl: string;
   author?: string;
+  authorPhoto?: string;
+  userId?: string;
+  email?: string;
+  userEmail?: string;
   sport?: string;
   likes: number;
   likedBy: string[];
@@ -167,6 +176,10 @@ function mapFlipLongToDrop(v: FlipLongVideoItem, index: number): PlaybookDrop {
     mediaUrl,
     thumbnailUrl: v.thumbnailUrl || "",
     author: v.author || "SportsFan Creator",
+    authorPhoto: v.authorPhoto || "",
+    userId: v.userId || "",
+    email: v.email || v.userEmail || "",
+    userEmail: v.email || v.userEmail || "",
     sport: v.sport || "Cricket",
     likes: Number(v.likes || v.likeCount || 0),
     likedBy: Array.isArray(v.likedBy) ? v.likedBy : [],
@@ -225,9 +238,36 @@ function isHiddenMedia(item: any): boolean {
   );
 }
 
+async function sendNotification(payload: {
+  id?: string;
+  notification_id?: string;
+  recipientEmail?: string;
+  recipientUid?: string;
+  userId?: string;
+  email?: string;
+  title?: string;
+  type?: string;
+  notification_type?: string;
+  category?: string;
+  priority?: string;
+  message: string;
+  body: string;
+  cta_label?: string;
+  cta_target?: string;
+  actor_name?: string;
+  actor_photoURL?: string;
+  actorPhoto?: string;
+}) {
+  try {
+    await axios.post("/api/notifications", { ...payload, isRead: false });
+  } catch (err) {
+    console.error("Failed to send notification:", err);
+  }
+}
+
 export default function FlipLongPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, getUserDisplayName } = useAuth();
   const [drops, setDrops] = useState<PlaybookDrop[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -411,7 +451,7 @@ export default function FlipLongPage() {
         return next;
       });
       setLikeCounts((prev) => ({ ...prev, [drop.id]: newCount }));
-      showToast("Liked! ?");
+      showToast("Liked! 💖");
       try { trackMeaningfulInteraction('fliplong_like', { drop_id: drop.id, title: drop.title, type: drop.type, room_name: 'FlipLong' }); } catch (e) {}
 
       window.dispatchEvent(
@@ -419,6 +459,46 @@ export default function FlipLongPage() {
           detail: { id: drop.id, likes: newCount, isLiked: true },
         })
       );
+
+      // Send notification to the user who uploaded the video (User 2), identical to FlipLINE
+      const targetEmail = drop.userEmail || drop.email;
+      const targetUid = drop.userId;
+      const currentUserName = user
+        ? (getUserDisplayName?.() || user.name || (user as any)?.username || user.email?.split("@")[0] || "Someone")
+        : "Someone";
+      const currentUserEmail = user?.email || "";
+      const currentUserId = user?.userId || (user as any)?.uid || (user as any)?.actualUserId || "";
+      const currentUserAvatar = user?.avatar || (user as any)?.photoURL || (user as any)?.avatarUrl || "";
+
+      const isOwnVideo =
+        Boolean(targetEmail && currentUserEmail && targetEmail.toLowerCase() === currentUserEmail.toLowerCase()) ||
+        Boolean(targetUid && currentUserId && targetUid === currentUserId);
+
+      if (!isOwnVideo && (targetEmail || targetUid)) {
+        const notifId = `ntf_like_${drop.id}_${Date.now()}`;
+        const messageText = `${currentUserName} liked your video "${drop.title}"`;
+
+        sendNotification({
+          id: notifId,
+          notification_id: notifId,
+          recipientEmail: targetEmail || undefined,
+          recipientUid: targetUid || undefined,
+          email: targetEmail || undefined,
+          userId: targetUid || undefined,
+          title: "New Video Like",
+          body: messageText,
+          message: messageText,
+          notification_type: "fliplong",
+          type: "fliplong",
+          category: "fliplong",
+          priority: "NORMAL",
+          cta_label: "Watch Video",
+          cta_target: "/MainModules/FlipLong",
+          actor_name: currentUserName,
+          actor_photoURL: currentUserAvatar,
+          actorPhoto: currentUserAvatar,
+        });
+      }
 
       try {
         const res = await fetch("/api/flipLong/like", {
@@ -429,6 +509,11 @@ export default function FlipLongPage() {
             videoId: drop.id,
             userId: actorId,
             action: "like",
+            likerName: currentUserName,
+            likerEmail: currentUserEmail,
+            likerUserId: currentUserId,
+            likerPhoto: currentUserAvatar,
+            notificationSentFromClient: !isOwnVideo && Boolean(targetEmail || targetUid),
           }),
         });
         if (res.ok) {

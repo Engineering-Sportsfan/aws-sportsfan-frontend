@@ -30,12 +30,35 @@ export default function Notifications({
 
   const filtered = notifications.filter((n) => {
     if (filter === "All") return true;
-    if (filter === "Predictions") return n.type.includes("PREDICTION");
-    if (filter === "Challenges") return n.type === "CHALLENGE" || n.type === "RIVAL";
-    if (filter === "Badges") return n.type === "BADGE" || n.type === "FAN_OF_WEEK";
-    if (filter === "Match") return n.type === "MATCH_LIVE" || n.type === "HEATING_UP";
-    if (filter === "WatchAlong") return n.type.startsWith("watchalong.");
-    if (filter === "Live Center") return n.type.startsWith("livecenter.");
+    const typeUpper = (n.type || "").toUpperCase();
+    if (filter === "Social") {
+      return (
+        typeUpper.includes("REPLY") ||
+        typeUpper.includes("MENTION") ||
+        typeUpper.includes("TAG") ||
+        typeUpper.includes("REACTION") ||
+        typeUpper.includes("PIN")
+      );
+    }
+    if (filter === "Debates") {
+      return typeUpper.includes("DEBATE");
+    }
+    if (filter === "Trivia") {
+      return typeUpper.includes("TRIVIA") || typeUpper.includes("QUIZ");
+    }
+    if (filter === "Predictions") return typeUpper.includes("PREDICTION");
+    if (filter === "Challenges") return typeUpper === "CHALLENGE" || typeUpper === "RIVAL";
+    if (filter === "Badges") return typeUpper === "BADGE" || typeUpper === "FAN_OF_WEEK";
+    if (filter === "Match") {
+      return (
+        typeUpper === "MATCH_LIVE" ||
+        typeUpper === "HEATING_UP" ||
+        typeUpper.includes("ROOM_GOING_LIVE") ||
+        typeUpper.includes("ROOM_LIVE")
+      );
+    }
+    if (filter === "WatchAlong") return (n.type || "").toLowerCase().startsWith("watchalong.");
+    if (filter === "Live Center") return (n.type || "").toLowerCase().startsWith("livecenter.");
     return true;
   });
 
@@ -86,7 +109,22 @@ export default function Notifications({
       <div style={{ padding: "0 16px", display: "flex", flexDirection: "column", gap: 10 }}>
         <AnimatePresence>
           {filtered.map((n, i) => {
-            const style = TYPE_STYLES[n.type] || TYPE_STYLES.CHALLENGE;
+            const notifType = n.type || "";
+            const notifTypeUpper = notifType.toUpperCase();
+            const style =
+              TYPE_STYLES[notifType] ||
+              TYPE_STYLES[notifTypeUpper] ||
+              (notifTypeUpper.includes("REPLY") ? TYPE_STYLES.REPLY_TO_POST : null) ||
+              (notifTypeUpper.includes("MENTION") || notifTypeUpper.includes("TAG") ? TYPE_STYLES.MENTIONED : null) ||
+              (notifTypeUpper.includes("REACTION") ? TYPE_STYLES.REACTION_ON_POST : null) ||
+              (notifTypeUpper.includes("PIN") ? TYPE_STYLES.POST_PINNED : null) ||
+              (notifTypeUpper.includes("ROOM") ? TYPE_STYLES.ROOM_GOING_LIVE : null) ||
+              (notifTypeUpper.includes("COUNTER") ? TYPE_STYLES.DEBATE_COUNTERED : null) ||
+              (notifTypeUpper.includes("TOPIC") ? TYPE_STYLES.DEBATE_NEW_TOPIC : null) ||
+              (notifTypeUpper.includes("WINNER") ? TYPE_STYLES.DEBATE_WINNER_ANNOUNCED : null) ||
+              (notifTypeUpper.includes("CLOSING") ? TYPE_STYLES.DEBATE_CLOSING_SOON : null) ||
+              (notifTypeUpper.includes("QUIZ") || notifTypeUpper.includes("TRIVIA") ? TYPE_STYLES.TRIVIA_NEW_QUIZ_LIVE : null) ||
+              TYPE_STYLES.CHALLENGE;
             const targetRoom = findRoomForNotification(n);
 
             return (
@@ -98,13 +136,40 @@ export default function Notifications({
                 transition={{ delay: i * 0.04 }}
                 onClick={() => {
                   onMarkRead(n.id);
-                  if (n.ctaTarget) {
+                  if (n.ctaTarget && !n.ctaTarget.endsWith("/MainModules/ROAR")) {
                     window.location.href = n.ctaTarget;
                     return;
                   }
-                  if (n.type === "MATCH_LIVE" || n.type === "HEATING_UP") { onJoinRoom(targetRoom); return; }
-                  if (n.type === "CHALLENGE") { onCompose(); return; }
-                  if (n.type.includes("PREDICTION") || n.type === "BADGE" || n.type === "FAN_OF_WEEK") { onNavigateTab("profile"); return; }
+                  if (
+                    notifTypeUpper === "MATCH_LIVE" ||
+                    notifTypeUpper === "HEATING_UP" ||
+                    notifTypeUpper.includes("ROOM_GOING_LIVE") ||
+                    notifTypeUpper.includes("ROOM_LIVE")
+                  ) {
+                    onJoinRoom(targetRoom);
+                    return;
+                  }
+                  if (
+                    notifTypeUpper.includes("DEBATE") ||
+                    notifTypeUpper.includes("TRIVIA") ||
+                    notifTypeUpper.includes("QUIZ") ||
+                    notifTypeUpper.includes("REPLY") ||
+                    notifTypeUpper.includes("MENTION") ||
+                    notifTypeUpper.includes("REACTION") ||
+                    notifTypeUpper.includes("PIN")
+                  ) {
+                    if (targetRoom) {
+                      onJoinRoom(targetRoom);
+                    } else {
+                      onNavigateTab("home");
+                    }
+                    return;
+                  }
+                  if (notifTypeUpper === "CHALLENGE") { onCompose(); return; }
+                  if (notifTypeUpper.includes("PREDICTION") || notifTypeUpper === "BADGE" || notifTypeUpper === "FAN_OF_WEEK") {
+                    onNavigateTab("profile");
+                    return;
+                  }
                   onNavigateTab("home");
                 }}
                 style={{
@@ -136,10 +201,19 @@ export default function Notifications({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (n.ctaTarget) {
+                          onMarkRead(n.id);
+                          if (n.ctaTarget && !n.ctaTarget.endsWith("/MainModules/ROAR")) {
                             window.location.href = n.ctaTarget;
-                          } else if (n.type.includes("PREDICTION")) {
+                          } else if (notifTypeUpper.includes("PREDICTION")) {
                             onNavigateTab("profile");
+                          } else if (
+                            notifTypeUpper.includes("ROOM_GOING_LIVE") ||
+                            notifTypeUpper.includes("ROOM_LIVE") ||
+                            notifTypeUpper === "MATCH_LIVE"
+                          ) {
+                            onJoinRoom(targetRoom);
+                          } else if (targetRoom) {
+                            onJoinRoom(targetRoom);
                           } else {
                             onCompose();
                           }
@@ -149,10 +223,10 @@ export default function Notifications({
                         {n.cta} →
                       </button>
                     )}
-                    {n.type === "MATCH_LIVE" && (
+                    {(notifTypeUpper === "MATCH_LIVE" || notifTypeUpper.includes("ROOM_GOING_LIVE") || notifTypeUpper.includes("ROOM_LIVE")) && (
                       <motion.button
                         whileTap={{ scale: 0.95 }}
-                        onClick={(e) => { e.stopPropagation(); onJoinRoom(targetRoom); }}
+                        onClick={(e) => { e.stopPropagation(); onMarkRead(n.id); onJoinRoom(targetRoom); }}
                         className="btn-gradient"
                         style={{ marginTop: 8, padding: "6px 16px", borderRadius: 999, fontSize: 12, border: "none", cursor: "pointer" }}
                       >

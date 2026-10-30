@@ -15,6 +15,7 @@ import { emitSxpActivityRefresh } from "@/lib/sxpEvents";
 import { GLOBAL_CSS } from "./constants/styles";
 import { NOTIFICATIONS_DATA } from "./constants";
 import { Toast } from "./components/shared";
+import { formatTimeAgo } from "./utils";
 import ComposeModal from "./components/ComposeModal";
 import CreateFlashQuizModal from "./components/CreateFlashQuizModal";
 import PostDetailsOverlay from "./components/PostDetailsOverlay";
@@ -181,6 +182,21 @@ const openRecapForRoom = useCallback(async (room: Room) => {
   }, []);
 
   useEffect(() => {
+    const tabParam = searchParams?.get("tab");
+    if (tabParam) {
+      if (tabParam === "alerts") {
+        setOverlay(null);
+        setActiveTab("alerts");
+      } else if (tabParam === "profile") {
+        setOverlay(null);
+        setActiveTab("profile");
+      } else if (tabParam === "leaderboard") {
+        setOverlay("leaderboard");
+      }
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     const handlePopState = () => {
       const params = new URLSearchParams(window.location.search);
       const roomParam = params.get("room");
@@ -262,17 +278,21 @@ const openRecapForRoom = useCallback(async (room: Room) => {
       if (!res.data?.success || !Array.isArray(res.data.notifications)) return false;
       const mapped: Notification[] = res.data.notifications.map((n: any) => ({
         id: n.notifId || n.id,
-        type: n.type || "ROAR_NOTIFICATION",
+        type: n.type || n.notification_type || "ROAR_NOTIFICATION",
         title: n.title || n.message || "ROAR update",
-        subtitle: n.subtitle || n.postPreview || "",
-        time: n.createdAt ? "Just now" : "",
+        subtitle: n.subtitle || n.body || n.postPreview || "",
+        time: n.createdAt ? formatTimeAgo(typeof n.createdAt === "number" ? n.createdAt : new Date(n.createdAt).getTime()) : "Just now",
         read: Boolean(n.read ?? n.isRead),
-        fan: n.fan ?? null,
-        cta: n.cta ?? null,
+        fan: n.fan ?? (n.actor_name ? { username: n.actor_name, badge: "ROOKIE_FAN", avatarUrl: n.actor_photoURL || n.actorPhoto } : null),
+        cta: n.cta || n.cta_label || n.ctaLabel || null,
+        ctaTarget: n.ctaTarget || n.cta_target,
         postId: n.postId,
       }));
-      setNotifications(mapped);
-      return true;
+      if (mapped.length > 0) {
+        setNotifications(mapped);
+        return true;
+      }
+      return false;
     } catch (err) {
       console.error("Failed to fetch ROAR notifications:", err);
       return false;
@@ -281,8 +301,10 @@ const openRecapForRoom = useCallback(async (room: Room) => {
 
   useEffect(() => {
     if (notifSeeded) return;
-    fetchRoarNotifications().then((ok) => {
-      if (!ok) setNotifications(NOTIFICATIONS_DATA.map(n => ({ ...n })));
+    fetchRoarNotifications().then((hasItems) => {
+      if (!hasItems) {
+        setNotifications(NOTIFICATIONS_DATA.map(n => ({ ...n })));
+      }
       setNotifSeeded(true);
     });
   }, [notifSeeded, setNotifications, fetchRoarNotifications]);
