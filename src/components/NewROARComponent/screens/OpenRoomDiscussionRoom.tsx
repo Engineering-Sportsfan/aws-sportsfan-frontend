@@ -2060,6 +2060,8 @@
 //     }, [fetchEngagements, roomId]);
 //     useVisibilityInterval(fetchEngagements, 12000);
 
+    
+
 //     // useEffect(() => {
 //     //     const list = listRef.current;
 //     //     if (!list) return;
@@ -4647,6 +4649,218 @@ function InlineSection({
     );
 }
 
+
+// ── INLINE CELEBRATION CARDS (VISUAL RECOGNITION & OUTCOME REVEAL) ───────────
+function InlineRecognitionCard({
+    item,
+    isTargetUser,
+}: {
+    item: any;
+    isTargetUser: boolean;
+}) {
+    const themeColor = item.themeColor || "#f59e0b";
+    const rewards = item.rewards || { totalSxp: 25, accuracySxp: 15, participationSxp: 10 };
+    const dateStr = item.createdAt ? new Date(getTimestamp(item.createdAt)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="my-3 rounded-2xl overflow-hidden shadow-xl"
+            style={{
+                background: "linear-gradient(135deg, rgba(22, 27, 34, 0.95) 0%, rgba(13, 17, 23, 0.98) 100%)",
+                border: `1.5px solid ${themeColor}60`,
+                boxShadow: `0 8px 32px -8px ${themeColor}35`,
+            }}
+        >
+            <div
+                className="px-3.5 py-2 flex items-center justify-between"
+                style={{
+                    background: `linear-gradient(90deg, ${themeColor}25 0%, rgba(255,255,255,0.02) 100%)`,
+                    borderBottom: `1px solid ${themeColor}30`,
+                }}
+            >
+                <div className="flex items-center gap-2">
+                    <span className="text-base animate-bounce">{item.badgeIcon || "🏆"}</span>
+                    <div>
+                        <div className="text-[10px] font-black tracking-wider uppercase flex items-center gap-1.5" style={{ color: themeColor }}>
+                            <span>VISUAL RECOGNITION</span>
+                            {item.targetType === "user" ? (
+                                <span className="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 text-[8px] font-semibold border border-purple-500/30">
+                                    VIP Spotlight
+                                </span>
+                            ) : (
+                                <span className="px-1.5 py-0.2 rounded-full bg-blue-500/20 text-blue-300 text-[8px] font-semibold border border-blue-500/30">
+                                    Stadium Broadcast
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+                {dateStr && <span className="text-[9px] font-mono text-white/40">{dateStr}</span>}
+            </div>
+
+            <div className="p-3.5 space-y-2.5">
+                {item.targetType === "user" && (item.targetUserName || isTargetUser) && (
+                    <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-purple-950/40 border border-purple-800/40">
+                        {item.targetUserAvatar ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={item.targetUserAvatar} alt="" className="w-5 h-5 rounded-full object-cover" />
+                        ) : (
+                            <div className="w-5 h-5 rounded-full bg-purple-600/40 flex items-center justify-center text-[9px] font-bold text-purple-200">
+                                🌟
+                            </div>
+                        )}
+                        <span className="text-xs text-purple-200 font-semibold truncate">
+                            Awarded to {isTargetUser ? <strong className="text-white">You (@{item.targetUserName || "Fan"})</strong> : `@${item.targetUserName}`}
+                        </span>
+                    </div>
+                )}
+
+                <div>
+                    <h4 className="text-sm font-extrabold text-white leading-tight">
+                        {item.headline || "Masterclass Match Reading!"}
+                    </h4>
+                    <p className="text-xs text-white/80 leading-relaxed mt-1">
+                        {item.message || "Uncanny cricket instinct acknowledged by the Stadium Core Engine!"}
+                    </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    {rewards.totalSxp > 0 && (
+                        <span
+                            className="px-2.5 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 shadow-sm"
+                            style={{
+                                background: `linear-gradient(135deg, ${themeColor}30, ${themeColor}15)`,
+                                color: themeColor,
+                                border: `1px solid ${themeColor}60`,
+                            }}
+                        >
+                            ⚡ +{rewards.totalSxp} Total SXP
+                        </span>
+                    )}
+                    {rewards.accuracySxp > 0 && (
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                            🎯 Accuracy +{rewards.accuracySxp}
+                        </span>
+                    )}
+                    {rewards.participationSxp > 0 && (
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                            👥 Crowd Voice +{rewards.participationSxp}
+                        </span>
+                    )}
+                </div>
+
+                {item.communityImpact?.stadiumRoars && (
+                    <div className="text-[10px] text-white/50 italic flex items-center gap-1.5 pt-1 border-t border-white/5">
+                        <span>📢</span>
+                        <span>{item.communityImpact.stadiumRoars}</span>
+                    </div>
+                )}
+            </div>
+        </motion.div>
+    );
+}
+
+function InlineOutcomeRevealCard({
+    item,
+    isWinner,
+    isParticipant,
+}: {
+    item: any;
+    isWinner: boolean;
+    isParticipant: boolean;
+}) {
+    const dateStr = item.createdAt ? new Date(getTimestamp(item.createdAt)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+    const winningText = item.winningChoiceText || item.winningChoiceId || "Resolved";
+    const bonusPoints = item.bonusPoints || 10;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+            className="my-3 rounded-2xl overflow-hidden shadow-xl"
+            style={{
+                background: "linear-gradient(135deg, rgba(16, 24, 39, 0.95) 0%, rgba(10, 15, 26, 0.98) 100%)",
+                border: "1.5px solid rgba(16, 185, 129, 0.5)",
+                boxShadow: "0 8px 32px -8px rgba(16, 185, 129, 0.25)",
+            }}
+        >
+            <div
+                className="px-3.5 py-2 flex items-center justify-between"
+                style={{
+                    background: "linear-gradient(90deg, rgba(16, 185, 129, 0.25) 0%, rgba(255, 255, 255, 0.02) 100%)",
+                    borderBottom: "1px solid rgba(16, 185, 129, 0.3)",
+                }}
+            >
+                <div className="flex items-center gap-2">
+                    <span className="text-base">🎯</span>
+                    <div>
+                        <div className="text-[10px] font-black tracking-wider uppercase flex items-center gap-1.5 text-emerald-400">
+                            <span>MOMENT OUTCOME REVEALED</span>
+                            <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-300 text-[8px] font-semibold border border-emerald-500/30">
+                                Settled
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {dateStr && <span className="text-[9px] font-mono text-white/40">{dateStr}</span>}
+            </div>
+
+            <div className="p-3.5 space-y-2.5">
+                <div>
+                    <p className="text-[10px] uppercase font-bold text-white/50 tracking-wide">
+                        {item.momentType || "Prediction"} Moment
+                    </p>
+                    <h4 className="text-sm font-extrabold text-white leading-tight mt-0.5">
+                        {item.title || "Match Moment Outcome"}
+                    </h4>
+                </div>
+
+                <div className="px-3 py-2 rounded-xl bg-emerald-950/40 border border-emerald-600/40 flex items-center justify-between">
+                    <div>
+                        <div className="text-[9px] font-mono uppercase text-emerald-400 font-bold">Winning Outcome</div>
+                        <div className="text-sm font-black text-white">{winningText}</div>
+                    </div>
+                    <span className="text-xl">🏆</span>
+                </div>
+
+                {isWinner ? (
+                    <div className="px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500/20 to-emerald-500/20 border border-amber-500/40 flex items-center gap-2">
+                        <span className="text-lg animate-bounce">🎉</span>
+                        <div>
+                            <div className="text-xs font-black text-amber-300">You predicted correctly!</div>
+                            <div className="text-[10px] text-white/80">+{bonusPoints} Bonus SXPs awarded to your sports wallet.</div>
+                        </div>
+                    </div>
+                ) : isParticipant ? (
+                    <div className="px-3 py-1.5 rounded-xl bg-blue-950/30 border border-blue-800/30 flex items-center gap-2">
+                        <span className="text-sm">👏</span>
+                        <div className="text-[11px] text-blue-200">
+                            You participated in this moment. Thank you for making your voice heard!
+                        </div>
+                    </div>
+                ) : null}
+
+                <div className="flex items-center justify-between text-[10px] text-white/60 pt-1 border-t border-white/5">
+                    <span>
+                        {item.votersAwardedCount > 0
+                            ? `⚡ ${item.votersAwardedCount} winning fan(s) earned +${bonusPoints} SXPs bonus!`
+                            : `⚡ All participants earned participation SXPs!`}
+                    </span>
+                    {item.outcomeNotes && (
+                        <span className="italic text-white/40 truncate max-w-[140px]">
+                            {item.outcomeNotes}
+                        </span>
+                    )}
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
 export default function OpenRoomDiscussionRoom({
     onBack, onToast, roomId, roomName, onPostClick, onCompose,
     currentAvatarUrl, currentUserId, onRegisterRefresh, onRegisterReplyUpdate,
@@ -4706,6 +4920,8 @@ export default function OpenRoomDiscussionRoom({
 
     // ── Live Match Engagements State ──
     // const [matchEngagements, setMatchEngagements] = useState<EngagementItem[]>([]);
+    const [recognitions, setRecognitions] = useState<any[]>([]);
+    const [outcomeReveals, setOutcomeReveals] = useState<any[]>([]);
     // const [engagementsLoading, setEngagementsLoading] = useState(false);
     // const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
     const [matchEngagements, setMatchEngagements] = useState<EngagementItem[]>([]);
@@ -4905,6 +5121,26 @@ export default function OpenRoomDiscussionRoom({
             if (channelsFetchTokenRef.current === requestId) setChannelsLoading(false);
         }
     }, []);
+
+    // ── Fetch live Visual Recognitions & Outcome Reveals for Match ──
+    const fetchCelebrations = useCallback(async () => {
+        if (!roomId) return;
+        const cleanMatchId = roomMatchId ? String(roomMatchId).replace(/^MATCH#/, '').trim() : '';
+        try {
+            const url = `/api/roar/celebrations?matchId=${encodeURIComponent(cleanMatchId || roomId)}&roomId=${encodeURIComponent(roomId)}`;
+            const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
+            if (res.data?.success) {
+                if (Array.isArray(res.data.recognitions)) {
+                    setRecognitions(res.data.recognitions);
+                }
+                if (Array.isArray(res.data.outcomeReveals)) {
+                    setOutcomeReveals(res.data.outcomeReveals);
+                }
+            }
+        } catch (e) {
+            console.warn("fetchCelebrations notice:", e);
+        }
+    }, [roomId, roomMatchId]);
 
     // ── Fetch active Match Engagements for Room / Match ──
     const fetchEngagements = useCallback(async () => {
@@ -5598,6 +5834,8 @@ export default function OpenRoomDiscussionRoom({
         setEngagementFilter("all");
         setSelectedChannelId("all");
         setMatchEngagements([]);
+        setRecognitions([]);
+        setOutcomeReveals([]);
         setRoomMatchId(null);
         setEngagementsLoaded(false);
         setShowNewPill(false);
@@ -5619,6 +5857,12 @@ export default function OpenRoomDiscussionRoom({
         fetchEngagements();
     }, [fetchEngagements, roomId]);
     useVisibilityInterval(fetchEngagements, 12000);
+
+    useEffect(() => {
+        if (!roomId) return;
+        fetchCelebrations();
+    }, [fetchCelebrations, roomId]);
+    useVisibilityInterval(fetchCelebrations, 8000);
 
     // useEffect(() => {
     //     const list = listRef.current;
@@ -6176,8 +6420,55 @@ export default function OpenRoomDiscussionRoom({
             }
             return { kind: "engagement" as const, data: e, sortKey: key };
         });
-        return [...postItems, ...engagementItems].sort((a, b) => a.sortKey - b.sortKey);
-    }, [filteredPosts, matchEngagements, engagementFilter]);
+                // ── Visual Recognitions (Filtered by target user / all) ──
+        const isRecTargetMatch = (rec: any) => {
+            if (!rec.targetType || rec.targetType === "all") return true;
+            const targetId = String(rec.targetUserId || "").trim().toLowerCase();
+            const targetName = String(rec.targetUserName || "").trim().toLowerCase();
+            const myName = String(userUsername || userProfile?.username || "").trim().toLowerCase();
+            if (targetId && currentUserIdCandidates.has(targetId)) return true;
+            if (targetName && (myName === targetName || currentUserIdCandidates.has(targetName))) return true;
+            for (const cand of currentUserIdCandidates) {
+                if (cand && (targetId.includes(cand) || cand.includes(targetId))) return true;
+            }
+            return false;
+        };
+
+        const recognitionItems: FeedItem[] = (engagementFilter === "all" ? recognitions : [])
+            .filter(isRecTargetMatch)
+            .map(rec => ({
+                kind: "recognition" as const,
+                data: rec,
+                sortKey: getTimestamp(rec.createdAt || Date.now()),
+            }));
+
+        // ── Outcome Reveals (Filtered for participant users) ──
+        const isRevealTargetMatch = (rev: any) => {
+            if (!rev.participantUserIds || !Array.isArray(rev.participantUserIds) || rev.participantUserIds.length === 0) {
+                return true;
+            }
+            const pSet = new Set(rev.participantUserIds.map((u: any) => String(u).trim().toLowerCase()));
+            for (const cand of currentUserIdCandidates) {
+                if (pSet.has(cand)) return true;
+                for (const p of pSet) {
+                    if (p.includes(cand) || cand.includes(p)) return true;
+                }
+            }
+            const myName = String(userUsername || userProfile?.username || "").trim().toLowerCase();
+            if (myName && pSet.has(myName)) return true;
+            return false;
+        };
+
+        const outcomeItems: FeedItem[] = (engagementFilter === "all" ? outcomeReveals : [])
+            .filter(isRevealTargetMatch)
+            .map(rev => ({
+                kind: "outcome_reveal" as const,
+                data: rev,
+                sortKey: getTimestamp(rev.createdAt || Date.now()),
+            }));
+
+        return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
+    }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
 
     const renderReactionPicker = (p: any) => {
         const lo = localReactions[p.id];
@@ -6439,6 +6730,35 @@ export default function OpenRoomDiscussionRoom({
                     </div>
                 ) : (
                     feedItems.map((item) => {
+                        if (item.kind === "recognition") {
+                            const isTargetUser = Boolean(
+                                item.data.targetType === "user" &&
+                                (currentUserIdCandidates.has(String(item.data.targetUserId || "").toLowerCase()) ||
+                                 String(userUsername || userProfile?.username || "").toLowerCase() === String(item.data.targetUserName || "").toLowerCase())
+                            );
+                            return (
+                                <InlineRecognitionCard
+                                    key={`rec-${item.data.id || item.data.recognitionId || item.sortKey}`}
+                                    item={item.data}
+                                    isTargetUser={isTargetUser}
+                                />
+                            );
+                        }
+
+                        if (item.kind === "outcome_reveal") {
+                            const cand = currentUserIdCandidates;
+                            const isWin = Array.isArray(item.data.winningUserIds) && item.data.winningUserIds.some((u: string) => cand.has(String(u).toLowerCase()));
+                            const isPart = Array.isArray(item.data.participantUserIds) && item.data.participantUserIds.some((u: string) => cand.has(String(u).toLowerCase()));
+                            return (
+                                <InlineOutcomeRevealCard
+                                    key={`rev-${item.data.id || item.data.engagementId || item.sortKey}`}
+                                    item={item.data}
+                                    isWinner={isWin}
+                                    isParticipant={isPart}
+                                />
+                            );
+                        }
+
                         if (item.kind === "engagement") {
                             return (
                                 <EngagementCard
