@@ -3690,7 +3690,7 @@ export default function RoomsHome({
   onRegisterRefresh, onRegisterReplyUpdate, onRegisterInjectPost, onRegisterOptimisticSwap,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<"rooms" | "pulse">("rooms");
+  const [activeTab, setActiveTab] = useState<"pulse" | "rooms">("pulse");
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [recapRoom, setRecapRoom] = useState<Room | null>(null);
   const [recapData, setRecapData] = useState<any>(null);
@@ -4224,7 +4224,7 @@ export default function RoomsHome({
       }}
       className="lg:!bottom-0"
     >
-      {/* ── Top Tabs: Match Rooms | Roar Pulse ── */}
+      {/* ── Top Tabs: Roar Pulse | Match Rooms ── */}
       <div
         style={{ flexShrink: 0, background: "var(--bg-primary, #0e0e14)" }}
         className="flex items-center justify-between px-3 pt-1 border-b border-white/[0.06]"
@@ -4243,25 +4243,19 @@ export default function RoomsHome({
 
           <button
             type="button"
-            onClick={() => setActiveTab("rooms")}
+            onClick={() => setActiveTab("pulse")}
             className="relative flex items-center gap-1.5 pb-2.5 bg-transparent border-none cursor-pointer"
           >
-            <Home size={15} color={activeTab === "rooms" ? "#ff6b35" : "rgba(255,255,255,0.4)"} />
+            <Activity size={15} color={activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)"} />
             <span
               style={{
                 fontSize: 14, fontWeight: 800,
-                color: activeTab === "rooms" ? "#fff" : "rgba(255,255,255,0.4)",
+                color: activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)",
               }}
             >
-              Match Rooms
+              Roar Pulse
             </span>
-            <span
-              className="flex items-center justify-center rounded-full text-white"
-              style={{ minWidth: 20, height: 18, fontSize: 10, fontWeight: 800, padding: "0 5px", background: "#e91e8c" }}
-            >
-              {myRoomsBadgeCount}
-            </span>
-            {activeTab === "rooms" && (
+            {activeTab === "pulse" && (
               <motion.div
                 layoutId="rooms-home-tab-underline"
                 className="absolute -bottom-[1px] left-0 right-0 h-[2px] rounded-full"
@@ -4273,19 +4267,25 @@ export default function RoomsHome({
 
         <button
           type="button"
-          onClick={() => setActiveTab("pulse")}
+          onClick={() => setActiveTab("rooms")}
           className="relative flex items-center gap-1.5 pb-2.5 bg-transparent border-none cursor-pointer"
         >
-          <Activity size={15} color={activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)"} />
+          <Home size={15} color={activeTab === "rooms" ? "#ff6b35" : "rgba(255,255,255,0.4)"} />
           <span
             style={{
               fontSize: 14, fontWeight: 800,
-              color: activeTab === "pulse" ? "#ff6b35" : "rgba(255,255,255,0.4)",
+              color: activeTab === "rooms" ? "#fff" : "rgba(255,255,255,0.4)",
             }}
           >
-            Roar Pulse
+            Match Rooms
           </span>
-          {activeTab === "pulse" && (
+          <span
+            className="flex items-center justify-center rounded-full text-white"
+            style={{ minWidth: 20, height: 18, fontSize: 10, fontWeight: 800, padding: "0 5px", background: "#e91e8c" }}
+          >
+            {myRoomsBadgeCount}
+          </span>
+          {activeTab === "rooms" && (
             <motion.div
               layoutId="rooms-home-tab-underline"
               className="absolute -bottom-[1px] left-0 right-0 h-[2px] rounded-full"

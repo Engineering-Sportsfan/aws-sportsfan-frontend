@@ -64,7 +64,9 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
     const [loading, setLoading] = useState(true);
     const [inputText, setInputText] = useState("");
     const [submitting, setSubmitting] = useState(false);
-    const [replyTo, setReplyTo] = useState<{ commentId: string; userName: string } | null>(null);
+    // rootId = the top-level comment the reply is stored under (the API supports 2 levels).
+    // userName = who we are talking to (shown as @mention), which can be a reply's author.
+    const [replyTo, setReplyTo] = useState<{ rootId: string; userName: string } | null>(null);
     const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
 
     const inputRef = useRef<HTMLInputElement>(null);
@@ -112,6 +114,16 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         try { localStorage.setItem(storageKey, JSON.stringify(comments)); } catch { /* ignore */ }
     }, [comments, storageKey]);
 
+    // Start a reply. Works for top-level comments AND replies.
+    // A reply to a reply is stored under the same root comment (so it shows in the tree)
+    // and prefixed with @name so it's clear who it is addressed to.
+    const startReply = (rootId: string, userName: string) => {
+        setReplyTo({ rootId, userName });
+        setInputText(`@${userName} `);
+        setExpandedReplies(p => ({ ...p, [rootId]: true }));
+        setTimeout(() => inputRef.current?.focus(), 0);
+    };
+
     // ── Send comment / reply ──
     const handleSend = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -119,7 +131,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         if (!text || submitting) return;
 
         setSubmitting(true);
-        const parentId = replyTo?.commentId || null;
+        const parentId = replyTo?.rootId || null;
         const tempId = `tmp_${Date.now()}`;
         const optimistic: ThreadComment = {
             id: tempId, engagementId, text, userId: currentUserId, userName: currentUserName,
@@ -210,7 +222,13 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                             <CornerDownRight size={11} className="text-[#e91e8c]" />
                             Replying to <strong className="text-white">@{replyTo.userName}</strong>
                         </span>
-                        <button type="button" onClick={() => setReplyTo(null)} className="text-white/40 hover:text-white">✕ Cancel</button>
+                        <button
+                            type="button"
+                            onClick={() => { setReplyTo(null); setInputText(""); }}
+                            className="text-white/40 hover:text-white"
+                        >
+                            ✕ Cancel
+                        </button>
                     </div>
                 )}
                 <div className="flex items-center gap-2">
@@ -250,7 +268,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                                             <img src={comment.userAvatar} alt={comment.userName} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]">
-                                                {comment.userName.charAt(0).toUpperCase()}
+                                                {(comment.userName || "F").charAt(0).toUpperCase()}
                                             </div>
                                         )}
                                     </div>
@@ -266,7 +284,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                                                 <Heart size={11} fill={isLiked ? "currentColor" : "none"} /><span>{comment.likes}</span>
                                             </button>
                                             <button type="button"
-                                                onClick={() => { setReplyTo({ commentId: comment.id, userName: comment.userName }); inputRef.current?.focus(); }}
+                                                onClick={() => startReply(comment.id, comment.userName || "Fan")}
                                                 className="flex items-center gap-1 text-white/45 hover:text-white/80">
                                                 <Reply size={11} /><span>Reply</span>
                                             </button>
@@ -298,7 +316,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                                                             <img src={reply.userAvatar} alt={reply.userName} className="w-full h-full object-cover" />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-white bg-white/20">
-                                                                {reply.userName.charAt(0).toUpperCase()}
+                                                                {(reply.userName || "F").charAt(0).toUpperCase()}
                                                             </div>
                                                         )}
                                                     </div>
@@ -312,6 +330,12 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                                                             <button type="button" onClick={() => toggleLike(reply.id, comment.id)}
                                                                 className={`flex items-center gap-1 ${rLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"}`}>
                                                                 <Heart size={10} fill={rLiked ? "currentColor" : "none"} /><span>{reply.likes}</span>
+                                                            </button>
+                                                            {/* Reply on a reply: stored under the root comment, @mentions this reply's author */}
+                                                            <button type="button"
+                                                                onClick={() => startReply(comment.id, reply.userName || "Fan")}
+                                                                className="flex items-center gap-1 text-white/45 hover:text-white/80">
+                                                                <Reply size={10} /><span>Reply</span>
                                                             </button>
                                                             {reply.userId === currentUserId && (
                                                                 <button type="button" onClick={() => handleDelete(reply.id, comment.id)} className="text-white/25 hover:text-red-400 ml-auto">
