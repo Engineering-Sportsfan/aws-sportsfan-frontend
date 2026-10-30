@@ -5015,17 +5015,28 @@ export default function OpenRoomDiscussionRoom({
     const currentUserIdCandidates = React.useMemo(() => {
         const storedActual = typeof window !== "undefined" ? localStorage.getItem("roar_actual_user_id") : null;
         const storedUid = typeof window !== "undefined" ? localStorage.getItem("roar_user_id") : null;
+        const storedUser = typeof window !== "undefined" ? localStorage.getItem("roar_username") : null;
         const list = [
             currentUserId,
             userProfile?.actualUserId,
             (userProfile as { userId?: string })?.userId,
             (userProfile as { uid?: string })?.uid,
             (userProfile as { email?: string })?.email,
+            userUsername,
+            userProfile?.username,
             storedActual,
             storedUid,
+            storedUser,
         ].filter(Boolean).map(v => String(v).trim().toLowerCase());
-        return new Set(list);
-    }, [currentUserId, userProfile]);
+
+        const extras: string[] = [];
+        for (const item of list) {
+            if (item.includes("@")) {
+                extras.push(item.split("@")[0].trim().toLowerCase());
+            }
+        }
+        return new Set([...list, ...extras]);
+    }, [currentUserId, userProfile, userUsername]);
 
     const isCurrentUserAuthor = useCallback((post: { authorUid?: unknown; authorEmail?: unknown; authorUsername?: unknown; fan?: { authorUid?: unknown; username?: unknown } }) => {
         const authorCandidates = [
@@ -5123,24 +5134,63 @@ export default function OpenRoomDiscussionRoom({
     }, []);
 
     // ── Fetch live Visual Recognitions & Outcome Reveals for Match ──
+    const prevOutcomeCountRef = React.useRef(0);
     const fetchCelebrations = useCallback(async () => {
         if (!roomId) return;
-        const cleanMatchId = roomMatchId ? String(roomMatchId).replace(/^MATCH#/, '').trim() : '';
+
+        // Resolve matchId — from state, from loaded engagements, or by asking the room details API
+        let mId = roomMatchId;
+        if (!mId && matchEngagements.length > 0) {
+            const foundFromEng = matchEngagements.find(e => e.matchId)?.matchId;
+            if (foundFromEng) {
+                mId = String(foundFromEng).replace(/^MATCH#/, "").trim();
+                setRoomMatchId(mId);
+            }
+        }
+        if (!mId) {
+            try {
+                const roomRes = await axios.get(`/api/roar/rooms/${roomId}`, { timeout: REQUEST_TIMEOUT_MS });
+                const rData = roomRes.data?.room || roomRes.data;
+                const foundMatchId = rData?.matchId || rData?.liveMatchId || rData?.match_id;
+                if (foundMatchId) {
+                    mId = String(foundMatchId).replace(/^MATCH#/, "").trim();
+                    setRoomMatchId(mId);
+                }
+            } catch { /* ignore */ }
+        }
+
+        const cleanMatchId = mId ? String(mId).replace(/^MATCH#/, "").trim() : "";
+
         try {
-            const url = `/api/roar/celebrations?matchId=${encodeURIComponent(cleanMatchId || roomId)}&roomId=${encodeURIComponent(roomId)}`;
+            const url = cleanMatchId
+                ? `/api/roar/celebrations?matchId=${encodeURIComponent(cleanMatchId)}&roomId=${encodeURIComponent(roomId)}`
+                : `/api/roar/celebrations?roomId=${encodeURIComponent(roomId)}`;
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
             if (res.data?.success) {
                 if (Array.isArray(res.data.recognitions)) {
                     setRecognitions(res.data.recognitions);
                 }
                 if (Array.isArray(res.data.outcomeReveals)) {
-                    setOutcomeReveals(res.data.outcomeReveals);
+                    const reveals: any[] = res.data.outcomeReveals;
+                    setOutcomeReveals(reveals);
+                    // Notify user if new outcome reveals arrived since last poll
+                    if (reveals.length > prevOutcomeCountRef.current && prevOutcomeCountRef.current > 0) {
+                        const newest = reveals[0];
+                        const winText = newest?.winningChoiceText || newest?.winningChoiceId || "outcome";
+                        onToast(`🎯 Outcome Revealed: "${winText}" — See result in feed!`);
+                        if (isAtBottomRef.current) {
+                            setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 100);
+                        } else {
+                            setShowNewPill(true);
+                        }
+                    }
+                    prevOutcomeCountRef.current = reveals.length;
                 }
             }
         } catch (e) {
             console.warn("fetchCelebrations notice:", e);
         }
-    }, [roomId, roomMatchId]);
+    }, [roomId, roomMatchId, onToast]);
 
     // ── Fetch active Match Engagements for Room / Match ──
     const fetchEngagements = useCallback(async () => {
@@ -5187,6 +5237,13 @@ export default function OpenRoomDiscussionRoom({
             }
 
             if (!fetchOk) return;
+
+            if (!cleanMatchId && loaded.length > 0) {
+                const detected = loaded.find(e => e.matchId)?.matchId;
+                if (detected) {
+                    setRoomMatchId(String(detected).replace(/^MATCH#/, "").trim());
+                }
+            }
 
             const formatted = loaded.map(e => normalizeEngagement(e, cleanMatchId));
             setMatchEngagements(prev => {
@@ -5861,7 +5918,7 @@ export default function OpenRoomDiscussionRoom({
     useEffect(() => {
         if (!roomId) return;
         fetchCelebrations();
-    }, [fetchCelebrations, roomId]);
+    }, [fetchCelebrations, roomId, roomMatchId]);
     useVisibilityInterval(fetchCelebrations, 8000);
 
     // useEffect(() => {
@@ -6747,8 +6804,14 @@ export default function OpenRoomDiscussionRoom({
 
                         if (item.kind === "outcome_reveal") {
                             const cand = currentUserIdCandidates;
-                            const isWin = Array.isArray(item.data.winningUserIds) && item.data.winningUserIds.some((u: string) => cand.has(String(u).toLowerCase()));
-                            const isPart = Array.isArray(item.data.participantUserIds) && item.data.participantUserIds.some((u: string) => cand.has(String(u).toLowerCase()));
+                            const isWin = Array.isArray(item.data.winningUserIds) && item.data.winningUserIds.some((u: string) => {
+                                const lu = String(u).trim().toLowerCase();
+                                return cand.has(lu) || [...cand].some(c => c && (lu.includes(c) || c.includes(lu)));
+                            });
+                            const isPart = Array.isArray(item.data.participantUserIds) && item.data.participantUserIds.some((u: string) => {
+                                const lu = String(u).trim().toLowerCase();
+                                return cand.has(lu) || [...cand].some(c => c && (lu.includes(c) || c.includes(lu)));
+                            });
                             return (
                                 <InlineOutcomeRevealCard
                                     key={`rev-${item.data.id || item.data.engagementId || item.sortKey}`}
