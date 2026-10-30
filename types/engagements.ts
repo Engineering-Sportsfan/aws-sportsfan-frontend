@@ -1,5 +1,5 @@
 // types/engagements.ts — Type definitions for Fan Battles, Quizzes, Polls, Predictions, and Meme Arena
-export type EngagementType = "fan_battle" | "quiz" | "poll" | "prediction" | "meme";
+export type EngagementType = "fan_battle" | "quiz" | "poll" | "prediction" | "meme" | "debate" | "express" | "question";
 export type EngagementStatus = "active" | "inactive" | "expired" | "settled";
 
 // ─── 1. Fan Battle ─────────────────────────────────────────────────────────
@@ -163,6 +163,13 @@ export interface EngagementItem {
   likes: number;
   shares: number;
   totalEngaged: number;
+  commentsCount?: number;
+
+  matchId?: string;
+  debateData?: any;
+  expressData?: any;
+  questionData?: any;
+  options?: any[];
 
   // Hydrated user state
   userLiked?: boolean;
@@ -172,6 +179,7 @@ export interface EngagementItem {
   createdAt: number;
   updatedAt: number;
   expiresAt?: number | null;
+  timerMinutes?: number;
 }
 
 // ─── API Responses ────────────────────────────────────────────────────────
