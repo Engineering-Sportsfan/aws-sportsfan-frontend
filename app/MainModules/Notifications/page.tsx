@@ -20,6 +20,8 @@ import {
   X,
   Bell,
   Calendar,
+  Film,
+  ChevronRight,
 } from "lucide-react";
 import { handleGoBack } from "@/utils/backButton";
 
@@ -41,9 +43,11 @@ const TOKENS = {
 const FEATURE_META: Record<string, { icon: any; label: string }> = {
   fliparena: { icon: Swords, label: "Flip Arena" },
   flipline: { icon: MessageSquare, label: "FlipLINE" },
+  fliplong: { icon: Film, label: "FlipLONG" },
   schedule: { icon: Trophy, label: "Schedule & Live" },
   store: { icon: Info, label: "Store" },
   reward: { icon: Star, label: "Rewards" },
+  roar: { icon: Flame, label: "ROAR" },
   general: { icon: AlertCircle, label: "General" }
 };
 
@@ -258,6 +262,13 @@ export default function NotificationCenter() {
     return () => window.removeEventListener("focus", onFocus);
   }, [fetchNotifications]);
 
+  // Real-time listener for newly arrived notifications
+  useEffect(() => {
+    const handleNewNotif = () => fetchNotifications(true);
+    window.addEventListener("sf360:new-notification", handleNewNotif);
+    return () => window.removeEventListener("sf360:new-notification", handleNewNotif);
+  }, [fetchNotifications]);
+
   // Normalize feature area mapping & client-side deduplication guarantee
   const dedupeClientMap = new Map<string, any>();
   for (const n of items) {
@@ -270,8 +281,25 @@ export default function NotificationCenter() {
   const itemsWithFeature = Array.from(dedupeClientMap.values()).map((n) => {
     let feature_area = "general";
     const nType = (n.notification_type || n.type || "").toLowerCase();
+    const cat = (n.category || "").toLowerCase();
 
     if (
+      cat === "roar" ||
+      nType.startsWith("roar") ||
+      nType.includes("reply_to_post") ||
+      nType.includes("reply") ||
+      nType.includes("mentioned") ||
+      nType.includes("reaction_on_post") ||
+      nType.includes("post_pinned") ||
+      nType.includes("room_going_live") ||
+      nType.includes("room_live") ||
+      nType.includes("debate") ||
+      nType.includes("trivia") ||
+      nType.includes("watchalong") ||
+      nType.includes("livecenter")
+    ) {
+      feature_area = "roar";
+    } else if (
       nType.startsWith("fliparena") ||
       nType.includes("arena") ||
       nType.includes("quiz") ||
@@ -281,24 +309,30 @@ export default function NotificationCenter() {
       nType.includes("meme")
     ) {
       feature_area = "fliparena";
-    } else if (nType.startsWith("flipline") || nType.includes("flipline")) {
+    } else if (
+      nType.startsWith("fliplong") ||
+      nType.includes("fliplong") ||
+      cat === "fliplong"
+    ) {
+      feature_area = "fliplong";
+    } else if (nType.startsWith("flipline") || nType.includes("flipline") || cat === "flipline") {
       feature_area = "flipline";
     } else if (
       nType.includes("schedule") ||
       nType.includes("reminder") ||
       nType.includes("match") ||
       nType.includes("live") ||
-      n.category === "schedule" ||
-      n.category === "reminder"
+      cat === "schedule" ||
+      cat === "reminder"
     ) {
       feature_area = "schedule";
-    } else if (nType.startsWith("store") || n.category === "store") {
+    } else if (nType.startsWith("store") || cat === "store") {
       feature_area = "store";
     } else if (
       nType.startsWith("reward") ||
       nType.includes("bonus") ||
       nType.includes("points") ||
-      n.category === "reward"
+      cat === "reward"
     ) {
       feature_area = "reward";
     } else if (n.category) {
@@ -467,7 +501,12 @@ export default function NotificationCenter() {
     await markRead(n, true);
     const target = n.cta_target || n.ctaTarget;
     if (target) {
+      if (typeof window !== "undefined" && target.includes("openFlipLong=true")) {
+        window.dispatchEvent(new CustomEvent("sf360:open-fliplong"));
+      }
       router.push(target);
+    } else if (n.feature_area === "roar" || n.category === "roar") {
+      router.push("/MainModules/ROAR?tab=alerts");
     }
   }
 
@@ -690,24 +729,42 @@ export default function NotificationCenter() {
                   onClick={() => {
                     const nType = (n.notification_type || n.type || "").toLowerCase();
                     const isScheduleReminder = nType === "schedule_reminder" || nType.includes("reminder");
-                    if (!isScheduleReminder && (n.cta_target || n.ctaTarget) && (n.cta_label || n.ctaLabel)) {
+                    const hasCta = Boolean(
+                      n.cta_target ||
+                      n.ctaTarget ||
+                      n.cta_label ||
+                      n.ctaLabel ||
+                      n.cta ||
+                      n.feature_area === "roar"
+                    );
+                    if (!isScheduleReminder && hasCta) {
                       handleCta(n);
                     } else if (!n.isRead) {
                       markRead(n);
                     }
                   }}
-                  className="relative flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors group"
+                  className={`relative flex items-start gap-3 px-4 py-3.5 cursor-pointer transition-colors group ${
+                    n.feature_area === "fliplong"
+                      ? "rounded-xl mx-2 my-1 border border-purple-500/50 bg-[#160c24] shadow-[0_0_15px_rgba(168,85,247,0.15)]"
+                      : ""
+                  }`}
                   style={{
-                    borderBottom: `1px solid ${TOKENS.borderSoft}`,
-                    background: n.isRead
+                    borderBottom: n.feature_area === "fliplong" ? "1px solid rgba(168,85,247,0.4)" : `1px solid ${TOKENS.borderSoft}`,
+                    background: n.feature_area === "fliplong"
+                      ? "linear-gradient(135deg, rgba(35,14,56,0.9), rgba(20,10,35,0.95))"
+                      : n.isRead
                       ? "transparent"
                       : TOKENS.panelRow,
                   }}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.background = TOKENS.rowHover)
+                    (e.currentTarget.style.background = n.feature_area === "fliplong"
+                      ? "linear-gradient(135deg, rgba(48,18,78,0.95), rgba(28,14,50,0.95))"
+                      : TOKENS.rowHover)
                   }
                   onMouseLeave={(e) =>
-                    (e.currentTarget.style.background = n.isRead
+                    (e.currentTarget.style.background = n.feature_area === "fliplong"
+                      ? "linear-gradient(135deg, rgba(35,14,56,0.9), rgba(20,10,35,0.95))"
+                      : n.isRead
                       ? "transparent"
                       : TOKENS.panelRow)
                   }
@@ -715,12 +772,22 @@ export default function NotificationCenter() {
                   <div
                     className="w-[3px] self-stretch rounded-full shrink-0"
                     style={{
-                      background:
-                        PRIORITY_COLOR[n.priority] ?? TOKENS.low,
+                      background: n.feature_area === "fliplong" ? "#a855f7" : (PRIORITY_COLOR[n.priority] ?? TOKENS.low),
                     }}
                   />
 
                   {(() => {
+                    if (n.feature_area === "fliplong") {
+                      return (
+                        <div className="relative flex items-center justify-center w-10 h-10 rounded-xl shrink-0 mt-0.5 bg-gradient-to-br from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/30 border border-purple-400/40">
+                          <Film size={18} className="text-white" />
+                          <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-[#160c24] flex items-center justify-center text-[8px] font-black text-black">
+                            ✓
+                          </span>
+                        </div>
+                      );
+                    }
+
                     const notifAvatar =
                       n.photoURL ||
                       n.actor_photoURL ||
@@ -762,11 +829,11 @@ export default function NotificationCenter() {
                     );
                   })()}
 
-                  <div className="flex-1 min-w-0 pr-6">
+                  <div className="flex-1 min-w-0 pr-2">
                     <div className="flex items-start justify-between gap-2">
                       <span
-                        className="text-sm font-bold leading-snug"
-                        style={{ color: TOKENS.textPrimary }}
+                        className={`text-sm font-bold leading-snug ${n.feature_area === "fliplong" ? "text-purple-200" : ""}`}
+                        style={{ color: n.feature_area === "fliplong" ? "#f3e8ff" : TOKENS.textPrimary }}
                       >
                         {n.title || "Notification"}
                       </span>
@@ -781,7 +848,7 @@ export default function NotificationCenter() {
 
                     <p
                       className="text-xs leading-relaxed mt-0.5 pr-2"
-                      style={{ color: TOKENS.textMuted }}
+                      style={{ color: n.feature_area === "fliplong" ? "#d8b4fe" : TOKENS.textMuted }}
                     >
                       {n.body || n.message}
                     </p>
@@ -789,7 +856,7 @@ export default function NotificationCenter() {
                     {(() => {
                       const nType = (n.notification_type || n.type || "").toLowerCase();
                       const isScheduleReminder = nType === "schedule_reminder" || nType.includes("reminder");
-                      const ctaLabel = n.cta_label || n.ctaLabel;
+                      const ctaLabel = n.cta_label || n.ctaLabel || n.cta;
                       if (isScheduleReminder || !ctaLabel) return null;
 
                       return (
@@ -810,14 +877,18 @@ export default function NotificationCenter() {
                     })()}
                   </div>
 
-                  {/* Actions column on right: Green dot if unread + Dismiss (X) */}
+                  {/* Actions column on right: Chevron for fliplong, or Green dot if unread + Dismiss (X) */}
                   <div className="flex items-center gap-2 shrink-0 pt-0.5">
-                    {!n.isRead && (
-                      <span
-                        title="Unread notification"
-                        className="w-2 h-2 rounded-full shrink-0 shadow-[0_0_8px_#00c864]"
-                        style={{ background: TOKENS.green }}
-                      />
+                    {n.feature_area === "fliplong" ? (
+                      <ChevronRight size={18} className="text-purple-400 group-hover:translate-x-1 transition-transform" />
+                    ) : (
+                      !n.isRead && (
+                        <span
+                          title="Unread notification"
+                          className="w-2 h-2 rounded-full shrink-0 shadow-[0_0_8px_#00c864]"
+                          style={{ background: TOKENS.green }}
+                        />
+                      )
                     )}
 
                     <button

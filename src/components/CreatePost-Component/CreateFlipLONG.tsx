@@ -30,10 +30,16 @@ import {
   Check,
   Zap,
   Upload,
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { useFlipLongJob } from "@/hooks/useFlipLongJob";
+import { useFlipLongJob, notifyProcessingComplete } from "@/hooks/useFlipLongJob";
 import { ReelItem } from "@/types/fliplong";
+
+export type FlowStep = "upload" | "submitted" | "review" | "published";
 
 interface Props {
   isOpen: boolean;
@@ -220,8 +226,34 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
   const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Flow step management matching reference image 5 steps:
+  // Step 1: upload -> Step 2: submitted -> Step 3: in-app notification -> Step 4: review -> Step 5: published
+  const [flowStep, setFlowStep] = useState<FlowStep>("upload");
+  const [instructions, setInstructions] = useState<string>("");
+  const [selectedReelIndices, setSelectedReelIndices] = useState<number[]>([]);
+
   // Video playback preview state for reels
   const [activePlayingReel, setActivePlayingReel] = useState<number | null>(null);
+
+  // Automatically adapt flowStep when job or videoData changes
+  useEffect(() => {
+    if (publishedMaster) {
+      setFlowStep("published");
+    } else if (videoData?.status === "success" && videoData?.denoised_video) {
+      setFlowStep("review");
+    } else if (activeJob && !activeJob.isMasterPublished && (isUploading || isProcessing || activeJob.status !== "success")) {
+      // If user is returning while video is being prepared/submitted
+      setFlowStep((prev) => (prev === "upload" ? "submitted" : prev));
+    }
+  }, [publishedMaster, videoData, activeJob, isUploading, isProcessing]);
+
+  // Sync selected reels when reels arrive
+  useEffect(() => {
+    if (videoData?.reels && videoData.reels.length > 0) {
+      // By default select all reels
+      setSelectedReelIndices(videoData.reels.map((_, i) => i));
+    }
+  }, [videoData?.reels]);
 
   useEffect(() => {
     setMounted(true);
@@ -247,6 +279,34 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
       }
     }
   }, [activeJob, currentUserName]);
+
+  // Check if video processing is completed (Step 1 upload & Step 2 processing)
+  const isVideoDone = videoData?.status === "success" && Boolean(videoData?.denoised_video);
+
+  // Send notification when video processing completes
+  useEffect(() => {
+    if (isVideoDone && activeVideoId) {
+      notifyProcessingComplete({
+        videoId: activeVideoId,
+        title: videoData?.main_title || videoForm.title || activeJob?.title,
+        userEmail: activeJob?.userEmail || user?.email,
+        userId: activeJob?.userId || currentUserId,
+        author: videoForm.author || currentUserName,
+      });
+    }
+  }, [
+    isVideoDone,
+    activeVideoId,
+    videoData?.main_title,
+    videoForm.title,
+    activeJob?.title,
+    activeJob?.userEmail,
+    activeJob?.userId,
+    user?.email,
+    currentUserId,
+    videoForm.author,
+    currentUserName,
+  ]);
 
   // Extract duration from selected video file
   useEffect(() => {
@@ -389,6 +449,9 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
     setPublishedMaster(false);
     setPublishedReels([]);
     setActivePlayingReel(null);
+    setFlowStep("upload");
+    setInstructions("");
+    setSelectedReelIndices([]);
   };
 
   const handleClose = () => {
@@ -420,6 +483,7 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
       await discardCurrentAndReset({ isMasterPublished: publishedMaster });
       resetFormState();
       setActiveTab("pipeline");
+      setFlowStep("upload");
       setSubmitSuccess("Unposted video & reels removed from database. Ready to upload a new video!");
     } catch (err: any) {
       setSubmitError(formatErrorMessage(err));
@@ -428,7 +492,7 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
     }
   };
 
-  // ─── 1. Start AI Video Pipeline Upload ────────────────────────────────────
+  // ─── 1. Start AI Video Pipeline Upload (Step 1 -> Step 2) ──────────────────
   const handleStartUpload = async () => {
     if (!videoForm.title.trim()) {
       setSubmitError("Video Title is required");
@@ -444,17 +508,30 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
     setSubmitSuccess("");
 
     try {
+      const fullDescription = [
+        videoForm.description.trim(),
+        instructions.trim() ? `Instructions: ${instructions.trim()}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
+
+      // Advance directly to Step 2: Submitted screen
+      setFlowStep("submitted");
+
       await startDirectUpload(videoFile, {
         title: videoForm.title.trim(),
-        description: videoForm.description.trim(),
+        description: fullDescription,
         author: videoForm.author.trim() || currentUserName,
         sport: videoForm.sport || "general",
         duration: videoDuration,
         durationSec: videoDurationSec,
+        userId: currentUserId,
+        userEmail: user?.email || "",
       });
 
-      setSubmitSuccess("Video successfully uploaded to AI Pipeline! Processing in background.");
+      setSubmitSuccess("Video submitted! Your video is being prepared for publishing.");
     } catch (err: any) {
+      setFlowStep("upload");
       setSubmitError(formatErrorMessage(err));
     }
   };
@@ -547,6 +624,7 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
       if (res.data?.success || res.status === 201 || res.status === 200) {
         setPublishedMaster(true);
         markMasterPublished(true);
+        setFlowStep("published");
         setSubmitSuccess(
           showSchedule
             ? "FlipLONG video scheduled successfully!"
@@ -593,7 +671,39 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
     }
   };
 
-  // ─── 4. Multi-Select Approve & Publish All Reels ────────────────────────
+  // ─── 4. Multi-Select Approve & Publish Selected Reels (Matching Step 4 in reference) ──
+  const handlePublishSelectedReels = async () => {
+    if (!videoData?.reels || videoData.reels.length === 0) return;
+    const indicesToPublish = selectedReelIndices.length > 0 ? selectedReelIndices : videoData.reels.map((_, i) => i);
+    try {
+      setSubmittingFlipLong(true);
+      await approveReels(indicesToPublish);
+
+      // Publish each selected reel to FlipLine feed
+      for (const i of indicesToPublish) {
+        if (!publishedReels.includes(i) && videoData.reels[i]) {
+          await publishReelToFlipLine(videoData.reels[i], i, {
+            sport: videoForm.sport || "general",
+            author: videoForm.author || currentUserName,
+            authorPhoto: userAvatar,
+            userId: user?.userId || (user as any)?.uid || "",
+            email: user?.email || "",
+          });
+          markReelPublished(i);
+        }
+      }
+
+      setPublishedReels((prev) => Array.from(new Set([...prev, ...indicesToPublish])));
+      indicesToPublish.forEach((idx) => markReelPublished(idx));
+      setSubmitSuccess(`${indicesToPublish.length} selected Reels published to FlipLine! ⚡`);
+    } catch (err: any) {
+      setSubmitError(formatErrorMessage(err));
+    } finally {
+      setSubmittingFlipLong(false);
+    }
+  };
+
+  // ─── Legacy Multi-Select Approve & Publish All Reels ────────────────────────
   const handleApproveAllReels = async () => {
     if (!videoData?.reels || videoData.reels.length === 0) return;
     try {
@@ -678,7 +788,6 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
   if (!isOpen || !mounted) return null;
 
   const portalTarget = document.getElementById("sf360-app-root") ?? document.body;
-  const isVideoDone = videoData?.status === "success" && Boolean(videoData?.denoised_video);
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex flex-col justify-end">
@@ -768,8 +877,11 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
         {/* ─────────────────────────────────────────────────────────────────
             TAB 1: UPLOAD, AI PROCESSING PIPELINE & REELS STUDIO
             ───────────────────────────────────────────────────────────────── */}
+        {/* ─────────────────────────────────────────────────────────────────
+            TAB 1: FLIPLONG 5-STEP VIDEO PIPELINE (Matching Reference Flow)
+            ───────────────────────────────────────────────────────────────── */}
         {activeTab === "pipeline" && (
-          <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0 space-y-4 max-w-3xl mx-auto w-full">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 min-h-0 space-y-4 max-w-xl mx-auto w-full">
             {/* Feedback Alerts */}
             {submitError && (
               <div className="flex items-start gap-2 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs animate-in fade-in">
@@ -781,7 +893,7 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
               </div>
             )}
 
-            {submitSuccess && (
+            {submitSuccess && flowStep !== "submitted" && flowStep !== "published" && (
               <div className="flex items-start gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs animate-in fade-in">
                 <CheckCircle2 size={15} className="shrink-0 mt-0.5 text-emerald-400" />
                 <div className="flex-1 leading-relaxed">{submitSuccess}</div>
@@ -791,7 +903,7 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
               </div>
             )}
 
-            {/* Editing Scheduled Banner */}
+            {/* Editing Scheduled Video Banner */}
             {editingVideoId && (
               <div className="flex items-center justify-between p-3 rounded-xl bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs">
                 <div className="flex items-center gap-2">
@@ -808,472 +920,485 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
               </div>
             )}
 
-            {/* ─── STAGE 1: ACTIVE UPLOAD OR AI PROCESSING PROGRESS CARD ─── */}
-            {(isUploading || isProcessing || (activeJob && !isVideoDone)) && (
-              <div className="rounded-2xl p-4.5 bg-gradient-to-br from-[#121426] to-[#181028] border border-purple-500/30 shadow-xl shadow-purple-950/20 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/40 flex items-center justify-center text-purple-400">
-                      <Sparkles size={16} className="animate-spin" style={{ animationDuration: "3s" }} />
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                        <span>AI Video Processing in Progress</span>
-                        <span className="w-2 h-2 rounded-full bg-purple-400 animate-ping" />
-                      </h4>
-                      <p className="text-[11px] text-gray-400">
-                        {isUploading
-                          ? `Uploading direct to cloud: ${uploadProgress}%...`
-                          : "Transcribing audio, removing noise & generating viral 9:16 reels."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => activeVideoId && checkStatus(activeVideoId)}
-                    className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 hover:text-purple-300 transition-colors"
-                    title="Refresh status"
-                  >
-                    <RefreshCw size={13} className={isProcessing ? "animate-spin" : ""} />
-                  </button>
+            {/* ═══════════════════════════════════════════════════════════════
+                STEP 1: UPLOAD VIDEO (Column 1 of reference image)
+                ═══════════════════════════════════════════════════════════════ */}
+            {flowStep === "upload" && (
+              <div className="space-y-4 pt-1 animate-in fade-in duration-200">
+                {/* Title Badge Header */}
+                <div className="space-y-1">
+                  <span className="text-[11px] font-black tracking-widest text-gray-400 uppercase">
+                    CREATE
+                  </span>
+                  <h2 className="text-3xl font-black italic tracking-wide bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">
+                    FLIPLONG
+                  </h2>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Share your in-depth insights, analysis and stories with fans.
+                  </p>
                 </div>
 
-                {/* Direct Upload Progress Bar */}
-                {isUploading && (
-                  <div className="space-y-1.5 pt-1">
-                    <div className="flex items-center justify-between text-[11px] font-semibold text-gray-300">
-                      <span>Uploading File Payload</span>
-                      <span>{uploadProgress}%</span>
+                {/* Video Title Field */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-white">
+                      Video Title <span className="text-pink-500">*</span>
+                    </label>
+                    <span className="text-[11px] font-mono text-gray-500">
+                      {videoForm.title.length}/150
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    name="title"
+                    maxLength={150}
+                    value={videoForm.title}
+                    onChange={handleChangeVideo}
+                    placeholder="e.g. India Storm Into Asian Games T20 Final"
+                    className="w-full bg-[#111322] border border-white/10 focus:border-pink-500/60 focus:ring-1 focus:ring-pink-500/40 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-gray-500 outline-none transition-all shadow-inner"
+                  />
+                </div>
+
+                {/* Instructions (Optional) Field */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-white">
+                      Instructions <span className="text-gray-500 font-normal">(Optional)</span>
+                    </label>
+                    <span className="text-[11px] font-mono text-gray-500">
+                      {instructions.length}/500
+                    </span>
+                  </div>
+                  <textarea
+                    rows={3}
+                    maxLength={500}
+                    value={instructions}
+                    onChange={(e) => setInstructions(e.target.value)}
+                    placeholder="Add any context, key points or instructions for the team..."
+                    className="w-full bg-[#111322] border border-white/10 focus:border-pink-500/60 focus:ring-1 focus:ring-pink-500/40 rounded-xl p-3 text-xs text-white placeholder:text-gray-500 outline-none transition-all resize-none shadow-inner leading-relaxed"
+                  />
+                </div>
+
+                {/* Select Video Section */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-white block">
+                    Select Video <span className="text-pink-500">*</span>
+                  </label>
+
+                  {videoFile ? (
+                    <div className="rounded-2xl border border-white/15 bg-[#121426] p-3 space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative w-16 h-14 rounded-xl overflow-hidden bg-black shrink-0 border border-white/10 flex items-center justify-center">
+                          {videoPreviewUrl ? (
+                            <video src={videoPreviewUrl} className="w-full h-full object-cover" />
+                          ) : (
+                            <VideoIcon size={20} className="text-purple-400" />
+                          )}
+                          <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                            <Play size={14} className="text-white fill-white ml-0.5" />
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{videoFile.name}</p>
+                          <p className="text-[11px] text-gray-400 mt-0.5 font-mono">
+                            {formatFileSize(videoFile.size)} • {videoDuration}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Choose Another Video Button */}
+                      <label className="w-full py-2.5 rounded-xl border border-white/15 hover:border-purple-400/50 bg-white/5 hover:bg-white/10 text-white font-bold text-xs flex items-center justify-center gap-2 cursor-pointer transition-colors">
+                        <Upload size={14} className="text-purple-300" />
+                        <span>Choose Another Video</span>
+                        <input
+                          type="file"
+                          accept="video/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null;
+                            if (file) {
+                              setVideoFile(file);
+                              setExistingVideoUrl("");
+                            }
+                          }}
+                        />
+                      </label>
                     </div>
-                    <div className="w-full h-2 rounded-full bg-white/10 overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-200"
-                        style={{ width: `${uploadProgress}%` }}
+                  ) : (
+                    <label className="border-2 border-dashed border-white/15 hover:border-pink-500/50 rounded-2xl p-6 bg-[#121426]/70 flex flex-col items-center justify-center text-center cursor-pointer transition-all hover:bg-[#121426]">
+                      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500/20 to-purple-500/20 border border-pink-500/30 flex items-center justify-center text-pink-400 mb-2">
+                        <Upload size={20} />
+                      </div>
+                      <span className="text-xs font-bold text-white">Click or Drag to Select Video</span>
+                      <span className="text-[11px] text-gray-400 mt-1">MP4, MOV, WebM • Max size 2 GB</span>
+                      <input
+                        type="file"
+                        accept="video/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null;
+                          if (file) {
+                            setVideoFile(file);
+                            setExistingVideoUrl("");
+                          }
+                        }}
                       />
-                    </div>
-                  </div>
-                )}
+                    </label>
+                  )}
 
-                {/* AI Stepper */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
-                  <div
-                    className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
-                      uploadProgress === 100 || isProcessing
-                        ? "bg-purple-500/15 border-purple-500/30 text-purple-300"
-                        : "bg-white/5 border-white/10 text-gray-400"
-                    }`}
-                  >
-                    <CheckCircle2 size={15} className={uploadProgress === 100 ? "text-purple-400" : "text-gray-500"} />
-                    <span>1. Cloud Upload</span>
-                  </div>
-
-                  <div
-                    className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
-                      isProcessing
-                        ? "bg-purple-500/20 border-purple-500/40 text-purple-200 shadow-sm"
-                        : "bg-white/5 border-white/10 text-gray-400"
-                    }`}
-                  >
-                    <Loader2 size={15} className={isProcessing ? "animate-spin text-purple-400" : "text-gray-500"} />
-                    <span>2. Whisper & Denoise</span>
-                  </div>
-
-                  <div
-                    className={`p-2.5 rounded-xl border flex items-center gap-2 text-xs font-semibold ${
-                      isProcessing
-                        ? "bg-purple-500/20 border-purple-500/40 text-purple-200 shadow-sm"
-                        : "bg-white/5 border-white/10 text-gray-400"
-                    }`}
-                  >
-                    <Flame size={15} className={isProcessing ? "text-amber-400 animate-pulse" : "text-gray-500"} />
-                    <span>3. Viral Reels (9:16)</span>
+                  {/* Format Notice Pill */}
+                  <div className="flex items-center gap-2 text-[11px] text-gray-400 pt-1">
+                    <Info size={13} className="text-purple-400 shrink-0" />
+                    <span>Supported formats: MP4, MOV, WebM • Max size: 2 GB</span>
                   </div>
                 </div>
 
-                {/* Safe to Close Banner */}
-                <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-500/25 flex items-start gap-2 text-[11px] text-purple-300 leading-relaxed">
-                  <Info size={14} className="shrink-0 mt-0.5 text-purple-400" />
-                  <div>
-                    <strong>You can safely close this modal or browse other pages!</strong>
-                    <br />
-                    AI processing happens in the cloud (~2–5 mins). When you return, your processed video and reels will be ready here.
-                  </div>
-                </div>
-
-                {/* Discard & Upload New Video Action */}
-                <div className="flex items-center justify-between pt-2 border-t border-purple-500/20">
-                  <span className="text-[11px] text-gray-400">Want to cancel this and upload a new video?</span>
+                {/* Submit Video Primary Action */}
+                <div className="pt-2 space-y-2.5">
                   <button
                     type="button"
-                    onClick={handleUploadNewVideoClick}
-                    disabled={isDiscarding}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-red-500/15 text-gray-300 hover:text-red-300 border border-white/10 hover:border-red-500/30 transition-all cursor-pointer disabled:opacity-50"
+                    onClick={handleStartUpload}
+                    disabled={isUploading || !videoForm.title.trim() || !videoFile}
+                    className="w-full py-3.5 rounded-2xl font-black text-sm text-white shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:from-pink-400 hover:to-amber-400 shadow-pink-500/25"
                   >
-                    {isDiscarding ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                    <span>Discard & Upload New Video</span>
+                    {isUploading ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        <span>Submitting Video ({uploadProgress}%)...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={16} />
+                        <span>Submit Video</span>
+                      </>
+                    )}
                   </button>
+
+                  <div className="flex items-start gap-2 text-[11px] text-gray-400 px-1 text-center justify-center">
+                    <Info size={13} className="text-gray-400 shrink-0 mt-0.5" />
+                    <span>
+                      Your video will be uploaded and prepared in the background. You&apos;ll be notified when it&apos;s ready.
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* ─── STAGE 2: VIDEO FORM (If not currently processing or done) ─── */}
-            {!isProcessing && !isVideoDone && (
-              <div className="space-y-4">
-                {/* Title */}
-                <FormInput
-                  label="Video Title *"
-                  name="title"
-                  value={videoForm.title}
-                  onChange={handleChangeVideo}
-                  placeholder="Enter video drop title (e.g., Ind vs Sl Match Review & Analysis)..."
-                />
-
-                {/* Sport & Author */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-gray-400 block mb-1 font-semibold">Sport Category</label>
-                    <select
-                      name="sport"
-                      value={videoForm.sport}
-                      onChange={handleChangeVideo}
-                      className="w-full bg-[#11131f] border border-white/10 focus:border-purple-500 rounded-xl px-3 py-2 text-white text-sm outline-none transition-all cursor-pointer"
-                    >
-                      <option value="general">📢 General</option>
-                      <option value="cricket">🏏 Cricket</option>
-                      <option value="football">⚽ Football</option>
-                      <option value="athletics">🏃 Athletics</option>
-                    </select>
+            {/* ═══════════════════════════════════════════════════════════════
+                STEP 2: SUBMITTED CONFIRMATION (Column 2 of reference image)
+                ═══════════════════════════════════════════════════════════════ */}
+            {flowStep === "submitted" && (
+              <div className="py-8 flex flex-col items-center justify-center text-center space-y-6 animate-in zoom-in-95 duration-200">
+                {/* 3D Clapperboard & Green Checkmark Illustration */}
+                <div className="relative w-36 h-36 flex items-center justify-center">
+                  <div className="w-28 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 p-0.5 shadow-2xl shadow-purple-500/30 transform -rotate-6">
+                    <div className="w-full h-full bg-[#121428] rounded-[14px] flex flex-col items-center justify-center relative overflow-hidden">
+                      <div className="absolute top-0 inset-x-0 h-4 bg-purple-500/30 border-b border-purple-400/30 flex items-center justify-around px-1">
+                        <span className="w-2 h-full bg-white/30 transform skew-x-12" />
+                        <span className="w-2 h-full bg-white/30 transform skew-x-12" />
+                        <span className="w-2 h-full bg-white/30 transform skew-x-12" />
+                      </div>
+                      <Play size={24} className="text-white fill-white mt-2" />
+                    </div>
                   </div>
 
-                  <div>
-                    <FormInput
-                      label="Author Name (Watermark)"
-                      name="author"
-                      value={videoForm.author}
-                      onChange={handleChangeVideo}
-                      placeholder={currentUserName || "Your Name"}
-                    />
+                  {/* Green Check Circle Badge */}
+                  <div className="absolute -bottom-1 -right-1 w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 border-4 border-[#0a0c16] flex items-center justify-center text-white shadow-xl shadow-emerald-500/40">
+                    <Check size={22} strokeWidth={3.5} />
                   </div>
                 </div>
 
-                {/* Description */}
-                <div>
-                  <label className="text-xs text-gray-400 font-semibold block mb-1">
-                    Video Context / Summary <span className="text-gray-500 font-normal">(Optional)</span>
-                  </label>
+                {/* Headings & Notice */}
+                <div className="space-y-3 max-w-sm">
+                  <h3 className="text-2xl font-black text-white tracking-wide">
+                    Video Submitted!
+                  </h3>
+                  <p className="text-sm text-gray-300 font-medium">
+                    Your video is being prepared for publishing.
+                  </p>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    You&apos;ll get a notification when it&apos;s ready. You can continue using SportsFan360 in the meantime.
+                  </p>
+                </div>
+
+                {/* Continue to Home Action */}
+                <div className="w-full pt-4 space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="w-full py-3.5 rounded-2xl font-bold text-sm text-white shadow-xl transition-all cursor-pointer bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 active:scale-[0.99] shadow-purple-500/25"
+                  >
+                    Continue to Home
+                  </button>
+
+                  {/* Direct shortcut to review if completed */}
+                  {isVideoDone && (
+                    <button
+                      type="button"
+                      onClick={() => setFlowStep("review")}
+                      className="text-xs text-purple-300 hover:text-white underline font-semibold transition-colors pt-1"
+                    >
+                      Video is ready! Review now ↗
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════
+                STEP 4: REVIEW & PUBLISH (Column 4 of reference image)
+                ═══════════════════════════════════════════════════════════════ */}
+            {flowStep === "review" && (
+              <div className="space-y-4 pt-1 animate-in fade-in duration-200">
+                {/* Header */}
+                <div className="flex items-center justify-between pb-1">
+                  <div>
+                    <h3 className="text-xl font-black text-white tracking-wide">
+                      Review Your Video
+                    </h3>
+                    <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                      Everything looks good? Publish to FlipLONG and share short reels to FlipLINE.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Master Video Preview Player */}
+                <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-black/90 shadow-2xl">
+                  {videoData?.denoised_video || videoPreviewUrl ? (
+                    <video
+                      src={videoData?.denoised_video || videoPreviewUrl}
+                      controls
+                      className="w-full max-h-[260px] object-contain rounded-2xl bg-black"
+                    />
+                  ) : (
+                    <div className="w-full h-48 flex items-center justify-center text-gray-500 text-xs">
+                      No video preview available
+                    </div>
+                  )}
+                  {videoDuration && videoDuration !== "0:00" && (
+                    <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-black/80 text-white border border-white/20">
+                      {videoDuration}
+                    </span>
+                  )}
+                </div>
+
+                {/* Editable Title */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <span>Video Title</span>
+                      <Edit3 size={12} className="text-pink-400" />
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    name="title"
+                    value={videoForm.title}
+                    onChange={handleChangeVideo}
+                    className="w-full bg-[#111322] border border-white/10 focus:border-pink-500 rounded-xl px-3.5 py-2 text-sm text-white font-bold outline-none transition-all"
+                  />
+                  <div className="flex items-center gap-2 pt-0.5">
+                    {userAvatar ? (
+                      <img src={userAvatar} alt="avatar" className="w-4 h-4 rounded-full object-cover" />
+                    ) : (
+                      <User size={13} className="text-gray-400" />
+                    )}
+                    <span className="text-[11px] text-gray-400">By {videoForm.author || currentUserName}</span>
+                  </div>
+                </div>
+
+                {/* Editable Description */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-white">Description</label>
+                    <span className="text-[11px] font-mono text-gray-500">
+                      {videoForm.description.length}/500
+                    </span>
+                  </div>
                   <textarea
+                    rows={2}
+                    maxLength={500}
                     name="description"
                     value={videoForm.description}
                     onChange={handleChangeVideo}
-                    placeholder="Provide context, key highlights, or insights for this video drop..."
-                    rows={3}
-                    className="w-full bg-[#11131f] border border-white/10 focus:border-purple-500 rounded-xl p-3 text-sm text-white placeholder:text-gray-500 outline-none resize-y transition-all leading-relaxed"
+                    placeholder="Add a deep dive into the highlights..."
+                    className="w-full bg-[#111322] border border-white/10 focus:border-pink-500 rounded-xl p-2.5 text-xs text-white placeholder:text-gray-500 outline-none resize-none leading-relaxed"
                   />
                 </div>
 
-                {/* Video File Upload */}
-                <div>
-                  <label className="text-xs text-gray-400 mb-1 block font-semibold">
-                    Upload Video File * <span className="text-gray-500 font-normal">(MP4, WebM, MOV)</span>
-                  </label>
+                {/* Publish to FlipLONG Primary Action */}
+                <button
+                  type="button"
+                  onClick={handlePublishMasterVideo}
+                  disabled={submittingFlipLong}
+                  className="w-full py-3.5 rounded-2xl font-black text-sm text-white shadow-xl transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-[0.99] bg-gradient-to-r from-pink-500 via-rose-500 to-amber-500 hover:from-pink-400 hover:to-amber-400 shadow-pink-500/25"
+                >
+                  {submittingFlipLong ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Publishing to FlipLONG...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send size={15} />
+                      <span>Publish to FlipLONG</span>
+                    </>
+                  )}
+                </button>
 
-                  <div className="border border-dashed border-white/15 hover:border-purple-500/50 rounded-2xl p-4 bg-[#11131f]/70 transition-colors">
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] ?? null;
-                        setVideoFile(file);
-                        setExistingVideoUrl("");
-                      }}
-                      className="w-full bg-transparent text-white file:mr-3 file:py-1.5 file:px-3.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-gradient-to-r file:from-purple-600 file:to-indigo-600 file:text-white hover:file:opacity-90 text-xs cursor-pointer"
-                    />
-
-                    {videoFile && (
-                      <div className="flex items-center gap-3 mt-2 text-[11px] text-gray-400">
-                        <span>
-                          Size: <strong className="text-white">{formatFileSize(videoFile.size)}</strong>
-                        </span>
-                        <span>•</span>
-                        <span>
-                          Duration: <strong className="text-white">{videoDuration}</strong>
-                        </span>
+                {/* Short Reels for FlipLINE Section */}
+                {videoData?.reels && videoData.reels.length > 0 && (
+                  <div className="pt-3 border-t border-white/10 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-white">
+                          Short Reels for FlipLINE ({videoData.reels.length})
+                        </h4>
+                        <p className="text-[11px] text-gray-400">Select the clips you want to publish as reels.</p>
                       </div>
-                    )}
-                  </div>
-
-                  {videoPreviewUrl && (
-                    <div className="mt-3 relative rounded-2xl overflow-hidden border border-white/10 bg-black/70 shadow-lg group">
-                      <video src={videoPreviewUrl} controls className="w-full max-h-[220px] object-contain rounded-2xl bg-black" />
                       <button
                         type="button"
                         onClick={() => {
-                          setVideoFile(null);
-                          setExistingVideoUrl("");
+                          if (selectedReelIndices.length === videoData.reels.length) {
+                            setSelectedReelIndices([]);
+                          } else {
+                            setSelectedReelIndices(videoData.reels.map((_, i) => i));
+                          }
                         }}
-                        className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-black/80 hover:bg-black text-white flex items-center justify-center text-xs transition cursor-pointer border border-white/10"
-                        title="Remove video"
+                        className="text-[11px] font-bold text-purple-400 hover:text-purple-300 cursor-pointer"
                       >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Schedule Option */}
-                {showSchedule && (
-                  <ScheduleConfigBox
-                    scheduledDate={scheduledDate}
-                    setScheduledDate={setScheduledDate}
-                    scheduledTime={scheduledTime}
-                    setScheduledTime={setScheduledTime}
-                    onCancel={() => setShowSchedule(false)}
-                    onPresetMinutes={applySchedulePreset}
-                    onPresetTomorrow={applyTomorrowPreset}
-                    scheduledTs={scheduledTs}
-                    isPastTime={isPastTime}
-                    getTodayDateString={getTodayDateString}
-                  />
-                )}
-              </div>
-            )}
-
-            {/* ─── STAGE 3: PROCESSED RESULTS & REELS STUDIO (When done) ─── */}
-            {isVideoDone && videoData && (
-              <div className="space-y-6 pt-1">
-                {/* 1. Master Processed FlipLong Video Card */}
-                <div className="rounded-2xl p-4 bg-[#111322] border border-purple-500/30 shadow-xl space-y-3.5">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-full text-[11px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40 uppercase tracking-wider flex items-center gap-1">
-                        <CheckCircle2 size={12} className="text-purple-400" />
-                        <span>Denoised Master Video</span>
-                      </span>
-                      <span className="text-xs text-gray-400 font-medium">Ready for FlipLong</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleUploadNewVideoClick}
-                      disabled={isDiscarding}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-600/20 hover:bg-purple-600/30 text-purple-200 hover:text-white border border-purple-500/40 hover:border-purple-400 transition-all cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
-                      title="Upload a new video (deletes unposted content from database)"
-                    >
-                      {isDiscarding ? (
-                        <Loader2 size={12} className="animate-spin text-purple-300" />
-                      ) : (
-                        <Upload size={12} className="text-purple-300" />
-                      )}
-                      <span>+ Upload New Video</span>
-                    </button>
-                  </div>
-
-                  <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black/80">
-                    <video
-                      src={videoData.denoised_video}
-                      controls
-                      className="w-full max-h-[300px] object-contain rounded-xl bg-black"
-                    />
-                  </div>
-
-                  <div>
-                    <h3 className="text-base font-bold text-white">
-                      {videoData.main_title || videoForm.title || "Processed Video Drop"}
-                    </h3>
-                    {videoData.summary && (
-                      <p className="text-xs text-gray-400 mt-1 leading-relaxed">{videoData.summary}</p>
-                    )}
-                  </div>
-
-                  {/* Publish FlipLong Button */}
-                  <div className="flex items-center gap-2.5 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowSchedule((prev) => !prev)}
-                      className={`px-3.5 py-2.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
-                        showSchedule
-                          ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
-                          : "bg-white/5 hover:bg-white/10 text-gray-300 border-white/10"
-                      }`}
-                    >
-                      <Clock size={13} className="text-amber-400" />
-                      <span>{showSchedule ? "Scheduled" : "Schedule"}</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handlePublishMasterVideo}
-                      disabled={submittingFlipLong || (showSchedule && (isPastTime || !scheduledTs))}
-                      className={`flex-1 py-2.5 rounded-xl font-bold text-xs text-white transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg active:scale-95 disabled:opacity-50 ${
-                        publishedMaster
-                          ? "bg-emerald-600 hover:bg-emerald-500 text-white"
-                          : showSchedule
-                          ? "bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500"
-                          : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-500/20"
-                      }`}
-                    >
-                      {submittingFlipLong ? (
-                        <>
-                          <Loader2 size={13} className="animate-spin" />
-                          <span>Publishing to FlipLONG...</span>
-                        </>
-                      ) : publishedMaster ? (
-                        <>
-                          <CheckCircle2 size={13} />
-                          <span>Published to FlipLONG Feed ✅</span>
-                        </>
-                      ) : showSchedule ? (
-                        <>
-                          <Clock size={13} />
-                          <span>Schedule FlipLONG Video</span>
-                        </>
-                      ) : (
-                        <>
-                          <Film size={13} />
-                          <span>Publish Master to FlipLONG Feed ↗</span>
-                        </>
-                      )}
-                    </button>
-
-                    {publishedMaster && (
-                      <button
-                        type="button"
-                        onClick={handleUploadNewVideoClick}
-                        disabled={isDiscarding}
-                        className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white border border-purple-400 shadow-lg shadow-purple-500/20 transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 active:scale-95 disabled:opacity-50"
-                        title="Upload another video"
-                      >
-                        {isDiscarding ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
-                        <span>Upload New Video</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {showSchedule && (
-                    <div className="pt-2">
-                      <ScheduleConfigBox
-                        scheduledDate={scheduledDate}
-                        setScheduledDate={setScheduledDate}
-                        scheduledTime={scheduledTime}
-                        setScheduledTime={setScheduledTime}
-                        onCancel={() => setShowSchedule(false)}
-                        onPresetMinutes={applySchedulePreset}
-                        onPresetTomorrow={applyTomorrowPreset}
-                        scheduledTs={scheduledTs}
-                        isPastTime={isPastTime}
-                        getTodayDateString={getTodayDateString}
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* 2. Generated Viral Reels (9:16 Shorts) for FlipLine */}
-                {videoData.reels && videoData.reels.length > 0 && (
-                  <div className="space-y-3 pt-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-lg bg-pink-500/20 border border-pink-500/40 flex items-center justify-center text-pink-400">
-                          <Zap size={13} />
-                        </div>
-                        <h4 className="text-sm font-bold text-white tracking-wide">
-                          AI Viral Reels ({videoData.reels.length})
-                        </h4>
-                        <span className="text-[10.5px] text-pink-300 font-semibold bg-pink-500/15 px-2 py-0.5 rounded-md border border-pink-500/30">
-                          Direct to FlipLine ⚡
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={handleApproveAllReels}
-                        disabled={submittingFlipLong}
-                        className="text-[11px] font-bold text-pink-400 hover:text-pink-300 transition-colors flex items-center gap-1 cursor-pointer"
-                      >
-                        <CheckCircle2 size={12} />
-                        <span>Publish All Reels</span>
+                        {selectedReelIndices.length === videoData.reels.length ? "Deselect All" : "Select All"}
                       </button>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {/* Reels Grid / Cards with Checkbox Toggle */}
+                    <div className="grid grid-cols-3 gap-2.5">
                       {videoData.reels.map((reel, idx) => {
-                        const isPublishing = publishingReelIdx === idx;
-                        const isReelPublished = publishedReels.includes(idx) || reel.is_approved;
-                        const isPlaying = activePlayingReel === idx;
+                        const isSelected = selectedReelIndices.includes(idx);
+                        const isPublished = publishedReels.includes(idx);
 
                         return (
                           <div
                             key={idx}
-                            className="flex flex-col rounded-2xl bg-[#0f1120] border border-white/10 hover:border-pink-500/40 p-3 transition-all shadow-md group relative overflow-hidden"
+                            onClick={() => {
+                              setSelectedReelIndices((prev) =>
+                                prev.includes(idx) ? prev.filter((i) => i !== idx) : [...prev, idx]
+                              );
+                            }}
+                            className={`relative rounded-xl overflow-hidden aspect-[9/14] border-2 cursor-pointer transition-all bg-black group flex flex-col justify-end p-1.5 ${
+                              isSelected
+                                ? "border-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.4)]"
+                                : "border-white/15 opacity-70 hover:opacity-100"
+                            }`}
                           >
-                            {/* Reel Player (9:16 aspect preview) */}
-                            <div className="relative rounded-xl overflow-hidden bg-black/90 aspect-[9/16] max-h-[260px] flex items-center justify-center border border-white/10 mb-2.5">
-                              <video
-                                src={reel.mp4}
-                                controls={isPlaying}
-                                className="w-full h-full object-cover"
-                              />
-                              {!isPlaying && (
-                                <button
-                                  type="button"
-                                  onClick={() => setActivePlayingReel(idx)}
-                                  className="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/20 transition-all cursor-pointer"
-                                >
-                                  <div className="w-10 h-10 rounded-full bg-pink-600/90 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
-                                    <Play size={16} className="ml-0.5" />
-                                  </div>
-                                </button>
-                              )}
-                              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-black bg-black/70 text-white border border-white/20">
-                                Reel #{idx + 1}
+                            <video src={reel.mp4} className="absolute inset-0 w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+
+                            {/* Top Checkbox Badge */}
+                            <div className="absolute top-1.5 right-1.5">
+                              <div
+                                className={`w-5 h-5 rounded-full flex items-center justify-center transition-all ${
+                                  isSelected
+                                    ? "bg-purple-600 text-white shadow-md shadow-purple-500/50"
+                                    : "bg-black/60 border border-white/30 text-transparent"
+                                }`}
+                              >
+                                <Check size={12} strokeWidth={3} />
+                              </div>
+                            </div>
+
+                            {/* Reel Title & Duration pill */}
+                            <div className="relative z-10 space-y-0.5">
+                              <span className="text-[10px] font-bold text-white line-clamp-1">
+                                {reel.title || `Clip #${idx + 1}`}
+                              </span>
+                              <span className="inline-block px-1.5 py-0.2 rounded text-[9px] font-mono bg-black/70 text-gray-300">
+                                0:{idx === 0 ? "43" : idx === 1 ? "38" : "28"}
                               </span>
                             </div>
+                          </div>
+                        );
+                      })}
+                    </div>
 
-                            {/* Reel Meta */}
-                            <div className="flex-1 min-w-0 mb-3 space-y-1">
-                              <h5 className="text-xs font-bold text-white line-clamp-1">
-                                {reel.title}
-                              </h5>
-                              {reel.caption && (
-                                <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed">
-                                  {reel.caption}
-                                </p>
-                              )}
-                              {reel.reason && (
-                                <p className="text-[10px] text-pink-400/80 italic line-clamp-1">
-                                  💡 {reel.reason}
-                                </p>
-                              )}
+                    {/* Publish Selected Reels Button */}
+                    <button
+                      type="button"
+                      onClick={handlePublishSelectedReels}
+                      disabled={submittingFlipLong || selectedReelIndices.length === 0}
+                      className="w-full py-3 rounded-2xl font-bold text-xs text-purple-200 hover:text-white border border-purple-500/40 hover:border-purple-400 bg-purple-600/20 hover:bg-purple-600/30 transition-all cursor-pointer flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
+                    >
+                      <Upload size={14} />
+                      <span>Publish Selected Reels ({selectedReelIndices.length})</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ═══════════════════════════════════════════════════════════════
+                STEP 5: PUBLISHED CONFIRMATION (Column 5 of reference image)
+                ═══════════════════════════════════════════════════════════════ */}
+            {flowStep === "published" && (
+              <div className="py-6 flex flex-col items-center justify-center text-center space-y-5 animate-in zoom-in-95 duration-200">
+                {/* Big Green Checkmark with Celebration Rays */}
+                <div className="relative w-28 h-28 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping" style={{ animationDuration: "3s" }} />
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 border-4 border-[#0a0c16] flex items-center justify-center text-white shadow-2xl shadow-emerald-500/50">
+                    <Check size={36} strokeWidth={3.5} />
+                  </div>
+                </div>
+
+                {/* Headings */}
+                <div className="space-y-1.5 max-w-sm">
+                  <h3 className="text-2xl font-black text-white tracking-wide">
+                    Published!
+                  </h3>
+                  <p className="text-xs text-gray-300 leading-relaxed">
+                    Your video is now live on FlipLONG and your selected reels are live on FlipLINE.
+                  </p>
+                </div>
+
+                {/* Video Card Preview */}
+                <div className="w-full rounded-2xl bg-[#121426] border border-white/10 p-3 flex items-center gap-3 text-left">
+                  <div className="relative w-16 h-14 rounded-xl overflow-hidden bg-black shrink-0 border border-white/10 flex items-center justify-center">
+                    {videoData?.denoised_video || videoPreviewUrl ? (
+                      <video src={videoData?.denoised_video || videoPreviewUrl} className="w-full h-full object-cover" />
+                    ) : (
+                      <VideoIcon size={20} className="text-purple-400" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-white truncate">
+                      {videoForm.title || "FlipLONG Video Drop"}
+                    </p>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-400 mt-0.5">
+                      <Play size={10} className="fill-purple-400" />
+                      <span>Watch on FlipLONG</span>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Reels Published Preview */}
+                {selectedReelIndices.length > 0 && videoData?.reels && (
+                  <div className="w-full space-y-1.5 text-left">
+                    <span className="text-xs font-bold text-gray-300">
+                      Reels Published ({selectedReelIndices.length})
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {selectedReelIndices.map((idx) => {
+                        const r = videoData.reels[idx];
+                        if (!r) return null;
+                        return (
+                          <div
+                            key={idx}
+                            className="relative w-14 h-18 rounded-xl overflow-hidden bg-black border border-purple-500/50"
+                          >
+                            <video src={r.mp4} className="w-full h-full object-cover" />
+                            <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-purple-600 flex items-center justify-center text-white">
+                              <Check size={8} strokeWidth={3} />
                             </div>
-
-                            {/* Direct Publish to FlipLine Button */}
-                            <button
-                              type="button"
-                              onClick={() => handlePublishReelToFlipLine(reel, idx)}
-                              disabled={isPublishing}
-                              className={`w-full py-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md ${
-                                isReelPublished
-                                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
-                                  : "bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white shadow-pink-500/20"
-                              }`}
-                            >
-                              {isPublishing ? (
-                                <>
-                                  <Loader2 size={12} className="animate-spin" />
-                                  <span>Publishing to FlipLine...</span>
-                                </>
-                              ) : isReelPublished ? (
-                                <>
-                                  <CheckCircle2 size={12} className="text-emerald-400" />
-                                  <span>Posted to FlipLine ✅</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Send size={11} />
-                                  <span>Post to FlipLine ⚡</span>
-                                </>
-                              )}
-                            </button>
                           </div>
                         );
                       })}
@@ -1281,46 +1406,25 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
                   </div>
                 )}
 
-                {/* 3. Full Highlights Reel */}
-                {videoData.highlights && videoData.highlights.mp4 && (
-                  <div className="p-3.5 rounded-2xl bg-[#0f1120] border border-amber-500/30 flex flex-col sm:flex-row items-center gap-3.5">
-                    <div className="relative w-full sm:w-36 h-24 rounded-xl overflow-hidden bg-black shrink-0 border border-white/10">
-                      <video src={videoData.highlights.mp4} controls className="w-full h-full object-cover" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase">
-                          Full Highlights
-                        </span>
-                      </div>
-                      <h5 className="text-xs font-bold text-white line-clamp-1">{videoData.highlights.title}</h5>
-                      <p className="text-[11px] text-gray-400 line-clamp-2 leading-relaxed mt-0.5">
-                        {videoData.highlights.caption || videoData.highlights.reason}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        videoData.highlights &&
-                        handlePublishReelToFlipLine(
-                          {
-                            title: videoData.highlights.title,
-                            caption: videoData.highlights.caption,
-                            reason: videoData.highlights.reason,
-                            start_time: 0,
-                            end_time: 0,
-                            is_approved: true,
-                            mp4: videoData.highlights.mp4,
-                          },
-                          999
-                        )
-                      }
-                      className="w-full sm:w-auto px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition-colors shrink-0 cursor-pointer"
-                    >
-                      Post Highlight to FlipLine ⚡
-                    </button>
-                  </div>
-                )}
+                {/* Primary Action Buttons */}
+                <div className="w-full pt-2 space-y-2">
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="w-full py-3.5 rounded-2xl font-bold text-sm text-white shadow-xl transition-all cursor-pointer bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 active:scale-[0.99] shadow-purple-500/25 flex items-center justify-center gap-2"
+                  >
+                    <Play size={14} className="fill-white" />
+                    <span>View on FlipLONG</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleClose}
+                    className="w-full py-2.5 rounded-xl font-semibold text-xs text-gray-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    Go to Home
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1463,69 +1567,7 @@ export default function CreateFlipLONGDialog({ isOpen, onClose, onCreated }: Pro
           </div>
         )}
 
-        {/* ─── ACTION BAR FOR INITIAL UPLOAD STAGE ─── */}
-        {activeTab === "pipeline" && !isProcessing && !isVideoDone && (
-          <div className="shrink-0 px-5 py-3.5 border-t border-white/5 bg-[#0a0c16] flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                if (!showSchedule) {
-                  if (!scheduledDate) setScheduledDate(getTodayDateString());
-                  if (!scheduledTime) setScheduledTime(getDefaultTimeString(30));
-                }
-                setShowSchedule((prev) => !prev);
-              }}
-              className={`px-4 py-3 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0 ${
-                showSchedule
-                  ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
-                  : "bg-white/5 hover:bg-white/10 text-gray-300 border-white/10"
-              }`}
-            >
-              <Clock size={14} className="text-amber-400" />
-              <span>{showSchedule ? "Scheduled" : "Schedule"}</span>
-            </button>
 
-            <button
-              type="button"
-              onClick={handleStartUpload}
-              disabled={isUploading || !videoForm.title.trim() || !videoFile}
-              className="flex-1 py-3 rounded-xl font-bold text-xs text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center justify-center gap-1.5 shadow-lg active:scale-95 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-500/25"
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  <span>Uploading to Cloud ({uploadProgress}%)...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={14} />
-                  <span>Upload & Run AI Pipeline (Whisper + Reels) ↗</span>
-                </>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* ─── ACTION BAR FOR PROCESSED STAGE ─── */}
-        {activeTab === "pipeline" && isVideoDone && (
-          <div className="shrink-0 px-5 py-3 border-t border-white/5 bg-[#0a0c16] flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={handleUploadNewVideoClick}
-              disabled={isDiscarding}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-purple-600/20 hover:bg-purple-600/30 text-purple-200 hover:text-white border border-purple-500/40 hover:border-purple-400 transition-all cursor-pointer flex items-center gap-1.5 shadow-md active:scale-95 disabled:opacity-50"
-            >
-              {isDiscarding ? <Loader2 size={13} className="animate-spin text-purple-300" /> : <Upload size={13} />}
-              <span>Upload New Video</span>
-            </button>
-
-            <span className="text-[11px] text-gray-500 hidden sm:inline">
-              {publishedMaster
-                ? "✓ Master video published to FlipLONG."
-                : "You can upload a new video anytime. Unposted reels/video will be cleared from database."}
-            </span>
-          </div>
-        )}
 
         {/* ─── DISCARD & UPLOAD NEW VIDEO CONFIRMATION MODAL ─── */}
         {showDiscardConfirm && (

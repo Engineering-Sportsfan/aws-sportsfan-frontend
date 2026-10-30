@@ -66,6 +66,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback } from "react";
+import axios from "axios";
 
 // ─── Type ─────────────────────────────────────────────────────────────────────
 // Mirrors the Notification type in NewROARComponent/types/index.ts
@@ -103,12 +104,26 @@ export function RoarNotificationsProvider({
     setRoarNotifications((prev: RoarNotification[]) =>
       prev.map((n: RoarNotification) => (n.id === id ? { ...n, read: true } : n))
     );
+    // Persist read state to backend
+    axios.patch("/api/roar/notifications", { id, action: "markRead" }, { withCredentials: true }).catch((err) => {
+      console.warn("Failed to persist notification read state to backend:", err);
+    });
+    try {
+      window.dispatchEvent(new CustomEvent("sf360:notifications-read", { detail: { id } }));
+    } catch {}
   }, []);
 
   const markAllRoarRead = useCallback(() => {
     setRoarNotifications((prev: RoarNotification[]) => 
       prev.map((n: RoarNotification) => ({ ...n, read: true }))
     );
+    // Persist mark all read to backend
+    axios.patch("/api/roar/notifications", { markAll: true, action: "markAllRead" }, { withCredentials: true }).catch((err) => {
+      console.warn("Failed to persist mark all read to backend:", err);
+    });
+    try {
+      window.dispatchEvent(new CustomEvent("sf360:notifications-read", { detail: { all: true } }));
+    } catch {}
   }, []);
 
   const roarUnreadCount = roarNotifications.filter((n: RoarNotification) => !n.read).length;

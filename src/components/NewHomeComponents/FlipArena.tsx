@@ -4078,7 +4078,7 @@ function formatEngagementPostingTime(item: EngagementItem): string {
 }
 
 // ─── Single-Vote Local Persistence Helpers ──────────────────────────────────
-function getStoredVote(type: string, itemId: string, userId?: string): any {
+export function getStoredVote(type: string, itemId: string, userId?: string): any {
   if (typeof window === "undefined") return null;
   try {
     if (userId) {
@@ -4091,7 +4091,7 @@ function getStoredVote(type: string, itemId: string, userId?: string): any {
   return null;
 }
 
-function setStoredVote(type: string, itemId: string, data: any, userId?: string) {
+export function setStoredVote(type: string, itemId: string, data: any, userId?: string) {
   if (typeof window === "undefined") return;
   try {
     const serialized = JSON.stringify(data);
@@ -4103,8 +4103,200 @@ function setStoredVote(type: string, itemId: string, data: any, userId?: string)
 }
 
 // ─── Quiz Per-Question Answer Key (collision-proof) ──────────────────────────
-function quizAnswerKey(index: number, questionId?: string) {
+export function quizAnswerKey(index: number, questionId?: string) {
   return `quiz_ans_${index}_${questionId ?? ""}`;
+}
+
+// ─── Check if current user has engaged with an engagement ────────────────────
+export function isUserEngagedWithEngagement(item: EngagementItem, userId?: string): boolean {
+  if (!item) return false;
+  const uid = userId || (typeof window !== "undefined" ? localStorage.getItem("sf_current_uid") || undefined : undefined);
+
+  // 1. Backend interaction flags (hydrated from DynamoDB / Firestore)
+  if (item.userVoted || (item.userVote !== null && item.userVote !== undefined) || item.userLiked) {
+    return true;
+  }
+
+  // 2. Browser localStorage checks
+  if (typeof window !== "undefined") {
+    try {
+      const targetId = (item as any)._parentEngagementId || item.id;
+      // Fast check: look for any localStorage key matching _voted_${targetId}, _voted_${item.id}, _liked_${targetId}, _liked_${item.id}
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (
+          key &&
+          (key.includes(`_voted_${targetId}`) ||
+            key.includes(`_voted_${item.id}`) ||
+            key.includes(`_liked_${targetId}`) ||
+            key.includes(`_liked_${item.id}`))
+        ) {
+          return true;
+        }
+      }
+
+      // Explicit type-based checks
+      if (item.type === "poll" && getStoredVote("poll", targetId, uid)) return true;
+      if (item.type === "fan_battle" && getStoredVote("fb", targetId, uid)) return true;
+      if (item.type === "prediction" && getStoredVote("pred", targetId, uid)) return true;
+      if (
+        (item.type === "meme" || item.type === "memes" || Boolean(item.memeData) || Boolean((item as any).memeType)) &&
+        (getStoredVote("meme", targetId, uid) ||
+          getStoredVote("meme_dual", targetId, uid) ||
+          getStoredVote("meme", item.id, uid) ||
+          getStoredVote("meme_dual", item.id, uid) ||
+          Boolean(localStorage.getItem(`sf_meme_voted_${item.id}`)) ||
+          Boolean(localStorage.getItem(`sf_voted_${item.id}`)))
+      ) {
+        return true;
+      }
+      if (item.type === "quiz") {
+        if (getStoredVote("quiz", targetId, uid)) return true;
+        if (getStoredVote("quiz_engaged", targetId, uid)) return true;
+        if (getStoredVote("quiz_finish", targetId, uid)) return true;
+        const totalQ = item.quizData?.questions?.length || 1;
+        for (let idx = 0; idx < totalQ; idx++) {
+          const q = item.quizData?.questions?.[idx];
+          const qId = q?.id || `q_${idx + 1}`;
+          if (
+            getStoredVote(quizAnswerKey(idx, qId), targetId, uid) ||
+            getStoredVote(quizAnswerKey(idx, qId), item.id, uid)
+          ) {
+            return true;
+          }
+        }
+      }
+    } catch { }
+  }
+
+  return false;
+}
+
+// ─── Check if an engagement is closed, ended, expired, or resolved ───────────
+export function isEngagementClosed(item: EngagementItem, now: number = Date.now()): boolean {
+  if (!item) return true;
+
+  // 1. Explicit status string check
+  const rawStatus = String(item.status || "").toLowerCase().trim();
+  if (
+    rawStatus === "closed" ||
+    rawStatus === "ended" ||
+    rawStatus === "inactive" ||
+    rawStatus === "completed" ||
+    rawStatus === "finished" ||
+    rawStatus === "resolved" ||
+    rawStatus === "cancelled"
+  ) {
+    return true;
+  }
+
+  // 2. Explicit boolean flags on item
+  if (
+    (item as any).isClosed === true ||
+    (item as any).closed === true ||
+    (item as any).isEnded === true ||
+    (item as any).ended === true ||
+    (item as any).isResolved === true ||
+    (item as any).active === false
+  ) {
+    return true;
+  }
+
+  // 3. Top-level expiresAt check
+  const topExpiresAt = Number(item.expiresAt);
+  if (topExpiresAt > 0 && now >= topExpiresAt) {
+    return true;
+  }
+
+  const startTime = getEngagementStartTime(item);
+
+  // 4. Poll specific closed / expired checks
+  if (item.type === "poll" && item.pollData) {
+    const p = item.pollData;
+    if ((p as any).isClosed || (p as any).closed || (p as any).status === "closed" || (p as any).status === "ended") {
+      return true;
+    }
+    const pollExp = Number(p.expiresAt);
+    if (pollExp > 0 && now >= pollExp) {
+      return true;
+    }
+    const durMins = Number(p.durationMinutes || p.timerMinutes || 0);
+    if (durMins > 0 && startTime > 0 && now >= (startTime + durMins * 60 * 1000)) {
+      return true;
+    }
+  }
+
+  // 5. Prediction specific closed / expired / resolved checks
+  if (item.type === "prediction" && item.predictionData) {
+    const pred = item.predictionData;
+    if (
+      (pred as any).isClosed ||
+      (pred as any).closed ||
+      (pred as any).isResolved ||
+      (pred as any).status === "closed" ||
+      (pred as any).status === "resolved" ||
+      (pred as any).status === "ended"
+    ) {
+      return true;
+    }
+    const predExp = Number(pred.expiresAt);
+    if (predExp > 0 && now >= predExp) {
+      return true;
+    }
+    const durMins = Number(pred.timerMinutes || 0);
+    if (durMins > 0 && startTime > 0 && now >= (startTime + durMins * 60 * 1000)) {
+      return true;
+    }
+    if ((pred as any).winningTarget || (pred as any).correctAnswer) {
+      return true;
+    }
+  }
+
+  // 6. Quiz specific closed / expired checks
+  if (item.type === "quiz" && item.quizData) {
+    const q = item.quizData;
+    if ((q as any).isClosed || (q as any).closed || (q as any).status === "closed" || (q as any).status === "ended") {
+      return true;
+    }
+    const quizExp = Number(q.expiresAt);
+    if (quizExp > 0 && now >= quizExp) {
+      return true;
+    }
+    const durMins = Number(q.durationMinutes || q.timerMinutes || 0);
+    if (durMins > 0 && startTime > 0 && now >= (startTime + durMins * 60 * 1000)) {
+      return true;
+    }
+  }
+
+  // 7. Fan Battle specific closed / expired checks
+  if (item.type === "fan_battle" && item.fanBattleData) {
+    const fb = item.fanBattleData;
+    if ((fb as any).isClosed || (fb as any).closed || (fb as any).status === "closed" || (fb as any).status === "ended") {
+      return true;
+    }
+    const fbExp = Number((fb as any).expiresAt);
+    if (fbExp > 0 && now >= fbExp) {
+      return true;
+    }
+    const durMins = Number((fb as any).durationMinutes || (fb as any).timerMinutes || 0);
+    if (durMins > 0 && startTime > 0 && now >= (startTime + durMins * 60 * 1000)) {
+      return true;
+    }
+  }
+
+  // 8. Meme specific closed / expired checks
+  if ((item.type === "meme" || (item as any).memeData) && item.memeData) {
+    const m = item.memeData;
+    if ((m as any).isClosed || (m as any).closed || (m as any).status === "closed" || (m as any).status === "ended") {
+      return true;
+    }
+    const memeExp = Number((m as any).expiresAt);
+    if (memeExp > 0 && now >= memeExp) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 // ─── Global Voter Identity Match Helper ──────────────────────────────────────
@@ -4380,7 +4572,7 @@ function formatCompetitorName(name?: string): string {
 }
 
 // ─── 1. Fan Battle Card Component (+2 SXPs Participation) ────────────────────
-function DynamicFanBattleCard({
+export function DynamicFanBattleCard({
   item,
   userId,
   userName,
@@ -4802,7 +4994,7 @@ function LiveCountdown({
 }
 
 // ─── 2. Quiz Card Component (+2 SXPs Participation, +10 SXPs Correct) ────────
-function DynamicQuizCard({
+export function DynamicQuizCard({
   item,
   userId,
   userName,
@@ -5783,7 +5975,7 @@ function DynamicQuizCard({
 }
 
 // ─── 3. Poll Card Component (+2 SXPs Participation, +10 SXPs Correct Option) ──
-function DynamicPollCard({
+export function DynamicPollCard({
   item,
   userId,
   userName,
@@ -6252,7 +6444,7 @@ function DynamicPollCard({
 }
 
 // ─── 4. Prediction Card Component (+2 SXPs Participation, +10 SXPs Correct) ───
-function DynamicPredictionCard({
+export function DynamicPredictionCard({
   item,
   userId,
   userName,
@@ -6889,7 +7081,7 @@ function DynamicPredictionCard({
 }
 
 // ─── 5. Meme Card Component (Supports Dual Meme & 5 Heat Rating Tiers) ───────
-function DynamicMemeCard({
+export function DynamicMemeCard({
   item,
   userId,
   userName,
@@ -7156,6 +7348,15 @@ function DynamicMemeCard({
     setDualOptions(nextOptions);
     setStoredVote("meme_dual", item.id, { selectedOptionId: optId, options: nextOptions }, currentUserId);
     setStoredVote("meme", item.id, { selectedOptionId: optId, options: nextOptions }, currentUserId);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`sf_meme_dual_voted_${item.id}`, JSON.stringify({ selectedOptionId: optId }));
+        localStorage.setItem(`sf_voted_${item.id}`, "true");
+        if (currentUserId) {
+          localStorage.setItem(`sf_voted_${item.id}_${currentUserId}`, "true");
+        }
+      } catch {}
+    }
     const nextCount = Math.max(1, totalEngaged + 1);
     setTotalEngaged(nextCount);
     onSyncEngagedCount?.(nextCount);
@@ -7177,9 +7378,14 @@ function DynamicMemeCard({
         setStoredVote("meme_dual", item.id, { selectedOptionId: optId, options: res.options }, currentUserId);
       }
       const earned = Number(res?.pointsAwarded ?? res?.participationPointsAwarded ?? memePts);
-      if (typeof window !== "undefined" && earned > 0) {
+      if (typeof window !== "undefined") {
+        if (earned > 0) {
+          window.dispatchEvent(
+            new CustomEvent("sf360:points-updated", { detail: { points: earned } })
+          );
+        }
         window.dispatchEvent(
-          new CustomEvent("sf360:points-updated", { detail: { points: earned } })
+          new CustomEvent("arena-engagement-voted", { detail: { engagementId: item.id } })
         );
       }
       onToast(`🎉 Voted! +${memePts} SXPs Earned!`);
@@ -7189,28 +7395,36 @@ function DynamicMemeCard({
     }
   };
 
-  const handleSelectRating = (tier: MemeReactionType) => {
-    if (hasVoted) return;
-    setSelectedRating(tier);
-  };
-
-  const handleSubmitVote = async () => {
+  const handleSubmitVote = async (overrideTier?: MemeReactionType) => {
+    const tierToSubmit = overrideTier || selectedRating;
     if (!currentUserId || String(currentUserId).toLowerCase().startsWith("anon")) {
       onToast("Please sign in to vote and earn SXPs!");
       return;
     }
-    if (!selectedRating || hasVoted || loadingVote) return;
+    if (!tierToSubmit || hasVoted || loadingVote) return;
 
     setLoadingVote(true);
+    setSelectedRating(tierToSubmit);
     setHasVoted(true);
-    setStoredVote("meme", item.id, { reaction: selectedRating }, currentUserId);
+    setStoredVote("meme", item.id, { reaction: tierToSubmit }, currentUserId);
+    setStoredVote("meme_dual", item.id, { reaction: tierToSubmit }, currentUserId);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`sf_meme_voted_${item.id}`, JSON.stringify({ reaction: tierToSubmit }));
+        localStorage.setItem(`sf_voted_${item.id}`, "true");
+        if (currentUserId) {
+          localStorage.setItem(`sf_meme_voted_${item.id}_${currentUserId}`, JSON.stringify({ reaction: tierToSubmit }));
+          localStorage.setItem(`sf_voted_${item.id}_${currentUserId}`, "true");
+        }
+      } catch {}
+    }
     const nextCount = Math.max(1, totalEngaged + 1);
     setTotalEngaged(nextCount);
     onSyncEngagedCount?.(nextCount);
 
     const nextReactions = {
       ...reactions,
-      [selectedRating]: (reactions[selectedRating] || 0) + 1,
+      [tierToSubmit]: (reactions[tierToSubmit] || 0) + 1,
     };
     setReactions(nextReactions);
     const nextHeat = calculateHeatPct(nextReactions);
@@ -7219,7 +7433,7 @@ function DynamicMemeCard({
     try {
       const res: any = await engagementService.voteEngagement(
         item.id,
-        selectedRating,
+        tierToSubmit,
         currentUserId,
         undefined,
         {
@@ -7233,15 +7447,26 @@ function DynamicMemeCard({
         setHeatPercentage(res.heatPercentage || calculateHeatPct(res.reactions));
       }
       const earned = Number(res?.pointsAwarded ?? res?.participationPointsAwarded ?? memePts);
-      if (typeof window !== "undefined" && earned > 0) {
+      if (typeof window !== "undefined") {
+        if (earned > 0) {
+          window.dispatchEvent(
+            new CustomEvent("sf360:points-updated", { detail: { points: earned } })
+          );
+        }
         window.dispatchEvent(
-          new CustomEvent("sf360:points-updated", { detail: { points: earned } })
+          new CustomEvent("arena-engagement-voted", { detail: { engagementId: item.id } })
         );
       }
+      onToast(`🔥 Reaction locked in! +${memePts} SXPs earned!`);
     } catch {
     } finally {
       setLoadingVote(false);
     }
+  };
+
+  const handleSelectRating = (tier: MemeReactionType) => {
+    if (hasVoted || loadingVote) return;
+    handleSubmitVote(tier);
   };
 
   const handleLike = async () => {
@@ -7249,6 +7474,20 @@ function DynamicMemeCard({
     const nextCount = Math.max(0, likesCount + (nextLiked ? 1 : -1));
     setLiked(nextLiked);
     setLikesCount(nextCount);
+
+    if (typeof window !== "undefined" && nextLiked) {
+      try {
+        localStorage.setItem(`sf_liked_${item.id}`, "true");
+        localStorage.setItem(`sf_voted_${item.id}`, "true");
+        if (currentUserId) {
+          localStorage.setItem(`sf_liked_${item.id}_${currentUserId}`, "true");
+          localStorage.setItem(`sf_voted_${item.id}_${currentUserId}`, "true");
+        }
+        window.dispatchEvent(
+          new CustomEvent("arena-engagement-voted", { detail: { engagementId: item.id } })
+        );
+      } catch {}
+    }
 
     try {
       const res = await engagementService.toggleLikeEngagement(item.id, currentUserId, {
@@ -7619,6 +7858,39 @@ function DynamicMemeCard({
       </div>
     </motion.div>
   );
+}
+
+// ─── Universal Dynamic Arena Card Component ──────────────────────────────────
+export function DynamicArenaCard(props: {
+  item: EngagementItem;
+  userId?: string;
+  userName?: string;
+  userAvatar?: string;
+  userEmail?: string;
+  now: number;
+  onToast: (msg: string) => void;
+  onEdit?: (item: EngagementItem) => void;
+  onDelete?: (item: EngagementItem) => void;
+  isHighlighted?: boolean;
+  onOpenEngagedModal?: (item: EngagementItem) => void;
+  isEngagedExpanded?: boolean;
+  totalEngagedOverride?: number;
+  onSyncEngagedCount?: (count: number) => void;
+  onOpenLeaderboard?: () => void;
+  onQuestionChange?: (index: number, questionId: string) => void;
+}) {
+  const { item } = props;
+  if (!item) return null;
+
+  let CardComponent: React.ComponentType<any> | null = null;
+  if (item.type === "fan_battle") CardComponent = DynamicFanBattleCard;
+  else if (item.type === "quiz") CardComponent = DynamicQuizCard;
+  else if (item.type === "poll") CardComponent = DynamicPollCard;
+  else if (item.type === "prediction") CardComponent = DynamicPredictionCard;
+  else if (item.type === "meme" || item.type === "memes" || Boolean(item.memeData) || Boolean((item as any).memeType)) CardComponent = DynamicMemeCard;
+  else CardComponent = DynamicPollCard;
+
+  return <CardComponent {...props} />;
 }
 
 // ─── Engaged Users Dialog Modal ──────────────────────────────────────────────
