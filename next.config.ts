@@ -102,7 +102,7 @@ const nextConfig = {
         },
 
 
-         // Campus Ambassadors
+        // Campus Ambassadors
 
         {
           source: "/api/campus-ambassadors",
@@ -113,7 +113,7 @@ const nextConfig = {
           destination: `${apiTarget}/api/campus-ambassadors/:path*`,
         },
 
-                // Admin & Gamification Rules
+        // Admin & Gamification Rules
         {
           source: "/api/admin",
           destination: `${apiTarget}/api/admin`,
@@ -394,7 +394,7 @@ const nextConfig = {
           destination: `${apiTarget}/api/global-search/:path*`,
         },
 
-        
+
         // Channels
         {
           source: "/api/admin/channels",
@@ -405,7 +405,7 @@ const nextConfig = {
           destination: `${apiTarget}/api/admin/channels/:path*`,
         },
 
-         // Sports
+        // Sports
         {
           source: "/api/admin/sports",
           destination: `${apiTarget}/api/admin/sports`,
@@ -751,8 +751,8 @@ const nextConfig = {
           source: "/api/upload/:path*",
           destination: `${apiTarget}/api/upload/:path*`,
         },
-//upload-recording
- {
+        //upload-recording
+        {
           source: "/api/upload-recording",
           destination: `${apiTarget}/api/upload-recording`,
         },
@@ -808,8 +808,13 @@ const nextConfig = {
         },
         // roar apis
 
+        // {
+        //   source: "/api/roar/:path((?!rooms/[^/]+/dolly).*)",
+        //   destination: `${apiTarget}/api/roar/:path*`,
+        // },
+
         {
-          source: "/api/roar/:path((?!rooms/[^/]+/dolly).*)",
+          source: "/api/roar/:path*",
           destination: `${apiTarget}/api/roar/:path*`,
         },
 
@@ -932,6 +937,35 @@ const nextConfig = {
         {
           source: "/api/v2/auctions/:path*",
           destination: `${apiTarget}/api/auctions/:path*`,
+        },
+
+
+        // Matches
+        { source: "/api/matches", destination: `${apiTarget}/api/matches` },
+        {
+          source: "/api/matches/:path*",
+          destination: `${apiTarget}/api/matches/:path*`,
+        },
+
+        // Match Moments
+        { source: "/api/match-moments", destination: `${apiTarget}/api/match-moments` },
+        {
+          source: "/api/match-moments/:path*",
+          destination: `${apiTarget}/api/match-moments/:path*`,
+        },
+
+        // Matches Playlist
+        { source: "/api/matchesplaylist", destination: `${apiTarget}/api/matchesplaylist` },
+        {
+          source: "/api/matchesplaylist/:path*",
+          destination: `${apiTarget}/api/matchesplaylist/:path*`,
+        },
+
+        // Innings
+        { source: "/api/innings", destination: `${apiTarget}/api/innings` },
+        {
+          source: "/api/innings/:path*",
+          destination: `${apiTarget}/api/innings/:path*`,
         },
 
         // Invite Waitlist (DynamoDB-backed)

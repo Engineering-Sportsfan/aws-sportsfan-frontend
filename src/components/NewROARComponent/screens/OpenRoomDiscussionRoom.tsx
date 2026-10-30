@@ -1,3 +1,3513 @@
+// // src/components/NewROARComponent/screens/OpenRoomDiscussionRoom.tsx
+
+// import React, { useState, useEffect, useRef, useCallback } from "react";
+// import { motion, AnimatePresence } from "framer-motion";
+// import axios from "axios";
+// import { usePostHog } from "posthog-js/react";
+// import { trackAdvocacy, trackMeaningfulInteraction } from "@/lib/analytics";
+// import { useUserProfile } from "@/context/UserProfileContext";
+// import AvatarWithBadge, { sanitizeAvatarUrl } from "../components/AvatarWithBadge";
+// import ReactionPicker, { type Reaction } from "../components/ReactionPicker";
+// import ReactionsDialog from "../components/ReactionsDialog";
+// import ActiveFansDialog from "../components/ActiveFansDialog";
+// import { roarApi } from "@/lib/roarApi";
+// import {
+//     Image, ChevronLeft, Flame, TrendingUp, Zap, History, PenTool,
+//     Brain, Users, Volume2, VolumeX, Share2, Send, ChevronDown, ChevronUp,
+//     Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle,
+// } from "lucide-react";
+// import EmojiPicker from "@emoji-mart/react";
+// import data from "@emoji-mart/data";
+// import { RADIAL_OPTS } from "../constants";
+// import VotersDialog from "../components/VotersDialog";
+// import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
+// import EngagementCard from "@/components/Engagements/EngagementCard";
+// import type { EngagementItem } from "@/types/engagements";
+
+// const REQUEST_TIMEOUT_MS = 12000;
+// const PRESENCE_TIMEOUT_MS = 20000;
+
+// // ── Sound effects ──
+// const SOUND_FILES: Record<"join" | "comment" | "post", string> = {
+//     join: "/sounds/join.mp3",
+//     comment: "/sounds/comment.mp3",
+//     post: "/sounds/post.mp3",
+// };
+
+// interface Channel {
+//     channelId: string;
+//     name: string;
+//     slug: string;
+//     icon: string;
+//     isActive: boolean;
+//     order: number;
+// }
+
+// interface Props {
+//     onBack: () => void;
+//     onToast: (m: string) => void;
+//     roomId?: string;
+//     roomName?: string;
+//     onPostClick?: (post: any) => void;
+//     onCompose?: (type: string | null) => void;
+//     currentAvatarUrl?: string;
+//     currentUserId?: string;
+//     onRegisterRefresh?: (fn: () => void) => void;
+//     onRegisterReplyUpdate?: (fn: (postId: string, count: number) => void) => void;
+//     onFanProfile?: (fan: any) => void;
+//     onRegisterInjectPost?: (fn: (post: any) => void) => void;
+//     onRegisterOptimisticSwap?: (fn: (tempId: string, realMsg?: any) => void) => void;
+//     onChannelChange?: (channelId: string | null) => void;
+// }
+
+// const QUICK_REACT_OPTS = [
+//     { id: "qr_wicket", label: "Wicket!", emoji: "🎯", sport: "cricket" },
+//     { id: "qr_six", label: "Six!!", emoji: "💪", sport: "cricket" },
+//     { id: "qr_four", label: "Four!", emoji: "🏏", sport: "cricket" },
+//     { id: "qr_catch", label: "Catch!", emoji: "🧤", sport: "cricket" },
+//     { id: "qr_goal", label: "Goal!!", emoji: "⚽", sport: "football" },
+//     { id: "qr_redcard", label: "Red Card!", emoji: "🟥", sport: "football" },
+//     { id: "qr_frango", label: "Frango!", emoji: "🐔", sport: "football" },
+//     { id: "qr_yellowcard", label: "Yellow Card!", emoji: "🟨", sport: "football" },
+//     { id: "qr_wave", label: "Wave!", emoji: "🌊", sport: "both" },
+// ];
+
+// function formatChannelName(rawName?: string, rawSlug?: string): { name: string; slug: string; icon: string } {
+//     const slug = (rawSlug || "").toLowerCase().trim();
+//     let name = (rawName || "").trim();
+
+//     // If no name is provided or if name looks like an internal hash (12+ alphanumeric characters without space)
+//     const looksLikeHash = !name || /^[a-zA-Z0-9_-]{12,}$/.test(name);
+//     if (looksLikeHash) {
+//         if (slug && !/^[a-zA-Z0-9_-]{12,}$/.test(slug)) {
+//             name = slug.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+//         } else {
+//             name = "Channel";
+//         }
+//     }
+
+//     const cleanSlug = slug || name.toLowerCase().replace(/\s+/g, "-");
+//     const icon = cleanSlug.includes("cricket")
+//         ? "🏏"
+//         : cleanSlug.includes("foot") || cleanSlug.includes("soccer")
+//             ? "⚽"
+//             : cleanSlug.includes("athletic") || cleanSlug.includes("running")
+//                 ? "🏃"
+//                 : cleanSlug.includes("multi")
+//                     ? "🏆"
+//                     : cleanSlug.includes("basket")
+//                         ? "🏀"
+//                         : cleanSlug.includes("tennis")
+//                             ? "🎾"
+//                             : "💬";
+//     return { name, slug: cleanSlug, icon };
+// }
+
+// function getTimestamp(val: any): number {
+//     if (!val) return 0;
+//     if (typeof val === "number") {
+//         return val < 1e11 ? val * 1000 : val;
+//     }
+//     const t = new Date(val).getTime();
+//     if (!isNaN(t)) return t;
+//     const num = Number(val);
+//     if (!isNaN(num)) return num < 1e11 ? num * 1000 : num;
+//     return 0;
+// }
+
+// const normalizeEngagement = (eng: any, matchId: string): EngagementItem => ({
+//     ...eng,
+//     id: String(eng.id || eng.engagementId || eng._id || `${eng.type}-${eng.title}-${eng.createdAt ?? ""}`),
+//     matchId: eng.matchId || matchId,
+//     creatorName: "SportsFan360",
+//     creatorAvatar: "/images/sportsfan360logo.png",
+//     userName: "SportsFan360",
+//     userAvatar: "/images/sportsfan360logo.png",
+// });
+
+// function displayUsername(raw: string | undefined | null): string {
+//     if (!raw) return "RoarUser";
+//     const trimmed = raw.trim();
+//     if (!trimmed) return "RoarUser";
+//     if (!trimmed.includes("_")) return trimmed;
+//     const spaced = trimmed.replace(/_+/g, " ").replace(/\s+/g, " ").trim();
+//     if (!spaced) return "RoarUser";
+//     return spaced.split(" ").map((word) => (/[A-Z]/.test(word) ? word : word.charAt(0).toUpperCase() + word.slice(1))).join(" ");
+// }
+
+// const typeBadgeClass = (type: string) => {
+//     const base = "text-[8px] font-extrabold px-1.5 py-0.5 rounded";
+//     if (type === "prediction") return `${base} bg-[rgba(255,215,0,0.15)] text-[#fbbf24] border border-[rgba(255,215,0,0.25)]`;
+//     if (type === "post") return `${base} bg-[rgba(233,30,140,0.12)] text-[#E91E8C] border border-[rgba(233,30,140,0.2)]`;
+//     if (type === "hottake") return `${base} bg-[rgba(239,68,68,0.15)] text-[#f87171] border border-[rgba(239,68,68,0.25)]`;
+//     if (type === "debate") return `${base} bg-[rgba(233,30,140,0.15)] text-[#e91e8c] border border-[rgba(233,30,140,0.25)]`;
+//     if (type === "raw_reactions") return `${base} bg-[rgba(0,232,198,0.15)] text-[#00e8c6] border border-[rgba(0,232,198,0.25)]`;
+//     return `${base} bg-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.5)] border border-[rgba(255,255,255,0.1)]`;
+// };
+
+// const commentAccentColor = (type: string) => {
+//     if (type === "prediction") return "#22c55e";
+//     if (type === "hottake") return "#f87171";
+//     if (type === "raw_reactions") return "#00e8c6";
+//     return "#e91e8c";
+// };
+
+// function ActiveFansStack({
+//     fans, count, totalJoinCount, onClick,
+// }: {
+//     fans: { uid: string; username: string; avatarUrl?: string | null }[];
+//     count: number;
+//     totalJoinCount?: number;
+//     onClick: () => void;
+// }) {
+//     if (count === 0 && !totalJoinCount) return null;
+//     const formatCount = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${n}`;
+//     return (
+//         <button
+//             type="button"
+//             onClick={onClick}
+//             className="flex items-center gap-0 bg-transparent border-none cursor-pointer py-0.5 px-0 hover:bg-white/5 transition-colors rounded flex-shrink-0"
+//         >
+//             <span className="text-[9px] font-semibold text-white/50 whitespace-nowrap">
+//                 Members{" "}
+//                 <span className="text-white font-bold">{formatCount(count)} active</span>
+//                 {totalJoinCount !== undefined && totalJoinCount > 0 && (
+//                     <>
+//                         {" / "}
+//                         <span className="text-white font-bold">{formatCount(totalJoinCount)}</span> total joined
+//                     </>
+//                 )}
+//             </span>
+//         </button>
+//     );
+// }
+
+// function useVisibilityInterval(callback: () => void, delay: number) {
+//     const savedCallback = useRef(callback);
+//     useEffect(() => { savedCallback.current = callback; }, [callback]);
+//     useEffect(() => {
+//         let id: ReturnType<typeof setInterval>;
+//         const start = () => { id = setInterval(() => { if (!document.hidden) savedCallback.current(); }, delay); };
+//         const handleVisibility = () => { clearInterval(id); if (!document.hidden) { savedCallback.current(); start(); } };
+//         start();
+//         document.addEventListener("visibilitychange", handleVisibility);
+//         return () => { clearInterval(id); document.removeEventListener("visibilitychange", handleVisibility); };
+//     }, [delay]);
+// }
+
+// interface MentionUser {
+//     userId: string;
+//     username?: string;
+//     name?: string;
+//     firstName?: string;
+//     lastName?: string;
+//     avatarUrl?: string;
+//     avatar?: string;
+//     email?: string;
+// }
+
+// function useMentionAutocomplete(activeUsername?: string) {
+//     const [allUsers, setAllUsers] = useState<MentionUser[]>([]);
+//     const [mentionUsers, setMentionUsers] = useState<MentionUser[]>([]);
+//     const [showMentionPopup, setShowMentionPopup] = useState(false);
+//     const [mentionIndex, setMentionIndex] = useState(0);
+//     const [cursorPosition, setCursorPosition] = useState(0);
+
+//     const hasUnderscore = (user: any): boolean => {
+//         const username = user.username || "";
+//         const name = user.name || "";
+//         const firstName = user.firstName || "";
+//         const lastName = user.lastName || "";
+//         return username.includes("_") || name.includes("_") || firstName.includes("_") || lastName.includes("_");
+//     };
+
+//     const getAvatarUrl = (user: any): string | undefined => {
+//         return user.avatarUrl || user.avatar || user.profilePicture || user.profileImage || user.image || undefined;
+//     };
+
+//     useEffect(() => {
+//         axios.get("/api/users", { withCredentials: true, timeout: REQUEST_TIMEOUT_MS })
+//             .then(res => {
+//                 if (!res.data?.users) return;
+//                 const seen = new Set<string>();
+//                 setAllUsers(
+//                     res.data.users
+//                         .filter((u: any) => {
+//                             const n = u.username || u.name || `${u.firstName || ""} ${u.lastName || ""}`.trim();
+//                             return n !== activeUsername && !hasUnderscore(u);
+//                         })
+//                         .map((u: any) => ({
+//                             userId: u.userId || u.id,
+//                             username: u.username,
+//                             firstName: u.firstName,
+//                             lastName: u.lastName,
+//                             name: u.name,
+//                             avatarUrl: getAvatarUrl(u),
+//                             email: u.email,
+//                         }))
+//                         .filter((u: MentionUser) => {
+//                             const key = u.userId || u.username;
+//                             if (!key || seen.has(key)) return false;
+//                             const dn = u.username || u.name || `${u.firstName || ""}${u.lastName || ""}`.trim();
+//                             if (dn.includes("_")) return false;
+//                             seen.add(key);
+//                             return true;
+//                         })
+//                 );
+//             })
+//             .catch(() => { });
+//     }, [activeUsername]);
+
+//     const handleMentionInputChange = (value: string, cursorPos: number) => {
+//         setCursorPosition(cursorPos);
+//         const before = value.slice(0, cursorPos);
+//         const at = before.lastIndexOf("@");
+//         if (at !== -1) {
+//             const afterAt = before.slice(at + 1);
+//             if (!afterAt.includes(" ")) {
+//                 const filtered = afterAt.trim() === ""
+//                     ? allUsers.slice(0, 8)
+//                     : allUsers.filter(u =>
+//                         `${u.username || ""} ${u.firstName || ""} ${u.lastName || ""} ${u.email || ""}`
+//                             .toLowerCase().includes(afterAt.toLowerCase())
+//                     ).slice(0, 8);
+//                 setMentionUsers(filtered);
+//                 setShowMentionPopup(filtered.length > 0);
+//                 setMentionIndex(0);
+//                 return;
+//             }
+//         }
+//         setShowMentionPopup(false);
+//         setMentionUsers([]);
+//     };
+
+//     const insertMention = (
+//         user: MentionUser,
+//         currentText: string,
+//         setText: (t: string) => void,
+//         inputRef: React.RefObject<HTMLInputElement | null>
+//     ) => {
+//         const dn = user.username || user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email?.split("@")[0] || "user";
+//         const mt = `@${dn} `;
+//         const before = currentText.slice(0, cursorPosition);
+//         const at = before.lastIndexOf("@");
+//         const newText = `${currentText.slice(0, at)}${mt}${currentText.slice(cursorPosition)}`;
+//         setText(newText);
+//         setShowMentionPopup(false);
+//         setMentionUsers([]);
+//         setTimeout(() => {
+//             if (inputRef.current) {
+//                 const p = at + mt.length;
+//                 inputRef.current.focus();
+//                 inputRef.current.setSelectionRange(p, p);
+//             }
+//         }, 10);
+//     };
+
+//     const handleMentionKeyDown = (
+//         e: React.KeyboardEvent<HTMLInputElement>,
+//         currentText: string,
+//         setText: (t: string) => void,
+//         inputRef: React.RefObject<HTMLInputElement | null>
+//     ): boolean => {
+//         if (!showMentionPopup || mentionUsers.length === 0) return false;
+//         if (e.key === "ArrowDown") { e.preventDefault(); setMentionIndex(p => (p + 1) % mentionUsers.length); return true; }
+//         if (e.key === "ArrowUp") { e.preventDefault(); setMentionIndex(p => (p - 1 + mentionUsers.length) % mentionUsers.length); return true; }
+//         if (e.key === "Enter" || e.key === "Tab") {
+//             e.preventDefault();
+//             if (mentionUsers[mentionIndex]) insertMention(mentionUsers[mentionIndex], currentText, setText, inputRef);
+//             return true;
+//         }
+//         if (e.key === "Escape") { setShowMentionPopup(false); setMentionUsers([]); return true; }
+//         return false;
+//     };
+
+//     return {
+//         mentionUsers, showMentionPopup, mentionIndex, setMentionIndex,
+//         handleMentionInputChange, handleMentionKeyDown, insertMention,
+//     };
+// }
+
+// function MentionPopup({
+//     mentionUsers, mentionIndex, setMentionIndex, onSelect, currentAvatarLookup,
+// }: {
+//     mentionUsers: MentionUser[];
+//     mentionIndex: number;
+//     setMentionIndex: (i: number) => void;
+//     onSelect: (u: MentionUser) => void;
+//     currentAvatarLookup?: (u: MentionUser) => string | undefined;
+// }) {
+//     return (
+//         <div style={{
+//             position: "absolute", bottom: "100%", left: 8, right: 8, marginBottom: 6,
+//             background: "#181c24", borderRadius: 14, border: "1px solid rgba(255,255,255,0.1)",
+//             overflow: "hidden", zIndex: 60, boxShadow: "0 8px 32px rgba(0,0,0,0.4)", maxHeight: 220, overflowY: "auto",
+//         }}>
+//             {mentionUsers.map((user, idx) => {
+//                 const dn = user.username || user.name || `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.email?.split("@")[0] || "user";
+//                 const avatarUrl = currentAvatarLookup?.(user) || user.avatarUrl || user.avatar;
+
+//                 return (
+//                     <button
+//                         key={user.userId}
+//                         type="button"
+//                         onClick={() => onSelect(user)}
+//                         onMouseEnter={() => setMentionIndex(idx)}
+//                         style={{
+//                             display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 12px",
+//                             border: "none", cursor: "pointer", textAlign: "left",
+//                             background: idx === mentionIndex ? "rgba(233,30,140,0.15)" : "transparent",
+//                         }}
+//                     >
+//                         <div style={{
+//                             width: 24, height: 24, borderRadius: "50%", overflow: "hidden",
+//                             flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)",
+//                             display: "flex", alignItems: "center", justifyContent: "center",
+//                             fontSize: 10, fontWeight: 700, color: "#fff"
+//                         }}>
+//                             {avatarUrl ? (
+//                                 <img src={avatarUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+//                             ) : (
+//                                 <span>{dn[0]?.toUpperCase() || "?"}</span>
+//                             )}
+//                         </div>
+//                         <span style={{ fontSize: 12, fontWeight: 600, color: "#fff" }}>{dn}</span>
+//                     </button>
+//                 );
+//             })}
+//         </div>
+//     );
+// }
+
+// function mentionMatchesAuthor(mentionToken: string, authorUsername: string): boolean {
+//     const mention = mentionToken.toLowerCase().trim();
+//     const uname = (authorUsername ?? "").toLowerCase().trim();
+//     if (uname === mention) return true;
+//     const segments = uname.split(/[\s_\.]+/).filter(Boolean);
+//     if (segments.some(seg => seg === mention)) return true;
+//     if (segments.join("") === mention.replace(/\s+/g, "")) return true;
+//     return false;
+// }
+
+// function threadSort(flat: any[]): any[] {
+//     const result: any[] = [];
+//     for (const comment of flat) {
+//         const text: string = (comment.text ?? "").trimStart();
+//         const mentionMatch = text.match(/^@(\S+)/);
+//         if (mentionMatch) {
+//             const mentionToken = mentionMatch[1];
+//             let insertAfter = -1;
+//             for (let i = result.length - 1; i >= 0; i--) {
+//                 if (mentionMatchesAuthor(mentionToken, result[i].authorUsername ?? "")) {
+//                     insertAfter = i;
+//                     break;
+//                 }
+//             }
+//             if (insertAfter >= 0) {
+//                 let insertAt = insertAfter + 1;
+//                 while (
+//                     insertAt < result.length &&
+//                     (result[insertAt].text ?? "").trimStart().match(/^@/)
+//                 ) {
+//                     insertAt++;
+//                 }
+//                 result.splice(insertAt, 0, comment);
+//                 continue;
+//             }
+//         }
+//         result.push(comment);
+//     }
+//     return result;
+// }
+
+// const BOT_AVATAR_MAP: Record<string, string> = {
+//     dolly: "/images/dolly.png",
+//     radha: "/images/radha.png",
+//     krishna: "/images/krishna.png",
+// };
+
+// function getBotAvatarUrl(name?: string): string {
+//     const key = (name || "").trim().toLowerCase();
+//     return BOT_AVATAR_MAP[key] ?? BOT_AVATAR_MAP.dolly;
+// }
+
+// function getKnownBotAvatarUrl(name?: string): string | undefined {
+//     const key = (name || "").trim().toLowerCase();
+//     return BOT_AVATAR_MAP[key];
+// }
+
+// const abbrevOf = (name?: string) => (name || "").trim().slice(0, 2).toUpperCase() || "??";
+
+// function DollyCardHeader({ post, typeLabel, typeColor, typeIcon, onFanProfile }: {
+//     post: any; typeLabel: string; typeColor: string; typeIcon: React.ReactNode; onFanProfile?: (fan: any) => void;
+// }) {
+//     const botName = post.botName || post.authorUsername || "Dolly";
+//     return (
+//         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, cursor: onFanProfile ? "pointer" : "default" }}
+//             onClick={(e) => {
+//                 e.stopPropagation();
+//                 onFanProfile?.({
+//                     username: botName,
+//                     avatarUrl: getBotAvatarUrl(botName),
+//                     isBot: true,
+//                 });
+//             }}
+//         >
+//             <img src={getBotAvatarUrl(botName)} alt="" style={{ width: 18, height: 18, borderRadius: "50%", objectFit: "cover", flexShrink: 0 }} />
+//             <span style={{ fontWeight: 700, fontSize: 10, color: "#fff" }}>{botName}</span>
+//             <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)" }}>{post.timeAgo}</span>
+//             <span className={`text-[7px] font-extrabold px-1.5 py-0.5 rounded uppercase inline-flex items-center gap-1`} style={{ background: `${typeColor}22`, color: typeColor, border: `1px solid ${typeColor}40` }}>
+//                 {typeIcon} {typeLabel}
+//             </span>
+//         </div>
+//     );
+// }
+
+// function TriviaCard({ post, onToast, onPostClick, roomId, onFanProfile }: {
+//     post: any; onToast: (m: string) => void; onPostClick?: (post: any) => void; roomId?: string; onFanProfile?: (fan: any) => void;
+// }) {
+//     const questions: { question: string; options: { label: string; text?: string; isCorrect?: boolean }[] }[] = post.triviaQuestions ?? [];
+//     const [answers, setAnswers] = useState<Record<number, { selected: string; correctOption?: string; isCorrect?: boolean }>>(() => {
+//         const initial: Record<number, { selected: string; correctOption?: string; isCorrect?: boolean }> = {};
+//         Object.entries(post.userTriviaAnswers ?? {}).forEach(([idx, val]: [string, any]) => {
+//             initial[Number(idx)] = { selected: val.selectedOption ?? val.selected, correctOption: val.correctOption, isCorrect: val.isCorrect };
+//         });
+//         return initial;
+//     });
+//     const [submittingIdx, setSubmittingIdx] = useState<number | null>(null);
+//     const isExpired = Boolean(post.closesAt && post.closesAt <= Date.now());
+
+//     const handleAnswer = useCallback(async (qIndex: number, label: string) => {
+//         if (answers[qIndex] || submittingIdx !== null || isExpired) return;
+//         setSubmittingIdx(qIndex);
+//         setAnswers(prev => ({ ...prev, [qIndex]: { selected: label } }));
+//         try {
+//             const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/trivia-answer`, {
+//                 questionIndex: qIndex, selectedOption: label,
+//             }, { timeout: REQUEST_TIMEOUT_MS });
+//             const correctOption = res.data?.correctOption;
+//             const isCorrect = res.data?.isCorrect;
+//             setAnswers(prev => ({ ...prev, [qIndex]: { selected: label, correctOption, isCorrect } }));
+//             onToast(isCorrect ? "Correct! Points awarded" : `Wrong! Correct answer was ${correctOption ?? "revealed"}`);
+//         } catch (err: any) {
+//             if (err?.response?.status !== 409) {
+//                 setAnswers(prev => { const next = { ...prev }; delete next[qIndex]; return next; });
+//                 onToast("Failed to submit answer");
+//             }
+//         } finally {
+//             setSubmittingIdx(null);
+//         }
+//     }, [answers, submittingIdx, isExpired, roomId, post.id, onToast]);
+
+//     return (
+//         <div style={{ padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+//             <DollyCardHeader post={post} typeLabel="Trivia" typeColor="#E91E8C" typeIcon={<Brain size={8} />} onFanProfile={onFanProfile} />
+
+//             {questions.map((q, qIndex) => {
+//                 const answered = answers[qIndex];
+//                 const hasAnswered = Boolean(answered);
+//                 return (
+//                     <div key={qIndex} style={{ marginBottom: qIndex < questions.length - 1 ? 12 : 3 }}>
+//                         <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
+//                             <p style={{ fontWeight: 700, fontSize: 11, lineHeight: 1.3, margin: 0, color: "#fff", cursor: "pointer" }} onClick={() => onPostClick && onPostClick(post)}>
+//                                 {questions.length > 1 ? `${qIndex + 1}. ` : ""}{q.question}
+//                             </p>
+//                             {isExpired && !hasAnswered && (
+//                                 <span style={{ flexShrink: 0, fontSize: 8, fontWeight: 800, color: "#c084fc", background: "rgba(147,51,234,0.18)", border: "1px solid rgba(147,51,234,0.35)", borderRadius: 0, padding: "2px 6px", whiteSpace: "nowrap" }}>
+//                                     Time up!
+//                                 </span>
+//                             )}
+//                         </div>
+//                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+//                             {(() => {
+//                                 const OPTION_LETTERS = ["A", "B", "C", "D", "E", "F"];
+//                                 const revealedCorrectLabel = q.options.find(o => o.isCorrect)?.label;
+//                                 const correctLabel = answered?.correctOption ?? revealedCorrectLabel;
+//                                 return q.options.map((opt, optIndex) => {
+//                                     const label = opt.label;
+//                                     const optionLetter = OPTION_LETTERS[optIndex] ?? String(optIndex + 1);
+//                                     const isSelected = answered?.selected === label;
+//                                     const isCorrect = hasAnswered && correctLabel === label;
+//                                     const isWrong = hasAnswered && isSelected && !!correctLabel && correctLabel !== label;
+//                                     const style: React.CSSProperties = isCorrect
+//                                         ? { background: "rgba(34,197,94,0.14)", border: "1.5px solid rgba(34,197,94,0.5)" }
+//                                         : isWrong
+//                                             ? { background: "rgba(244,67,54,0.1)", border: "1.5px solid rgba(244,67,54,0.4)" }
+//                                             : hasAnswered
+//                                                 ? { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)", opacity: 0.5 }
+//                                                 : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)" };
+//                                     const badgeStyle: React.CSSProperties = isCorrect
+//                                         ? { background: "#22c55e", color: "#0a0a10" }
+//                                         : { background: "rgba(147,51,234,0.25)", color: "#c084fc" };
+//                                     return (
+//                                         <motion.div key={label} whileTap={!hasAnswered && submittingIdx === null ? { scale: 0.96 } : {}}
+//                                             onClick={(e) => { e.stopPropagation(); handleAnswer(qIndex, label); }}
+//                                             style={{ ...style, borderRadius: 0, padding: "6px 8px", display: "flex", alignItems: "center", gap: 6, cursor: (hasAnswered || isExpired) ? "default" : "pointer", transition: "all 0.2s" }}
+//                                         >
+//                                             <span style={{ width: 16, height: 16, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 8, fontWeight: 800, flexShrink: 0, ...badgeStyle }}>
+//                                                 {isCorrect ? <CheckCircle2 size={10} /> : optionLetter}
+//                                             </span>
+//                                             <span style={{ fontSize: 10, fontWeight: 700, color: isCorrect ? "#4ade80" : isWrong ? "#f87171" : "#e5e5f0" }}>
+//                                                 {opt.text || label}
+//                                             </span>
+//                                         </motion.div>
+//                                     );
+//                                 });
+//                             })()}
+//                         </div>
+//                     </div>
+//                 );
+//             })}
+//         </div>
+//     );
+// }
+
+// function BattleSwipeCard({
+//     post, roomId, qIndex, playerA, playerB, initialVote, onToast,
+// }: {
+//     post: any; roomId?: string; qIndex: number;
+//     playerA: { name: string; team?: string; image?: string };
+//     playerB: { name: string; team?: string; image?: string };
+//     initialVote?: "playerA" | "playerB";
+//     onToast: (m: string) => void;
+// }) {
+//     const [votedSide, setVotedSide] = useState<"playerA" | "playerB" | undefined>(initialVote);
+//     const [candidateIdx, setCandidateIdx] = useState(0);
+//     const [dragX, setDragX] = useState(0);
+//     const [flash, setFlash] = useState<"green" | "red" | null>(null);
+//     const [submitting, setSubmitting] = useState(false);
+//     const [showInstruction, setShowInstruction] = useState(true);
+//     const [hasInteracted, setHasInteracted] = useState(false);
+
+//     useEffect(() => {
+//         if (hasInteracted) {
+//             setShowInstruction(false);
+//             return;
+//         }
+//         const timer = setTimeout(() => setShowInstruction(false), 5000);
+//         return () => clearTimeout(timer);
+//     }, [hasInteracted]);
+
+//     const candidate = candidateIdx === 0 ? playerA : playerB;
+//     const candidateSide: "playerA" | "playerB" = candidateIdx === 0 ? "playerA" : "playerB";
+
+//     const vibrate = (pattern: number | number[]) => {
+//         try {
+//             if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+//                 navigator.vibrate(pattern);
+//             }
+//         } catch { }
+//     };
+
+//     const castVote = useCallback(async (side: "playerA" | "playerB") => {
+//         if (submitting || votedSide) return;
+//         setSubmitting(true);
+//         setFlash("green");
+//         setVotedSide(side);
+//         vibrate(30);
+//         setHasInteracted(true);
+
+//         const failsafe = setTimeout(() => setSubmitting(false), REQUEST_TIMEOUT_MS + 3000);
+//         try {
+//             await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/vote`, {
+//                 vote: side,
+//                 questionIndex: qIndex
+//             }, { timeout: REQUEST_TIMEOUT_MS });
+//             onToast(`You voted for ${side === "playerA" ? playerA.name : playerB.name}!`);
+//         } catch (err: any) {
+//             if (err?.response?.status !== 409) {
+//                 setVotedSide(undefined);
+//                 onToast("Failed to submit vote");
+//             }
+//         } finally {
+//             clearTimeout(failsafe);
+//             setSubmitting(false);
+//         }
+//     }, [submitting, votedSide, roomId, post.id, qIndex, playerA, playerB, onToast]);
+
+//     const reject = useCallback(() => {
+//         setFlash("red");
+//         vibrate(20);
+//         setHasInteracted(true);
+//         setTimeout(() => {
+//             setFlash(null);
+//             setDragX(0);
+//             setCandidateIdx(i => (i === 0 ? 1 : 0));
+//         }, 180);
+//     }, []);
+
+//     const handleDragEnd = (_e: any, info: { offset: { x: number } }) => {
+//         if (info.offset.x > 90) {
+//             castVote(candidateSide);
+//         } else if (info.offset.x < -90) {
+//             reject();
+//         } else {
+//             setDragX(0);
+//         }
+//     };
+
+//     if (votedSide) {
+//         const winner = votedSide === "playerA" ? playerA : playerB;
+//         const loser = votedSide === "playerA" ? playerB : playerA;
+//         return (
+//             <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25">
+//                 <CheckCircle2 size={14} className="text-emerald-400 shrink-0" />
+//                 <span className="text-[10px] text-gray-200">
+//                     You picked <strong className="text-emerald-400">{winner.name}</strong> over {loser.name}
+//                 </span>
+//             </div>
+//         );
+//     }
+
+//     const showFullInstruction = showInstruction && !hasInteracted;
+
+//     return (
+//         <div className="mt-1">
+//             {showFullInstruction && (
+//                 <motion.div
+//                     initial={{ opacity: 0, y: -10 }}
+//                     animate={{ opacity: 1, y: 0 }}
+//                     exit={{ opacity: 0, y: -10 }}
+//                     className="flex items-center justify-center gap-2 px-3 py-1.5 mb-2 rounded-lg bg-gradient-to-r from-rose-500/12 to-orange-500/8 border border-rose-500/20"
+//                 >
+//                     <span className="text-sm">👆</span>
+//                     <span className="text-[10px] text-white/70">
+//                         <strong className="text-white">Swipe right</strong> to vote for <strong className="text-rose-400">{candidate.name}</strong> ·
+//                         <strong className="text-white"> Swipe left</strong> to see the other option
+//                     </span>
+//                     <button
+//                         onClick={() => setShowInstruction(false)}
+//                         className="bg-transparent border-none text-white/30 cursor-pointer text-xs px-1"
+//                     >
+//                         ✕
+//                     </button>
+//                 </motion.div>
+//             )}
+
+//             <div className="flex justify-center items-center gap-1.5 mb-1.5">
+//                 {[0, 1].map((idx) => (
+//                     <div
+//                         key={idx}
+//                         className={`h-1 rounded-full transition-all duration-300 ${idx === candidateIdx
+//                             ? "w-5 bg-gradient-to-r from-rose-500 to-orange-500"
+//                             : "w-1.5 bg-white/20"
+//                             }`}
+//                     />
+//                 ))}
+//                 <span className="text-[8px] text-white/30 font-semibold ml-1">
+//                     {candidateIdx + 1} of 2
+//                 </span>
+//             </div>
+
+//             <motion.div
+//                 drag="x"
+//                 dragConstraints={{ left: 0, right: 0 }}
+//                 dragElastic={0.7}
+//                 dragMomentum={false}
+//                 onDrag={(_e, info) => setDragX(info.offset.x)}
+//                 onDragEnd={handleDragEnd}
+//                 animate={flash ? { x: flash === "green" ? 260 : -260, opacity: 0 } : { x: 0, opacity: 1 }}
+//                 transition={{ duration: 0.22 }}
+//                 whileTap={{ scale: 0.98 }}
+//                 className="relative rounded-xl p-3 text-center bg-white/5 border border-white/10 flex flex-col items-center gap-1 cursor-grab touch-none select-none overflow-hidden"
+//             >
+//                 <div
+//                     className="absolute inset-0 pointer-events-none transition-colors duration-75"
+//                     style={{
+//                         background: `rgba(${dragX > 0 ? '34,197,94' : '244,67,54'},${Math.min(Math.abs(dragX) / 100, 0.4)})`
+//                     }}
+//                 />
+
+//                 {Math.abs(dragX) > 20 && (
+//                     <div className={`absolute top-1.5 ${dragX > 0 ? 'left-2' : 'right-2'} text-[10px] font-extrabold rounded border-2 px-1.5 py-0.5 bg-black/60 z-10 ${dragX > 0 ? 'text-emerald-400 border-emerald-400' : 'text-red-400 border-red-400'
+//                         }`}>
+//                         {dragX > 0 ? "VOTE ✅" : "SKIP ➡️"}
+//                     </div>
+//                 )}
+
+//                 {candidate.image ? (
+//                     <img
+//                         src={candidate.image}
+//                         alt={candidate.name}
+//                         className="w-10 h-10 rounded-full object-cover"
+//                         draggable={false}
+//                     />
+//                 ) : (
+//                     <span className="font-display text-2xl font-black text-white leading-none">
+//                         {abbrevOf(candidate.team || candidate.name)}
+//                     </span>
+//                 )}
+
+//                 <span className="font-bold text-xs text-white leading-tight">
+//                     {candidate.name}
+//                 </span>
+
+//                 {candidate.team && (
+//                     <span className="text-[10px] text-white/50">
+//                         {candidate.team}
+//                     </span>
+//                 )}
+//             </motion.div>
+//         </div>
+//     );
+// }
+
+// function BattleCard({ post, onToast, onPostClick, roomId, onFanProfile }: {
+//     post: any; onToast: (m: string) => void; onPostClick?: (post: any) => void; roomId?: string; onFanProfile?: (fan: any) => void;
+// }) {
+//     const questions: { question?: string; playerA: { name: string; team?: string; image?: string }; playerB: { name: string; team?: string; image?: string } }[] = post.battleQuestions ?? [];
+//     const votesByQuestion: Record<number, "playerA" | "playerB"> = post.userPredictionVotes ?? {};
+//     const isExpired = Boolean(post.closesAt && post.closesAt <= Date.now());
+
+//     return (
+//         <div style={{ padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
+//             <DollyCardHeader post={post} typeLabel="Battle" typeColor="#f97316" typeIcon={<Zap size={8} />} onFanProfile={onFanProfile} />
+
+//             {questions.map((q, qIndex) => {
+//                 const alreadyVoted = votesByQuestion[qIndex];
+//                 return (
+//                     <div key={qIndex} style={{ marginBottom: qIndex < questions.length - 1 ? 12 : 3 }}>
+//                         {q.question && (
+//                             <p style={{ fontWeight: 600, fontSize: 10, lineHeight: 1.3, marginBottom: 6, color: "rgba(255,255,255,0.75)", cursor: "pointer" }} onClick={() => onPostClick && onPostClick(post)}>
+//                                 {q.question}
+//                             </p>
+//                         )}
+//                         {isExpired && !alreadyVoted ? (
+//                             <p style={{ fontSize: 10, color: "rgba(255,255,255,0.4)", fontStyle: "italic" }}>Voting closed</p>
+//                         ) : (
+//                             <BattleSwipeCard
+//                                 post={post} roomId={roomId} qIndex={qIndex}
+//                                 playerA={q.playerA} playerB={q.playerB}
+//                                 initialVote={alreadyVoted}
+//                                 onToast={onToast}
+//                             />
+//                         )}
+//                     </div>
+//                 );
+//             })}
+//         </div>
+//     );
+// }
+
+// function InlineSection({
+//     postId, roomId, roomName, isOpen, onOpenFull, accentColor, currentAvatarUrl,
+//     onCommentPosted, onCommentDeleted, currentUserId, currentUsername, onFanProfile, onToast,
+// }: {
+//     postId: string; roomId: string; roomName?: string; isOpen: boolean; onOpenFull: () => void;
+//     accentColor: string; currentAvatarUrl?: string; onCommentPosted: () => void;
+//     onCommentDeleted?: () => void;
+//     currentUserId?: string; currentUsername?: string; onFanProfile?: (fan: any) => void;
+//     onToast: (m: string) => void;
+// }) {
+//     const phog = usePostHog();
+//     const [replies, setReplies] = useState<any[]>([]);
+//     const [showAllReplies, setShowAllReplies] = useState(false);
+//     const [loading, setLoading] = useState(false);
+//     const [commentText, setCommentText] = useState("");
+//     const [sending, setSending] = useState(false);
+//     const [replyTo, setReplyTo] = useState<{ commentId: string; authorUsername: string } | null>(null);
+//     const inputRef = useRef<HTMLInputElement>(null);
+//     const [isAnimatingHeight, setIsAnimatingHeight] = useState(true);
+//     const [commentReactions, setCommentReactions] = useState<Record<string, { reaction: Reaction | null; heartCount: number }>>({});
+//     const pendingCommentReactRef = useRef<Record<string, boolean>>({});
+//     const commentTopReactionsCache = useRef<Record<string, string[]>>({});
+//     const [commentTopReactionsMap, setCommentTopReactionsMap] = useState<Record<string, string[]>>({});
+//     const [reactionsDialogCommentId, setReactionsDialogCommentId] = useState<string | null>(null);
+//     const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+//     const mention = useMentionAutocomplete(currentUsername);
+
+//     const REACTION_EMOJI: Record<string, string> = {
+//         fire: "🔥", heart: "❤️", mindblown: "🤯", goat: "🐐", clap: "👏",
+//         nochance: "🙅", laugh: "😂", sad: "😢", thumb: "👍",
+//     };
+
+//     const fetchCommentTopReactions = useCallback(async (commentId: string) => {
+//         if (commentTopReactionsCache.current[commentId] !== undefined) return;
+//         commentTopReactionsCache.current[commentId] = [];
+//         try {
+//             const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}/reactions`, { timeout: REQUEST_TIMEOUT_MS });
+//             const reactors: { reaction: string }[] = res.data?.reactors ?? [];
+//             const counts: Record<string, number> = {};
+//             reactors.forEach(r => { counts[r.reaction] = (counts[r.reaction] ?? 0) + 1; });
+//             const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 3).map(([type]) => type);
+//             commentTopReactionsCache.current[commentId] = top;
+//             setCommentTopReactionsMap(prev => ({ ...prev, [commentId]: top }));
+//         } catch { commentTopReactionsCache.current[commentId] = []; }
+//     }, [roomId, postId]);
+
+//     const handleCommentReact = useCallback(async (commentId: string, reaction: Reaction | null) => {
+//         if (pendingCommentReactRef.current[commentId]) return;
+//         const comment = replies.find(c => (c.commentId || c.id) === commentId);
+//         const persistedReaction: Reaction | null =
+//             comment?.userReaction ?? (currentUserId ? (comment?.reactions?.[currentUserId] ?? null) : null);
+//         const prev = commentReactions[commentId] ?? { reaction: persistedReaction, heartCount: comment?.heartCount ?? 0 };
+//         const sameReaction = prev.reaction === reaction;
+//         const newReaction = sameReaction ? null : reaction;
+//         const wasActive = prev.reaction !== null;
+//         const newActive = newReaction !== null;
+//         const delta = newActive && !wasActive ? 1 : (!newActive && wasActive ? -1 : 0);
+//         const optimistic = { reaction: newReaction, heartCount: Math.max(0, prev.heartCount + delta) };
+
+//         setCommentReactions(p => ({ ...p, [commentId]: optimistic }));
+//         delete commentTopReactionsCache.current[commentId];
+//         pendingCommentReactRef.current[commentId] = true;
+//         const failsafe = setTimeout(() => { pendingCommentReactRef.current[commentId] = false; }, REQUEST_TIMEOUT_MS + 3000);
+//         try {
+//             const res = await axios.post(
+//                 `/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}/react`,
+//                 { reaction: newReaction ?? prev.reaction },
+//                 { timeout: REQUEST_TIMEOUT_MS }
+//             );
+//             if (res.data && typeof res.data.heartCount === "number") {
+//                 setCommentReactions(p => ({ ...p, [commentId]: { ...optimistic, heartCount: res.data.heartCount } }));
+//             }
+//             delete commentTopReactionsCache.current[commentId];
+//             setCommentTopReactionsMap(p => { const n = { ...p }; delete n[commentId]; return n; });
+//         } catch {
+//             setCommentReactions(p => ({ ...p, [commentId]: prev }));
+//         } finally {
+//             clearTimeout(failsafe);
+//             pendingCommentReactRef.current[commentId] = false;
+//         }
+//     }, [roomId, postId, replies, commentReactions, currentUserId]);
+
+//     const fetchReplies = useCallback(async () => {
+//         setLoading(true);
+//         try {
+//             const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { params: { limit: 50 }, timeout: REQUEST_TIMEOUT_MS });
+//             const list: any[] = res.data?.comments ?? [];
+//             const oldestFirst = [...list].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
+//             const threaded = threadSort(oldestFirst);
+//             setReplies(threaded);
+//         } catch { setReplies([]); }
+//         finally { setLoading(false); }
+//     }, [postId, roomId]);
+
+//     useEffect(() => {
+//         if (isOpen) { fetchReplies(); setTimeout(() => inputRef.current?.focus(), 180); }
+//     }, [isOpen, fetchReplies]);
+
+//     const handleSend = async () => {
+//         const fullText = replyTo ? `@${replyTo.authorUsername} ${commentText.trim()}` : commentText.trim();
+//         if (!fullText || sending) return;
+//         setSending(true);
+//         try {
+//             trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "", text: fullText });
+//             if (phog) {
+//                 phog.capture("meaningful_interaction", {
+//                     interaction_type: "comment",
+//                     post_id: postId,
+//                     room_id: roomId,
+//                     room_name: roomName || "",
+//                     text: fullText,
+//                 });
+//             }
+//         } catch (e) { }
+//         try {
+//             await axios.post(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { text: fullText }, { timeout: REQUEST_TIMEOUT_MS });
+//             if (phog) {
+//                 phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+//             }
+//             try {
+//                 trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+//             } catch (e) { }
+//             setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
+//         } catch (err: any) {
+//             const isTimeout = err?.code === "ECONNABORTED" || err?.message?.includes("timeout");
+//             onToast(isTimeout ? "Taking too long — please try again" : "Failed to send comment");
+//         }
+//         finally { setSending(false); }
+//     };
+
+//     const handleDeleteComment = useCallback(async (commentId: string) => {
+//         if (!window.confirm("Delete this reply?")) return;
+//         setDeletingCommentId(commentId);
+//         try {
+//             await axios.delete(`/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}`, { timeout: REQUEST_TIMEOUT_MS });
+//             setReplies(prev => prev.filter(r => (r.id ?? r.commentId) !== commentId));
+//             onCommentDeleted?.();
+//         } catch {
+//         } finally {
+//             setDeletingCommentId(null);
+//         }
+//     }, [roomId, postId, onCommentDeleted]);
+
+//     if (!isOpen) return null;
+
+//     return (
+//         <motion.div
+//             initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+//             exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}
+//             onAnimationStart={() => setIsAnimatingHeight(true)}
+//             onAnimationComplete={() => setIsAnimatingHeight(false)}
+//             style={{ overflow: isAnimatingHeight ? "hidden" : "visible" }}
+//             onClick={e => e.stopPropagation()}
+//         >
+//             <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 0 }}>
+//                 {loading ? (
+//                     <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginBottom: 6, paddingLeft: 4 }}>Loading replies…</p>
+//                 ) : replies.length === 0 ? (
+//                     <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginBottom: 6, paddingLeft: 4 }}>No replies yet — be the first!</p>
+//                 ) : (
+//                     <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
+//                         {(showAllReplies ? replies : replies.slice(0, 2)).map((r, i) => {
+//                             const isReply = /^@\S+/.test((r.text ?? "").trimStart());
+//                             const commentId = r.id ?? r.commentId ?? String(i);
+//                             const persistedReaction: Reaction | null =
+//                                 r.userReaction ?? (currentUserId ? (r.reactions?.[currentUserId] ?? null) : null);
+//                             const lo = commentReactions[commentId];
+//                             const currentReaction: Reaction | null = lo !== undefined ? lo.reaction : persistedReaction;
+//                             const liveHeartCount = lo !== undefined ? lo.heartCount : (r.heartCount ?? 0);
+//                             const topReactions = commentTopReactionsMap[commentId] ?? [];
+//                             if (liveHeartCount > 0 && topReactions.length === 0 && !commentTopReactionsCache.current[commentId]) {
+//                                 fetchCommentTopReactions(commentId);
+//                             }
+//                             const displayReactions = topReactions.length > 0 ? topReactions : (currentReaction ? [currentReaction] : []);
+//                             const isOwnComment = currentUserId && r.authorUid === currentUserId;
+
+//                             return (
+//                                 <div key={commentId} style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingLeft: isReply ? 24 : 0, minWidth: 0, width: "100%" }}>
+//                                     <div style={{ width: 14, height: 14, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: onFanProfile ? "pointer" : "default" }}
+//                                         onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: getKnownBotAvatarUrl(r.authorUsername) || r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid, isBot: Boolean(getKnownBotAvatarUrl(r.authorUsername)) }); }}
+//                                     >
+//                                         {(() => {
+//                                             const resolvedAvatar =
+//                                                 getKnownBotAvatarUrl(r.authorUsername) ||
+//                                                 r.authorAvatarUrl ||
+//                                                 r.avatarUrl ||
+//                                                 (r.authorUsername === currentUsername ? currentAvatarUrl : undefined);
+//                                             return resolvedAvatar
+//                                                 ? <img src={resolvedAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+//                                                 : <span style={{ fontSize: 7, fontWeight: 800, color: "#fff" }}>{(r.authorUsername ?? "?")[0].toUpperCase()}</span>;
+//                                         })()}
+//                                     </div>
+//                                     <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+//                                         <span
+//                                             style={{ fontWeight: 700, color: "#fff", fontSize: 10, display: "block", wordBreak: "break-word", cursor: onFanProfile ? "pointer" : "default" }}
+//                                             onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: getKnownBotAvatarUrl(r.authorUsername) || r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid, isBot: Boolean(getKnownBotAvatarUrl(r.authorUsername)) }); }}
+//                                         >
+//                                             {r.authorUsername ?? "Fan"}
+//                                         </span>
+//                                         <p style={{ margin: 0, fontSize: 10, lineHeight: 1.4, color: "rgba(255,255,255,0.75)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
+//                                             {isReply ? (() => {
+//                                                 const spaceIdx = (r.text ?? "").indexOf(" ");
+//                                                 const mention = spaceIdx > -1 ? (r.text ?? "").slice(0, spaceIdx) : (r.text ?? "");
+//                                                 const rest = spaceIdx > -1 ? (r.text ?? "").slice(spaceIdx) : "";
+//                                                 return (<><span style={{ color: accentColor, fontWeight: 600 }}>{mention}</span>{rest}</>);
+//                                             })() : (r.text ?? "")}
+//                                         </p>
+//                                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
+//                                             {liveHeartCount > 0 && (
+//                                                 <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>{liveHeartCount} {liveHeartCount === 1 ? "like" : "likes"}</span>
+//                                             )}
+//                                             <button type="button" onClick={e => { e.stopPropagation(); setReplyTo({ commentId, authorUsername: r.authorUsername ?? "Fan" }); setTimeout(() => inputRef.current?.focus(), 80); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.35)", padding: 0 }}>Reply</button>
+//                                             {isOwnComment && (
+//                                                 <button
+//                                                     type="button"
+//                                                     onClick={e => { e.stopPropagation(); handleDeleteComment(commentId); }}
+//                                                     disabled={deletingCommentId === commentId}
+//                                                     style={{ background: "none", border: "none", cursor: deletingCommentId === commentId ? "wait" : "pointer", fontSize: 9, fontWeight: 700, color: "#f87171", padding: 0, display: "flex", alignItems: "center", gap: 2 }}
+//                                                 >
+//                                                     <Trash2 size={9} />
+//                                                 </button>
+//                                             )}
+//                                         </div>
+//                                     </div>
+
+//                                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+//                                         <ReactionPicker
+//                                             currentReaction={currentReaction}
+//                                             count={liveHeartCount}
+//                                             onReact={(reaction) => handleCommentReact(commentId, reaction)}
+//                                             postId={commentId}
+//                                             roomId={roomId}
+//                                             roomName={roomName}
+//                                         />
+//                                         {liveHeartCount > 0 && displayReactions.length > 0 && (
+//                                             <button
+//                                                 onClick={() => setReactionsDialogCommentId(commentId)}
+//                                                 style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+//                                                 title="See who reacted"
+//                                             >
+//                                                 <div style={{ display: "flex" }}>
+//                                                     {displayReactions.map((type, idx) => (
+//                                                         <div key={type} style={{ width: 12, height: 12, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, marginLeft: idx === 0 ? 0 : -4, zIndex: displayReactions.length - idx, position: "relative" }}>
+//                                                             {REACTION_EMOJI[type] ?? "❤️"}
+//                                                         </div>
+//                                                     ))}
+//                                                 </div>
+//                                             </button>
+//                                         )}
+//                                     </div>
+//                                 </div>
+//                             );
+//                         })}
+//                         {replies.length > 2 && !showAllReplies && (
+//                             <button type="button" onClick={e => { e.stopPropagation(); setShowAllReplies(true); }} style={{ alignSelf: "flex-start", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: accentColor, padding: 0, marginTop: 1 }}>View all replies →</button>
+//                         )}
+//                     </div>
+//                 )}
+
+//                 <AnimatePresence>
+//                     {replyTo && (
+//                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden", marginBottom: 3 }}>
+//                             <div style={{ display: "flex", alignItems: "center", gap: 4, paddingLeft: 2 }}>
+//                                 <span style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Replying to</span>
+//                                 <span style={{ fontSize: 9, fontWeight: 700, color: accentColor, background: `${accentColor}18`, border: `1px solid ${accentColor}40`, borderRadius: 999, padding: "1px 6px" }}>@{replyTo.authorUsername}</span>
+//                                 <button type="button" onClick={e => { e.stopPropagation(); setReplyTo(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 12, lineHeight: 1, padding: 0 }}>×</button>
+//                             </div>
+//                         </motion.div>
+//                     )}
+//                 </AnimatePresence>
+
+//                 <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 5px", borderRadius: 14, background: "rgba(255,255,255,0.04)", border: `1px solid ${accentColor}40`, position: "relative" }}>
+//                     {mention.showMentionPopup && (
+//                         <MentionPopup
+//                             mentionUsers={mention.mentionUsers}
+//                             mentionIndex={mention.mentionIndex}
+//                             setMentionIndex={mention.setMentionIndex}
+//                             onSelect={(u) => mention.insertMention(u, commentText, setCommentText, inputRef)}
+//                         />
+//                     )}
+//                     {currentAvatarUrl ? <img src={currentAvatarUrl} alt="" style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, objectFit: "cover" }} /> : <div style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)" }} />}
+//                     <input
+//                         ref={inputRef}
+//                         type="text"
+//                         value={commentText}
+//                         onChange={e => {
+//                             const value = e.target.value;
+//                             setCommentText(value);
+//                             mention.handleMentionInputChange(value, e.target.selectionStart || value.length);
+//                         }}
+//                         onKeyDown={e => {
+//                             if (mention.handleMentionKeyDown(e, commentText, setCommentText, inputRef)) return;
+//                             if (e.key === "Enter") handleSend();
+//                         }}
+//                         placeholder={replyTo ? `…` : "Add a comment…"}
+//                         style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 11, fontWeight: 500 }}
+//                     />
+//                     <button type="button" onClick={e => { e.stopPropagation(); onOpenFull(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", padding: "0 2px" }}>All</button>
+//                     <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={e => { e.stopPropagation(); handleSend(); }} disabled={!commentText.trim() || sending} style={{ background: commentText.trim() ? `linear-gradient(135deg,${accentColor},#ff6b35)` : "rgba(255,255,255,0.08)", border: "none", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: commentText.trim() ? "pointer" : "default", transition: "background 0.2s", flexShrink: 0 }}>
+//                         <Send size={12} color={commentText.trim() ? "#fff" : "rgba(255,255,255,0.3)"} />
+//                     </motion.button>
+//                 </div>
+//             </div>
+
+//             <ReactionsDialog
+//                 postId={reactionsDialogCommentId ?? ""}
+//                 isOpen={reactionsDialogCommentId !== null}
+//                 onClose={() => setReactionsDialogCommentId(null)}
+//                 onFanProfile={onFanProfile}
+//                 roomId={roomId}
+//                 msgId={postId}
+//                 commentId={reactionsDialogCommentId ?? undefined}
+//             />
+//         </motion.div>
+//     );
+// }
+
+// export default function OpenRoomDiscussionRoom({
+//     onBack, onToast, roomId, roomName, onPostClick, onCompose,
+//     currentAvatarUrl, currentUserId, onRegisterRefresh, onRegisterReplyUpdate,
+//     onFanProfile, onRegisterInjectPost, onRegisterOptimisticSwap, onChannelChange,
+// }: Props) {
+//     const phog = usePostHog();
+//     const { userProfile } = useUserProfile();
+//     const [posts, setPosts] = useState<any[]>([]);
+//     const [loading, setLoading] = useState(true);
+//     const [input, setInput] = useState("");
+//     const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+//     const [showQuickCompose, setShowQuickCompose] = useState(false);
+//     const emojiPickerRef = useRef<HTMLDivElement>(null);
+//     const [mode, setMode] = useState<"post" | "debate" | "prediction" | "hottake" | "raw_reactions">("post");
+//     const [uploading, setUploading] = useState(false);
+//     const [attachedUrl, setAttachedUrl] = useState<string | null>(null);
+//     const [attachedType, setAttachedType] = useState<"image" | "video" | null>(null);
+//     const [userUsername, setUserUsername] = useState(() => {
+//         try {
+//             return userProfile?.username || localStorage.getItem("roar_username") || "RoarUser";
+//         } catch {
+//             return "RoarUser";
+//         }
+//     });
+//     const [userAvatarUrl, setUserAvatarUrl] = useState<string | undefined>(() => {
+//         try {
+//             const stored = localStorage.getItem("roar_avatar_url");
+//             return sanitizeAvatarUrl(currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || stored) || undefined;
+//         } catch {
+//             return sanitizeAvatarUrl(currentAvatarUrl) || undefined;
+//         }
+//     });
+
+//     const getEffectiveUserAvatar = useCallback(() => {
+//         const stored = typeof window !== "undefined" ? localStorage.getItem("roar_avatar_url") : null;
+//         const raw = userAvatarUrl || currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || (userProfile as any)?.photoURL || (userProfile as any)?.picture || (userProfile as any)?.image || stored;
+//         return sanitizeAvatarUrl(raw) || undefined;
+//     }, [userAvatarUrl, currentAvatarUrl, userProfile]);
+//     const [selectedActionId, setSelectedActionId] = useState("post");
+//     const [liveCount, setLiveCount] = useState<number>(0);
+//     const [totalJoinCount, setTotalJoinCount] = useState<number>(0);
+//     const [activeFans, setActiveFans] = useState<{ uid: string; username: string; avatarUrl?: string | null; badge?: string | null }[]>([]);
+//     const [activeFansOpen, setActiveFansOpen] = useState(false);
+//     const [roomCounts, setRoomCounts] = useState({ post: 0, debate: 0, prediction: 0, trivia: 0, battle: 0 });
+//     const [activeFilter, setActiveFilter] = useState<"all" | "post" | "debate" | "prediction" | "trivia" | "battle">("all");
+//     const [localReactions, setLocalReactions] = useState<Record<string, { reaction: Reaction | null; heartCount: number }>>({});
+//     const localReactionsRef = useRef<Record<string, { reaction: Reaction | null; heartCount: number }>>({});
+//     const pendingReactRef = useRef<Record<string, boolean>>({});
+//     const [reactionsMsgId, setReactionsMsgId] = useState<string | null>(null);
+//     useEffect(() => { localReactionsRef.current = localReactions; }, [localReactions]);
+//     const [votersMsgId, setVotersMsgId] = useState<string | null>(null);
+//     const [votersMode, setVotersMode] = useState<"debate" | "prediction">("prediction");
+
+//     // ── Live Match Engagements State ──
+//     // const [matchEngagements, setMatchEngagements] = useState<EngagementItem[]>([]);
+//     // const [engagementsLoading, setEngagementsLoading] = useState(false);
+//     // const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
+//     const [matchEngagements, setMatchEngagements] = useState<EngagementItem[]>([]);
+//     const [engagementsLoading, setEngagementsLoading] = useState(false);
+//     const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
+//     const [engagementsLoaded, setEngagementsLoaded] = useState(false);
+//     const [showNewPill, setShowNewPill] = useState(false);
+//     const isAtBottomRef = useRef(true);
+//     const seenEngIdsRef = useRef<Set<string> | null>(null);
+//     const engSortFallbackRef = useRef<Map<string, number>>(new Map());
+//     const [openInlinePostId, setOpenInlinePostId] = useState<string | null>(null);
+//     const [explicitlyClosedPostIds, setExplicitlyClosedPostIds] = useState<Set<string>>(new Set());
+//     const [postCooldown, setPostCooldown] = useState(0);
+//     const [isSending, setIsSending] = useState(false);
+//     const sendingRef = useRef(false);
+//     const latestCreatedAtRef = useRef<number | null>(null);
+//     const listRef = useRef<HTMLDivElement>(null);
+//     const fileInputRef = useRef<HTMLInputElement>(null);
+//     const mainInputRef = useRef<HTMLInputElement>(null);
+//     const [morePosts, setMorePosts] = useState<any[]>([]);
+//     const [hasMoreMsgs, setHasMoreMsgs] = useState(true);
+//     const [loadingMoreMsgs, setLoadingMoreMsgs] = useState(false);
+//     const loadingMoreMsgsRef = useRef(false);
+//     const sentinelRef = useRef<HTMLDivElement | null>(null);
+//     const postsRef = useRef<any[]>([]);
+//     const morePostsRef = useRef<any[]>([]);
+//     useEffect(() => { postsRef.current = posts; }, [posts]);
+//     useEffect(() => { morePostsRef.current = morePosts; }, [morePosts]);
+//     const pendingScrollRestoreRef = useRef<{ prevScrollHeight: number; prevScrollTop: number } | null>(null);
+//     const initialScrollDoneRef = useRef(false);
+//     const prevPostCountRef = useRef(0);
+//     const [pinnedPost, setPinnedPost] = useState<any>(null);
+//     const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
+//     const menuRef = useRef<HTMLDivElement>(null);
+//     const [sharePost, setSharePost] = useState<any>(null);
+//     const [copied, setCopied] = useState(false);
+//     const [celebration, setCelebration] = useState<{ memTag: string } | null>(null);
+//     const [newlyPostedIds, setNewlyPostedIds] = useState<Set<string>>(new Set());
+//     const [videoEndedIds, setVideoEndedIds] = useState<Set<string>>(new Set());
+//     const [soundEnabled, setSoundEnabled] = useState<boolean>(() => {
+//         try { return localStorage.getItem("roar_sound_enabled") !== "false"; } catch { return true; }
+//     });
+//     const soundEnabledRef = useRef(soundEnabled);
+//     const cooldownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+//     const topReactionsCache = useRef<Record<string, string[]>>({});
+//     const [topReactionsMap, setTopReactionsMap] = useState<Record<string, string[]>>({});
+//     const lastLocalReactAtRef = useRef<Record<string, number>>({});
+//     const [notifToast, setNotifToast] = useState<{ message: string; type: "like" | "comment"; } | null>(null);
+//     const [dollyOpen, setDollyOpen] = useState(false);
+//     const [dollyQuestion, setDollyQuestion] = useState("");
+//     const [dollyAsking, setDollyAsking] = useState(false);
+//     const [dollyReplies, setDollyReplies] = useState<{ id: string; question: string; answer: string; createdAt: number }[]>([]);
+//     const [dollyLoaded, setDollyLoaded] = useState(false);
+//     // const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
+//     // const [dollyHistoryLoading, setDollyHistoryLoading] = useState(false);
+//     // const [dollyActiveRoomId, setDollyActiveRoomId] = useState<string | undefined>(roomId);
+//     // const [dollyActiveRoomName, setDollyActiveRoomName] = useState<string | undefined>(roomName);
+//     // const [dollyRepliesLoading, setDollyRepliesLoading] = useState(false);
+//     // const dollyFetchTokenRef = useRef<symbol | null>(null);
+//     // const dollyActiveRoomIdRef = useRef<string | undefined>(roomId);
+
+//     const [dollyHistory, setDollyHistory] = useState<DollyHistorySession[]>([]);
+//     const [dollyHistoryLoading, setDollyHistoryLoading] = useState(false);
+//     const [dollyHistoryLoadingMore, setDollyHistoryLoadingMore] = useState(false);
+//     const dollyHistoryCursorRef = useRef<number | undefined>(undefined);
+//     const dollyHistoryExhaustedRef = useRef(false);
+//     const [dollyActiveSessionId, setDollyActiveSessionId] = useState<string | undefined>(undefined);
+//     const [dollyActiveRoomName, setDollyActiveRoomName] = useState<string | undefined>(roomName);
+//     const [dollyRepliesLoading, setDollyRepliesLoading] = useState(false);
+//     const dollyFetchTokenRef = useRef<symbol | null>(null);
+//     const dollyActiveSessionIdRef = useRef<string | undefined>(undefined);
+
+//     // ── SOUND ──
+//     const audioCache = useRef<Partial<Record<keyof typeof SOUND_FILES, HTMLAudioElement>>>({});
+
+//     const playSound = useCallback((key: keyof typeof SOUND_FILES) => {
+//         if (!soundEnabledRef.current) return;
+//         try {
+//             let audio = audioCache.current[key];
+//             if (!audio) {
+//                 audio = new Audio(SOUND_FILES[key]);
+//                 audio.volume = 0.5;
+//                 audioCache.current[key] = audio;
+//             }
+//             audio.currentTime = 0;
+//             audio.play().catch(() => { });
+//         } catch { /* ignore */ }
+//     }, []);
+
+//     // ── AUTHOR CHECK (for delete & avatar matching) ──
+//     const currentUserIdCandidates = React.useMemo(() => {
+//         const storedActual = typeof window !== "undefined" ? localStorage.getItem("roar_actual_user_id") : null;
+//         const storedUid = typeof window !== "undefined" ? localStorage.getItem("roar_user_id") : null;
+//         const list = [
+//             currentUserId,
+//             userProfile?.actualUserId,
+//             (userProfile as { userId?: string })?.userId,
+//             (userProfile as { uid?: string })?.uid,
+//             (userProfile as { email?: string })?.email,
+//             storedActual,
+//             storedUid,
+//         ].filter(Boolean).map(v => String(v).trim().toLowerCase());
+//         return new Set(list);
+//     }, [currentUserId, userProfile]);
+
+//     const isCurrentUserAuthor = useCallback((post: { authorUid?: unknown; authorEmail?: unknown; authorUsername?: unknown; fan?: { authorUid?: unknown; username?: unknown } }) => {
+//         const authorCandidates = [
+//             post.authorUid,
+//             post.fan?.authorUid,
+//             post.authorEmail,
+//         ].filter(Boolean).map(v => String(v).trim().toLowerCase());
+
+//         if (authorCandidates.some(id => currentUserIdCandidates.has(id) || currentUserIdCandidates.has(id.replace(/[@.]/g, "_")))) {
+//             return true;
+//         }
+
+//         const effectiveMyUsername = String(userUsername || userProfile?.username || (typeof window !== "undefined" ? localStorage.getItem("roar_username") : "") || "").trim().toLowerCase();
+//         const postUsername = String(post.authorUsername || post.fan?.username || "").trim().toLowerCase();
+//         if (effectiveMyUsername && postUsername && effectiveMyUsername === postUsername) {
+//             return true;
+//         }
+
+//         return false;
+//     }, [currentUserIdCandidates, userUsername, userProfile?.username]);
+
+//     // ── CHANNELS STATE ──
+//     const [channels, setChannels] = useState<Channel[]>([]);
+//     const [selectedChannelId, setSelectedChannelId] = useState<string | null>("all");
+//     const [channelsLoading, setChannelsLoading] = useState(true);
+
+//     const allVisiblePosts = React.useMemo(() => {
+//         const seen = new Set<string>();
+//         return [...morePosts, ...posts].filter(p => {
+//             if (p.type === "predictions_live") return false;
+//             if (seen.has(p.id)) return false;
+//             seen.add(p.id);
+//             return true;
+//         });
+//     }, [morePosts, posts]);
+
+//     // ── Derive displayChannels dynamically from fetched channels ──
+//     const displayChannels = React.useMemo(() => {
+//         return channels.filter(c => c.isActive !== false);
+//     }, [channels]);
+
+//     // If active channel was deleted/removed from backend, safely fallback to "all"
+//     useEffect(() => {
+//         if (selectedChannelId && selectedChannelId !== "all" && displayChannels.length > 0) {
+//             const exists = displayChannels.some(c => c.channelId === selectedChannelId);
+//             if (!exists) {
+//                 setSelectedChannelId("all");
+//             }
+//         }
+//     }, [displayChannels, selectedChannelId]);
+
+//     useEffect(() => {
+//         onChannelChange?.(selectedChannelId === "all" ? null : selectedChannelId);
+//     }, [selectedChannelId, onChannelChange]);
+
+//     // ── CHANNEL MENTION STATE ──
+//     const [showChannelMentionPopup, setShowChannelMentionPopup] = useState(false);
+//     const [channelMentionUsers, setChannelMentionUsers] = useState<Channel[]>([]);
+//     const [channelMentionIndex, setChannelMentionIndex] = useState(0);
+//     const [cursorPosition, setCursorPosition] = useState(0);
+
+//     const channelsFetchTokenRef = useRef<symbol | null>(null);
+
+//     // ── Fetch Universal Channels ──
+//     const fetchChannels = useCallback(async () => {
+//         const requestId = Symbol();
+//         channelsFetchTokenRef.current = requestId;
+//         setChannelsLoading(true);
+//         try {
+//             const res = await axios.get(`/api/admin/sports`, { timeout: REQUEST_TIMEOUT_MS });
+//             if (channelsFetchTokenRef.current !== requestId) return; // stale response, ignore
+//             const rawChannels: any[] = res.data?.sports ?? res.data?.channels ?? res.data?.data ?? (Array.isArray(res.data) ? res.data : []);
+//             const fetchedChannels: Channel[] = rawChannels.map((ch: any, idx: number) => {
+//                 const id = String(ch.id || ch.channelId || ch.sport || "").replace(/^CHANNEL#|^SPORT#/, "");
+//                 const { name, slug, icon } = formatChannelName(ch.name || ch.title || ch.sport, ch.slug || ch.id);
+//                 return {
+//                     channelId: id,
+//                     name,
+//                     slug,
+//                     icon: ch.icon || icon,
+//                     isActive: ch.isActive !== false && ch.status !== "inactive",
+//                     order: typeof ch.order === "number" ? ch.order : idx,
+//                 };
+//             }).filter((ch: Channel) => Boolean(ch.channelId));
+//             fetchedChannels.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+//             setChannels(fetchedChannels);
+//             setSelectedChannelId(prev => prev ?? "all");
+//         } catch (error) {
+//             if (channelsFetchTokenRef.current !== requestId) return;
+//             console.error("Failed to fetch universal channels:", error);
+//             setChannels([]);
+//         } finally {
+//             if (channelsFetchTokenRef.current === requestId) setChannelsLoading(false);
+//         }
+//     }, []);
+
+//     // ── Fetch active Match Engagements for Room / Match ──
+//     const fetchEngagements = useCallback(async () => {
+//         if (!roomId) { setEngagementsLoaded(true); return; }
+//         try {
+//             let mId = roomMatchId;
+//             if (!mId) {
+//                 try {
+//                     const roomRes = await axios.get(`/api/roar/rooms/${roomId}`, { timeout: REQUEST_TIMEOUT_MS });
+//                     const rData = roomRes.data?.room || roomRes.data;
+//                     const foundMatchId = rData?.matchId || rData?.liveMatchId || rData?.match_id;
+//                     if (foundMatchId) {
+//                         mId = String(foundMatchId).replace(/^MATCH#/, "");
+//                         setRoomMatchId(mId);
+//                     }
+//                 } catch (rErr) { console.warn("room details:", rErr); }
+//             }
+//             const cleanMatchId = mId ? String(mId).replace(/^MATCH#/, "").trim() : "";
+//             const userParam = currentUserId ? `&userId=${encodeURIComponent(currentUserId)}` : "";
+//             const bust = `&t=${Date.now()}`;
+//             const cfg = { timeout: REQUEST_TIMEOUT_MS, headers: { "Cache-Control": "no-cache" } };
+//             const pick = (d: any) => d?.engagements || d?.data || (Array.isArray(d) ? d : []);
+
+//             let loaded: any[] = [];
+//             let fetchOk = false;
+
+//             if (cleanMatchId) {
+//                 try {
+//                     const r = await axios.get(`/api/engagements?matchId=${encodeURIComponent(cleanMatchId)}&limit=50${userParam}${bust}`, cfg);
+//                     loaded = pick(r.data);
+//                     fetchOk = true;
+//                 } catch (e) { console.warn("match engagements:", e); }
+//             }
+//             if (loaded.length === 0) {
+//                 try {
+//                     const r = await axios.get(`/api/engagements?excludeFlipArena=true&source=match_moment&limit=50${userParam}${bust}`, cfg);
+//                     const list: any[] = pick(r.data);
+//                     const matched = cleanMatchId
+//                         ? list.filter(e => !e.matchId || String(e.matchId).replace(/^MATCH#/, "").toLowerCase() === cleanMatchId.toLowerCase())
+//                         : list;
+//                     loaded = matched.length > 0 ? matched : list;
+//                     fetchOk = true;
+//                 } catch (e) { console.warn("fallback engagements:", e); }
+//             }
+
+//             if (!fetchOk) return;
+
+//             const formatted = loaded.map(e => normalizeEngagement(e, cleanMatchId));
+//             setMatchEngagements(prev => {
+//                 const prevMap = new Map(prev.map(p => [p.id, p]));
+//                 return formatted.map((eng: any) => {
+//                     const ex: any = prevMap.get(eng.id);
+//                     if (!ex) return eng;
+//                     return {
+//                         ...ex, ...eng,
+//                         likes: eng.likes !== undefined ? Number(eng.likes) || 0 : Number(ex.likes) || 0,
+//                         shares: eng.shares !== undefined ? Number(eng.shares) || 0 : Number(ex.shares) || 0,
+//                         totalEngaged: Math.max(Number(ex.totalEngaged) || 0, Number(eng.totalEngaged) || 0),
+//                         commentsCount: Math.max(Number(ex.commentsCount) || 0, Number(eng.commentsCount) || 0),
+//                         userLiked: eng.userLiked || ex.userLiked,
+//                         userVoted: eng.userVoted !== undefined ? eng.userVoted : ex.userVoted,
+//                         userVote: eng.userVote || ex.userVote,
+//                     };
+//                 });
+//             });
+//         } catch (err) {
+//             console.error("fetchEngagements error:", err);
+//         } finally {
+//             setEngagementsLoaded(true);
+//         }
+//     }, [roomId, roomMatchId, currentUserId]);
+
+//     const displayCounts = React.useMemo(() => {
+//         const c = { ...roomCounts };
+//         matchEngagements.forEach(e => {
+//             if (e.type === "prediction") c.prediction++;
+//             else if (e.type === "debate" || e.type === "poll" || e.type === "express") c.debate++;
+//             else if (e.type === "quiz" || e.type === "question") c.trivia++;
+//             else if (e.type === "fan_battle") c.battle++;
+//         });
+//         return c;
+//     }, [roomCounts, matchEngagements]);
+
+
+//     const handleEngagementInteraction = useCallback((engId: string, updatedData?: any) => {
+//         setMatchEngagements(prev =>
+//             prev.map(eng => {
+//                 if (eng.id !== engId) return eng;
+//                 const clean = Object.fromEntries(
+//                     Object.entries(updatedData || {}).filter(([, v]) => v !== undefined)
+//                 );
+//                 return { ...eng, ...clean };
+//             })
+//         );
+//     }, []);
+
+//     // ── Load universal channels on mount ──
+//     useEffect(() => {
+//         fetchChannels();
+//     }, [fetchChannels]);
+
+//     // ── Channel selection handler ──
+//     const handleChannelSelect = (channelId: string) => {
+//         if (selectedChannelId === channelId) return;
+//         setSelectedChannelId(channelId);
+//     };
+
+//     // ── Channel mention handler ──
+//     const handleChannelMentionInputChange = (value: string, cursorPos: number) => {
+//         setCursorPosition(cursorPos);
+//         const before = value.slice(0, cursorPos);
+//         const hashIndex = before.lastIndexOf("#");
+
+//         if (hashIndex !== -1) {
+//             const afterHash = before.slice(hashIndex + 1);
+//             // Check if there's a space after the # (meaning it's not a valid mention anymore)
+//             if (!afterHash.includes(" ")) {
+//                 const mentionOptions = [
+//                     { channelId: "all", name: "all", slug: "all", icon: "🌐", isActive: true, order: -1 },
+//                     ...displayChannels,
+//                 ];
+//                 const filtered = afterHash.trim() === ""
+//                     ? mentionOptions.slice(0, 8)
+//                     : mentionOptions.filter(ch =>
+//                         ch.name.toLowerCase().includes(afterHash.toLowerCase()) ||
+//                         ch.slug.toLowerCase().includes(afterHash.toLowerCase())
+//                     ).slice(0, 8);
+//                 setChannelMentionUsers(filtered);
+//                 setShowChannelMentionPopup(filtered.length > 0);
+//                 setChannelMentionIndex(0);
+//                 return;
+//             }
+//         }
+//         setShowChannelMentionPopup(false);
+//         setChannelMentionUsers([]);
+//     };
+
+//     // ── Insert channel mention (switches channel, doesn't add to message) ──
+//     const insertChannelMention = (channel: Channel) => {
+//         // Remove the #channel text from input
+//         const before = input.slice(0, cursorPosition);
+//         const hashIndex = before.lastIndexOf("#");
+//         // Remove everything from # to cursor position
+//         const newText = `${input.slice(0, hashIndex)}${input.slice(cursorPosition)}`;
+//         setInput(newText);
+//         setShowChannelMentionPopup(false);
+//         setChannelMentionUsers([]);
+
+//         // Switch to the selected channel
+//         if (channel.channelId !== selectedChannelId) {
+//             handleChannelSelect(channel.channelId);
+//             onToast(`Switched to #${channel.name} channel`);
+//         }
+
+//         setTimeout(() => {
+//             if (mainInputRef.current) {
+//                 const p = hashIndex;
+//                 mainInputRef.current.focus();
+//                 mainInputRef.current.setSelectionRange(p, p);
+//             }
+//         }, 10);
+//     };
+
+//     // ── Handle channel mention keydown ──
+//     const handleChannelMentionKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): boolean => {
+//         if (!showChannelMentionPopup || channelMentionUsers.length === 0) return false;
+//         if (e.key === "ArrowDown") {
+//             e.preventDefault();
+//             setChannelMentionIndex(p => (p + 1) % channelMentionUsers.length);
+//             return true;
+//         }
+//         if (e.key === "ArrowUp") {
+//             e.preventDefault();
+//             setChannelMentionIndex(p => (p - 1 + channelMentionUsers.length) % channelMentionUsers.length);
+//             return true;
+//         }
+//         if (e.key === "Enter" || e.key === "Tab") {
+//             e.preventDefault();
+//             if (channelMentionUsers[channelMentionIndex]) {
+//                 insertChannelMention(channelMentionUsers[channelMentionIndex]);
+//             }
+//             return true;
+//         }
+//         if (e.key === "Escape") {
+//             setShowChannelMentionPopup(false);
+//             setChannelMentionUsers([]);
+//             // Remove the # from input
+//             const before = input.slice(0, cursorPosition);
+//             const hashIndex = before.lastIndexOf("#");
+//             if (hashIndex !== -1) {
+//                 const newText = `${input.slice(0, hashIndex)}${input.slice(cursorPosition)}`;
+//                 setInput(newText);
+//             }
+//             return true;
+//         }
+//         return false;
+//     };
+
+//     useEffect(() => {
+//         soundEnabledRef.current = soundEnabled;
+//     }, [soundEnabled]);
+
+//     useEffect(() => {
+//         if (phog && roomId) {
+//             phog.capture("enter_room", { room_id: roomId, room_name: roomName || "" });
+//         }
+//     }, [phog, roomId, roomName]);
+
+//     // useEffect(() => {
+//     //     dollyActiveRoomIdRef.current = dollyActiveRoomId;
+//     // }, [dollyActiveRoomId]);
+//     useEffect(() => {
+//         dollyActiveSessionIdRef.current = dollyActiveSessionId;
+//     }, [dollyActiveSessionId]);
+
+//     useEffect(() => () => { if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current); }, []);
+
+//     useEffect(() => {
+//         const handleClickOutside = (e: MouseEvent) => {
+//             if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) setShowEmojiPicker(false);
+//         };
+//         if (showEmojiPicker) document.addEventListener("mousedown", handleClickOutside);
+//         return () => document.removeEventListener("mousedown", handleClickOutside);
+//     }, [showEmojiPicker]);
+
+//     useEffect(() => {
+//         if (openMenuPostId) {
+//             const handler = (e: MouseEvent) => {
+//                 if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenuPostId(null);
+//             };
+//             document.addEventListener("mousedown", handler);
+//             return () => document.removeEventListener("mousedown", handler);
+//         }
+//     }, [openMenuPostId]);
+
+//     const fetchTopReactions = useCallback(async (msgId: string) => {
+//         if (topReactionsCache.current[msgId] !== undefined) return;
+//         topReactionsCache.current[msgId] = [];
+//         if (!roomId) return;
+//         try {
+//             const url = `/api/roar/rooms/${roomId}/messages/${msgId}/reactions`;
+//             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
+//             const counts: Record<string, number> = res.data?.counts ?? {};
+//             const top = Object.entries(counts)
+//                 .filter(([, n]) => (n as number) > 0)
+//                 .sort(([, a], [, b]) => (b as number) - (a as number))
+//                 .slice(0, 3)
+//                 .map(([type]) => type);
+//             topReactionsCache.current[msgId] = top;
+//             setTopReactionsMap(prev => ({ ...prev, [msgId]: top }));
+//         } catch { topReactionsCache.current[msgId] = []; }
+//     }, [roomId]);
+
+//     const mapMessage = useCallback((m: any, existing?: any) => {
+//         const isPending = pendingReactRef.current[m.msgId];
+//         const isMine = isCurrentUserAuthor(m);
+//         const myEffectiveAvatar = getEffectiveUserAvatar();
+
+//         const rawAuthorAvatar = m.authorAvatarUrl || m.avatarUrl || m.userAvatar || m.avatar || m.image || m.user?.avatarUrl || m.user?.avatar || m.user?.image || m.fan?.avatarUrl || m.fan?.avatar;
+//         const sanitizedAuthorAvatar = sanitizeAvatarUrl(rawAuthorAvatar);
+
+//         return {
+//             id: m.msgId,
+//             authorUid: m.authorUid,
+//             authorEmail: m.authorEmail,
+//             fan: {
+//                 username: displayUsername(m.authorUsername),
+//                 authorUid: m.authorUid,
+//                 badge: m.authorBadge,
+//                 avatarUrl:
+//                     getKnownBotAvatarUrl(m.authorUsername) ??
+//                     (isMine
+//                         ? (myEffectiveAvatar || sanitizedAuthorAvatar || undefined)
+//                         : (sanitizedAuthorAvatar || undefined))
+//             },
+//             text: m.text,
+//             fireCount: m.fireCount ?? 0,
+//             heartCount: m.heartCount ?? 0,
+//             mindblownCount: m.mindblownCount ?? 0,
+//             goatCount: m.goatCount ?? 0,
+//             clapCount: m.clapCount ?? 0,
+//             nochanceCount: m.noChanceCount ?? 0,
+//             userReaction: isPending ? (existing?.userReaction ?? null) : (m.userReaction ?? null),
+//             replyCount: Math.max(m.replyCount ?? 0, existing?.replyCount ?? 0),
+//             agreeCount: m.agreeCount ?? 0,
+//             disagreeCount: m.disagreeCount ?? 0,
+//             userVote: (existing?.userVote && !m.userVote) ? existing.userVote : (m.userVote ?? existing?.userVote ?? null),
+//             sideA: m.sideA ?? null,
+//             sideB: m.sideB ?? null,
+//             predictionOptions: Array.isArray(m.predictionOptions) ? m.predictionOptions : [m.sideA, m.sideB].filter(Boolean),
+//             predictionOptionCounts: m.predictionOptionCounts ?? {},
+//             closesAt: m.closesAt ?? null,
+//             closedAt: m.closedAt ?? null,
+//             resolvedAt: m.resolvedAt ?? null,
+//             correctVote: m.correctVote ?? null,
+//             accuracyAwarded: m.accuracyAwarded ?? false,
+//             timeAgo: new Date(m.createdAt).toLocaleDateString([], { month: "short", day: "numeric" }) + " · " + new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+//             createdAt: m.createdAt,
+//             type: m.type,
+//             mediaUrls: m.mediaUrls,
+//             quizQuestion: m.quizQuestion,
+//             quizOptions: m.quizOptions,
+//             quizCorrectOption: m.quizCorrectOption,
+//             quizUserAnswer: m.quizUserAnswer ?? null,
+//             quizTimer: m.quizTimer,
+//             quizPoints: m.quizPoints,
+//             quizParticipants: m.quizParticipants ?? 0,
+//             memGifUrl: m.memGifUrl ?? null,
+//             memTag: m.memTag ?? null,
+//             questions: (() => {
+//                 const q = m.questions;
+//                 if (Array.isArray(q)) return q;
+//                 if (typeof q === "string") { try { return JSON.parse(q); } catch { return []; } }
+//                 return [];
+//             })(),
+//             matchTitle: m.matchTitle ?? null,
+//             triviaQuestions: Array.isArray(m.triviaQuestions) ? m.triviaQuestions : [],
+//             userTriviaAnswers: m.userTriviaAnswers ?? {},
+//             matchStartAt: m.matchStartAt ?? null,
+//             matchEndAt: m.matchEndAt ?? null,
+//             triviaParticipants: m.triviaParticipants ?? {},
+//             battleQuestions: Array.isArray(m.battleQuestions) ? m.battleQuestions : [],
+//             battleVoteCounts: m.battleVoteCounts ?? {},
+//             userPredictionVotes: m.userPredictionVotes ?? {},
+//             channelId: m.channelId,
+//             channelSlug: m.channelSlug,
+//         };
+//     }, [isCurrentUserAuthor, getEffectiveUserAvatar]);
+
+//     const handleVote = useCallback(async (postId: string, voteType: string) => {
+//         if (!roomId) return;
+//         setPosts(prev => prev.map(post => {
+//             if (post.id !== postId) return post;
+//             let ag = post.agreeCount ?? 0, di = post.disagreeCount ?? 0;
+//             const predictionOptionCounts = { ...(post.predictionOptionCounts ?? {}) };
+//             if (voteType === "agree") ag += 1;
+//             else if (voteType === "disagree") di += 1;
+//             else predictionOptionCounts[voteType] = (predictionOptionCounts[voteType] ?? 0) + 1;
+//             return { ...post, userVote: voteType, agreeCount: ag, disagreeCount: di, predictionOptionCounts };
+//         }));
+//         try {
+//             await axios.post(`/api/roar/rooms/${roomId}/messages/${postId}/vote`, { vote: voteType }, { timeout: REQUEST_TIMEOUT_MS });
+//         } catch {
+//             onToast("Failed to submit vote");
+//         }
+//     }, [roomId, onToast]);
+
+//     // ── Fetch messages WITH channel filter ──
+//     const fetchMsgs = useCallback(async () => {
+//         if (!roomId) return;
+//         try {
+//             let url = latestCreatedAtRef.current
+//                 ? `/api/roar/rooms/${roomId}/messages?since=${latestCreatedAtRef.current}&t=${Date.now()}`
+//                 : `/api/roar/rooms/${roomId}/messages?t=${Date.now()}`;
+
+//             // Only filter by channel if a specific channel (not "all") is selected
+//             if (selectedChannelId && selectedChannelId !== "all") {
+//                 url += `&channelId=${encodeURIComponent(selectedChannelId)}`;
+//             }
+
+//             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
+//             if (res.data?.success) {
+//                 if (res.data.counts) setRoomCounts(res.data.counts);
+//                 const incoming: any[] = res.data.messages ?? [];
+//                 if (latestCreatedAtRef.current === null) {
+//                     setPosts(prev => {
+//                         const prevMap = Object.fromEntries(prev.map(p => [p.id, p]));
+//                         return [...res.data.messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()).map((m: any) => mapMessage(m, prevMap[m.msgId]));
+//                     });
+//                     if (incoming.length > 0) latestCreatedAtRef.current = Math.max(...incoming.map(m => m.createdAt));
+//                 } else if (incoming.length > 0) {
+//                     latestCreatedAtRef.current = Math.max(...incoming.map((m: any) => m.createdAt));
+//                     setPosts(prev => {
+//                         const existingIds = new Set(prev.map(p => p.id));
+//                         const fresh = incoming.filter((m: any) => !existingIds.has(m.msgId)).map((m: any) => ({ ...mapMessage(m), timeAgo: "now" }));
+//                         if (fresh.length > 0) playSound("post");
+//                         return fresh.length > 0 ? [...prev, ...fresh] : prev;
+//                     });
+//                 }
+//             }
+//         } catch (e) { console.error(e); }
+//         finally { setLoading(false); }
+//     }, [roomId, mapMessage, selectedChannelId, playSound]);
+
+//     // ── Load more messages WITH channel filter ──
+//     const loadMoreMsgs = useCallback(async () => {
+//         if (!roomId || loadingMoreMsgsRef.current || !hasMoreMsgs) return;
+//         const combined = [...postsRef.current, ...morePostsRef.current];
+//         if (combined.length === 0) return;
+//         const oldestCreatedAt = combined.reduce((min, p) => {
+//             const time = getTimestamp(p.createdAt);
+//             return time < min ? time : min;
+//         }, getTimestamp(combined[0].createdAt));
+//         loadingMoreMsgsRef.current = true;
+//         setLoadingMoreMsgs(true);
+
+//         const list = listRef.current;
+//         const prevScrollHeight = list?.scrollHeight ?? 0;
+//         const prevScrollTop = list?.scrollTop ?? 0;
+//         pendingScrollRestoreRef.current = { prevScrollHeight, prevScrollTop };
+
+//         try {
+//             let url = `/api/roar/rooms/${roomId}/messages?limit=15&lastCreatedAt=${oldestCreatedAt}`;
+//             if (selectedChannelId && selectedChannelId !== "all") {
+//                 url += `&channelId=${encodeURIComponent(selectedChannelId)}`;
+//             }
+//             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
+//             if (res.data?.success) {
+//                 const newMsgs: any[] = res.data.messages ?? [];
+//                 setMorePosts(prev => {
+//                     const seenIds = new Set([...postsRef.current, ...prev].map(p => p.id ?? p.msgId));
+//                     const fresh = newMsgs.filter(m => !seenIds.has(m.msgId)).map(m => mapMessage(m));
+//                     return [...fresh, ...prev];
+//                 });
+//                 setHasMoreMsgs(Boolean(res.data.pagination?.hasMore));
+//             } else { setHasMoreMsgs(false); }
+//         } catch (e) {
+//             console.error("Failed to load more messages:", e);
+//             setHasMoreMsgs(false);
+//         } finally {
+//             loadingMoreMsgsRef.current = false;
+//             setLoadingMoreMsgs(false);
+//         }
+//     }, [roomId, hasMoreMsgs, mapMessage, selectedChannelId]);
+
+//     const refreshActiveFans = useCallback(async () => {
+//         if (!roomId) return;
+//         try {
+//             const res = await axios.get(`/api/roar/rooms/${roomId}/presence`, { timeout: PRESENCE_TIMEOUT_MS });
+//             if (res.data?.success) {
+//                 setActiveFans(res.data.fans ?? []);
+//                 setLiveCount(res.data.fanCount ?? 0);
+//                 if (res.data.totalJoinCount !== undefined) setTotalJoinCount(res.data.totalJoinCount);
+//                 setPinnedPost(res.data.pinnedPost ?? null);
+//             }
+//         } catch (e) { console.error("Active fans fetch failed:", e); }
+//     }, [roomId]);
+
+//     // ── Fetch reaction updates WITH channel filter ──
+//     const fetchReactionUpdates = useCallback(async () => {
+//         if (!roomId) return;
+//         try {
+//             let url = `/api/roar/rooms/${roomId}/messages?t=${Date.now()}`;
+//             if (selectedChannelId && selectedChannelId !== "all") {
+//                 url += `&channelId=${encodeURIComponent(selectedChannelId)}`;
+//             }
+//             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
+//             if (res.data?.success) {
+//                 const incoming: any[] = res.data.messages ?? [];
+//                 const isLocked = (id: string) => {
+//                     const t = lastLocalReactAtRef.current[id];
+//                     return t !== undefined && Date.now() - t < 6000;
+//                 };
+//                 setPosts(prev => prev.map(p => {
+//                     const updated = incoming.find((m: any) => m.msgId === p.id);
+//                     if (!updated) return p;
+//                     const isPending = pendingReactRef.current[p.id] || isLocked(p.id);
+//                     return {
+//                         ...p,
+//                         heartCount: isPending ? p.heartCount : (updated.heartCount ?? p.heartCount),
+//                         userReaction: isPending ? p.userReaction : (updated.userReaction ?? null),
+//                         replyCount: Math.max(p.replyCount ?? 0, updated.replyCount ?? 0),
+//                         agreeCount: updated.agreeCount ?? p.agreeCount,
+//                         disagreeCount: updated.disagreeCount ?? p.disagreeCount,
+//                         userVote: (p.userVote && !updated.userVote) ? p.userVote : (updated.userVote ?? p.userVote ?? null),
+//                     };
+//                 }));
+//                 setMorePosts(prev => prev.map(p => {
+//                     const updated = incoming.find((m: any) => m.msgId === p.id);
+//                     if (!updated) return p;
+//                     return {
+//                         ...p,
+//                         replyCount: Math.max(p.replyCount ?? 0, updated.replyCount ?? 0),
+//                         agreeCount: updated.agreeCount ?? p.agreeCount,
+//                         disagreeCount: updated.disagreeCount ?? p.disagreeCount,
+//                         userVote: (p.userVote && !updated.userVote) ? p.userVote : (updated.userVote ?? p.userVote ?? null),
+//                     };
+//                 }));
+//                 setLocalReactions(prev => {
+//                     const next = { ...prev };
+//                     incoming.forEach((m: any) => {
+//                         if (!pendingReactRef.current[m.msgId] && !isLocked(m.msgId)) {
+//                             next[m.msgId] = { reaction: m.userReaction ?? null, heartCount: m.heartCount ?? 0 };
+//                         }
+//                     });
+//                     return next;
+//                 });
+//             }
+//         } catch { }
+//     }, [roomId, selectedChannelId]);
+
+//     // const loadDollyHistory = useCallback(async () => {
+//     //     setDollyHistoryLoading(true);
+//     //     try {
+//     //         const res = await axios.get("/api/roar/dolly/rooms", { timeout: REQUEST_TIMEOUT_MS });
+//     //         const rooms: any[] = res.data?.rooms ?? [];
+//     //         const mapped: DollyHistorySession[] = rooms
+//     //             .filter(r => r.roomId !== roomId)
+//     //             .map(r => ({
+//     //                 roomId: r.roomId,
+//     //                 title: r.title,
+//     //                 subtitle: r.lastQuestion || "No questions yet",
+//     //                 dateLabel: new Date(r.lastAskedAt).toLocaleDateString([], { month: "short", day: "numeric" }),
+//     //                 sport: r.sport,
+//     //             }));
+//     //         setDollyHistory([
+//     //             { roomId: roomId!, title: roomName || "This match", subtitle: "", dateLabel: "Today", isLive: true },
+//     //             ...mapped,
+//     //         ]);
+//     //     } catch { setDollyHistory(roomId ? [{ roomId, title: roomName || "This match", subtitle: "", dateLabel: "Today", isLive: true }] : []); }
+//     //     finally { setDollyHistoryLoading(false); }
+//     // }, [roomId, roomName]);
+
+//     const loadDollyHistory = useCallback(async () => {
+//         if (!roomId) return;
+//         setDollyHistoryLoading(true);
+//         dollyHistoryCursorRef.current = undefined;
+//         dollyHistoryExhaustedRef.current = false;
+//         try {
+//             const res = await axios.get(`/api/roar/rooms/${roomId}/dolly/sessions`, { timeout: REQUEST_TIMEOUT_MS });
+//             const sessions = res.data?.sessions ?? [];
+//             setDollyHistory(sessions.map((s: any) => ({
+//                 sessionId: s.sessionId, roomId: roomId!, title: s.title, subtitle: "", dateLabel: s.dateLabel,
+//             })));
+//             dollyHistoryCursorRef.current = res.data?.nextBefore;
+//             if (sessions.length === 0) dollyHistoryExhaustedRef.current = true;
+//         } catch { setDollyHistory([]); }
+//         finally { setDollyHistoryLoading(false); }
+//     }, [roomId]);
+
+//     const loadMoreDollyHistory = useCallback(async () => {
+//         if (!roomId || dollyHistoryExhaustedRef.current || dollyHistoryLoadingMore) return;
+//         setDollyHistoryLoadingMore(true);
+//         try {
+//             const before = dollyHistoryCursorRef.current;
+//             const res = await axios.get(`/api/roar/rooms/${roomId}/dolly/sessions`, {
+//                 params: before ? { before } : undefined, timeout: REQUEST_TIMEOUT_MS,
+//             });
+//             const sessions = res.data?.sessions ?? [];
+//             if (sessions.length === 0) { dollyHistoryExhaustedRef.current = true; }
+//             else {
+//                 setDollyHistory(prev => [...prev, ...sessions.map((s: any) => ({
+//                     sessionId: s.sessionId, roomId: roomId!, title: s.title, subtitle: "", dateLabel: s.dateLabel,
+//                 }))]);
+//                 dollyHistoryCursorRef.current = res.data?.nextBefore;
+//             }
+//         } catch { /* leave as-is */ }
+//         finally { setDollyHistoryLoadingMore(false); }
+//     }, [roomId, dollyHistoryLoadingMore]);
+
+//     const ensureDollySession = useCallback(async (): Promise<string | null> => {
+//         if (dollyActiveSessionId) return dollyActiveSessionId;
+//         if (!roomId) return null;
+//         try {
+//             const res = await axios.post(`/api/roar/rooms/${roomId}/dolly/sessions`, {}, { timeout: REQUEST_TIMEOUT_MS });
+//             const newId = res.data?.sessionId;
+//             if (newId) { setDollyActiveSessionId(newId); dollyActiveSessionIdRef.current = newId; }
+//             return newId ?? null;
+//         } catch { onToast("Failed to start conversation"); return null; }
+//     }, [dollyActiveSessionId, roomId, onToast]);
+
+//     useEffect(() => {
+//         if (dollyOpen) loadDollyHistory();
+//     }, [roomId, dollyOpen, loadDollyHistory]);
+
+//     useEffect(() => {
+//         if (!roomId) return;
+//         const join = async () => {
+//             try {
+//                 await axios.post(`/api/roar/rooms/${roomId}/presence`, undefined, { timeout: PRESENCE_TIMEOUT_MS });
+//                 refreshActiveFans();
+//             } catch (e) { console.error("Join failed:", e); }
+//         };
+//         join();
+//         const heartbeat = setInterval(() => { if (!document.hidden) join(); }, 30000);
+//         const fanRefresh = setInterval(() => { if (!document.hidden) refreshActiveFans(); }, 120000);
+//         const leave = () => { navigator.sendBeacon(`/api/roar/rooms/${roomId}/presence/leave`); };
+//         window.addEventListener("beforeunload", leave);
+//         return () => {
+//             axios.delete(`/api/roar/rooms/${roomId}/presence`).catch(() => { });
+//             clearInterval(heartbeat);
+//             clearInterval(fanRefresh);
+//             window.removeEventListener("beforeunload", leave);
+//         };
+//     }, [roomId, refreshActiveFans]);
+
+//     useEffect(() => {
+//         const updateAvatar = () => {
+//             try {
+//                 const storedUsername = localStorage.getItem("roar_username");
+//                 if (userProfile?.username || storedUsername) {
+//                     setUserUsername(userProfile?.username || storedUsername || "RoarUser");
+//                 }
+//                 const storedAvatar = localStorage.getItem("roar_avatar_url");
+//                 const resolved = sanitizeAvatarUrl(currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || (userProfile as any)?.photoURL || (userProfile as any)?.picture || storedAvatar) || undefined;
+//                 if (resolved) {
+//                     setUserAvatarUrl(resolved);
+//                 }
+//             } catch { }
+//         };
+
+//         updateAvatar();
+//         window.addEventListener("storage", updateAvatar);
+//         window.addEventListener("roar-profile-updated", updateAvatar);
+//         window.addEventListener("roar:avatar-updated", updateAvatar);
+//         window.addEventListener("visibilitychange", updateAvatar);
+//         return () => {
+//             window.removeEventListener("storage", updateAvatar);
+//             window.removeEventListener("roar-profile-updated", updateAvatar);
+//             window.removeEventListener("roar:avatar-updated", updateAvatar);
+//             window.removeEventListener("visibilitychange", updateAvatar);
+//         };
+//     }, [currentAvatarUrl, userProfile]);
+
+//     // useEffect(() => {
+//     //     if (!roomId) { setDollyReplies([]); setDollyLoaded(true); return; }
+//     //     const requestId = Symbol();
+//     //     dollyFetchTokenRef.current = requestId;
+//     //     setDollyActiveRoomId(roomId);
+//     //     setDollyActiveRoomName(roomName);
+//     //     setDollyLoaded(false);
+//     //     axios.get(`/api/roar/rooms/${roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS })
+//     //         .then(res => {
+//     //             if (dollyFetchTokenRef.current !== requestId) return;
+//     //             setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
+//     //         })
+//     //         .catch(() => { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); })
+//     //         .finally(() => { if (dollyFetchTokenRef.current === requestId) setDollyLoaded(true); });
+//     // }, [roomId, roomName]);
+//     useEffect(() => {
+//         setDollyActiveSessionId(undefined);
+//         dollyActiveSessionIdRef.current = undefined;
+//         setDollyActiveRoomName(roomName);
+//         setDollyReplies([]);
+//         setDollyLoaded(true);
+//     }, [roomId, roomName]);
+
+//     useEffect(() => { onRegisterRefresh?.(fetchMsgs); }, [fetchMsgs, onRegisterRefresh]);
+//     useEffect(() => {
+//         onRegisterReplyUpdate?.((postId, count) => {
+//             setPosts(p => p.map(x => x.id === postId ? { ...x, replyCount: count } : x));
+//         });
+//     }, [onRegisterReplyUpdate]);
+
+//     const injectPost = useCallback((post: any) => {
+//         setPosts(p => {
+//             const pid = post.id || post.msgId || post.postId;
+//             if (pid && p.some(x => x.id === pid)) return p;
+//             return [...p, post];
+//         });
+//         playSound("post");
+//         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+//         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
+//     }, [playSound]);
+
+//     const optimisticSwap = useCallback((tempId: string, realMsg?: any) => {
+//         if (!realMsg) { setPosts(p => p.filter(x => x.id !== tempId)); return; }
+//         setPosts(p => p.map(x => x.id === tempId ? { ...mapMessage(realMsg), timeAgo: "now" } : x));
+//     }, [mapMessage]);
+
+//     useEffect(() => { onRegisterInjectPost?.(injectPost); }, [injectPost, onRegisterInjectPost]);
+//     useEffect(() => { onRegisterOptimisticSwap?.(optimisticSwap); }, [optimisticSwap, onRegisterOptimisticSwap]);
+
+//     useEffect(() => {
+//         latestCreatedAtRef.current = null;
+//         setPosts([]);
+//         setMorePosts([]);
+//         setHasMoreMsgs(true);
+//         setLoading(true);
+//         setRoomCounts({ post: 0, debate: 0, prediction: 0, trivia: 0, battle: 0 });
+//         setPinnedPost(null);
+//         setLocalReactions({});
+//         topReactionsCache.current = {};
+//         setTopReactionsMap({});
+//         setOpenInlinePostId(null);
+//         setActiveFilter("all");
+//         setSelectedChannelId("all");
+//         setMatchEngagements([]);
+//         setRoomMatchId(null);
+//         setEngagementsLoaded(false);
+//         setShowNewPill(false);
+//         seenEngIdsRef.current = null;
+//         engSortFallbackRef.current.clear();
+//         isAtBottomRef.current = true;
+//     }, [roomId]);
+
+//     useEffect(() => {
+//         if (!roomId) return;
+//         fetchMsgs();
+//     }, [fetchMsgs, roomId, selectedChannelId]);
+
+//     useVisibilityInterval(fetchMsgs, 15000);
+//     useVisibilityInterval(fetchReactionUpdates, 5000);
+
+//     useEffect(() => {
+//         if (!roomId) return;
+//         fetchEngagements();
+//     }, [fetchEngagements, roomId]);
+//     useVisibilityInterval(fetchEngagements, 12000);
+
+//     // useEffect(() => {
+//     //     const list = listRef.current;
+//     //     if (!list) return;
+
+//     //     const handleScroll = () => {
+//     //         if (!initialScrollDoneRef.current) return;
+//     //         if (list.scrollTop < 250) {
+//     //             loadMoreMsgs();
+//     //         }
+//     //     };
+//     //     list.addEventListener("scroll", handleScroll, { passive: true });
+//     //     return () => list.removeEventListener("scroll", handleScroll);
+//     // }, [loadMoreMsgs]);
+
+//     useEffect(() => {
+//         if (!pendingScrollRestoreRef.current) return;
+//         const { prevScrollHeight, prevScrollTop } = pendingScrollRestoreRef.current;
+//         pendingScrollRestoreRef.current = null;
+//         const list = listRef.current;
+//         if (list) {
+//             const newScrollHeight = list.scrollHeight;
+//             list.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+//         }
+//     }, [morePosts]);
+
+//     const feedReady = !loading && engagementsLoaded;
+
+//     const scrollToBottom = useCallback((smooth = true) => {
+//         const el = listRef.current;
+//         if (!el) return;
+//         el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+//         isAtBottomRef.current = true;
+//         setShowNewPill(false);
+//     }, []);
+
+//     // scroll listener: tracks if user is at the bottom + loads older messages
+//     useEffect(() => {
+//         const list = listRef.current;
+//         if (!list) return;
+//         const handleScroll = () => {
+//             const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+//             isAtBottomRef.current = atBottom;
+//             if (atBottom) setShowNewPill(false);
+//             if (!initialScrollDoneRef.current) return;
+//             if (list.scrollTop < 250) loadMoreMsgs();
+//         };
+//         list.addEventListener("scroll", handleScroll, { passive: true });
+//         return () => list.removeEventListener("scroll", handleScroll);
+//     }, [loadMoreMsgs]);
+
+//     // initial jump to bottom, only after posts AND engagements are loaded
+//     useEffect(() => {
+//         if (!feedReady) return;
+//         initialScrollDoneRef.current = false;
+//         const t1 = setTimeout(() => {
+//             scrollToBottom(false);
+//             setTimeout(() => { initialScrollDoneRef.current = true; }, 150);
+//         }, 50);
+//         return () => clearTimeout(t1);
+//     }, [feedReady, scrollToBottom]);
+
+//     // new posts: follow only if user is at bottom, else show pill
+//     useEffect(() => {
+//         const newCount = posts.length;
+//         if (newCount > prevPostCountRef.current && initialScrollDoneRef.current) {
+//             if (isAtBottomRef.current) setTimeout(() => scrollToBottom(true), 50);
+//             else setShowNewPill(true);
+//         }
+//         prevPostCountRef.current = newCount;
+//     }, [posts.length, scrollToBottom]);
+
+//     // new engagement: always scroll down so user notices it
+//     useEffect(() => {
+//         if (!engagementsLoaded) return;
+//         const ids = new Set(matchEngagements.map(e => e.id));
+//         if (seenEngIdsRef.current === null) { seenEngIdsRef.current = ids; return; }
+//         const fresh = [...ids].filter(id => !seenEngIdsRef.current!.has(id));
+//         seenEngIdsRef.current = ids;
+//         if (fresh.length > 0) {
+//             setTimeout(() => scrollToBottom(true), 80);
+//             setTimeout(() => scrollToBottom(true), 300);
+//             onToast("New engagement added 🎯");
+//         }
+//     }, [matchEngagements, engagementsLoaded, scrollToBottom, onToast]);
+
+//     // useEffect(() => {
+//     //     if (!loading && listRef.current) {
+//     //         initialScrollDoneRef.current = false;
+//     //         setTimeout(() => {
+//     //             listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+//     //             setTimeout(() => { initialScrollDoneRef.current = true; }, 150);
+//     //         }, 50);
+//     //     }
+//     // }, [loading]);
+
+//     // useEffect(() => {
+//     //     const newCount = posts.length;
+//     //     if (newCount > prevPostCountRef.current && listRef.current) {
+//     //         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+//     //         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
+//     //     }
+//     //     prevPostCountRef.current = newCount;
+//     // }, [posts.length]);
+
+//     const startPostCooldown = useCallback(() => {
+//         setPostCooldown(10);
+//         if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+//         cooldownIntervalRef.current = setInterval(() => {
+//             setPostCooldown(prev => {
+//                 if (prev <= 1) {
+//                     if (cooldownIntervalRef.current) clearInterval(cooldownIntervalRef.current);
+//                     return 0;
+//                 }
+//                 return prev - 1;
+//             });
+//         }, 1000);
+//     }, []);
+
+//     const renameDollySession = useCallback(async (sessionId: string, newTitle: string) => {
+//         if (!roomId) return;
+//         setDollyHistory(prev => prev.map(s => s.sessionId === sessionId ? { ...s, title: newTitle } : s));
+//         try {
+//             await axios.patch(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { customTitle: newTitle }, { timeout: REQUEST_TIMEOUT_MS });
+//         } catch {
+//             onToast("Failed to rename conversation");
+//             loadDollyHistory();
+//         }
+//     }, [roomId, onToast, loadDollyHistory]);
+
+//     const handleNewDollyChat = useCallback(() => {
+//         dollyFetchTokenRef.current = Symbol();
+//         setDollyQuestion("");
+//         setDollyReplies([]);
+//         setDollyActiveSessionId(undefined);
+//         dollyActiveSessionIdRef.current = undefined;
+//     }, []);
+
+//     const deleteDollySession = useCallback(async (sessionId: string) => {
+//         if (!roomId) return;
+//         setDollyHistory(prev => prev.filter(s => s.sessionId !== sessionId));
+//         if (dollyActiveSessionId === sessionId) handleNewDollyChat();
+//         try {
+//             await axios.delete(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
+//         } catch {
+//             onToast("Failed to delete conversation");
+//             loadDollyHistory();
+//         }
+//     }, [roomId, dollyActiveSessionId, handleNewDollyChat, onToast, loadDollyHistory]);
+
+//     const handleBack = (e: React.PointerEvent | React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); onBack(); };
+
+//     const handleReact = useCallback(async (msgId: string, reaction: Reaction | null) => {
+//         if (!roomId || pendingReactRef.current[msgId]) return;
+//         const post = posts.find(p => p.id === msgId) || morePosts.find(p => p.id === msgId);
+//         const prevReactionState = localReactionsRef.current[msgId] ?? { reaction: post?.userReaction ?? null, heartCount: post?.heartCount ?? 0 };
+//         const sameReaction = prevReactionState.reaction === reaction;
+//         const newReaction = sameReaction ? null : reaction;
+//         const wasActive = prevReactionState.reaction !== null;
+//         const newActive = newReaction !== null;
+//         const countDelta = newActive && !wasActive ? 1 : (!newActive && wasActive ? -1 : 0);
+//         const optimisticState = { reaction: newReaction, heartCount: Math.max(0, prevReactionState.heartCount + countDelta) };
+//         setLocalReactions(p => ({ ...p, [msgId]: optimisticState }));
+//         setPosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: optimisticState.heartCount, userReaction: newReaction } : p));
+//         setMorePosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: optimisticState.heartCount, userReaction: newReaction } : p));
+//         lastLocalReactAtRef.current[msgId] = Date.now();
+//         pendingReactRef.current[msgId] = true;
+//         try {
+//             trackMeaningfulInteraction("reaction", { room_id: roomId, room_name: roomName || "", msg_id: msgId, reaction: newReaction });
+//             if (phog) {
+//                 phog.capture("meaningful_interaction", {
+//                     interaction_type: "reaction",
+//                     room_id: roomId,
+//                     room_name: roomName || "",
+//                     msg_id: msgId,
+//                     reaction: newReaction,
+//                 });
+//             }
+//         } catch (e) { }
+//         const failsafe = setTimeout(() => { pendingReactRef.current[msgId] = false; }, REQUEST_TIMEOUT_MS + 3000);
+//         try {
+//             const res = await axios.post(
+//                 `/api/roar/rooms/${roomId}/messages/${msgId}/react`,
+//                 { reaction: newReaction },
+//                 { timeout: REQUEST_TIMEOUT_MS }
+//             );
+//             if (res.data && typeof res.data.heartCount === "number") {
+//                 const finalCount = res.data.heartCount;
+//                 setLocalReactions(p => ({ ...p, [msgId]: { ...optimisticState, heartCount: finalCount } }));
+//                 setPosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: finalCount, userReaction: newReaction } : p));
+//                 setMorePosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: finalCount, userReaction: newReaction } : p));
+//                 lastLocalReactAtRef.current[msgId] = Date.now();
+//             }
+//         } catch (err) {
+//             console.error("Reaction failed:", err);
+//             setLocalReactions(p => ({ ...p, [msgId]: prevReactionState }));
+//             setPosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: prevReactionState.heartCount, userReaction: prevReactionState.reaction } : p));
+//             setMorePosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: prevReactionState.heartCount, userReaction: prevReactionState.reaction } : p));
+//             onToast("Failed to save reaction");
+//         } finally {
+//             clearTimeout(failsafe);
+//             pendingReactRef.current[msgId] = false;
+//         }
+//     }, [roomId, posts, morePosts, onToast, phog, roomName]);
+
+//     // ── Delete post ──
+//     const handleDeletePost = useCallback(async (postId: string) => {
+//         if (!roomId) return;
+//         setOpenMenuPostId(null);
+//         if (!window.confirm("Delete this post?")) return;
+//         try {
+//             await axios.delete(`/api/roar/rooms/${roomId}/messages/${postId}`, { timeout: REQUEST_TIMEOUT_MS });
+//             setPosts(prev => prev.filter(x => x.id !== postId));
+//             setMorePosts(prev => prev.filter(x => x.id !== postId));
+//         } catch {
+//             onToast("Failed to delete post");
+//         }
+//     }, [roomId, onToast]);
+
+//     // ── Send message with channelId ──
+//     const send = async () => {
+//         if (!roomId || postCooldown > 0 || sendingRef.current) return;
+//         const text = input.trim();
+//         if (!text && !attachedUrl) {
+//             onToast("Please enter a message");
+//             return;
+//         }
+
+//         // Clean any #channel mentions from the text (they should have been removed)
+//         const cleanText = text.replace(/^#\w+\s*/, '').trim();
+//         const finalText = cleanText || text;
+
+//         if (!finalText && !attachedUrl) {
+//             onToast("Please enter a message");
+//             return;
+//         }
+
+//         sendingRef.current = true; setIsSending(true);
+//         const failsafe = setTimeout(() => { sendingRef.current = false; setIsSending(false); }, REQUEST_TIMEOUT_MS + 3000);
+//         const clientMsgId = `${currentUserId || "anon"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+//         try {
+//             const payload: any = {
+//                 text: finalText || "Shared media",
+//                 type: mode,
+//                 mediaUrls: attachedUrl ? [attachedUrl] : undefined,
+//                 clientMsgId,
+//             };
+
+//             // Include channel ID when posting
+//             let postChannelId: string | undefined = undefined;
+//             if (selectedChannelId && selectedChannelId !== "all") {
+//                 postChannelId = selectedChannelId;
+//             } else if (displayChannels.length > 0) {
+//                 postChannelId = displayChannels[0].channelId;
+//             }
+
+//             if (postChannelId) {
+//                 payload.channelId = postChannelId;
+//             }
+
+//             try {
+//                 if (phog) {
+//                     phog.capture("meaningful_interaction", {
+//                         interaction_type: "comment",
+//                         room_id: roomId,
+//                         room_name: roomName || "",
+//                         text,
+//                     });
+//                 }
+//             } catch (e) { }
+//             const res = await axios.post(
+//                 `/api/roar/rooms/${roomId}/messages`,
+//                 payload,
+//                 { timeout: REQUEST_TIMEOUT_MS }
+//             );
+//             if (res.data?.success) {
+//                 const m = res.data.message || {
+//                     msgId: clientMsgId,
+//                     authorUid: currentUserId,
+//                     authorUsername: userUsername,
+//                     text: payload.text,
+//                     channelId: postChannelId,
+//                     createdAt: Date.now(),
+//                     type: mode,
+//                 };
+
+//                 const effectiveMsgChannelId = m.channelId || postChannelId;
+//                 const belongsToView =
+//                     !selectedChannelId ||
+//                     selectedChannelId === "all" ||
+//                     effectiveMsgChannelId === selectedChannelId ||
+//                     (!effectiveMsgChannelId && (displayChannels[0]?.channelId === selectedChannelId || displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general"));
+
+//                 if (belongsToView) {
+//                     const targetId = m.msgId || clientMsgId;
+//                     setPosts(p => {
+//                         if (p.some(x => x.id === targetId)) return p;
+//                         return [...p, {
+//                             id: targetId,
+//                             authorUid: m.authorUid,
+//                             authorEmail: m.authorEmail,
+//                             fan: {
+//                                 username: displayUsername(m.authorUsername || userUsername),
+//                                 authorUid: m.authorUid || currentUserId,
+//                                 badge: m.authorBadge,
+//                                 avatarUrl: getEffectiveUserAvatar() || sanitizeAvatarUrl(m.authorAvatarUrl || m.avatarUrl) || undefined
+//                             },
+//                             text: m.text,
+//                             fireCount: m.fireCount ?? 0,
+//                             heartCount: m.heartCount ?? 0,
+//                             mindblownCount: m.mindblownCount ?? 0,
+//                             goatCount: m.goatCount ?? 0,
+//                             clapCount: m.clapCount ?? 0,
+//                             nochanceCount: m.noChanceCount ?? 0,
+//                             userReaction: null,
+//                             replyCount: 0,
+//                             agreeCount: 0,
+//                             disagreeCount: 0,
+//                             userVote: null,
+//                             sideA: m.sideA ?? null,
+//                             sideB: m.sideB ?? null,
+//                             timeAgo: "now",
+//                             createdAt: m.createdAt || Date.now(),
+//                             type: m.type,
+//                             mediaUrls: m.mediaUrls,
+//                             quizQuestion: m.quizQuestion,
+//                             quizOptions: m.quizOptions,
+//                             quizCorrectOption: m.quizCorrectOption,
+//                             quizUserAnswer: m.quizUserAnswer ?? null,
+//                             quizTimer: m.quizTimer,
+//                             quizPoints: m.quizPoints,
+//                             quizParticipants: m.quizParticipants ?? 0,
+//                             memGifUrl: m.memGifUrl ?? null,
+//                             memTag: m.memTag ?? null,
+//                             channelId: effectiveMsgChannelId,
+//                         }];
+//                     });
+//                     setInput(""); setAttachedUrl(null); setAttachedType(null);
+//                     playSound("post");
+//                     startPostCooldown();
+//                     setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+//                     setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
+//                 }
+//             }
+//         } catch { onToast("Failed to send message"); }
+//         finally { clearTimeout(failsafe); sendingRef.current = false; setIsSending(false); }
+//     };
+
+//     // ── Quick react with channelId ──
+//     const handleQuickReactPost = async (opt: typeof QUICK_REACT_OPTS[0]) => {
+//         if (!roomId) return;
+//         setShowQuickCompose(false);
+//         const memTag = opt.id.replace("qr_", "");
+//         const tempId = `temp-qr-${Date.now()}`;
+//         const optimisticMsg: any = {
+//             id: tempId,
+//             fan: { username: displayUsername(userUsername), authorUid: currentUserId || "", badge: "", avatarUrl: getEffectiveUserAvatar() || undefined },
+//             text: opt.label,
+//             fireCount: 0, heartCount: 0, mindblownCount: 0, goatCount: 0, clapCount: 0, nochanceCount: 0,
+//             userReaction: null, replyCount: 0, agreeCount: 0, disagreeCount: 0, userVote: null,
+//             sideA: null, sideB: null, timeAgo: "Sending...", createdAt: Date.now(),
+//             type: "post", mediaUrls: [], quizQuestion: null, quizOptions: null,
+//             quizCorrectOption: null, quizUserAnswer: null, quizTimer: null, quizPoints: null,
+//             quizParticipants: 0, memGifUrl: null, memTag: memTag, status: "sending"
+//         };
+//         setPosts(p => [...p, optimisticMsg]);
+//         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+//         try {
+//             const payload: any = {
+//                 text: opt.label,
+//                 type: "post",
+//                 memTag,
+//             };
+//             let quickReactChannelId: string | undefined = undefined;
+//             if (selectedChannelId && selectedChannelId !== "all") {
+//                 quickReactChannelId = selectedChannelId;
+//             } else if (displayChannels.length > 0) {
+//                 quickReactChannelId = displayChannels[0].channelId;
+//             }
+//             if (quickReactChannelId) {
+//                 payload.channelId = quickReactChannelId;
+//             }
+
+//             const res = await axios.post(`/api/roar/rooms/${roomId}/messages`, payload, { timeout: REQUEST_TIMEOUT_MS });
+//             if (res.data?.success) {
+//                 const m = res.data.message;
+//                 const effectiveMsgChannelId = m?.channelId || quickReactChannelId;
+//                 const belongsToView =
+//                     !selectedChannelId ||
+//                     selectedChannelId === "all" ||
+//                     effectiveMsgChannelId === selectedChannelId ||
+//                     (!effectiveMsgChannelId && (displayChannels[0]?.channelId === selectedChannelId || displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general"));
+
+//                 if (belongsToView) {
+//                     setPosts(p => {
+//                         if (m?.msgId && p.some(post => post.id === m.msgId)) return p.filter(post => post.id !== tempId);
+//                         return p.map(post => post.id === tempId ? { ...post, id: m?.msgId || tempId, authorUid: m?.authorUid, authorEmail: m?.authorEmail, status: "sent", timeAgo: "now", createdAt: m?.createdAt || Date.now(), memGifUrl: m?.memGifUrl, channelId: effectiveMsgChannelId } : post);
+//                     });
+//                     setNewlyPostedIds(prev => new Set([...prev, m?.msgId || tempId]));
+//                     playSound("post");
+//                     if (["wicket", "six", "four", "goal", "redcard", "catch", "frango", "yellowcard"].includes(memTag)) {
+//                         setCelebration({ memTag });
+//                     }
+//                     setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+//                     setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
+//                     onToast(`${opt.emoji} ${opt.label} posted!`);
+//                 } else {
+//                     setPosts(p => p.filter(post => post.id !== tempId));
+//                     onToast("Post created but not in current channel view");
+//                 }
+//             } else {
+//                 setPosts(p => p.filter(post => post.id !== tempId));
+//                 onToast(res.data?.error || "Failed to post");
+//             }
+//         } catch {
+//             setPosts(p => p.filter(post => post.id !== tempId));
+//             onToast("Failed to post");
+//         }
+//     };
+
+//     const triggerUpload = (type: "image" | "video") => {
+//         setAttachedType(type);
+//         if (fileInputRef.current) { fileInputRef.current.accept = type === "image" ? "image/*" : "video/*"; fileInputRef.current.click(); }
+//     };
+
+//     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+//         const file = e.target.files?.[0]; if (!file) return;
+//         try {
+//             setUploading(true); onToast("Uploading media...");
+//             const fd = new FormData(); fd.append("file", file);
+//             const res = await axios.post("/api/upload", fd, { headers: { "Content-Type": "multipart/form-data" }, timeout: 60000 });
+//             if (res.data?.url) { setAttachedUrl(res.data.url); onToast("Media uploaded!"); }
+//         } catch { onToast("Upload failed"); setAttachedType(null); }
+//         finally { setUploading(false); if (e.target) e.target.value = ""; }
+//     };
+
+//     const handleSharePost = (post: any) => {
+//         try {
+//             trackAdvocacy("content_shared", { post_id: post.id, room_id: roomId, room_name: roomName || "" });
+//             if (phog) {
+//             }
+//         } catch (e) { }
+//         if (typeof navigator !== "undefined" && navigator.clipboard) {
+//             navigator.clipboard.writeText(window.location.origin + `/MainModules/ROAR?post=${post.id}`).then(() => onToast("Post link copied to clipboard!"));
+//         } else {
+//             onToast("Link copied!");
+//         }
+//     };
+
+//     const shareRoomLink = () => {
+//         try {
+//             trackAdvocacy("content_shared", { room_id: roomId, room_name: roomName || "", type: "room_share" });
+//             if (phog) {
+//             }
+//         } catch (e) { }
+//         if (typeof navigator !== "undefined" && navigator.share) navigator.share({ title: "SF360 Infinity Room", url: window.location.href });
+//         else { navigator.clipboard.writeText(window.location.href).then(() => onToast("Link copied!")); }
+//     };
+
+//     const toggleSound = () => {
+//         setSoundEnabled(prev => {
+//             const next = !prev;
+//             localStorage.setItem("roar_sound_enabled", String(next));
+//             return next;
+//         });
+//     };
+
+//     const composeIconMap: Record<string, React.ReactNode> = {
+//         hot_take: <Flame size={13} stroke="url(#dr-pink-orange-grad)" fill="url(#dr-pink-orange-grad)" />,
+//         prediction: <TrendingUp size={13} stroke="url(#dr-pink-orange-grad)" />,
+//         debate: <Zap size={13} stroke="url(#dr-pink-orange-grad)" fill="url(#dr-pink-orange-grad)" />,
+//         memory: <History size={13} stroke="url(#dr-pink-orange-grad)" />,
+//         post: <PenTool size={13} stroke="url(#dr-pink-orange-grad)" />,
+//         quiz: <Brain size={13} stroke="url(#dr-pink-orange-grad)" />,
+//     };
+
+//     const REACTION_EMOJI: Record<string, string> = {
+//         fire: "🔥", heart: "❤️", mindblown: "🤯", goat: "🐐", clap: "👏",
+//         nochance: "🙅", laugh: "😂", sad: "😢", thumb: "👍",
+//     };
+
+//     // ── Filter posts by channel first, then by category ──
+//     const filteredPosts = React.useMemo(() => {
+//         let postsToFilter = allVisiblePosts;
+
+//         // Filter by selected channel
+//         if (selectedChannelId && selectedChannelId !== "all") {
+//             const isFirstOrGeneral =
+//                 displayChannels[0]?.channelId === selectedChannelId ||
+//                 displayChannels.find(c => c.channelId === selectedChannelId)?.slug === "general";
+
+//             postsToFilter = postsToFilter.filter(p => {
+//                 if (p.channelId === selectedChannelId) return true;
+//                 // If a post has no channelId, display in default/general channel
+//                 if (isFirstOrGeneral && !p.channelId) return true;
+//                 return false;
+//             });
+//         }
+
+//         // Then apply category filter
+//         if (activeFilter === "all") {
+//             return postsToFilter;
+//         }
+
+//         return postsToFilter.filter(p => {
+//             if (activeFilter === "post") return p.type === "post" || !p.type;
+//             return p.type === activeFilter;
+//         });
+//     }, [allVisiblePosts, selectedChannelId, activeFilter, displayChannels]);
+
+//     type FeedItem =
+//         | { kind: "post"; data: any; sortKey: number }
+//         | { kind: "engagement"; data: EngagementItem; sortKey: number };
+//     const feedItems: FeedItem[] = React.useMemo(() => {
+//         const postItems: FeedItem[] = filteredPosts.map(p => ({
+//             kind: "post" as const,
+//             data: p,
+//             sortKey: getTimestamp(p.createdAt),
+//         }));
+//         // Filter active match engagements according to active category tab
+//         const filteredEngagements = matchEngagements.filter(eng => {
+//             if (activeFilter === "all") return true;
+//             if (activeFilter === "prediction") return eng.type === "prediction";
+//             if (activeFilter === "debate") return eng.type === "debate" || eng.type === "poll" || eng.type === "express";
+//             if (activeFilter === "trivia") return eng.type === "quiz" || eng.type === "question";
+//             if (activeFilter === "battle") return eng.type === "fan_battle";
+//             return false;
+//         });
+//         const engagementItems: FeedItem[] = filteredEngagements.map(e => {
+//             const rawTime = e.createdAt || (e as any).created_at || (e as any).timestamp || e.startTime || (e as any).start_time || e.postingTime || e.updatedAt || (e as any).updated_at;
+//             const parsed = rawTime ? getTimestamp(rawTime) : 0;
+//             let key = parsed;
+//             if (!key) {
+//                 if (!engSortFallbackRef.current.has(e.id)) engSortFallbackRef.current.set(e.id, Date.now());
+//                 key = engSortFallbackRef.current.get(e.id)!;
+//             }
+//             return { kind: "engagement" as const, data: e, sortKey: key };
+//         });
+//         return [...postItems, ...engagementItems].sort((a, b) => a.sortKey - b.sortKey);
+//     }, [filteredPosts, matchEngagements, activeFilter]);
+
+//     const renderReactionPicker = (p: any) => {
+//         const lo = localReactions[p.id];
+//         const currentReaction: Reaction | null = lo !== undefined ? lo.reaction : (p.userReaction ?? null);
+//         const heartCount = lo !== undefined ? lo.heartCount : (p.heartCount ?? 0);
+//         return (
+//             <div onClick={e => e.stopPropagation()}>
+//                 <ReactionPicker
+//                     currentReaction={currentReaction}
+//                     count={heartCount}
+//                     onReact={(r) => handleReact(p.id, r)}
+//                     postId={p.id}
+//                     roomId={roomId}
+//                     roomName={roomName}
+//                 />
+//             </div>
+//         );
+//     };
+
+//     const renderReactionsTrigger = (p: any) => {
+//         const lo = localReactions[p.id];
+//         const heartCount = lo !== undefined ? lo.heartCount : (p.heartCount ?? 0);
+//         if (heartCount === 0) return null;
+//         const topReactions = topReactionsMap[p.id] ?? [];
+//         if (topReactions.length === 0 && !topReactionsCache.current[p.id]) fetchTopReactions(p.id);
+//         const currentReaction = lo?.reaction ?? p.userReaction ?? null;
+//         const displayReactions = topReactions.length > 0 ? topReactions : currentReaction ? [currentReaction] : [];
+//         if (displayReactions.length === 0) return null;
+//         return (
+//             <motion.button whileTap={{ scale: 0.93 }} onClick={e => { e.stopPropagation(); setReactionsMsgId(p.id); }} style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", marginLeft: "auto", padding: 0 }} title="See who reacted">
+//                 <div style={{ display: "flex" }}>
+//                     {displayReactions.map((type, i) => (
+//                         <div key={type} style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, marginLeft: i === 0 ? 0 : -5, zIndex: displayReactions.length - i, position: "relative" }}>
+//                             {REACTION_EMOJI[type] ?? "❤️"}
+//                         </div>
+//                     ))}
+//                 </div>
+//             </motion.button>
+//         );
+//     };
+
+//     // Get current channel name for display
+//     const currentChannelName = React.useMemo(() => {
+//         if (selectedChannelId === "all" || !selectedChannelId) return "all";
+//         const found = displayChannels.find(c => c.channelId === selectedChannelId);
+//         return found?.name || "general";
+//     }, [selectedChannelId, displayChannels]);
+
+//     // ── Derive sport from the selected channel (name or slug) ──
+//     const currentChannelSport = React.useMemo<"cricket" | "football" | null>(() => {
+//         if (selectedChannelId === "all" || !selectedChannelId) return null;
+//         const ch = displayChannels.find(c => c.channelId === selectedChannelId);
+//         if (!ch) return null;
+//         const key = `${ch.name} ${ch.slug}`.toLowerCase();
+//         if (key.includes("cricket")) return "cricket";
+//         if (key.includes("football") || key.includes("soccer")) return "football";
+//         return null;
+//     }, [displayChannels, selectedChannelId]);
+
+//     // ── Quick-react options filtered to the active channel's sport ──
+//     const visibleQuickReactOpts = React.useMemo(() => {
+//         if (!currentChannelSport) return QUICK_REACT_OPTS; // fallback: show all if we can't tell
+//         return QUICK_REACT_OPTS.filter(
+//             (q) => q.sport === currentChannelSport || q.sport === "both"
+//         );
+//     }, [currentChannelSport]);
+
+//     // ── Get placeholder text based on selected channel ──
+//     const getPlaceholder = () => {
+//         if (postCooldown > 0) {
+//             return `Wait ${postCooldown}s before posting …`;
+//         }
+//         if (uploading) {
+//             return "Uploading media...";
+//         }
+//         if (selectedChannelId && selectedChannelId !== "all") {
+//             return `Message to #${currentChannelName}...`;
+//         }
+//         return "Message to #all (type # to switch channel)...";
+//     };
+
+//     return (
+//         <div className="flex flex-col w-full bg-[#0e0e14]" style={{ height: "100%", overflow: "hidden" }}>
+//             <svg width="0" height="0" style={{ position: "absolute" }}>
+//                 <linearGradient id="dr-pink-orange-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+//                     <stop offset="0%" stopColor="#e91e8c" /><stop offset="100%" stopColor="#ff6b35" />
+//                 </linearGradient>
+//             </svg>
+
+//             {/* ── HEADER ── */}
+//             <div className="shrink-0 px-2 py-1 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-b border-[var(--border)]" style={{ overflow: "visible", position: "relative", zIndex: 40 }}>
+//                 <div className="flex justify-between items-center gap-1">
+//                     <div className="flex items-center gap-1 min-w-0 flex-1">
+//                         <div className="text-left pt-0 min-w-0">
+//                             <div className="flex items-center gap-1 flex-wrap">
+//                                 <ActiveFansStack
+//                                     fans={activeFans}
+//                                     count={liveCount}
+//                                     totalJoinCount={totalJoinCount}
+//                                     onClick={() => { refreshActiveFans(); setActiveFansOpen(true); }}
+//                                 />
+//                             </div>
+//                         </div>
+//                     </div>
+//                     <div className="flex items-center gap-1 flex-shrink-0">
+//                         <button
+//                             type="button"
+//                             onClick={toggleSound}
+//                             className="flex-shrink-0 rounded-[6px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
+//                             style={{ width: "26px", height: "26px" }}
+//                             title={soundEnabled ? "Mute sounds" : "Unmute sounds"}
+//                         >
+//                             {soundEnabled ? <Volume2 size={12} /> : <VolumeX size={12} />}
+//                         </button>
+//                         <button
+//                             type="button"
+//                             onClick={shareRoomLink}
+//                             className="flex-shrink-0 rounded-[6px] cursor-pointer text-[rgba(255,255,255,0.75)] flex items-center justify-center hover:bg-white/5 transition-colors"
+//                             style={{ width: "26px", height: "26px" }}
+//                         >
+//                             <Share2 size={12} />
+//                         </button>
+//                     </div>
+//                 </div>
+//             </div>
+
+//             {/* ── CHANNELS SECTION ── */}
+//             {(!channelsLoading || displayChannels.length > 0) && (
+//                 <div className="shrink-0 px-2 py-1 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)] overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+//                     <div className="flex items-center gap-1.5">
+
+//                         <img src="/images/categoryiconbg.png" alt="category-icon" className="w-4 h-4 object-cover" />
+
+//                         <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+//                             {/* All Channels Button */}
+//                             <button
+//                                 type="button"
+//                                 onClick={() => handleChannelSelect("all")}
+//                                 className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all duration-150 flex-shrink-0 ${selectedChannelId === "all" || !selectedChannelId
+//                                     ? "bg-gradient-to-r from-[#e91e8c] to-[#ff6b35] text-white shadow-lg shadow-pink-500/20"
+//                                     : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80 border border-white/5"
+//                                     }`}
+//                             >
+//                                 # all
+//                             </button>
+
+//                             {displayChannels.map((channel) => (
+//                                 <button
+//                                     key={channel.channelId}
+//                                     type="button"
+//                                     onClick={() => handleChannelSelect(channel.channelId)}
+//                                     className={`flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap transition-all duration-150 flex-shrink-0 ${selectedChannelId === channel.channelId
+//                                         ? "bg-gradient-to-r from-[#e91e8c] to-[#ff6b35] text-white shadow-lg shadow-pink-500/20"
+//                                         : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80 border border-white/5"
+//                                         }`}
+//                                 >
+//                                     # {channel.name}
+//                                 </button>
+//                             ))}
+//                         </div>
+//                     </div>
+//                 </div>
+//             )}
+
+//             {channelsLoading && displayChannels.length === 0 && (
+//                 <div className="shrink-0 px-2 py-1.5 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)]">
+//                     <div className="flex items-center gap-1.5">
+//                         <Hash size={12} className="text-white/20" />
+//                         <span className="text-[9px] text-white/30">Loading channels...</span>
+//                     </div>
+//                 </div>
+//             )}
+
+//             {/* ── PINNED POST ── */}
+//             {pinnedPost && (
+//                 <div className="shrink-0 px-3 py-0.5 bg-[rgba(233,30,140,0.08)] border-b border-[rgba(233,30,140,0.18)] flex items-center gap-1.5 cursor-pointer">
+//                     <span className="text-[9px] shrink-0">📌</span>
+//                     <p className="m-0 text-[10px] text-white/85 whitespace-nowrap overflow-hidden text-ellipsis flex-1">
+//                         <span className="font-bold text-[#e91e8c]">Pinned: </span>
+//                         {pinnedPost.text}
+//                     </p>
+//                     <ChevronDown size={12} className="text-white/35 shrink-0 -rotate-90" />
+//                 </div>
+//             )}
+
+//             {/* ── CATEGORY FILTERS ── */}
+//             <div className="flex justify-start gap-1 py-1 px-2 overflow-x-auto shrink-0 border-b border-[var(--border)]" style={{ scrollbarWidth: "none" }}>
+//                 {(["all", "post", "debate", "prediction", "trivia", "battle"] as const).map((f) => {
+//                     const isActive = activeFilter === f;
+//                     // const count = f === "post" ? roomCounts.post : f === "debate" ? roomCounts.debate : f === "prediction" ? roomCounts.prediction : f === "trivia" ? roomCounts.trivia : f === "battle" ? roomCounts.battle : 0;
+//                     const count = f === "post" ? displayCounts.post : f === "debate" ? displayCounts.debate : f === "prediction" ? displayCounts.prediction : f === "trivia" ? displayCounts.trivia : f === "battle" ? displayCounts.battle : 0;
+//                     const color = f === "post" ? "#e91e8c" : f === "debate" ? "#60a5fa" : f === "prediction" ? "#fbbf24" : f === "trivia" ? "#22c55e" : f === "battle" ? "#E91E8C" : "#fff";
+//                     const label = f === "all" ? "All" : f === "post" ? "Posts" : f === "debate" ? "Debates" : f === "prediction" ? "Predictions" : f === "trivia" ? "Trivia" : "Battles";
+//                     return (
+//                         <button key={f} type="button" onClick={() => setActiveFilter(f)}
+//                             className="flex items-center gap-1 px-2 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0 transition-all duration-150"
+//                             style={{ background: isActive ? `${color}22` : "rgba(255,255,255,0.05)", border: `1.5px solid ${isActive ? `${color}70` : "rgba(255,255,255,0.1)"}`, color: isActive ? color : "rgba(255,255,255,0.5)" }}
+//                         >
+//                             {f !== "all" && <span className="w-1 h-1 rounded-full shrink-0" style={{ background: color }} />}
+//                             {label}
+//                             {f !== "all" && !isActive && count > 0 && (
+//                                 <span className="text-[8px] font-extrabold px-1 rounded-full" style={{ background: `${color}28`, color }}>{count}</span>
+//                             )}
+//                         </button>
+//                     );
+//                 })}
+//             </div>
+
+//             {/* ── MESSAGES LIST ── */}
+//             <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+//                 <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0 pb-6">
+//                     {hasMoreMsgs && feedReady && (
+//                     <div ref={sentinelRef} style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}>
+//                         {loadingMoreMsgs && <div style={{ width: 24, height: 24, borderRadius: "50%", border: "3px solid rgba(255,255,255,0.1)", borderTop: "3px solid #E91E8C", animation: "dr-spin 0.8s linear infinite" }} />}
+//                     </div>
+//                 )}
+//                 {!feedReady || !dollyLoaded ? (
+//                     <div className="text-center text-[var(--text-muted)] py-6 text-xs">Loading messages...</div>
+//                 ) : feedItems.length === 0 ? (
+//                     <div className="text-center text-[var(--text-muted)] py-6 text-xs">
+//                         {displayChannels.length > 0 && selectedChannelId && selectedChannelId !== "all" ? (
+//                             <>No messages in <strong className="text-white">#{currentChannelName}</strong> channel yet. Start the conversation!</>
+//                         ) : (
+//                             <>No messages yet. Start the conversation!</>
+//                         )}
+//                     </div>
+//                 ) : (
+//                     feedItems.map((item) => {
+//                         if (item.kind === "engagement") {
+//                             return (
+//                                 <EngagementCard
+//                                     key={`eng-${item.data.id}`}
+//                                     item={{
+//                                         ...item.data,
+//                                         creatorName: "SportsFan360",
+//                                         creatorAvatar: "/images/sportsfan360logo.png",
+//                                     }}
+//                                     variant="post"
+//                                     onInteraction={(data) => handleEngagementInteraction(item.data.id, data)}
+//                                 />
+//                             );
+//                         }
+//                         const p = item.data;
+//                         if (p.type === "trivia" && p.triviaQuestions?.length > 0) {
+//                             return (
+//                                 <TriviaCard
+//                                     key={p.id}
+//                                     post={p}
+//                                     onToast={onToast}
+//                                     onPostClick={onPostClick}
+//                                     roomId={roomId}
+//                                     onFanProfile={onFanProfile}
+//                                 />
+//                             );
+//                         }
+//                         if (p.type === "battle" && p.battleQuestions?.length > 0) {
+//                             return (
+//                                 <BattleCard
+//                                     key={p.id}
+//                                     post={p}
+//                                     onToast={onToast}
+//                                     onPostClick={onPostClick}
+//                                     roomId={roomId}
+//                                     onFanProfile={onFanProfile}
+//                                 />
+//                             );
+//                         }
+
+//                         const isMine = isCurrentUserAuthor(p);
+//                         const isBot = Boolean(getKnownBotAvatarUrl(p.fan?.username));
+//                         const postAvatar = getKnownBotAvatarUrl(p.fan?.username) ?? (isMine ? (getEffectiveUserAvatar() || p.fan?.avatarUrl) : p.fan?.avatarUrl);
+//                         const defaultPayload = { id: p.id, text: p.text, fan: { ...p.fan, avatarUrl: postAvatar, isBot }, timeAgo: p.timeAgo, createdAt: p.createdAt, type: p.type || "post", isDbPost: true, roomId, mediaUrls: p.mediaUrls };
+//                         const replyCount = p.replyCount || 0;
+//                         const defaultOpen = replyCount > 0;
+//                         const isOpen = openInlinePostId === p.id || (defaultOpen && !explicitlyClosedPostIds.has(p.id));
+//                         const accent = commentAccentColor(p.type || "post");
+
+//                         return (
+//                             <motion.div key={p.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22 }}
+//                                 className="cursor-pointer" style={{ padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.07)" }}
+//                                 onClick={() => onPostClick?.(defaultPayload)}
+//                             >
+//                                 {/* Post Header */}
+//                                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, minWidth: 0 }} onClick={e => e.stopPropagation()}>
+//                                     <div style={{ flexShrink: 0, cursor: "pointer" }} onClick={e => { e.stopPropagation(); onFanProfile?.({ ...p.fan, avatarUrl: postAvatar, isBot }); }}>
+//                                         <AvatarWithBadge username={p.fan.username} badge={p.fan.badge} size="sm" avatarUrl={postAvatar} />
+//                                     </div>
+//                                     <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
+//                                         <span style={{ fontWeight: 700, fontSize: 10, color: "#fff", whiteSpace: "nowrap", cursor: "pointer" }} onClick={e => { e.stopPropagation(); onFanProfile?.({ ...p.fan, avatarUrl: postAvatar, isBot }); }}>
+//                                             {p.fan.username}
+//                                         </span>
+//                                         <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)", whiteSpace: "nowrap" }}>{p.timeAgo}</span>
+//                                         {p.type && (
+//                                             <span className={typeBadgeClass(p.type)}>
+//                                                 {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
+//                                             </span>
+//                                         )}
+//                                     </div>
+
+//                                     {/* ── Post menu (delete own posts) ── */}
+//                                     {isCurrentUserAuthor(p) && (
+//                                         <div style={{ position: "relative", flexShrink: 0 }} ref={openMenuPostId === p.id ? menuRef : undefined}>
+//                                             <button
+//                                                 onClick={e => { e.stopPropagation(); setOpenMenuPostId(openMenuPostId === p.id ? null : p.id); }}
+//                                                 style={{ display: "flex", alignItems: "center", justifyContent: "center", background: "none", border: "none", cursor: "pointer", color: "#9ca3af", padding: 3, borderRadius: "50%" }}
+//                                             >
+//                                                 <MoreVertical size={14} />
+//                                             </button>
+//                                             <AnimatePresence>
+//                                                 {openMenuPostId === p.id && (
+//                                                     <motion.div
+//                                                         initial={{ opacity: 0, scale: 0.95, y: -4 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -4 }}
+//                                                         transition={{ duration: 0.12 }}
+//                                                         onClick={e => e.stopPropagation()}
+//                                                         style={{ position: "absolute", top: "calc(100% + 3px)", right: 0, zIndex: 30, background: "#1a1a24", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, overflow: "hidden", minWidth: 100, boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}
+//                                                     >
+//                                                         <button
+//                                                             onClick={() => handleDeletePost(p.id)}
+//                                                             style={{ width: "100%", textAlign: "left", padding: "7px 10px", background: "none", border: "none", cursor: "pointer", color: "#f87171", fontSize: 11, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}
+//                                                         >
+//                                                             <Trash2 size={12} /> Delete
+//                                                         </button>
+//                                                     </motion.div>
+//                                                 )}
+//                                             </AnimatePresence>
+//                                         </div>
+//                                     )}
+//                                 </div>
+
+//                                 {/* Post Text */}
+//                                 <p className="leading-snug text-white" style={{ fontSize: 10 }}>{p.text}</p>
+
+
+//                                 {/* {p.type === "prediction" && (() => {
+//                                     const predictionOptions = Array.isArray(p.predictionOptions) && p.predictionOptions.length >= 2
+//                                         ? p.predictionOptions : [p.sideA || "Option 1", p.sideB || "Option 2"];
+//                                     const optionCounts = p.predictionOptionCounts ?? {};
+//                                     const total = (p.agreeCount ?? 0) + (p.disagreeCount ?? 0) +
+//                                         Object.values(optionCounts).reduce((s: number, c: unknown) => s + (Number(c) || 0), 0);
+//                                     const pct = (c: number) => total > 0 ? Math.round((c / total) * 100) : 0;
+//                                     const closed = Boolean(p.resolvedAt || p.closedAt || (p.closesAt && p.closesAt <= Date.now()));
+//                                     const hasVoted = p.userVote === "agree" || p.userVote === "disagree" ||
+//                                         (typeof p.userVote === "string" && p.userVote.startsWith("option_"));
+
+//                                     return (
+//                                         <div style={{ marginTop: 6 }}>
+//                                             <div style={{ display: "flex", gap: 6, marginBottom: 3 }}>
+//                                                 {predictionOptions.slice(0, 2).map((label: string, i: number) => {
+//                                                     const voteVal = i === 0 ? "agree" : "disagree";
+//                                                     const active = p.userVote === voteVal;
+//                                                     const count = i === 0 ? (p.agreeCount ?? 0) : (p.disagreeCount ?? 0);
+//                                                     return (
+//                                                         <button key={label} disabled={hasVoted || closed}
+//                                                             onClick={(e) => { e.stopPropagation(); if (!hasVoted && !closed) handleVote(p.id, voteVal); }}
+//                                                             style={{
+//                                                                 flex: 1, padding: 6, fontSize: 10, fontWeight: 700, borderRadius: 0,
+//                                                                 border: `2px solid ${active ? "#ff6b35" : "#8b8b8b"}`,
+//                                                                 background: active ? "rgba(255,107,53,0.24)" : "rgba(255,255,255,0.02)",
+//                                                                 color: active ? "#fff" : "#d1d1d1", cursor: hasVoted || closed ? "default" : "pointer",
+//                                                                 opacity: hasVoted && !active ? 0.4 : 1
+//                                                             }}>
+//                                                             {label} <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 6 }}>{pct(count)}%</span>
+//                                                         </button>
+//                                                     );
+//                                                 })}
+//                                             </div>
+//                                             {closed && p.resolvedAt && p.correctVote && (
+//                                                 <p style={{ fontSize: 10, color: "#22c55e", fontWeight: 800 }}>
+//                                                     Correct answer: {p.correctVote === "agree" ? predictionOptions[0] : p.correctVote === "disagree" ? predictionOptions[1] : p.correctVote}
+//                                                 </p>
+//                                             )}
+//                                         </div>
+//                                     );
+//                                 })()} */}
+
+//                                 {p.type === "prediction" && (() => {
+//                                     const predictionOptions = Array.isArray(p.predictionOptions) && p.predictionOptions.length >= 2
+//                                         ? p.predictionOptions : [p.sideA || "Option 1", p.sideB || "Option 2"];
+//                                     const optionCounts = p.predictionOptionCounts ?? {};
+//                                     const total = (p.agreeCount ?? 0) + (p.disagreeCount ?? 0) +
+//                                         Object.values(optionCounts).reduce((s: number, c: unknown) => s + (Number(c) || 0), 0);
+//                                     const pct = (c: number) => total > 0 ? Math.round((c / total) * 100) : 0;
+//                                     const closed = Boolean(p.resolvedAt || p.closedAt || (p.closesAt && p.closesAt <= Date.now()));
+//                                     const hasVoted = p.userVote === "agree" || p.userVote === "disagree" ||
+//                                         (typeof p.userVote === "string" && p.userVote.startsWith("option_"));
+
+//                                     return (
+//                                         <div style={{ marginTop: 6 }}>
+//                                             <div style={{ display: "flex", gap: 6, marginBottom: 3 }}>
+//                                                 {predictionOptions.slice(0, 2).map((label: string, i: number) => {
+//                                                     const voteVal = i === 0 ? "agree" : "disagree";
+//                                                     const active = p.userVote === voteVal;
+//                                                     const count = i === 0 ? (p.agreeCount ?? 0) : (p.disagreeCount ?? 0);
+//                                                     return (
+//                                                         <button key={label} disabled={hasVoted || closed}
+//                                                             onClick={(e) => { e.stopPropagation(); if (!hasVoted && !closed) handleVote(p.id, voteVal); }}
+//                                                             style={{
+//                                                                 flex: 1, padding: 6, fontSize: 10, fontWeight: 700, borderRadius: 0,
+//                                                                 border: `2px solid ${active ? "#ff6b35" : "#8b8b8b"}`,
+//                                                                 background: active ? "rgba(255,107,53,0.24)" : "rgba(255,255,255,0.02)",
+//                                                                 color: active ? "#fff" : "#d1d1d1", cursor: hasVoted || closed ? "default" : "pointer",
+//                                                                 opacity: hasVoted && !active ? 0.4 : 1
+//                                                             }}>
+//                                                             {label} <span style={{ fontSize: 9, fontWeight: 800, marginLeft: 6 }}>{pct(count)}%</span>
+//                                                         </button>
+//                                                     );
+//                                                 })}
+//                                             </div>
+//                                             {total > 0 && (
+//                                                 <button
+//                                                     type="button"
+//                                                     onClick={(e) => { e.stopPropagation(); setVotersMsgId(p.id); setVotersMode("prediction"); }}
+//                                                     style={{
+//                                                         display: "flex", alignItems: "center", gap: 4,
+//                                                         width: "100%", marginTop: 1, marginBottom: 4,
+//                                                         padding: "4px 8px", borderRadius: 6,
+//                                                         background: "rgba(255,107,53,0.08)",
+//                                                         border: "1px solid rgba(255,107,53,0.22)",
+//                                                         cursor: "pointer", color: "#ff8a5c",
+//                                                         fontSize: 9, fontWeight: 700,
+//                                                     }}
+//                                                 >
+//                                                     <Users size={10} />
+//                                                     <span>View Votes</span>
+//                                                 </button>
+//                                             )}
+//                                             {closed && p.resolvedAt && p.correctVote && (
+//                                                 <p style={{ fontSize: 10, color: "#22c55e", fontWeight: 800 }}>
+//                                                     Correct answer: {p.correctVote === "agree" ? predictionOptions[0] : p.correctVote === "disagree" ? predictionOptions[1] : p.correctVote}
+//                                                 </p>
+//                                             )}
+//                                         </div>
+//                                     );
+//                                 })()}
+
+//                                 {/* {p.type === "debate" && (() => {
+//                                     const liveTotal = (p.agreeCount ?? 0) + (p.disagreeCount ?? 0);
+//                                     const agrPct = liveTotal > 0 ? Math.round(((p.agreeCount ?? 0) / liveTotal) * 100) : 50;
+//                                     const hasVoted = p.userVote === "agree" || p.userVote === "disagree";
+//                                     const sideA = p.sideA || "Side A", sideB = p.sideB || "Side B";
+//                                     return (
+//                                         <div style={{ marginTop: 6 }}>
+//                                             <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+//                                                 {[{ label: sideA, val: "agree" }, { label: sideB, val: "disagree" }].map(({ label, val }) => {
+//                                                     const active = p.userVote === val;
+//                                                     return (
+//                                                         <button key={val} disabled={hasVoted}
+//                                                             onClick={(e) => { e.stopPropagation(); if (!hasVoted) handleVote(p.id, val); }}
+//                                                             style={{
+//                                                                 flex: 1, padding: 6, fontSize: 10, fontWeight: 700, borderRadius: 0,
+//                                                                 border: `2px solid ${active ? "#e91e8c" : "#8b8b8b"}`,
+//                                                                 background: active ? "#e91e8c" : "rgba(255,255,255,0.02)",
+//                                                                 color: active ? "#fff" : "#d1d1d1", cursor: hasVoted ? "default" : "pointer",
+//                                                                 opacity: hasVoted && !active ? 0.4 : 1
+//                                                             }}>
+//                                                             {active ? "✓ " : ""}{label}
+//                                                         </button>
+//                                                     );
+//                                                 })}
+//                                             </div>
+//                                             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{agrPct}% / {100 - agrPct}% · {liveTotal} votes</div>
+//                                         </div>
+//                                     );
+//                                 })()} */}
+
+//                                 {p.type === "debate" && (() => {
+//                                     const liveTotal = (p.agreeCount ?? 0) + (p.disagreeCount ?? 0);
+//                                     const agrPct = liveTotal > 0 ? Math.round(((p.agreeCount ?? 0) / liveTotal) * 100) : 50;
+//                                     const hasVoted = p.userVote === "agree" || p.userVote === "disagree";
+//                                     const sideA = p.sideA || "Side A", sideB = p.sideB || "Side B";
+//                                     return (
+//                                         <div style={{ marginTop: 6 }}>
+//                                             <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+//                                                 {[{ label: sideA, val: "agree" }, { label: sideB, val: "disagree" }].map(({ label, val }) => {
+//                                                     const active = p.userVote === val;
+//                                                     return (
+//                                                         <button key={val} disabled={hasVoted}
+//                                                             onClick={(e) => { e.stopPropagation(); if (!hasVoted) handleVote(p.id, val); }}
+//                                                             style={{
+//                                                                 flex: 1, padding: 6, fontSize: 10, fontWeight: 700, borderRadius: 0,
+//                                                                 border: `2px solid ${active ? "#e91e8c" : "#8b8b8b"}`,
+//                                                                 background: active ? "#e91e8c" : "rgba(255,255,255,0.02)",
+//                                                                 color: active ? "#fff" : "#d1d1d1", cursor: hasVoted ? "default" : "pointer",
+//                                                                 opacity: hasVoted && !active ? 0.4 : 1
+//                                                             }}>
+//                                                             {active ? "✓ " : ""}{label}
+//                                                         </button>
+//                                                     );
+//                                                 })}
+//                                             </div>
+//                                             {liveTotal > 0 && (
+//                                                 <button
+//                                                     type="button"
+//                                                     onClick={(e) => { e.stopPropagation(); setVotersMsgId(p.id); setVotersMode("debate"); }}
+//                                                     style={{
+//                                                         display: "flex", alignItems: "center", gap: 4,
+//                                                         width: "100%", marginBottom: 4,
+//                                                         padding: "4px 8px", borderRadius: 6,
+//                                                         background: "rgba(233,30,140,0.07)",
+//                                                         border: "1px solid rgba(233,30,140,0.22)",
+//                                                         cursor: "pointer", color: "var(--accent-magenta, #e91e8c)",
+//                                                         fontSize: 9, fontWeight: 700,
+//                                                     }}
+//                                                 >
+//                                                     <Users size={10} />
+//                                                     <span>View Votes</span>
+//                                                 </button>
+//                                             )}
+//                                             <div style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>{agrPct}% / {100 - agrPct}% · {liveTotal} votes</div>
+//                                         </div>
+//                                     );
+//                                 })()}
+
+//                                 {/* Media */}
+//                                 {p.mediaUrls?.length > 0 && (
+//                                     <div className="flex flex-col gap-1.5 mt-1.5">
+//                                         {p.mediaUrls.map((url: string, i: number) =>
+//                                             url.endsWith(".mp4") || url.includes("/video/upload/")
+//                                                 ? <video key={i} src={url} controls className="w-full max-h-[160px] rounded-lg object-cover" onClick={e => e.stopPropagation()} />
+//                                                 : <img key={i} src={url} alt="" className="w-full max-h-[120px] rounded-lg object-cover" />
+//                                         )}
+//                                     </div>
+//                                 )}
+
+//                                 {/* Action Bar */}
+//                                 <div style={{ marginTop: 0 }}>
+//                                     <div style={{ display: "flex", gap: 6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 4, alignItems: "center" }}>
+//                                         {renderReactionPicker(p)}
+//                                         <button
+//                                             onClick={e => {
+//                                                 e.stopPropagation();
+//                                                 if (isOpen) {
+//                                                     if (openInlinePostId === p.id) setOpenInlinePostId(null);
+//                                                     setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.add(p.id); return next; });
+//                                                 } else {
+//                                                     setOpenInlinePostId(p.id);
+//                                                     setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.delete(p.id); return next; });
+//                                                 }
+//                                             }}
+//                                             style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: isOpen ? accent : "#9494ad", fontSize: 11, fontWeight: 600, transition: "color 0.15s", padding: 0 }}
+//                                         >
+//                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+//                                                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+//                                             </svg>
+//                                             <span style={{ fontSize: 9 }}>{replyCount}</span>
+//                                             {isOpen ? <ChevronUp size={10} style={{ opacity: 0.7 }} /> : <ChevronDown size={10} style={{ opacity: 0.5 }} />}
+//                                         </button>
+//                                         <button onClick={e => { e.stopPropagation(); handleSharePost(p); }} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#9494ad", fontSize: 11, fontWeight: 600 }}>
+//                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+//                                                 <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+//                                                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+//                                             </svg>
+//                                         </button>
+//                                         {renderReactionsTrigger(p)}
+//                                     </div>
+
+//                                     <AnimatePresence>
+//                                         {isOpen && roomId && (
+//                                             <InlineSection
+//                                                 key={`inline-${p.id}`}
+//                                                 postId={p.id}
+//                                                 roomId={roomId}
+//                                                 roomName={roomName}
+//                                                 isOpen={isOpen}
+//                                                 onOpenFull={() => {
+//                                                     setOpenInlinePostId(null);
+//                                                     onPostClick?.(defaultPayload);
+//                                                 }}
+//                                                 accentColor={accent}
+//                                                 currentAvatarUrl={getEffectiveUserAvatar() || userAvatarUrl}
+//                                                 currentUserId={currentUserId}
+//                                                 currentUsername={userUsername}
+//                                                 onFanProfile={onFanProfile}
+//                                                 onToast={onToast}
+//                                                 onCommentPosted={() => {
+//                                                     setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: (x.replyCount || 0) + 1 } : x));
+//                                                     playSound("comment");
+//                                                     onToast("Comment posted!");
+//                                                 }}
+//                                                 onCommentDeleted={() => {
+//                                                     setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: Math.max(0, (x.replyCount || 0) - 1) } : x));
+//                                                     onToast("Reply deleted");
+//                                                 }}
+//                                             />
+//                                         )}
+//                                     </AnimatePresence>
+//                                 </div>
+//                             </motion.div>
+//                         );
+//                     })
+//                 )}
+//                 </div>
+
+//                 {showNewPill && (
+//                     <button
+//                         type="button"
+//                         onClick={() => scrollToBottom(true)}
+//                         className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold text-white shadow-lg bg-gradient-to-r from-[#e91e8c] to-[#ff6b35] z-20 pointer-events-auto"
+//                     >
+//                         New activity ↓
+//                     </button>
+//                 )}
+//             </div>
+
+//             <style dangerouslySetInnerHTML={{ __html: `@keyframes dr-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}` }} />
+
+//             {/* ── QUICK COMPOSE BUTTONS ── */}
+//             {/* {!showQuickCompose && !dollyOpen && (
+//                 <div className="flex justify-start gap-1 py-1 px-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+//                     {RADIAL_OPTS.map((q) => {
+//                         const isActive = q.id === selectedActionId;
+//                         return (
+//                             <div key={q.id} className="flex items-center gap-1 shrink-0">
+//                                 <button type="button"
+//                                     onClick={() => { setSelectedActionId(q.id); onCompose?.(q.id); if (q.id !== "post") setSelectedActionId("post"); }}
+//                                     className={["flex items-center justify-start gap-1 px-2.5 rounded-full text-[10px] font-bold whitespace-nowrap border transition-all duration-150 cursor-pointer shrink-0", isActive ? "border-[rgba(233,30,140,0.35)] bg-[rgba(233,30,140,0.12)]" : "border-transparent bg-[rgba(255,255,255,0.04)] text-[rgba(255,255,255,0.6)]"].join(" ")}
+//                                 >
+//                                     {composeIconMap[q.id] || <span>{q.emoji}</span>}
+//                                     <span>{q.label}</span>
+//                                 </button>
+//                                 {q.id === "debate" && postCooldown > 0 && (
+//                                     <span className="flex items-center justify-center min-w-[18px] h-[18px] rounded-full px-1.5 bg-red-500/15 border border-red-500/40 text-red-400 text-[9px] font-bold" title="Posting cooldown">
+//                                         {postCooldown}s
+//                                     </span>
+//                                 )}
+//                             </div>
+//                         );
+//                     })}
+//                 </div>
+//             )} */}
+
+//             {/* ── COMPOSE INPUT ── */}
+//             {/* <div className="shrink-0 px-2.5 pt-1 pb-1.5 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-t border-[var(--border)] flex flex-col gap-1">
+//                 {selectedActionId === "post" && !dollyOpen && (
+//                     <>
+//                         <AnimatePresence>
+//                             {showQuickCompose && (
+//                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2, ease: "easeOut" }} style={{ overflow: "hidden" }}>
+//                                     <div style={{ paddingBottom: 3, paddingTop: 0 }}>
+//                                         <p style={{ fontSize: 7, fontWeight: 700, color: "rgba(255,255,255,0.3)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>Quick Post</p>
+//                                         <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 0.5, scrollbarWidth: "none" }}>
+//                                             {visibleQuickReactOpts.map((q) => (
+//                                                 <motion.button key={q.id} type="button" whileTap={{ scale: 0.93 }} onClick={() => handleQuickReactPost(q)}
+//                                                     style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 4, padding: "1.5px 8px", borderRadius: 999, border: "1px solid rgba(16,185,129,0.4)", background: "rgba(16,185,129,0.12)", color: "#fff", fontSize: 9, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+//                                                     <span style={{ fontSize: 10 }}>{q.emoji}</span>
+//                                                     <span>{q.label}</span>
+//                                                 </motion.button>
+//                                             ))}
+//                                         </div>
+//                                     </div>
+//                                 </motion.div>
+//                             )}
+//                         </AnimatePresence>
+
+//                         {attachedUrl && (
+//                             <div className="px-2 py-1 rounded-xl bg-[var(--bg-tertiary)] border border-[var(--border)] flex justify-between items-center">
+//                                 <div className="flex items-center gap-1.5">
+//                                     {attachedType === "image" ? <img src={attachedUrl} className="w-7 h-7 rounded-lg object-cover" alt="Attached" /> : <video src={attachedUrl} className="w-7 h-7 rounded-lg object-cover" />}
+//                                     <span className="text-[10px] text-[var(--text-secondary)]">Media attached</span>
+//                                 </div>
+//                                 <button type="button" onClick={() => { setAttachedUrl(null); setAttachedType(null); }} className="bg-transparent border-none text-[var(--text-muted)] cursor-pointer text-xs">✕</button>
+//                             </div>
+//                         )}
+
+//                         {showEmojiPicker && (
+//                             <div ref={emojiPickerRef} className="w-full overflow-hidden rounded-xl border border-white/10" onClick={e => e.stopPropagation()}>
+//                                 <div className="flex items-center justify-between px-3 py-1 bg-[#1a1a24] border-b border-white/10">
+//                                     <span className="text-[10px] font-semibold text-white/40">Pick an emoji</span>
+//                                     <button type="button" onClick={() => setShowEmojiPicker(false)} className="w-5 h-5 flex items-center justify-center rounded-full bg-white/10 border-none cursor-pointer text-white text-xs font-bold leading-none">✕</button>
+//                                 </div>
+//                                 <div className="max-h-[180px] overflow-y-auto w-full [&>em-emoji-picker]:w-full">
+//                                     <EmojiPicker data={data} theme="dark" onEmojiSelect={(emoji: any) => { setInput(prev => prev + emoji.native); }} previewPosition="none" skinTonePosition="none" perLine={7} />
+//                                 </div>
+//                             </div>
+//                         )}
+
+//                         <div className="flex items-center w-full gap-0.5 -mb-1">
+//                             <button type="button" onClick={() => triggerUpload("image")} disabled={uploading} className="bg-transparent border-none -ml-1.5 text-white/40 cursor-pointer flex items-center justify-center p-1 shrink-0">
+//                                 // <Image size={16} /> 
+//                                 <img src="/images/gallerybg.png" alt="gallery" className="w-5 h-5 object-cover" />
+//                             </button>
+
+//                             <button type="button" onClick={() => { setShowQuickCompose(prev => !prev); setShowEmojiPicker(false); }}
+//                                 className="bg-transparent border-none cursor-pointer flex items-center justify-center p-1 shrink-0"
+//                                 style={{ color: showQuickCompose ? "#e91e8c" : "rgba(255,255,255,0.4)", fontSize: 18, fontWeight: 300, lineHeight: 1, width: 24, height: 24, borderRadius: "50%", background: showQuickCompose ? "rgba(233,30,140,0.12)" : "transparent", border: showQuickCompose ? "1px solid rgba(233,30,140,0.3)" : "1px solid transparent", transition: "all 0.15s" }}
+//                             >
+//                                 {showQuickCompose ? "✕" : "🎭"}
+//                             </button>
+
+//                             <button type="button" onClick={() => { setShowEmojiPicker(prev => !prev); setShowQuickCompose(false); }}
+//                                 className="bg-transparent border-none cursor-pointer -ml-0.5 flex items-center justify-center p-1 shrink-0 text-[16px] leading-none"
+//                                 style={{ color: showEmojiPicker ? "#e91e8c" : "rgba(255,255,255,0.4)" }}
+//                             >
+//                                 😊
+//                             </button>
+
+//                             <div className="flex-1 relative min-w-0">
+//                                 // Channel Mention Popup 
+//                                 {showChannelMentionPopup && channelMentionUsers.length > 0 && (
+//                                     <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#181c24] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden shadow-lg z-50 max-h-[200px] overflow-y-auto">
+//                                         {channelMentionUsers.map((channel, idx) => (
+//                                             <button
+//                                                 key={channel.channelId}
+//                                                 type="button"
+//                                                 onClick={() => insertChannelMention(channel)}
+//                                                 onMouseEnter={() => setChannelMentionIndex(idx)}
+//                                                 className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-colors ${idx === channelMentionIndex
+//                                                     ? "bg-[rgba(233,30,140,0.15)]"
+//                                                     : "hover:bg-white/5"
+//                                                     }`}
+//                                             >
+//                                                 <span className="text-[14px]">{channel.icon || "💬"}</span>
+//                                                 <div className="flex flex-col">
+//                                                     <span className="text-xs font-semibold text-white">{channel.name}</span>
+//                                                     <span className="text-[10px] text-gray-400">#{channel.slug}</span>
+//                                                 </div>
+//                                                 {selectedChannelId === channel.channelId && (
+//                                                     <span className="ml-auto text-[10px] text-emerald-400 font-bold">✓ Active</span>
+//                                                 )}
+//                                             </button>
+//                                         ))}
+//                                     </div>
+//                                 )}
+
+//                                 {input === "" && !uploading && postCooldown === 0 && (
+//                                     <div className="absolute left-2.5 top-0 bottom-0 flex items-center pointer-events-none">
+//                                         <span className="text-xs font-medium truncate" style={{ color: "var(--text-secondary)" }}>
+//                                             {getPlaceholder()}
+//                                         </span>
+//                                     </div>
+//                                 )}
+//                                 <input
+//                                     ref={mainInputRef}
+//                                     type="text"
+//                                     disabled={uploading || postCooldown > 0}
+//                                     value={input}
+//                                     onChange={e => {
+//                                         const value = e.target.value;
+//                                         setInput(value);
+//                                         handleChannelMentionInputChange(value, e.target.selectionStart || value.length);
+//                                     }}
+//                                     onKeyDown={e => {
+//                                         // Handle channel mention first
+//                                         if (handleChannelMentionKeyDown(e)) return;
+//                                         if (e.key === "Enter") {
+//                                             e.preventDefault();
+//                                             send();
+//                                         }
+//                                     }}
+//                                     placeholder={postCooldown > 0 ? `Wait ${postCooldown}s before posting …` : ""}
+//                                     className="w-full h-8 rounded-[16px] bg-[var(--bg-secondary)] border border-[var(--border)] pl-2.5 pr-2.5 text-white text-xs outline-none"
+//                                     style={{ opacity: postCooldown > 0 ? 0.5 : 1 }}
+//                                 />
+//                             </div>
+
+//                             <motion.button whileTap={{ scale: 0.96 }} onClick={send} disabled={uploading || isSending || postCooldown > 0}
+//                                 className="w-6 h-6 rounded-full border-none -mr-1 text-white text-base font-bold flex items-center justify-center cursor-pointer shrink-0 bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]"
+//                                 style={{ opacity: uploading ? 0.5 : 1 }}
+//                             >
+//                                 ↑
+//                             </motion.button>
+//                         </div>
+//                     </>
+//                 )}
+//             </div>
+
+//             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" /> */}
+
+//             {/* ── DIALOGS ── */}
+//             <VotersDialog postId={votersMsgId ?? ""} isOpen={votersMsgId !== null} onClose={() => setVotersMsgId(null)} roomId={roomId} mode={votersMode} />
+//             <ReactionsDialog postId={reactionsMsgId ?? ""} isOpen={reactionsMsgId !== null} onClose={() => setReactionsMsgId(null)} onFanProfile={onFanProfile} roomId={roomId} />
+//             <ActiveFansDialog roomId={roomId} isOpen={activeFansOpen} onClose={() => setActiveFansOpen(false)} onFanProfile={onFanProfile} prefetchedFans={activeFans} prefetchedCount={liveCount} />
+
+//             {/* <DollyPanel
+//                 isOpen={dollyOpen}
+//                 onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
+//                 onClose={() => setDollyOpen(false)}
+//                 activeRoomId={dollyActiveRoomId}
+//                 activeRoomName={dollyActiveRoomName}
+//                 question={dollyQuestion}
+//                 setQuestion={setDollyQuestion}
+//                 asking={dollyAsking}
+//                 onAsk={async () => {
+//                     const q = dollyQuestion.trim();
+//                     const targetRoomId = dollyActiveRoomId ?? roomId;
+//                     if (!q || dollyAsking || !targetRoomId) return;
+//                     setDollyAsking(true);
+//                     const tempId = `temp-dolly-${Date.now()}`;
+//                     setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
+//                     setDollyQuestion("");
+//                     try {
+//                         const res = await axios.post(`/api/roar/rooms/${targetRoomId}/dolly`, { question: q }, { timeout: 30000 });
+//                         if (res.data?.success && dollyActiveRoomIdRef.current === targetRoomId) {
+//                             setDollyReplies(prev => prev.map(d => d.id === tempId ? res.data.reply : d));
+//                         }
+//                     } catch {
+//                         if (dollyActiveRoomIdRef.current === targetRoomId) {
+//                             setDollyReplies(prev => prev.map(d => d.id === tempId ? { ...d, answer: "Something went wrong — try again." } : d));
+//                         }
+//                     } finally { setDollyAsking(false); }
+//                 }}
+//                 replies={dollyReplies}
+//                 loadingReplies={dollyRepliesLoading}
+//                 history={dollyHistory}
+//                 loadingHistory={dollyHistoryLoading}
+//                 onSelectHistorySession={async (session) => {
+//                     if (session.roomId === dollyActiveRoomId) return;
+//                     const requestId = Symbol();
+//                     dollyFetchTokenRef.current = requestId;
+//                     setDollyActiveRoomId(session.roomId);
+//                     setDollyActiveRoomName(session.title);
+//                     setDollyRepliesLoading(true);
+//                     try {
+//                         const res = await axios.get(`/api/roar/rooms/${session.roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS });
+//                         if (dollyFetchTokenRef.current !== requestId) return;
+//                         setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
+//                     } catch { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); }
+//                     finally { if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false); }
+//                 }}
+//                 onNewChat={() => {
+//                     const requestId = Symbol();
+//                     dollyFetchTokenRef.current = requestId;
+//                     setDollyActiveRoomId(roomId);
+//                     setDollyActiveRoomName(roomName);
+//                     setDollyQuestion("");
+//                     setDollyReplies([]);
+//                     if (!roomId) { setDollyReplies([]); return; }
+//                     setDollyRepliesLoading(true);
+//                     axios.get(`/api/roar/rooms/${roomId}/dolly`, { timeout: REQUEST_TIMEOUT_MS })
+//                         .then(res => {
+//                             if (dollyFetchTokenRef.current !== requestId) return;
+//                             setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
+//                         })
+//                         .catch(() => { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); })
+//                         .finally(() => { if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false); });
+//                 }}
+//                 constrainedToParent={false}
+//             /> */}
+
+//             <DollyPanel
+//                 isOpen={dollyOpen}
+//                 onOpen={() => { setDollyOpen(true); loadDollyHistory(); }}
+//                 onClose={() => setDollyOpen(false)}
+//                 activeSessionId={dollyActiveSessionId}
+//                 activeRoomName={dollyActiveRoomName}
+//                 onNewChat={handleNewDollyChat}
+//                 question={dollyQuestion}
+//                 setQuestion={setDollyQuestion}
+//                 onRenameSession={renameDollySession}
+//                 onDeleteSession={deleteDollySession}
+//                 asking={dollyAsking}
+//                 onAsk={async () => {
+//                     const q = dollyQuestion.trim();
+//                     if (!q || dollyAsking) return;
+//                     setDollyAsking(true);
+//                     const sessionId = await ensureDollySession();
+//                     if (!sessionId) { setDollyAsking(false); return; }
+//                     const tempId = `temp-dolly-${Date.now()}`;
+//                     setDollyReplies(prev => [...prev, { id: tempId, question: q, answer: "", createdAt: Date.now() }]);
+//                     setDollyQuestion("");
+//                     try {
+//                         const res = await axios.post(`/api/roar/rooms/${roomId}/dolly/${sessionId}`, { question: q }, { timeout: 30000 });
+//                         if (res.data?.success && dollyActiveSessionIdRef.current === sessionId) {
+//                             setDollyReplies(prev => prev.map(d => d.id === tempId ? res.data.reply : d));
+//                         }
+//                     } catch {
+//                         if (dollyActiveSessionIdRef.current === sessionId) {
+//                             setDollyReplies(prev => prev.map(d => d.id === tempId ? { ...d, answer: "Something went wrong — try again." } : d));
+//                         }
+//                     } finally { setDollyAsking(false); }
+//                 }}
+//                 replies={dollyReplies}
+//                 loadingReplies={dollyRepliesLoading}
+//                 history={dollyHistory}
+//                 loadingHistory={dollyHistoryLoading}
+//                 loadingMoreHistory={dollyHistoryLoadingMore}
+//                 onLoadMoreHistory={loadMoreDollyHistory}
+//                 onSelectHistorySession={async (session) => {
+//                     if (session.sessionId === dollyActiveSessionId) return;
+//                     const requestId = Symbol();
+//                     dollyFetchTokenRef.current = requestId;
+//                     setDollyActiveSessionId(session.sessionId);
+//                     dollyActiveSessionIdRef.current = session.sessionId;
+//                     setDollyRepliesLoading(true);
+//                     try {
+//                         const res = await axios.get(`/api/roar/rooms/${roomId}/dolly/${session.sessionId}`, { timeout: REQUEST_TIMEOUT_MS });
+//                         if (dollyFetchTokenRef.current !== requestId) return;
+//                         setDollyReplies(res.data?.success ? (res.data.replies ?? []) : []);
+//                     } catch { if (dollyFetchTokenRef.current === requestId) setDollyReplies([]); }
+//                     finally { if (dollyFetchTokenRef.current === requestId) setDollyRepliesLoading(false); }
+//                 }}
+//                 // onNewChat={() => {
+//                 //     dollyFetchTokenRef.current = Symbol();
+//                 //     setDollyQuestion("");
+//                 //     setDollyReplies([]);
+//                 //     setDollyActiveSessionId(undefined);
+//                 //     dollyActiveSessionIdRef.current = undefined;
+//                 // }}
+
+//                 constrainedToParent={false}
+//             />
+
+//         </div>
+//     );
+// }
+
+
+
+
 // src/components/NewROARComponent/screens/OpenRoomDiscussionRoom.tsx
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -21,6 +3531,8 @@ import data from "@emoji-mart/data";
 import { RADIAL_OPTS } from "../constants";
 import VotersDialog from "../components/VotersDialog";
 import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
+import EngagementCard from "@/components/Engagements/EngagementCard";
+import type { EngagementItem } from "@/types/engagements";
 
 const REQUEST_TIMEOUT_MS = 12000;
 const PRESENCE_TIMEOUT_MS = 20000;
@@ -30,6 +3542,37 @@ const SOUND_FILES: Record<"join" | "comment" | "post", string> = {
     join: "/sounds/join.mp3",
     comment: "/sounds/comment.mp3",
     post: "/sounds/post.mp3",
+};
+
+// ── Engagement filter tabs (Prediction / Debate / Question / Express / Poll) ──
+const ENGAGEMENT_TABS = [
+    { id: "all", label: "All", color: "#ffffff" },
+    { id: "prediction", label: "Prediction", color: "#fbbf24" },
+    { id: "debate", label: "Debate", color: "#60a5fa" },
+    { id: "question", label: "Question", color: "#22c55e" },
+    { id: "express", label: "Express", color: "#22d3ee" },
+    { id: "poll", label: "Poll", color: "#818cf8" },
+] as const;
+
+type EngagementFilter = typeof ENGAGEMENT_TABS[number]["id"];
+
+// Maps an engagement's raw `type` to the tab it belongs to.
+// "quiz" is grouped under the "Question" tab (both render the same quiz UI).
+const engagementTabOf = (type?: string): Exclude<EngagementFilter, "all"> | null => {
+    switch (type) {
+        case "prediction": return "prediction";
+        case "debate": return "debate";
+        case "question":
+        case "quiz": return "question";
+        case "express": return "express";
+        case "poll": return "poll";
+        default: return null;
+    }
+};
+
+const matchesEngagementFilter = (type: string | undefined, filter: EngagementFilter): boolean => {
+    if (filter === "all") return true;
+    return engagementTabOf(type) === filter;
 };
 
 interface Channel {
@@ -112,6 +3655,16 @@ function getTimestamp(val: any): number {
     if (!isNaN(num)) return num < 1e11 ? num * 1000 : num;
     return 0;
 }
+
+const normalizeEngagement = (eng: any, matchId: string): EngagementItem => ({
+    ...eng,
+    id: String(eng.id || eng.engagementId || eng._id || `${eng.type}-${eng.title}-${eng.createdAt ?? ""}`),
+    matchId: eng.matchId || matchId,
+    creatorName: "SportsFan360",
+    creatorAvatar: "/images/sportsfan360logo.png",
+    userName: "SportsFan360",
+    userAvatar: "/images/sportsfan360logo.png",
+});
 
 function displayUsername(raw: string | undefined | null): string {
     if (!raw) return "RoarUser";
@@ -1138,7 +4691,11 @@ export default function OpenRoomDiscussionRoom({
     const [activeFans, setActiveFans] = useState<{ uid: string; username: string; avatarUrl?: string | null; badge?: string | null }[]>([]);
     const [activeFansOpen, setActiveFansOpen] = useState(false);
     const [roomCounts, setRoomCounts] = useState({ post: 0, debate: 0, prediction: 0, trivia: 0, battle: 0 });
+    // NOTE: the old category tabs (post/debate/prediction/trivia/battle) are commented out in the JSX,
+    // so this stays "all". Kept so the existing filtering logic keeps working if the tabs are restored.
     const [activeFilter, setActiveFilter] = useState<"all" | "post" | "debate" | "prediction" | "trivia" | "battle">("all");
+    // ── NEW: engagement filter (Prediction / Debate / Question / Express / Poll) ──
+    const [engagementFilter, setEngagementFilter] = useState<EngagementFilter>("all");
     const [localReactions, setLocalReactions] = useState<Record<string, { reaction: Reaction | null; heartCount: number }>>({});
     const localReactionsRef = useRef<Record<string, { reaction: Reaction | null; heartCount: number }>>({});
     const pendingReactRef = useRef<Record<string, boolean>>({});
@@ -1146,6 +4703,19 @@ export default function OpenRoomDiscussionRoom({
     useEffect(() => { localReactionsRef.current = localReactions; }, [localReactions]);
     const [votersMsgId, setVotersMsgId] = useState<string | null>(null);
     const [votersMode, setVotersMode] = useState<"debate" | "prediction">("prediction");
+
+    // ── Live Match Engagements State ──
+    // const [matchEngagements, setMatchEngagements] = useState<EngagementItem[]>([]);
+    // const [engagementsLoading, setEngagementsLoading] = useState(false);
+    // const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
+    const [matchEngagements, setMatchEngagements] = useState<EngagementItem[]>([]);
+    const [engagementsLoading, setEngagementsLoading] = useState(false);
+    const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
+    const [engagementsLoaded, setEngagementsLoaded] = useState(false);
+    const [showNewPill, setShowNewPill] = useState(false);
+    const isAtBottomRef = useRef(true);
+    const seenEngIdsRef = useRef<Set<string> | null>(null);
+    const engSortFallbackRef = useRef<Map<string, number>>(new Map());
     const [openInlinePostId, setOpenInlinePostId] = useState<string | null>(null);
     const [explicitlyClosedPostIds, setExplicitlyClosedPostIds] = useState<Set<string>>(new Set());
     const [postCooldown, setPostCooldown] = useState(0);
@@ -1334,6 +4904,115 @@ export default function OpenRoomDiscussionRoom({
         } finally {
             if (channelsFetchTokenRef.current === requestId) setChannelsLoading(false);
         }
+    }, []);
+
+    // ── Fetch active Match Engagements for Room / Match ──
+    const fetchEngagements = useCallback(async () => {
+        if (!roomId) { setEngagementsLoaded(true); return; }
+        try {
+            let mId = roomMatchId;
+            if (!mId) {
+                try {
+                    const roomRes = await axios.get(`/api/roar/rooms/${roomId}`, { timeout: REQUEST_TIMEOUT_MS });
+                    const rData = roomRes.data?.room || roomRes.data;
+                    const foundMatchId = rData?.matchId || rData?.liveMatchId || rData?.match_id;
+                    if (foundMatchId) {
+                        mId = String(foundMatchId).replace(/^MATCH#/, "");
+                        setRoomMatchId(mId);
+                    }
+                } catch (rErr) { console.warn("room details:", rErr); }
+            }
+            const cleanMatchId = mId ? String(mId).replace(/^MATCH#/, "").trim() : "";
+            const userParam = currentUserId ? `&userId=${encodeURIComponent(currentUserId)}` : "";
+            const bust = `&t=${Date.now()}`;
+            const cfg = { timeout: REQUEST_TIMEOUT_MS, headers: { "Cache-Control": "no-cache" } };
+            const pick = (d: any) => d?.engagements || d?.data || (Array.isArray(d) ? d : []);
+
+            let loaded: any[] = [];
+            let fetchOk = false;
+
+            if (cleanMatchId) {
+                try {
+                    const r = await axios.get(`/api/engagements?matchId=${encodeURIComponent(cleanMatchId)}&limit=50${userParam}${bust}`, cfg);
+                    loaded = pick(r.data);
+                    fetchOk = true;
+                } catch (e) { console.warn("match engagements:", e); }
+            }
+            if (loaded.length === 0) {
+                try {
+                    const r = await axios.get(`/api/engagements?excludeFlipArena=true&source=match_moment&limit=50${userParam}${bust}`, cfg);
+                    const list: any[] = pick(r.data);
+                    const matched = cleanMatchId
+                        ? list.filter(e => !e.matchId || String(e.matchId).replace(/^MATCH#/, "").toLowerCase() === cleanMatchId.toLowerCase())
+                        : list;
+                    loaded = matched.length > 0 ? matched : list;
+                    fetchOk = true;
+                } catch (e) { console.warn("fallback engagements:", e); }
+            }
+
+            if (!fetchOk) return;
+
+            const formatted = loaded.map(e => normalizeEngagement(e, cleanMatchId));
+            setMatchEngagements(prev => {
+                const prevMap = new Map(prev.map(p => [p.id, p]));
+                return formatted.map((eng: any) => {
+                    const ex: any = prevMap.get(eng.id);
+                    if (!ex) return eng;
+                    return {
+                        ...ex, ...eng,
+                        likes: eng.likes !== undefined ? Number(eng.likes) || 0 : Number(ex.likes) || 0,
+                        shares: eng.shares !== undefined ? Number(eng.shares) || 0 : Number(ex.shares) || 0,
+                        totalEngaged: Math.max(Number(ex.totalEngaged) || 0, Number(eng.totalEngaged) || 0),
+                        commentsCount: Math.max(Number(ex.commentsCount) || 0, Number(eng.commentsCount) || 0),
+                        userLiked: eng.userLiked || ex.userLiked,
+                        userVoted: eng.userVoted !== undefined ? eng.userVoted : ex.userVoted,
+                        userVote: eng.userVote || ex.userVote,
+                    };
+                });
+            });
+        } catch (err) {
+            console.error("fetchEngagements error:", err);
+        } finally {
+            setEngagementsLoaded(true);
+        }
+    }, [roomId, roomMatchId, currentUserId]);
+
+    const displayCounts = React.useMemo(() => {
+        const c = { ...roomCounts };
+        matchEngagements.forEach(e => {
+            if (e.type === "prediction") c.prediction++;
+            else if (e.type === "debate" || e.type === "poll" || e.type === "express") c.debate++;
+            else if (e.type === "quiz" || e.type === "question") c.trivia++;
+            else if (e.type === "fan_battle") c.battle++;
+        });
+        return c;
+    }, [roomCounts, matchEngagements]);
+
+    // ── NEW: per-tab counts for the engagement filter tabs ──
+    const engagementTabCounts = React.useMemo(() => {
+        const counts: Record<EngagementFilter, number> = {
+            all: 0, prediction: 0, debate: 0, question: 0, express: 0, poll: 0,
+        };
+        matchEngagements.forEach(e => {
+            const tab = engagementTabOf(e.type);
+            if (!tab) return;
+            counts[tab]++;
+            counts.all++;
+        });
+        return counts;
+    }, [matchEngagements]);
+
+
+    const handleEngagementInteraction = useCallback((engId: string, updatedData?: any) => {
+        setMatchEngagements(prev =>
+            prev.map(eng => {
+                if (eng.id !== engId) return eng;
+                const clean = Object.fromEntries(
+                    Object.entries(updatedData || {}).filter(([, v]) => v !== undefined)
+                );
+                return { ...eng, ...clean };
+            })
+        );
     }, []);
 
     // ── Load universal channels on mount ──
@@ -1916,7 +5595,15 @@ export default function OpenRoomDiscussionRoom({
         setTopReactionsMap({});
         setOpenInlinePostId(null);
         setActiveFilter("all");
+        setEngagementFilter("all");
         setSelectedChannelId("all");
+        setMatchEngagements([]);
+        setRoomMatchId(null);
+        setEngagementsLoaded(false);
+        setShowNewPill(false);
+        seenEngIdsRef.current = null;
+        engSortFallbackRef.current.clear();
+        isAtBottomRef.current = true;
     }, [roomId]);
 
     useEffect(() => {
@@ -1928,18 +5615,24 @@ export default function OpenRoomDiscussionRoom({
     useVisibilityInterval(fetchReactionUpdates, 5000);
 
     useEffect(() => {
-        const list = listRef.current;
-        if (!list) return;
+        if (!roomId) return;
+        fetchEngagements();
+    }, [fetchEngagements, roomId]);
+    useVisibilityInterval(fetchEngagements, 12000);
 
-        const handleScroll = () => {
-            if (!initialScrollDoneRef.current) return;
-            if (list.scrollTop < 250) {
-                loadMoreMsgs();
-            }
-        };
-        list.addEventListener("scroll", handleScroll, { passive: true });
-        return () => list.removeEventListener("scroll", handleScroll);
-    }, [loadMoreMsgs]);
+    // useEffect(() => {
+    //     const list = listRef.current;
+    //     if (!list) return;
+
+    //     const handleScroll = () => {
+    //         if (!initialScrollDoneRef.current) return;
+    //         if (list.scrollTop < 250) {
+    //             loadMoreMsgs();
+    //         }
+    //     };
+    //     list.addEventListener("scroll", handleScroll, { passive: true });
+    //     return () => list.removeEventListener("scroll", handleScroll);
+    // }, [loadMoreMsgs]);
 
     useEffect(() => {
         if (!pendingScrollRestoreRef.current) return;
@@ -1952,24 +5645,91 @@ export default function OpenRoomDiscussionRoom({
         }
     }, [morePosts]);
 
-    useEffect(() => {
-        if (!loading && listRef.current) {
-            initialScrollDoneRef.current = false;
-            setTimeout(() => {
-                listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
-                setTimeout(() => { initialScrollDoneRef.current = true; }, 150);
-            }, 50);
-        }
-    }, [loading]);
+    const feedReady = !loading && engagementsLoaded;
 
+    const scrollToBottom = useCallback((smooth = true) => {
+        const el = listRef.current;
+        if (!el) return;
+        el.scrollTo({ top: el.scrollHeight, behavior: smooth ? "smooth" : "auto" });
+        isAtBottomRef.current = true;
+        setShowNewPill(false);
+    }, []);
+
+    // scroll listener: tracks if user is at the bottom + loads older messages
+    useEffect(() => {
+        const list = listRef.current;
+        if (!list) return;
+        const handleScroll = () => {
+            const atBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+            isAtBottomRef.current = atBottom;
+            if (atBottom) setShowNewPill(false);
+            if (!initialScrollDoneRef.current) return;
+            if (list.scrollTop < 250) loadMoreMsgs();
+        };
+        list.addEventListener("scroll", handleScroll, { passive: true });
+        return () => list.removeEventListener("scroll", handleScroll);
+    }, [loadMoreMsgs]);
+
+    // initial jump to bottom, only after posts AND engagements are loaded
+    useEffect(() => {
+        if (!feedReady) return;
+        initialScrollDoneRef.current = false;
+        const t1 = setTimeout(() => {
+            scrollToBottom(false);
+            setTimeout(() => { initialScrollDoneRef.current = true; }, 150);
+        }, 50);
+        return () => clearTimeout(t1);
+    }, [feedReady, scrollToBottom]);
+
+    // new posts: follow only if user is at bottom, else show pill
     useEffect(() => {
         const newCount = posts.length;
-        if (newCount > prevPostCountRef.current && listRef.current) {
-            setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
-            setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
+        if (newCount > prevPostCountRef.current && initialScrollDoneRef.current) {
+            if (isAtBottomRef.current) setTimeout(() => scrollToBottom(true), 50);
+            else setShowNewPill(true);
         }
         prevPostCountRef.current = newCount;
-    }, [posts.length]);
+    }, [posts.length, scrollToBottom]);
+
+    // new engagement: always scroll down so user notices it
+    useEffect(() => {
+        if (!engagementsLoaded) return;
+        const ids = new Set(matchEngagements.map(e => e.id));
+        if (seenEngIdsRef.current === null) { seenEngIdsRef.current = ids; return; }
+        const fresh = [...ids].filter(id => !seenEngIdsRef.current!.has(id));
+        seenEngIdsRef.current = ids;
+        if (fresh.length > 0) {
+            setTimeout(() => scrollToBottom(true), 80);
+            setTimeout(() => scrollToBottom(true), 300);
+            onToast("New engagement added 🎯");
+        }
+    }, [matchEngagements, engagementsLoaded, scrollToBottom, onToast]);
+
+    // ── NEW: when the engagement tab changes, jump to the latest item of the new view ──
+    useEffect(() => {
+        if (!feedReady) return;
+        const t = setTimeout(() => scrollToBottom(false), 60);
+        return () => clearTimeout(t);
+    }, [engagementFilter, feedReady, scrollToBottom]);
+
+    // useEffect(() => {
+    //     if (!loading && listRef.current) {
+    //         initialScrollDoneRef.current = false;
+    //         setTimeout(() => {
+    //             listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
+    //             setTimeout(() => { initialScrollDoneRef.current = true; }, 150);
+    //         }, 50);
+    //     }
+    // }, [loading]);
+
+    // useEffect(() => {
+    //     const newCount = posts.length;
+    //     if (newCount > prevPostCountRef.current && listRef.current) {
+    //         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 50);
+    //         setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 150);
+    //     }
+    //     prevPostCountRef.current = newCount;
+    // }, [posts.length]);
 
     const startPostCooldown = useCallback(() => {
         setPostCooldown(10);
@@ -2376,17 +6136,48 @@ export default function OpenRoomDiscussionRoom({
         });
     }, [allVisiblePosts, selectedChannelId, activeFilter, displayChannels]);
 
-    type FeedItem = { kind: "post"; data: any; sortKey: number };
-
+    type FeedItem =
+        | { kind: "post"; data: any; sortKey: number }
+        | { kind: "engagement"; data: EngagementItem; sortKey: number };
     const feedItems: FeedItem[] = React.useMemo(() => {
-        return filteredPosts
-            .map(p => ({
+        // When a specific engagement tab (Prediction / Debate / Question / Express / Poll)
+        // is selected, show ONLY the matching engagement posts (regular posts are hidden).
+        // "All" shows everything, like before.
+        const postItems: FeedItem[] = engagementFilter === "all"
+            ? filteredPosts.map(p => ({
                 kind: "post" as const,
                 data: p,
                 sortKey: getTimestamp(p.createdAt),
             }))
-            .sort((a, b) => a.sortKey - b.sortKey);
-    }, [filteredPosts]);
+            : [];
+
+        // ── OLD engagement filtering (tied to the old category tabs) — commented out ──
+        // const filteredEngagements = matchEngagements.filter(eng => {
+        //     if (activeFilter === "all") return true;
+        //     if (activeFilter === "prediction") return eng.type === "prediction";
+        //     if (activeFilter === "debate") return eng.type === "debate" || eng.type === "poll" || eng.type === "express";
+        //     if (activeFilter === "trivia") return eng.type === "quiz" || eng.type === "question";
+        //     if (activeFilter === "battle") return eng.type === "fan_battle";
+        //     return false;
+        // });
+
+        // ── NEW engagement filtering driven by the engagement tabs ──
+        const filteredEngagements = matchEngagements.filter(eng =>
+            matchesEngagementFilter(eng.type, engagementFilter)
+        );
+
+        const engagementItems: FeedItem[] = filteredEngagements.map(e => {
+            const rawTime = e.createdAt || (e as any).created_at || (e as any).timestamp || e.startTime || (e as any).start_time || e.postingTime || e.updatedAt || (e as any).updated_at;
+            const parsed = rawTime ? getTimestamp(rawTime) : 0;
+            let key = parsed;
+            if (!key) {
+                if (!engSortFallbackRef.current.has(e.id)) engSortFallbackRef.current.set(e.id, Date.now());
+                key = engSortFallbackRef.current.get(e.id)!;
+            }
+            return { kind: "engagement" as const, data: e, sortKey: key };
+        });
+        return [...postItems, ...engagementItems].sort((a, b) => a.sortKey - b.sortKey);
+    }, [filteredPosts, matchEngagements, engagementFilter]);
 
     const renderReactionPicker = (p: any) => {
         const lo = localReactions[p.id];
@@ -2513,7 +6304,8 @@ export default function OpenRoomDiscussionRoom({
                 </div>
             </div>
 
-            {/* ── CHANNELS SECTION ── */}
+            {/* ── CHANNELS SECTION (COMMENTED OUT) ── */}
+            {/*
             {(!channelsLoading || displayChannels.length > 0) && (
                 <div className="shrink-0 px-2 py-1 bg-[rgba(14,14,20,0.98)] border-b border-[var(--border)] overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                     <div className="flex items-center gap-1.5">
@@ -2521,7 +6313,6 @@ export default function OpenRoomDiscussionRoom({
                         <img src="/images/categoryiconbg.png" alt="category-icon" className="w-4 h-4 object-cover" />
 
                         <div className="flex gap-1.5 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
-                            {/* All Channels Button */}
                             <button
                                 type="button"
                                 onClick={() => handleChannelSelect("all")}
@@ -2559,6 +6350,7 @@ export default function OpenRoomDiscussionRoom({
                     </div>
                 </div>
             )}
+            */}
 
             {/* ── PINNED POST ── */}
             {pinnedPost && (
@@ -2572,11 +6364,13 @@ export default function OpenRoomDiscussionRoom({
                 </div>
             )}
 
-            {/* ── CATEGORY FILTERS ── */}
+            {/* ── CATEGORY FILTERS (OLD: Posts / Debates / Predictions / Trivia / Battles — COMMENTED OUT) ── */}
+            {/*
             <div className="flex justify-start gap-1 py-1 px-2 overflow-x-auto shrink-0 border-b border-[var(--border)]" style={{ scrollbarWidth: "none" }}>
                 {(["all", "post", "debate", "prediction", "trivia", "battle"] as const).map((f) => {
                     const isActive = activeFilter === f;
-                    const count = f === "post" ? roomCounts.post : f === "debate" ? roomCounts.debate : f === "prediction" ? roomCounts.prediction : f === "trivia" ? roomCounts.trivia : f === "battle" ? roomCounts.battle : 0;
+                    // const count = f === "post" ? roomCounts.post : f === "debate" ? roomCounts.debate : f === "prediction" ? roomCounts.prediction : f === "trivia" ? roomCounts.trivia : f === "battle" ? roomCounts.battle : 0;
+                    const count = f === "post" ? displayCounts.post : f === "debate" ? displayCounts.debate : f === "prediction" ? displayCounts.prediction : f === "trivia" ? displayCounts.trivia : f === "battle" ? displayCounts.battle : 0;
                     const color = f === "post" ? "#e91e8c" : f === "debate" ? "#60a5fa" : f === "prediction" ? "#fbbf24" : f === "trivia" ? "#22c55e" : f === "battle" ? "#E91E8C" : "#fff";
                     const label = f === "all" ? "All" : f === "post" ? "Posts" : f === "debate" ? "Debates" : f === "prediction" ? "Predictions" : f === "trivia" ? "Trivia" : "Battles";
                     return (
@@ -2593,19 +6387,51 @@ export default function OpenRoomDiscussionRoom({
                     );
                 })}
             </div>
+            */}
+
+            {/* ── NEW ENGAGEMENT FILTERS: All / Prediction / Debate / Question / Express / Poll ── */}
+            <div className="flex justify-start gap-1 py-1 px-2 overflow-x-auto shrink-0 border-b border-[var(--border)]" style={{ scrollbarWidth: "none" }}>
+                {ENGAGEMENT_TABS.map((tab) => {
+                    const isActive = engagementFilter === tab.id;
+                    const count = engagementTabCounts[tab.id];
+                    const color = tab.color;
+                    return (
+                        <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setEngagementFilter(tab.id)}
+                            className="flex items-center gap-1 px-2 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0 transition-all duration-150"
+                            style={{
+                                background: isActive ? `${color}22` : "rgba(255,255,255,0.05)",
+                                border: `1.5px solid ${isActive ? `${color}70` : "rgba(255,255,255,0.1)"}`,
+                                color: isActive ? color : "rgba(255,255,255,0.5)",
+                            }}
+                        >
+                            {tab.id !== "all" && <span className="w-1 h-1 rounded-full shrink-0" style={{ background: color }} />}
+                            {tab.label}
+                            {tab.id !== "all" && !isActive && count > 0 && (
+                                <span className="text-[8px] font-extrabold px-1 rounded-full" style={{ background: `${color}28`, color }}>{count}</span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
 
             {/* ── MESSAGES LIST ── */}
-            <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0">
-                {hasMoreMsgs && !loading && (
+            <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
+                <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0 pb-6">
+                    {hasMoreMsgs && feedReady && engagementFilter === "all" && (
                     <div ref={sentinelRef} style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}>
                         {loadingMoreMsgs && <div style={{ width: 24, height: 24, borderRadius: "50%", border: "3px solid rgba(255,255,255,0.1)", borderTop: "3px solid #E91E8C", animation: "dr-spin 0.8s linear infinite" }} />}
                     </div>
                 )}
-                {loading || !dollyLoaded ? (
+                {!feedReady || !dollyLoaded ? (
                     <div className="text-center text-[var(--text-muted)] py-6 text-xs">Loading messages...</div>
                 ) : feedItems.length === 0 ? (
                     <div className="text-center text-[var(--text-muted)] py-6 text-xs">
-                        {displayChannels.length > 0 && selectedChannelId && selectedChannelId !== "all" ? (
+                        {engagementFilter !== "all" ? (
+                            <>No <strong className="text-white">{ENGAGEMENT_TABS.find(t => t.id === engagementFilter)?.label}</strong> engagements right now.</>
+                        ) : displayChannels.length > 0 && selectedChannelId && selectedChannelId !== "all" ? (
                             <>No messages in <strong className="text-white">#{currentChannelName}</strong> channel yet. Start the conversation!</>
                         ) : (
                             <>No messages yet. Start the conversation!</>
@@ -2613,6 +6439,20 @@ export default function OpenRoomDiscussionRoom({
                     </div>
                 ) : (
                     feedItems.map((item) => {
+                        if (item.kind === "engagement") {
+                            return (
+                                <EngagementCard
+                                    key={`eng-${item.data.id}`}
+                                    item={{
+                                        ...item.data,
+                                        creatorName: "SportsFan360",
+                                        creatorAvatar: "/images/sportsfan360logo.png",
+                                    }}
+                                    variant="post"
+                                    onInteraction={(data) => handleEngagementInteraction(item.data.id, data)}
+                                />
+                            );
+                        }
                         const p = item.data;
                         if (p.type === "trivia" && p.triviaQuestions?.length > 0) {
                             return (
@@ -2962,12 +6802,23 @@ export default function OpenRoomDiscussionRoom({
                         );
                     })
                 )}
+                </div>
+
+                {showNewPill && (
+                    <button
+                        type="button"
+                        onClick={() => scrollToBottom(true)}
+                        className="absolute bottom-2 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-bold text-white shadow-lg bg-gradient-to-r from-[#e91e8c] to-[#ff6b35] z-20 pointer-events-auto"
+                    >
+                        New activity ↓
+                    </button>
+                )}
             </div>
 
             <style dangerouslySetInnerHTML={{ __html: `@keyframes dr-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}` }} />
 
             {/* ── QUICK COMPOSE BUTTONS ── */}
-            {!showQuickCompose && !dollyOpen && (
+            {/* {!showQuickCompose && !dollyOpen && (
                 <div className="flex justify-start gap-1 py-1 px-2 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
                     {RADIAL_OPTS.map((q) => {
                         const isActive = q.id === selectedActionId;
@@ -2989,10 +6840,10 @@ export default function OpenRoomDiscussionRoom({
                         );
                     })}
                 </div>
-            )}
+            )} */}
 
             {/* ── COMPOSE INPUT ── */}
-            <div className="shrink-0 px-2.5 pt-1 pb-1.5 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-t border-[var(--border)] flex flex-col gap-1">
+            {/* <div className="shrink-0 px-2.5 pt-1 pb-1.5 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-t border-[var(--border)] flex flex-col gap-1">
                 {selectedActionId === "post" && !dollyOpen && (
                     <>
                         <AnimatePresence>
@@ -3038,7 +6889,7 @@ export default function OpenRoomDiscussionRoom({
 
                         <div className="flex items-center w-full gap-0.5 -mb-1">
                             <button type="button" onClick={() => triggerUpload("image")} disabled={uploading} className="bg-transparent border-none -ml-1.5 text-white/40 cursor-pointer flex items-center justify-center p-1 shrink-0">
-                                {/* <Image size={16} /> */}
+                                // <Image size={16} /> 
                                 <img src="/images/gallerybg.png" alt="gallery" className="w-5 h-5 object-cover" />
                             </button>
 
@@ -3057,7 +6908,7 @@ export default function OpenRoomDiscussionRoom({
                             </button>
 
                             <div className="flex-1 relative min-w-0">
-                                {/* Channel Mention Popup */}
+                                // Channel Mention Popup 
                                 {showChannelMentionPopup && channelMentionUsers.length > 0 && (
                                     <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#181c24] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden shadow-lg z-50 max-h-[200px] overflow-y-auto">
                                         {channelMentionUsers.map((channel, idx) => (
@@ -3126,7 +6977,7 @@ export default function OpenRoomDiscussionRoom({
                 )}
             </div>
 
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" /> */}
 
             {/* ── DIALOGS ── */}
             <VotersDialog postId={votersMsgId ?? ""} isOpen={votersMsgId !== null} onClose={() => setVotersMsgId(null)} roomId={roomId} mode={votersMode} />
