@@ -4140,7 +4140,7 @@ export function isUserEngagedWithEngagement(item: EngagementItem, userId?: strin
       if (item.type === "fan_battle" && getStoredVote("fb", targetId, uid)) return true;
       if (item.type === "prediction" && getStoredVote("pred", targetId, uid)) return true;
       if (
-        (item.type === "meme" || item.type === "memes" || Boolean(item.memeData) || Boolean((item as any).memeType)) &&
+        (item.type === "meme" || (item.type as string) === "memes" || Boolean(item.memeData) || Boolean((item as any).memeType)) &&
         (getStoredVote("meme", targetId, uid) ||
           getStoredVote("meme_dual", targetId, uid) ||
           getStoredVote("meme", item.id, uid) ||
@@ -7792,7 +7792,7 @@ export function DynamicMemeCard({
             </div>
 
             <button
-              onClick={handleSubmitVote}
+              onClick={() => handleSubmitVote()}
               disabled={!selectedRating || hasVoted || loadingVote}
               className={`w-full py-2.5 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 ${hasVoted
                 ? "bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 cursor-default"
@@ -7887,7 +7887,7 @@ export function DynamicArenaCard(props: {
   else if (item.type === "quiz") CardComponent = DynamicQuizCard;
   else if (item.type === "poll") CardComponent = DynamicPollCard;
   else if (item.type === "prediction") CardComponent = DynamicPredictionCard;
-  else if (item.type === "meme" || item.type === "memes" || Boolean(item.memeData) || Boolean((item as any).memeType)) CardComponent = DynamicMemeCard;
+  else if (item.type === "meme" || (item.type as string) === "memes" || Boolean(item.memeData) || Boolean((item as any).memeType)) CardComponent = DynamicMemeCard;
   else CardComponent = DynamicPollCard;
 
   return <CardComponent {...props} />;

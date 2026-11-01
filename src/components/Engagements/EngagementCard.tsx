@@ -1046,42 +1046,48 @@ export function useRunningCountdown(
     createdAt?: number | string,
     expiresAt?: number | null
 ) {
-    const [timeLeft, setTimeLeft] = useState<string>("00:00");
+    // Only a clock tick is kept in state. The remaining time is derived from the props on every render,
+    // so a changed expiresAt (e.g. the admin edits the timer from 4m to 2m) takes effect immediately.
+    const [now, setNow] = useState(() => Date.now());
 
     useEffect(() => {
-        const calculate = () => {
-            const now = Date.now();
-            let remainingMs = 0;
-
-            if (expiresAt && Number(expiresAt) > 0) {
-                const exp = Number(expiresAt) > 1e11 ? Number(expiresAt) : Number(expiresAt) * 1000;
-                remainingMs = Math.max(0, exp - now);
-            } else if (createdAt) {
-                const start = typeof createdAt === "number" ? createdAt : new Date(createdAt).getTime();
-                const durationMs = (timerMinutes || 4) * 60 * 1000;
-                const end = start + durationMs;
-                remainingMs = Math.max(0, end - now);
-            } else {
-                remainingMs = (timerMinutes || 4) * 60 * 1000;
-            }
-
-            if (remainingMs <= 0) {
-                setTimeLeft("Expired");
-                return;
-            }
-
-            const totalSec = Math.floor(remainingMs / 1000);
-            const m = Math.floor(totalSec / 60);
-            const s = totalSec % 60;
-            setTimeLeft(`${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`);
-        };
-
-        calculate();
-        const interval = setInterval(calculate, 1000);
+        setNow(Date.now());
+        const interval = setInterval(() => setNow(Date.now()), 1000);
         return () => clearInterval(interval);
-    }, [timerMinutes, createdAt, expiresAt]);
+    }, []);
 
-    return timeLeft;
+    let endMs: number | null = null;
+    const exp = Number(expiresAt);
+    if (exp > 0) {
+        endMs = exp > 1e11 ? exp : exp * 1000;
+    } else if (createdAt && timerMinutes) {
+        // Fallback only when expiresAt is missing
+        const start = typeof createdAt === "number" ? createdAt : new Date(createdAt).getTime();
+        if (Number.isFinite(start)) endMs = start + timerMinutes * 60 * 1000;
+    }
+
+    // No end time known: show the full timer length without counting down
+    const remainingMs = endMs === null ? (timerMinutes || 4) * 60 * 1000 : endMs - now;
+    if (endMs !== null && remainingMs <= 0) return "Expired";
+
+    const totalSec = Math.floor(remainingMs / 1000);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
+    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+// Look for a saved vote under the per-user key first, then the old shared key and the guest key
+// (used before the profile finished loading), so votes saved earlier are not lost.
+function readSavedVote(itemId: string, voteKey: string): string | null {
+    if (typeof window === "undefined") return null;
+    const keys = [voteKey, `sf_vote_${itemId}`, `sf_vote_${itemId}_fan_guest`];
+    for (const key of keys) {
+        try {
+            const stored = localStorage.getItem(key);
+            if (stored) return stored;
+        } catch { /* ignore */ }
+    }
+    return null;
 }
 
 export default function EngagementCard({
@@ -1102,22 +1108,14 @@ export default function EngagementCard({
 
     const [userVoted, setUserVoted] = useState<boolean>(() => {
         // Check localStorage FIRST — persists optimistic vote across remounts even before server hydration
-        if (typeof window !== "undefined") {
-            try {
-                if (localStorage.getItem(voteKey)) return true;
-            } catch { /* ignore */ }
-        }
+        if (readSavedVote(item.id, voteKey)) return true;
         return Boolean(item.userVoted);
     });
 
     const [selectedOptionId, setSelectedOptionId] = useState<string | null>(() => {
         // Check localStorage FIRST so optimistic vote survives remount before server hydration
-        if (typeof window !== "undefined") {
-            try {
-                const stored = localStorage.getItem(voteKey);
-                if (stored) return stored;
-            } catch { /* ignore */ }
-        }
+        const stored = readSavedVote(item.id, voteKey);
+        if (stored) return stored;
         return item.userVote ?? null;
     });
 
@@ -1164,6 +1162,26 @@ export default function EngagementCard({
 
     // Live Running Timer (ticks every second)
     const runningTimer = useRunningCountdown(item.timerMinutes, item.createdAt, item.expiresAt);
+    // Outcome set by the admin (prediction / debate): the post is resolved and has a winning option.
+    const anyItem = item as any;
+    const winningOptionId = String(
+        anyItem.winningChoiceId ??
+        anyItem.outcomeWinningChoiceId ??
+        anyItem.predictionData?.winningChoiceId ??
+        anyItem.debateData?.winningChoiceId ??
+        anyItem.debateData?.verdict ??
+        ""
+    ).trim();
+    const isResolved =
+        (item.type === "prediction" || item.type === "debate") &&
+        (["settled", "resolved"].includes(String(anyItem.status || "").toLowerCase()) || winningOptionId !== "");
+    const isWinnerOption = (opt: any) =>
+        isResolved && (opt?.isWinner === true || (winningOptionId !== "" && String(opt?.id) === winningOptionId));
+    // Voting closes when the countdown ends or the outcome is resolved; the vote route also rejects votes after expiry.
+    const isTimerExpired = runningTimer === "Expired" || isResolved;
+    const timerLabel = isResolved ? "Resolved" : runningTimer === "Expired" ? "Expired" : `${runningTimer} remaining`;
+    // Resolved posts show the result bars even to users who did not vote.
+    const showResults = userVoted || isResolved;
 
     // Add +1 to the user's pick only when no fresher count includes it: the vote request is in flight,
     // or it succeeded but the server sent no option counts and the list item doesn't know about the vote yet.
@@ -1172,34 +1190,57 @@ export default function EngagementCard({
     // The profile (and so currentUserId / voteKey) can resolve after first render. The lazy useState
     // initialisers above only run once, so re-read the saved vote whenever the key changes.
     useEffect(() => {
-        try {
-            const stored = localStorage.getItem(voteKey);
-            if (stored) {
-                setSelectedOptionId(stored);
-                setUserVoted(true);
-            }
-        } catch { /* ignore */ }
+        const stored = readSavedVote(item.id, voteKey);
+        if (stored) {
+            setSelectedOptionId(stored);
+            setUserVoted(true);
+            // move it onto the current per-user key
+            try { localStorage.setItem(voteKey, stored); } catch { /* ignore */ }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [voteKey]);
 
-    // Sync with item prop changes.
-    // NOTE: likes & shares are intentionally NOT synced from the list item. The /like and /share
-    // endpoints are the source of truth; stale list data used to overwrite them every 12s.
+    // The list API computes real counts + per-user state, so mirror it into local state on every refresh.
     useEffect(() => {
         if (item.totalEngaged !== undefined) setTotalEngaged(Number(item.totalEngaged) || 0);
-        if (item.commentsCount !== undefined) setCommentsCount(prev => Math.max(prev, Number(item.commentsCount) || 0));
-        // Only apply server vote hydration if the user hasn't already voted locally.
-        // This prevents a 12-second poll from overwriting an optimistic vote before the server confirms.
-        const hasLocalVote = (() => {
-            try { return typeof window !== "undefined" && Boolean(localStorage.getItem(voteKey)); } catch { return false; }
-        })();
-        if (!hasLocalVote && item.userVote) {
-            setSelectedOptionId(item.userVote);
-            setUserVoted(true);
-        }
-    }, [item.totalEngaged, item.commentsCount, item.userVote, voteKey]);
+        if (item.commentsCount !== undefined) setCommentsCount(Number(item.commentsCount) || 0);
+    }, [item.totalEngaged, item.commentsCount]);
 
-    // Hydrate real like state + count from server (source of truth)
     useEffect(() => {
+        // ignore a list refresh right after the user toggled, so it can't flash a stale value
+        const likeLocked = Date.now() - likeLockRef.current < 15000;
+        if (!likeLocked) {
+            if (item.likes !== undefined) setLikes(Number(item.likes) || 0);
+            if (item.userLiked !== undefined) {
+                setIsLiked(Boolean(item.userLiked));
+                try { localStorage.setItem(likeKey, String(Boolean(item.userLiked))); } catch { }
+            }
+        }
+        if (item.shares !== undefined) setShares(Number(item.shares) || 0);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [item.likes, item.userLiked, item.shares]);
+
+    // Server vote state wins once it arrives (localStorage stays as the optimistic fallback).
+    useEffect(() => {
+        if (pendingVote) return;
+        if (item.userVoted && item.userVote) {
+            setSelectedOptionId(String(item.userVote));
+            setUserVoted(true);
+            try { localStorage.setItem(voteKey, String(item.userVote)); } catch { }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [item.userVoted, item.userVote, voteKey]);
+
+    // Fresh list data carries recounted options: drop the vote-response snapshot so other users' votes show.
+    useEffect(() => {
+        if (pendingVote) return;
+        setLiveVoteData(null);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [item.updatedAt, item.totalVotes]);
+
+    // Fallback only: hydrate like state + count from the server when the list item doesn't carry them
+    useEffect(() => {
+        if (item.likes !== undefined && item.userLiked !== undefined) return;
         let cancelled = false;
         axios
             .get(`/api/engagements/${encodeURIComponent(item.id)}/like`, {
@@ -1220,8 +1261,9 @@ export default function EngagementCard({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [item.id, currentUserId]);
 
-    // Hydrate real share state + count from server
+    // Fallback only: hydrate share state + count when the list item doesn't carry them
     useEffect(() => {
+        if (item.shares !== undefined) return;
         let cancelled = false;
         axios
             .get(`/api/engagements/${encodeURIComponent(item.id)}/share`, {
@@ -1241,8 +1283,9 @@ export default function EngagementCard({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [item.id, currentUserId]);
 
-    // Load comment count without opening the thread
+    // Fallback only: load comment count when the list item doesn't carry it
     useEffect(() => {
+        if (item.commentsCount !== undefined) return;
         let cancelled = false;
         axios
             .get(`/api/engagements/${encodeURIComponent(item.id)}/comments`, {
@@ -1282,7 +1325,7 @@ export default function EngagementCard({
 
     // ── Submit Vote / Participation ──
     const handleVote = async (optionId: string) => {
-        if (userVoted || isVoting) return;
+        if (userVoted || isVoting || isTimerExpired) return;
 
         setIsVoting(true);
         setSelectedOptionId(optionId);
@@ -1314,19 +1357,26 @@ export default function EngagementCard({
                 window.dispatchEvent(new CustomEvent("sf360:points-updated", { detail: { points: 2 } }));
             }
 
+            // Don't forward options/totalVotes: liveVoteData holds them until the next list refresh
+            // brings recounted data (forwarding would clear it against stale pollData options).
             onInteraction?.({
                 userVoted: true,
                 userVote: optionId,
-                ...(res.data || {}),
+                totalEngaged: res.data?.totalEngaged,
             });
         } catch (err: any) {
             if (err?.response?.data?.alreadyVoted) {
                 // Server says this user already voted: show their real pick
                 setSelectedOptionId(err.response.data.selectedOptionId ?? optionId);
                 try { localStorage.setItem(voteKey, String(err.response.data.selectedOptionId ?? optionId)); } catch { }
+            } else if (!err?.response || err.response.status >= 500) {
+                // Timeout / network drop / server error: the vote record is written before the later
+                // steps (recount, leaderboard) that can fail, so it was most likely saved. Keep the vote;
+                // the next list refresh (item.userVoted) confirms or corrects it.
+                console.warn("Vote response not received or server error, keeping vote:", err?.response?.status, err?.response?.data ?? err);
             } else {
-                // Real failure: undo, so the UI never shows a vote that wasn't saved
-                console.warn("Vote failed:", err);
+                // Server rejected the vote (4xx): undo, so the UI never shows a vote that wasn't saved
+                console.warn("Vote rejected:", err.response.status, err.response.data);
                 setUserVoted(false);
                 setSelectedOptionId(null);
                 try { localStorage.removeItem(voteKey); } catch { }
@@ -1466,15 +1516,15 @@ export default function EngagementCard({
 
         return (
             <div className="flex flex-col gap-1.5 mt-1">
-                {!userVoted ? (
+                {!showResults ? (
                     <div className="grid grid-cols-2 gap-2 mt-0.5">
                         {options.map((opt: any) => (
                             <button
                                 key={opt.id}
                                 type="button"
-                                disabled={isVoting}
+                                disabled={isVoting || isTimerExpired}
                                 onClick={() => handleVote(String(opt.id))}
-                                className="p-2.5 rounded-lg bg-white/5 hover:bg-amber-500/15 border border-white/10 hover:border-amber-400/50 transition-all text-left group"
+                                className="p-2.5 rounded-lg bg-white/5 hover:bg-amber-500/15 border border-white/10 hover:border-amber-400/50 transition-all text-left group disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <span className="block text-xs font-bold text-white group-hover:text-amber-400 transition-colors">
                                     {opt.text || opt.label}
@@ -1487,22 +1537,24 @@ export default function EngagementCard({
                     <div className="flex flex-col gap-1.5 mt-0.5">
                         {options.map((opt: any) => {
                             const isChosen = String(opt.id) === String(selectedOptionId);
+                            const isWinner = isWinnerOption(opt);
                             const pct = pctOf(opt.votes);
                             return (
                                 <div
                                     key={opt.id}
-                                    className={`relative w-full rounded-lg overflow-hidden p-2 border transition-all ${isChosen ? "border-amber-400/60 bg-amber-500/10" : "border-white/5 bg-white/5"}`}
+                                    className={`relative w-full rounded-lg overflow-hidden p-2 border transition-all ${isWinner ? "border-emerald-400/70 bg-emerald-500/15" : isChosen ? "border-amber-400/60 bg-amber-500/10" : "border-white/5 bg-white/5"}`}
                                 >
                                     <motion.div
                                         initial={{ width: 0 }}
                                         animate={{ width: `${pct}%` }}
                                         transition={{ duration: 0.5, ease: "easeOut" }}
-                                        className={`absolute inset-y-0 left-0 ${isChosen ? "bg-amber-500/25" : "bg-white/10"}`}
+                                        className={`absolute inset-y-0 left-0 ${isWinner ? "bg-emerald-500/30" : isChosen ? "bg-amber-500/25" : "bg-white/10"}`}
                                     />
                                     <div className="relative flex items-center justify-between text-xs">
-                                        <span className={`font-medium flex items-center gap-1.5 ${isChosen ? "text-amber-300 font-bold" : "text-white"}`}>
-                                            {isChosen && <CheckCircle2 size={12} className="text-amber-400 shrink-0" />}
+                                        <span className={`font-medium flex items-center gap-1.5 ${isWinner ? "text-emerald-300 font-bold" : isChosen ? "text-amber-300 font-bold" : "text-white"}`}>
+                                            {(isWinner || isChosen) && <CheckCircle2 size={12} className={`${isWinner ? "text-emerald-400" : "text-amber-400"} shrink-0`} />}
                                             {opt.text || opt.label}
+                                            {isWinner && <span className="text-[8px] font-extrabold uppercase tracking-wide text-emerald-300 bg-emerald-500/20 px-1 py-0.5 rounded">Winner</span>}
                                         </span>
                                         <span className="text-[11px] font-bold text-white/80 shrink-0 ml-2">{pct}%</span>
                                     </div>
@@ -1510,7 +1562,7 @@ export default function EngagementCard({
                             );
                         })}
                         <div className="flex justify-between items-center text-[9px] text-white/50">
-                            <span>Your pick: <strong className="text-white">{chosen?.text || chosen?.label}</strong></span>
+                            <span>{chosen ? <>Your pick: <strong className="text-white">{chosen.text || chosen.label}</strong></> : "No pick"}</span>
                             <span>{total} total predictions</span>
                         </div>
                     </div>
@@ -1553,15 +1605,16 @@ export default function EngagementCard({
                         const optVotes = Number(opt.votes) || 0;
                         const pct = totalVotes > 0 ? Math.round((optVotes / totalVotes) * 100) : 0;
                         const isChosen = selectedOptionId === opt.id || selectedOptionId === opt.text;
+                        const isWinner = isWinnerOption(opt);
 
-                        if (!userVoted) {
+                        if (!showResults) {
                             return (
                                 <button
                                     key={opt.id || opt.text}
                                     type="button"
-                                    disabled={isVoting}
+                                    disabled={isVoting || isTimerExpired}
                                     onClick={() => handleVote(opt.id || opt.text)}
-                                    className="w-full px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-400/50 transition-all text-left flex items-center justify-between group"
+                                    className="w-full px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 hover:border-blue-400/50 transition-all text-left flex items-center justify-between group disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     <span className="text-xs text-white group-hover:text-blue-400 font-medium transition-colors">
                                         {opt.text || opt.label}
@@ -1574,20 +1627,21 @@ export default function EngagementCard({
                         return (
                             <div
                                 key={opt.id || opt.text}
-                                className={`relative w-full rounded-lg overflow-hidden p-2 border transition-all ${isChosen ? "border-blue-400/60 bg-blue-500/10" : "border-white/5 bg-white/5"
+                                className={`relative w-full rounded-lg overflow-hidden p-2 border transition-all ${isWinner ? "border-emerald-400/70 bg-emerald-500/15" : isChosen ? "border-blue-400/60 bg-blue-500/10" : "border-white/5 bg-white/5"
                                     }`}
                             >
                                 <motion.div
                                     initial={{ width: 0 }}
                                     animate={{ width: `${pct}%` }}
                                     transition={{ duration: 0.5, ease: "easeOut" }}
-                                    className={`absolute inset-y-0 left-0 ${isChosen ? "bg-blue-500/25" : "bg-white/10"
+                                    className={`absolute inset-y-0 left-0 ${isWinner ? "bg-emerald-500/30" : isChosen ? "bg-blue-500/25" : "bg-white/10"
                                         }`}
                                 />
                                 <div className="relative flex items-center justify-between text-xs">
-                                    <span className={`font-medium flex items-center gap-1.5 ${isChosen ? "text-blue-300 font-bold" : "text-white"}`}>
-                                        {isChosen && <CheckCircle2 size={12} className="text-blue-400 shrink-0" />}
+                                    <span className={`font-medium flex items-center gap-1.5 ${isWinner ? "text-emerald-300 font-bold" : isChosen ? "text-blue-300 font-bold" : "text-white"}`}>
+                                        {(isWinner || isChosen) && <CheckCircle2 size={12} className={`${isWinner ? "text-emerald-400" : "text-blue-400"} shrink-0`} />}
                                         {opt.text || opt.label}
+                                        {isWinner && <span className="text-[8px] font-extrabold uppercase tracking-wide text-emerald-300 bg-emerald-500/20 px-1 py-0.5 rounded">Winner</span>}
                                     </span>
                                     <span className="text-[11px] font-bold text-white/80 shrink-0 ml-2">{pct}%</span>
                                 </div>
@@ -1595,7 +1649,7 @@ export default function EngagementCard({
                         );
                     })}
                 </div>
-                {userVoted && (
+                {showResults && (
                     <div className="text-[9px] text-white/40 text-right mt-0.5">
                         {totalVotes} total votes
                     </div>
@@ -1637,7 +1691,7 @@ export default function EngagementCard({
                             <button
                                 key={opt.id}
                                 type="button"
-                                disabled={userVoted || isVoting}
+                                disabled={userVoted || isVoting || isTimerExpired}
                                 onClick={() => handleVote(opt.id)}
                                 className={`p-2 rounded-lg border text-left text-xs transition-all flex items-center justify-between ${btnStyle}`}
                             >
@@ -1702,9 +1756,9 @@ export default function EngagementCard({
                         {!userVoted ? (
                             <button
                                 type="button"
-                                disabled={isVoting}
+                                disabled={isVoting || isTimerExpired}
                                 onClick={() => handleVote("left")}
-                                className="w-full mt-1.5 py-1 px-2 rounded bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white font-bold text-[10px] transition-colors"
+                                className="w-full mt-1.5 py-1 px-2 rounded bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white font-bold text-[10px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Back {left.name.split(" ")[0]}
                             </button>
@@ -1736,9 +1790,9 @@ export default function EngagementCard({
                         {!userVoted ? (
                             <button
                                 type="button"
-                                disabled={isVoting}
+                                disabled={isVoting || isTimerExpired}
                                 onClick={() => handleVote("right")}
-                                className="w-full mt-1.5 py-1 px-2 rounded bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white font-bold text-xs transition-colors"
+                                className="w-full mt-1.5 py-1 px-2 rounded bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-white font-bold text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 Back {right.name.split(" ")[0]}
                             </button>
@@ -1829,7 +1883,7 @@ export default function EngagementCard({
                         {/* Running Timer */}
                         <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 flex items-center gap-1 ml-auto">
                             <Clock size={10} className="text-amber-400" />
-                            <span>{runningTimer} remaining</span>
+                            <span>{timerLabel}</span>
                         </span>
                     </div>
                 </div>
@@ -1938,7 +1992,7 @@ export default function EngagementCard({
                     </span>
                     <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 flex items-center gap-1">
                         <Clock size={10} className="text-amber-400" />
-                        <span>{runningTimer} remaining</span>
+                        <span>{timerLabel}</span>
                     </span>
                 </div>
                 {item.sport && (
