@@ -57,14 +57,20 @@ const countTotal = (list: ThreadComment[]) =>
 export default function EngagementCommentsThread({ engagementId, matchId, accentColor = "#e91e8c", onCommentCountChange }: Props) {
     const { userProfile } = useUserProfile();
     const currentUserId = userProfile?.actualUserId || userProfile?.email || "guest_fan";
-    const currentUserName = userProfile?.username || userProfile?.name || "SportsFan";
+    // Real name only: "" when the profile has not loaded, so the placeholder is never sent to (and saved by) the server
+    const realUserName =
+        userProfile?.username || userProfile?.name || (userProfile?.email ? userProfile.email.split("@")[0] : "");
+    const currentUserName = realUserName || "SportsFan";
     const currentUserAvatar = userProfile?.avatarUrl || userProfile?.avatar || "";
 
     const [comments, setComments] = useState<ThreadComment[]>([]);
     const [loading, setLoading] = useState(true);
     const [inputText, setInputText] = useState("");
     const [submitting, setSubmitting] = useState(false);
-    const [replyTo, setReplyTo] = useState<{ commentId: string; userName: string } | null>(null);
+    const [sendError, setSendError] = useState<string | null>(null);
+    // rootId = the top-level comment the reply is stored under (the API supports 2 levels).
+    // userName = who we are talking to (shown as @mention), which can be a reply's author.
+    const [replyTo, setReplyTo] = useState<{ rootId: string; userName: string } | null>(null);
     const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
 
     const inputRef = useRef<HTMLInputElement>(null);
@@ -82,17 +88,32 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         (async () => {
             setLoading(true);
             try {
-                const res = await axios.get(`/api/engagements/${encodeURIComponent(engagementId)}/comments`, {
-                    params: matchId ? { matchId } : undefined,
-                    timeout: 8000,
-                });
-                if (cancelled) return;
-                if (res.data?.success && Array.isArray(res.data.comments)) {
-                    loadedRef.current = true;
-                    setComments(res.data.comments.map(normalize));
+                const url = `/api/engagements/${encodeURIComponent(engagementId)}/comments`;
+                let res;
+                try {
+                    res = await axios.get(url, { params: matchId ? { matchId } : undefined, timeout: 8000 });
+                } catch (firstErr) {
+                    console.warn("Comments load failed, retrying without matchId:", firstErr);
+                    if (!matchId) throw firstErr;
+                    res = await axios.get(url, { timeout: 8000 });
                 }
-            } catch {
                 if (cancelled) return;
+                // Accept { comments }, { data: [...] }, { data: { comments } } or a bare array
+                const d = res.data;
+                const list = Array.isArray(d) ? d
+                    : Array.isArray(d?.comments) ? d.comments
+                    : Array.isArray(d?.data) ? d.data
+                    : Array.isArray(d?.data?.comments) ? d.data.comments
+                    : null;
+                if (list) {
+                    loadedRef.current = true;
+                    setComments(list.map(normalize));
+                } else {
+                    console.warn("Unexpected comments response shape:", d);
+                }
+            } catch (err) {
+                if (cancelled) return;
+                console.warn("Comments load failed:", err);
                 try {
                     const cached = JSON.parse(localStorage.getItem(storageKey) || "[]");
                     if (Array.isArray(cached)) setComments(cached.map(normalize));
@@ -112,6 +133,16 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         try { localStorage.setItem(storageKey, JSON.stringify(comments)); } catch { /* ignore */ }
     }, [comments, storageKey]);
 
+    // Start a reply. Works for top-level comments AND replies.
+    // A reply to a reply is stored under the same root comment (so it shows in the tree)
+    // and prefixed with @name so it's clear who it is addressed to.
+    const startReply = (rootId: string, userName: string) => {
+        setReplyTo({ rootId, userName });
+        setInputText(`@${userName} `);
+        setExpandedReplies(p => ({ ...p, [rootId]: true }));
+        setTimeout(() => inputRef.current?.focus(), 0);
+    };
+
     // ── Send comment / reply ──
     const handleSend = async (e?: React.FormEvent) => {
         e?.preventDefault();
@@ -119,7 +150,8 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         if (!text || submitting) return;
 
         setSubmitting(true);
-        const parentId = replyTo?.commentId || null;
+        setSendError(null);
+        const parentId = replyTo?.rootId || null;
         const tempId = `tmp_${Date.now()}`;
         const optimistic: ThreadComment = {
             id: tempId, engagementId, text, userId: currentUserId, userName: currentUserName,
@@ -143,11 +175,12 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                     text,
                     parentId,
                     authorUid: currentUserId,
-                    authorUsername: currentUserName,
+                    authorUsername: realUserName,
                     authorAvatarUrl: currentUserAvatar,
                     matchId,
                 },
-                { timeout: 8000 }
+                // The route does several sequential database writes, so allow longer than a read
+                { timeout: 20000 }
             );
             const saved = res.data?.comment ? normalize(res.data.comment) : null;
             if (saved) {
@@ -158,7 +191,15 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                     return c;
                 }));
             }
-        } catch {
+        } catch (err: any) {
+            const status = err?.response?.status;
+            const serverMsg = err?.response?.data?.error;
+            console.warn("Comment send failed:", status ?? err?.code, serverMsg ?? err?.message, err);
+            setSendError(
+                status
+                    ? `Comment not saved (${status}${serverMsg ? `: ${serverMsg}` : ""}). Please try again.`
+                    : "Comment not saved: the server took too long to answer. Please try again."
+            );
             // rollback
             setComments(prev =>
                 prev.filter(c => c.id !== tempId).map(c => ({ ...c, replies: (c.replies || []).filter(r => r.id !== tempId) }))
@@ -169,8 +210,9 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         }
     };
 
-    // NOTE: no comment-like / delete endpoints exist yet, so these are local-only.
-    const toggleLike = (commentId: string, parentId?: string) => {
+    // Optimistic flip, then persisted via the comment-like endpoint (reverted if it fails).
+    const toggleLike = async (commentId: string, parentId?: string) => {
+        if (commentId.startsWith("tmp_")) return; // not saved yet
         const flip = (c: ThreadComment): ThreadComment => {
             const liked = (c.likedBy || []).includes(currentUserId);
             return {
@@ -179,13 +221,25 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                 likedBy: liked ? (c.likedBy || []).filter(u => u !== currentUserId) : [...(c.likedBy || []), currentUserId],
             };
         };
-        setComments(prev => prev.map(c => {
+        const applyFlip = () => setComments(prev => prev.map(c => {
             if (!parentId && c.id === commentId) return flip(c);
             if (parentId && c.id === parentId) return { ...c, replies: (c.replies || []).map(r => r.id === commentId ? flip(r) : r) };
             return c;
         }));
+
+        applyFlip();
+        try {
+            await axios.post(
+                `/api/engagements/${encodeURIComponent(engagementId)}/comments/${encodeURIComponent(commentId)}/like`,
+                { userId: currentUserId, matchId },
+                { timeout: 8000 }
+            );
+        } catch {
+            applyFlip(); // flipping again restores the previous state
+        }
     };
 
+    // NOTE: no engagement-comment DELETE endpoint is known, so delete is local-only.
     const handleDelete = (commentId: string, parentId?: string) => {
         setComments(prev =>
             parentId
@@ -204,13 +258,24 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
             </div>
 
             <form onSubmit={handleSend} className="relative flex flex-col gap-1.5">
+                {sendError && (
+                    <div className="text-[10px] text-rose-300 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/30">
+                        {sendError}
+                    </div>
+                )}
                 {replyTo && (
                     <div className="flex items-center justify-between text-[10px] text-white/70 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
                         <span className="flex items-center gap-1">
                             <CornerDownRight size={11} className="text-[#e91e8c]" />
                             Replying to <strong className="text-white">@{replyTo.userName}</strong>
                         </span>
-                        <button type="button" onClick={() => setReplyTo(null)} className="text-white/40 hover:text-white">✕ Cancel</button>
+                        <button
+                            type="button"
+                            onClick={() => { setReplyTo(null); setInputText(""); }}
+                            className="text-white/40 hover:text-white"
+                        >
+                            ✕ Cancel
+                        </button>
                     </div>
                 )}
                 <div className="flex items-center gap-2">
@@ -235,7 +300,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
             {loading && comments.length === 0 ? (
                 <div className="text-center py-2 text-[10px] text-white/40 italic">Loading comments...</div>
             ) : comments.length === 0 ? (
-                <div className="text-center py-3 text-[11px] text-white/40">No comments yet. Start the conversation!</div>
+                <div className="text-center py-3 text-[11px] text-white/40">No comments yet. Start the conversation!!</div>
             ) : (
                 <div className="flex flex-col gap-2 mt-1">
                     {comments.map((comment) => {
@@ -250,7 +315,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                                             <img src={comment.userAvatar} alt={comment.userName} className="w-full h-full object-cover" />
                                         ) : (
                                             <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]">
-                                                {comment.userName.charAt(0).toUpperCase()}
+                                                {(comment.userName || "F").charAt(0).toUpperCase()}
                                             </div>
                                         )}
                                     </div>
@@ -266,7 +331,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                                                 <Heart size={11} fill={isLiked ? "currentColor" : "none"} /><span>{comment.likes}</span>
                                             </button>
                                             <button type="button"
-                                                onClick={() => { setReplyTo({ commentId: comment.id, userName: comment.userName }); inputRef.current?.focus(); }}
+                                                onClick={() => startReply(comment.id, comment.userName || "Fan")}
                                                 className="flex items-center gap-1 text-white/45 hover:text-white/80">
                                                 <Reply size={11} /><span>Reply</span>
                                             </button>
@@ -298,7 +363,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                                                             <img src={reply.userAvatar} alt={reply.userName} className="w-full h-full object-cover" />
                                                         ) : (
                                                             <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-white bg-white/20">
-                                                                {reply.userName.charAt(0).toUpperCase()}
+                                                                {(reply.userName || "F").charAt(0).toUpperCase()}
                                                             </div>
                                                         )}
                                                     </div>
@@ -312,6 +377,12 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                                                             <button type="button" onClick={() => toggleLike(reply.id, comment.id)}
                                                                 className={`flex items-center gap-1 ${rLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"}`}>
                                                                 <Heart size={10} fill={rLiked ? "currentColor" : "none"} /><span>{reply.likes}</span>
+                                                            </button>
+                                                            {/* Reply on a reply: stored under the root comment, @mentions this reply's author */}
+                                                            <button type="button"
+                                                                onClick={() => startReply(comment.id, reply.userName || "Fan")}
+                                                                className="flex items-center gap-1 text-white/45 hover:text-white/80">
+                                                                <Reply size={10} /><span>Reply</span>
                                                             </button>
                                                             {reply.userId === currentUserId && (
                                                                 <button type="button" onClick={() => handleDelete(reply.id, comment.id)} className="text-white/25 hover:text-red-400 ml-auto">

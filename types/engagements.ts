@@ -44,6 +44,9 @@ export interface QuizPayload {
   frequencyMinutes?: number;
   startTime?: number | string;
   scheduledStartTime?: number | string;
+  expiresAt?: number | string;
+  durationMinutes?: number;
+  timerMinutes?: number;
 }
 
 // ─── 3. Poll ───────────────────────────────────────────────────────────────
@@ -174,6 +177,7 @@ export interface EngagementItem {
   // Hydrated user state
   userLiked?: boolean;
   userVoted?: boolean;
+  totalVotes?: number;
   userVote?: string | null;
 
   createdAt: number;

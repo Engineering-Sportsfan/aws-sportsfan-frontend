@@ -3725,13 +3725,20 @@ function ActiveFansStack({
     );
 }
 
-function useVisibilityInterval(callback: () => void, delay: number) {
+function useVisibilityInterval(callback: () => void | Promise<unknown>, delay: number) {
     const savedCallback = useRef(callback);
+    // true while the previous run is still in flight; a slow server must not get a new request every tick
+    const runningRef = useRef(false);
     useEffect(() => { savedCallback.current = callback; }, [callback]);
     useEffect(() => {
         let id: ReturnType<typeof setInterval>;
-        const start = () => { id = setInterval(() => { if (!document.hidden) savedCallback.current(); }, delay); };
-        const handleVisibility = () => { clearInterval(id); if (!document.hidden) { savedCallback.current(); start(); } };
+        const run = async () => {
+            if (runningRef.current) return;
+            runningRef.current = true;
+            try { await savedCallback.current(); } catch { /* callbacks handle their own errors */ } finally { runningRef.current = false; }
+        };
+        const start = () => { id = setInterval(() => { if (!document.hidden) run(); }, delay); };
+        const handleVisibility = () => { clearInterval(id); if (!document.hidden) { run(); start(); } };
         start();
         document.addEventListener("visibilitychange", handleVisibility);
         return () => { clearInterval(id); document.removeEventListener("visibilitychange", handleVisibility); };
@@ -5214,55 +5221,20 @@ export default function OpenRoomDiscussionRoom({
             const cfg = { timeout: REQUEST_TIMEOUT_MS, headers: { "Cache-Control": "no-cache" } };
             const pick = (d: any) => d?.engagements || d?.data || (Array.isArray(d) ? d : []);
 
+            // For now every match-moment post is shown in this room, whichever match it was created for,
+            // so load the full list in one request instead of filtering by matchId.
             let loaded: any[] = [];
-            let fetchOk = false;
-
-            if (cleanMatchId) {
-                try {
-                    const r = await axios.get(`/api/engagements?matchId=${encodeURIComponent(cleanMatchId)}&limit=50${userParam}${bust}`, cfg);
-                    loaded = pick(r.data);
-                    fetchOk = true;
-                } catch (e) { console.warn("match engagements:", e); }
-            }
-            if (loaded.length === 0) {
-                try {
-                    const r = await axios.get(`/api/engagements?excludeFlipArena=true&source=match_moment&limit=50${userParam}${bust}`, cfg);
-                    const list: any[] = pick(r.data);
-                    const matched = cleanMatchId
-                        ? list.filter(e => !e.matchId || String(e.matchId).replace(/^MATCH#/, "").toLowerCase() === cleanMatchId.toLowerCase())
-                        : list;
-                    loaded = matched.length > 0 ? matched : list;
-                    fetchOk = true;
-                } catch (e) { console.warn("fallback engagements:", e); }
-            }
-
-            if (!fetchOk) return;
-
-            if (!cleanMatchId && loaded.length > 0) {
-                const detected = loaded.find(e => e.matchId)?.matchId;
-                if (detected) {
-                    setRoomMatchId(String(detected).replace(/^MATCH#/, "").trim());
-                }
+            try {
+                const r = await axios.get(`/api/engagements?excludeFlipArena=true&source=match_moment&limit=100${userParam}${bust}`, cfg);
+                loaded = pick(r.data);
+            } catch (e) {
+                console.warn("match moment engagements:", e);
+                return;
             }
 
             const formatted = loaded.map(e => normalizeEngagement(e, cleanMatchId));
-            setMatchEngagements(prev => {
-                const prevMap = new Map(prev.map(p => [p.id, p]));
-                return formatted.map((eng: any) => {
-                    const ex: any = prevMap.get(eng.id);
-                    if (!ex) return eng;
-                    return {
-                        ...ex, ...eng,
-                        likes: eng.likes !== undefined ? Number(eng.likes) || 0 : Number(ex.likes) || 0,
-                        shares: eng.shares !== undefined ? Number(eng.shares) || 0 : Number(ex.shares) || 0,
-                        totalEngaged: Math.max(Number(ex.totalEngaged) || 0, Number(eng.totalEngaged) || 0),
-                        commentsCount: Math.max(Number(ex.commentsCount) || 0, Number(eng.commentsCount) || 0),
-                        userLiked: eng.userLiked || ex.userLiked,
-                        userVoted: eng.userVoted !== undefined ? eng.userVoted : ex.userVoted,
-                        userVote: eng.userVote || ex.userVote,
-                    };
-                });
-            });
+            // The API is the source of truth for counts and per-user state: replace, don't merge.
+            setMatchEngagements(formatted);
         } catch (err) {
             console.error("fetchEngagements error:", err);
         } finally {
@@ -5665,20 +5637,28 @@ export default function OpenRoomDiscussionRoom({
                     const t = lastLocalReactAtRef.current[id];
                     return t !== undefined && Date.now() - t < 6000;
                 };
-                setPosts(prev => prev.map(p => {
-                    const updated = incoming.find((m: any) => m.msgId === p.id);
-                    if (!updated) return p;
-                    const isPending = pendingReactRef.current[p.id] || isLocked(p.id);
-                    return {
-                        ...p,
-                        heartCount: isPending ? p.heartCount : (updated.heartCount ?? p.heartCount),
-                        userReaction: isPending ? p.userReaction : (updated.userReaction ?? null),
-                        replyCount: Math.max(p.replyCount ?? 0, updated.replyCount ?? 0),
-                        agreeCount: updated.agreeCount ?? p.agreeCount,
-                        disagreeCount: updated.disagreeCount ?? p.disagreeCount,
-                        userVote: (p.userVote && !updated.userVote) ? p.userVote : (updated.userVote ?? p.userVote ?? null),
-                    };
-                }));
+                setPosts(prev => {
+                    const updatedPrev = prev.map(p => {
+                        const updated = incoming.find((m: any) => m.msgId === p.id);
+                        if (!updated) return p;
+                        const isPending = pendingReactRef.current[p.id] || isLocked(p.id);
+                        return {
+                            ...p,
+                            heartCount: isPending ? p.heartCount : (updated.heartCount ?? p.heartCount),
+                            userReaction: isPending ? p.userReaction : (updated.userReaction ?? null),
+                            replyCount: Math.max(p.replyCount ?? 0, updated.replyCount ?? 0),
+                            agreeCount: updated.agreeCount ?? p.agreeCount,
+                            disagreeCount: updated.disagreeCount ?? p.disagreeCount,
+                            userVote: (p.userVote && !updated.userVote) ? p.userVote : (updated.userVote ?? p.userVote ?? null),
+                        };
+                    });
+                    // Backfill messages the `since` poll missed (e.g. older createdAt than the newest loaded one).
+                    const known = new Set([...prev, ...morePostsRef.current].map(p => p.id));
+                    const missing = incoming
+                        .filter((m: any) => !known.has(m.msgId))
+                        .map((m: any) => ({ ...mapMessage(m), timeAgo: "now" }));
+                    return missing.length > 0 ? [...updatedPrev, ...missing] : updatedPrev;
+                });
                 setMorePosts(prev => prev.map(p => {
                     const updated = incoming.find((m: any) => m.msgId === p.id);
                     if (!updated) return p;
@@ -5701,7 +5681,7 @@ export default function OpenRoomDiscussionRoom({
                 });
             }
         } catch { }
-    }, [roomId, selectedChannelId]);
+    }, [roomId, selectedChannelId, mapMessage]);
 
     // const loadDollyHistory = useCallback(async () => {
     //     setDollyHistoryLoading(true);
@@ -5906,14 +5886,14 @@ export default function OpenRoomDiscussionRoom({
         fetchMsgs();
     }, [fetchMsgs, roomId, selectedChannelId]);
 
-    useVisibilityInterval(fetchMsgs, 15000);
+    useVisibilityInterval(fetchMsgs, 5000);
     useVisibilityInterval(fetchReactionUpdates, 5000);
 
     useEffect(() => {
         if (!roomId) return;
         fetchEngagements();
     }, [fetchEngagements, roomId]);
-    useVisibilityInterval(fetchEngagements, 12000);
+    useVisibilityInterval(fetchEngagements, 5000);
 
     useEffect(() => {
         if (!roomId) return;
@@ -6439,7 +6419,9 @@ export default function OpenRoomDiscussionRoom({
 
     type FeedItem =
         | { kind: "post"; data: any; sortKey: number }
-        | { kind: "engagement"; data: EngagementItem; sortKey: number };
+        | { kind: "engagement"; data: EngagementItem; sortKey: number }
+        | { kind: "recognition"; data: any; sortKey: number }
+        | { kind: "outcome_reveal"; data: any; sortKey: number };
     const feedItems: FeedItem[] = React.useMemo(() => {
         // When a specific engagement tab (Prediction / Debate / Question / Express / Poll)
         // is selected, show ONLY the matching engagement posts (regular posts are hidden).
@@ -6504,7 +6486,7 @@ export default function OpenRoomDiscussionRoom({
             if (!rev.participantUserIds || !Array.isArray(rev.participantUserIds) || rev.participantUserIds.length === 0) {
                 return true;
             }
-            const pSet = new Set(rev.participantUserIds.map((u: any) => String(u).trim().toLowerCase()));
+            const pSet = new Set<string>(rev.participantUserIds.map((u: any) => String(u).trim().toLowerCase()));
             for (const cand of currentUserIdCandidates) {
                 if (pSet.has(cand)) return true;
                 for (const p of pSet) {
