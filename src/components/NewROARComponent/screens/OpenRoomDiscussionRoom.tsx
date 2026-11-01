@@ -6426,8 +6426,10 @@ export default function OpenRoomDiscussionRoom({
         // When a specific engagement tab (Prediction / Debate / Question / Express / Poll)
         // is selected, show ONLY the matching engagement posts (regular posts are hidden).
         // "All" shows everything, like before.
+        // Bot posts (Krishna / Radha / Dolly) are hidden for now.
+        // To show them again, remove the .filter(...) below.
         const postItems: FeedItem[] = engagementFilter === "all"
-            ? filteredPosts.map(p => ({
+            ? filteredPosts.filter(p => !getKnownBotAvatarUrl(p.fan?.username)).map(p => ({
                 kind: "post" as const,
                 data: p,
                 sortKey: getTimestamp(p.createdAt),
@@ -6506,7 +6508,11 @@ export default function OpenRoomDiscussionRoom({
                 sortKey: getTimestamp(rev.createdAt || Date.now()),
             }));
 
-        return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
+        // Recognition and outcome-reveal cards are hidden for now (they showed up as empty green lines).
+        // return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
+        void recognitionItems;
+        void outcomeItems;
+        return [...postItems, ...engagementItems].sort((a, b) => a.sortKey - b.sortKey);
     }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
 
     const renderReactionPicker = (p: any) => {
