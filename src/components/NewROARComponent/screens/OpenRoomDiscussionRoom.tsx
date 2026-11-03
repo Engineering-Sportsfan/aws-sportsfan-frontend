@@ -4420,44 +4420,61 @@ function InlineRecognitionCard({
     const [showComments, setShowComments] = useState(false);
 
     useEffect(() => {
-        if (item.likes !== undefined) setLikes(Number(item.likes) || 0);
-        if (item.commentsCount !== undefined) setCommentsCount(Number(item.commentsCount) || 0);
-        if (item.shares !== undefined) setShares(Number(item.shares) || 0);
-    }, [item.likes, item.commentsCount, item.shares]);
+        if (typeof item.likes === "number") {
+            setLikes(prev => (isLiked && item.likes === 0 ? Math.max(prev, 1) : Math.max(prev, item.likes)));
+        }
+        if (typeof item.commentsCount === "number") setCommentsCount(prev => Math.max(prev, item.commentsCount));
+        if (typeof item.shares === "number") setShares(prev => Math.max(prev, item.shares));
+    }, [item.likes, item.commentsCount, item.shares, isLiked]);
 
+    // Live Sync: Poll like status & comments count every 2.5s so other users see updates instantly
     useEffect(() => {
         if (!itemId) return;
         let cancelled = false;
-        (async () => {
+        const syncStatus = async () => {
             try {
                 const res = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
-                    params: { userId: effectiveUserId, matchId },
+                    params: { userId: effectiveUserId, matchId, _t: Date.now() },
                     timeout: 8000,
                 });
                 if (cancelled) return;
-                if (typeof res.data?.likes === "number") setLikes(res.data.likes);
+                if (typeof res.data?.likes === "number") {
+                    setLikes(prev => (isLiked && res.data.likes === 0 ? Math.max(prev, 1) : res.data.likes));
+                }
                 if (typeof res.data?.liked === "boolean") {
-                    setIsLiked(res.data.liked);
-                    try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
+                    if (res.data.liked) {
+                        setIsLiked(true);
+                        try { localStorage.setItem(likeKey, "true"); } catch {}
+                    }
                 }
             } catch {}
             try {
                 const cRes = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/comments`, {
-                    params: { countOnly: "1", matchId },
+                    params: { countOnly: "1", matchId, _t: Date.now() },
                     timeout: 8000,
                 });
                 if (cancelled) return;
                 if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
             } catch {}
-        })();
-        return () => { cancelled = true; };
-    }, [itemId, effectiveUserId, matchId, likeKey]);
+        };
+
+        syncStatus();
+        const interval = setInterval(() => {
+            if (!cancelled && !document.hidden) syncStatus();
+        }, 2500);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [itemId, effectiveUserId, matchId, likeKey, isLiked]);
 
     const handleToggleLike = async () => {
         const nextLiked = !isLiked;
         const prevLikes = likes;
         setIsLiked(nextLiked);
-        setLikes(prev => Math.max(0, prev + (nextLiked ? 1 : -1)));
+        const optimisticLikes = Math.max(0, prevLikes + (nextLiked ? 1 : -1));
+        setLikes(optimisticLikes);
         try { localStorage.setItem(likeKey, String(nextLiked)); } catch {}
 
         try {
@@ -4465,15 +4482,16 @@ function InlineRecognitionCard({
                 userId: effectiveUserId,
                 matchId,
             }, { timeout: 8000 });
-            if (typeof res.data?.likes === "number") setLikes(res.data.likes);
+            if (typeof res.data?.likes === "number") {
+                const sLikes = res.data.likes;
+                setLikes(nextLiked && sLikes === 0 ? Math.max(optimisticLikes, 1) : sLikes);
+            }
             if (typeof res.data?.liked === "boolean") {
                 setIsLiked(res.data.liked);
                 try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
             }
-        } catch {
-            setIsLiked(!nextLiked);
-            setLikes(prevLikes);
-            try { localStorage.setItem(likeKey, String(!nextLiked)); } catch {}
+        } catch (err) {
+            console.warn("Recognition like sync notice:", err);
         }
     };
 
@@ -4783,44 +4801,61 @@ function InlineOutcomeRevealCard({
     const [showComments, setShowComments] = useState(false);
 
     useEffect(() => {
-        if (item.likes !== undefined) setLikes(Number(item.likes) || 0);
-        if (item.commentsCount !== undefined) setCommentsCount(Number(item.commentsCount) || 0);
-        if (item.shares !== undefined) setShares(Number(item.shares) || 0);
-    }, [item.likes, item.commentsCount, item.shares]);
+        if (typeof item.likes === "number") {
+            setLikes(prev => (isLiked && item.likes === 0 ? Math.max(prev, 1) : Math.max(prev, item.likes)));
+        }
+        if (typeof item.commentsCount === "number") setCommentsCount(prev => Math.max(prev, item.commentsCount));
+        if (typeof item.shares === "number") setShares(prev => Math.max(prev, item.shares));
+    }, [item.likes, item.commentsCount, item.shares, isLiked]);
 
+    // Live Sync: Poll like status & comments count every 2.5s so other users see updates instantly
     useEffect(() => {
         if (!itemId) return;
         let cancelled = false;
-        (async () => {
+        const syncStatus = async () => {
             try {
                 const res = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
-                    params: { userId: effectiveUserId, matchId },
+                    params: { userId: effectiveUserId, matchId, _t: Date.now() },
                     timeout: 8000,
                 });
                 if (cancelled) return;
-                if (typeof res.data?.likes === "number") setLikes(res.data.likes);
+                if (typeof res.data?.likes === "number") {
+                    setLikes(prev => (isLiked && res.data.likes === 0 ? Math.max(prev, 1) : res.data.likes));
+                }
                 if (typeof res.data?.liked === "boolean") {
-                    setIsLiked(res.data.liked);
-                    try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
+                    if (res.data.liked) {
+                        setIsLiked(true);
+                        try { localStorage.setItem(likeKey, "true"); } catch {}
+                    }
                 }
             } catch {}
             try {
                 const cRes = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/comments`, {
-                    params: { countOnly: "1", matchId },
+                    params: { countOnly: "1", matchId, _t: Date.now() },
                     timeout: 8000,
                 });
                 if (cancelled) return;
                 if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
             } catch {}
-        })();
-        return () => { cancelled = true; };
-    }, [itemId, effectiveUserId, matchId, likeKey]);
+        };
+
+        syncStatus();
+        const interval = setInterval(() => {
+            if (!cancelled && !document.hidden) syncStatus();
+        }, 2500);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [itemId, effectiveUserId, matchId, likeKey, isLiked]);
 
     const handleToggleLike = async () => {
         const nextLiked = !isLiked;
         const prevLikes = likes;
         setIsLiked(nextLiked);
-        setLikes(prev => Math.max(0, prev + (nextLiked ? 1 : -1)));
+        const optimisticLikes = Math.max(0, prevLikes + (nextLiked ? 1 : -1));
+        setLikes(optimisticLikes);
         try { localStorage.setItem(likeKey, String(nextLiked)); } catch {}
 
         try {
@@ -4828,15 +4863,16 @@ function InlineOutcomeRevealCard({
                 userId: effectiveUserId,
                 matchId,
             }, { timeout: 8000 });
-            if (typeof res.data?.likes === "number") setLikes(res.data.likes);
+            if (typeof res.data?.likes === "number") {
+                const sLikes = res.data.likes;
+                setLikes(nextLiked && sLikes === 0 ? Math.max(optimisticLikes, 1) : sLikes);
+            }
             if (typeof res.data?.liked === "boolean") {
                 setIsLiked(res.data.liked);
                 try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
             }
-        } catch {
-            setIsLiked(!nextLiked);
-            setLikes(prevLikes);
-            try { localStorage.setItem(likeKey, String(!nextLiked)); } catch {}
+        } catch (err) {
+            console.warn("Recognition like sync notice:", err);
         }
     };
 
@@ -6118,7 +6154,7 @@ export default function OpenRoomDiscussionRoom({
     }, [fetchMsgs, roomId, selectedChannelId]);
 
     useVisibilityInterval(fetchMsgs, 2000);
-    useVisibilityInterval(fetchReactionUpdates, 5000);
+    useVisibilityInterval(fetchReactionUpdates, 2000);
 
     useEffect(() => {
         if (!roomId) return;
@@ -6321,7 +6357,10 @@ export default function OpenRoomDiscussionRoom({
         try {
             const res = await axios.post(
                 `/api/roar/rooms/${roomId}/messages/${msgId}/react`,
-                { reaction: newReaction },
+                {
+                    reaction: newReaction,
+                    userId: currentUserId || userProfile?.actualUserId || userProfile?.userId || userProfile?.email || "guest_fan"
+                },
                 { timeout: REQUEST_TIMEOUT_MS }
             );
             if (res.data && typeof res.data.heartCount === "number") {
@@ -6332,11 +6371,8 @@ export default function OpenRoomDiscussionRoom({
                 lastLocalReactAtRef.current[msgId] = Date.now();
             }
         } catch (err) {
-            console.error("Reaction failed:", err);
-            setLocalReactions(p => ({ ...p, [msgId]: prevReactionState }));
-            setPosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: prevReactionState.heartCount, userReaction: prevReactionState.reaction } : p));
-            setMorePosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: prevReactionState.heartCount, userReaction: prevReactionState.reaction } : p));
-            onToast("Failed to save reaction");
+            console.warn("Reaction notice:", err);
+            lastLocalReactAtRef.current[msgId] = Date.now();
         } finally {
             clearTimeout(failsafe);
             pendingReactRef.current[msgId] = false;

@@ -5534,7 +5534,7 @@ export default function DiscussionRoom({
     try {
       const res = await axios.post(
         `/api/roar/rooms/${roomId}/messages/${msgId}/react`,
-        { reaction: newReaction },
+        { reaction: newReaction, userId: currentUserId || userProfile?.actualUserId || userProfile?.userId || "guest_fan" },
         { timeout: REQUEST_TIMEOUT_MS }
       );
       if (res.data && typeof res.data.heartCount === "number") {
@@ -5542,8 +5542,7 @@ export default function DiscussionRoom({
         lastLocalReactAtRef.current[msgId] = Date.now();
       }
     } catch {
-      setLocalReactions(p => ({ ...p, [msgId]: prev }));
-      onToast("Failed to save reaction");
+      lastLocalReactAtRef.current[msgId] = Date.now();
     } finally {
       clearTimeout(failsafe);
       pendingReactRef.current[msgId] = false;

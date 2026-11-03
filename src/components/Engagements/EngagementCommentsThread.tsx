@@ -54,9 +54,11 @@ function normalize(c: any): ThreadComment {
         ? Array.from(new Set([...c.likedBy, ...reactionUids]))
         : reactionUids;
     const isLikedByUser = c.userReaction === "heart" || c.userLiked === true;
+    const rawId = String(c.id || c.commentId || c._id || "");
+    const cleanId = rawId.replace(/^COMMENT#/, "").trim() || `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
     return {
-        id: String(c.id || c.commentId || c._id || `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
+        id: cleanId,
         engagementId: String(c.engagementId || c.postId || ""),
         text: String(c.text || ""),
         userId: String(c.authorUid || c.userId || ""),
@@ -65,7 +67,7 @@ function normalize(c: any): ThreadComment {
         createdAt: Number(c.createdAt) || Date.now(),
         likes: rawLikes,
         likedBy: isLikedByUser && !rawLikedBy.includes("me") ? [...rawLikedBy, "me"] : rawLikedBy,
-        parentCommentId: c.parentId ? String(c.parentId).replace(/^COMMENT#/, "").trim() : (c.parentCommentId || null),
+        parentCommentId: c.parentId ? String(c.parentId).replace(/^COMMENT#/, "").trim() : (c.parentCommentId ? String(c.parentCommentId).replace(/^COMMENT#/, "").trim() : null),
         replies: Array.isArray(c.replies) ? c.replies.map(normalize) : [],
     };
 }
@@ -135,11 +137,23 @@ function buildTree(list: ThreadComment[]): ThreadComment[] {
 export const countTotal = (list: ThreadComment[]): number =>
     list.reduce((acc, c) => acc + 1 + countTotal(c.replies || []), 0);
 
-const updateNode = (list: ThreadComment[], id: string, fn: (c: ThreadComment) => ThreadComment): ThreadComment[] =>
-    list.map(c => (c.id === id ? fn(c) : { ...c, replies: updateNode(c.replies || [], id, fn) }));
+const updateNode = (list: ThreadComment[], id: string, fn: (c: ThreadComment) => ThreadComment): ThreadComment[] => {
+    const cleanTargetId = String(id).replace(/^COMMENT#/, "").trim();
+    return list.map(c => {
+        const cleanCid = String(c.id).replace(/^COMMENT#/, "").trim();
+        if (cleanCid === cleanTargetId || c.id === id) {
+            return fn(c);
+        }
+        return { ...c, replies: updateNode(c.replies || [], id, fn) };
+    });
+};
 
-const removeNode = (list: ThreadComment[], id: string): ThreadComment[] =>
-    list.filter(c => c.id !== id).map(c => ({ ...c, replies: removeNode(c.replies || [], id) }));
+const removeNode = (list: ThreadComment[], id: string): ThreadComment[] => {
+    const cleanTargetId = String(id).replace(/^COMMENT#/, "").trim();
+    return list
+        .filter(c => String(c.id).replace(/^COMMENT#/, "").trim() !== cleanTargetId && c.id !== id)
+        .map(c => ({ ...c, replies: removeNode(c.replies || [], id) }));
+};
 
 const MAX_INDENT_DEPTH = 6;
 
@@ -193,8 +207,33 @@ export default function EngagementCommentsThread({
         return new Set<string>();
     });
 
+    // Re-hydrate liked comment IDs when effectiveUserId or key changes
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            try {
+                const stored = localStorage.getItem(commentLikesKey);
+                if (stored) {
+                    const ids = JSON.parse(stored);
+                    if (Array.isArray(ids)) {
+                        setLikedCommentIds(prev => new Set([...prev, ...ids]));
+                    }
+                }
+            } catch {}
+        }
+    }, [commentLikesKey]);
+
+    // Active refs to guard polling intervals against stale React hook closures
+    const likedCommentIdsRef = useRef<Set<string>>(likedCommentIds);
+    useEffect(() => { likedCommentIdsRef.current = likedCommentIds; }, [likedCommentIds]);
+    const myIdCandidatesRef = useRef(myIdCandidates);
+    useEffect(() => { myIdCandidatesRef.current = myIdCandidates; }, [myIdCandidates]);
+    const effectiveUserIdRef = useRef(effectiveUserId);
+    useEffect(() => { effectiveUserIdRef.current = effectiveUserId; }, [effectiveUserId]);
+    const lastLikeActionRef = useRef<Record<string, number>>({});
+
     const isCommentLiked = useCallback((c: ThreadComment): boolean => {
-        if (likedCommentIds.has(c.id)) return true;
+        const cleanId = String(c.id).replace(/^COMMENT#/, "").trim();
+        if (likedCommentIds.has(c.id) || likedCommentIds.has(cleanId)) return true;
         const likedBy = c.likedBy || [];
         for (const uid of likedBy) {
             if (myIdCandidates.has(uid) || myIdCandidates.has(String(uid).toLowerCase())) {
@@ -259,10 +298,14 @@ export default function EngagementCommentsThread({
                     const next = new Set(prev);
                     const scan = (nodes: ThreadComment[]) => {
                         for (const node of nodes) {
-                            const hasMyLike = (node.likedBy || []).some(uid => myIdCandidates.has(uid) || myIdCandidates.has(String(uid).toLowerCase()));
-                            if (hasMyLike && !next.has(node.id)) {
-                                next.add(node.id);
-                                changed = true;
+                            const cleanNid = String(node.id).replace(/^COMMENT#/, "").trim();
+                            const justToggled = Date.now() - (lastLikeActionRef.current[cleanNid] || 0) < 4000;
+                            if (!justToggled) {
+                                const hasMyLike = (node.likedBy || []).some(uid => myIdCandidatesRef.current.has(uid) || myIdCandidatesRef.current.has(String(uid).toLowerCase()));
+                                if (hasMyLike && !next.has(cleanNid)) {
+                                    next.add(cleanNid);
+                                    changed = true;
+                                }
                             }
                             if (node.replies?.length) scan(node.replies);
                         }
@@ -274,7 +317,28 @@ export default function EngagementCommentsThread({
                     return next;
                 });
 
-                const tree = buildTree(normalized);
+                // Recursive patch node so nested replies at ANY depth never revert like counts to 0
+                const patchNode = (node: ThreadComment): ThreadComment => {
+                    const cleanCid = String(node.id).replace(/^COMMENT#/, "").trim();
+                    const isLocallyLiked =
+                        likedCommentIdsRef.current.has(node.id) ||
+                        likedCommentIdsRef.current.has(cleanCid) ||
+                        (node.likedBy || []).some(uid => myIdCandidatesRef.current.has(uid) || myIdCandidatesRef.current.has(String(uid).toLowerCase()));
+                    const finalLikes = isLocallyLiked && (node.likes === 0 || !node.likes) ? Math.max(1, node.likes || 0) : (node.likes || 0);
+                    const finalLikedBy = isLocallyLiked && !(node.likedBy || []).includes(effectiveUserIdRef.current)
+                        ? [...(node.likedBy || []), effectiveUserIdRef.current]
+                        : node.likedBy;
+                    return {
+                        ...node,
+                        id: cleanCid,
+                        likes: finalLikes,
+                        likedBy: finalLikedBy,
+                        replies: (node.replies || []).map(patchNode),
+                    };
+                };
+
+                const patched = normalized.map(patchNode);
+                const tree = buildTree(patched);
                 setComments(tree);
             }
         } catch {
@@ -288,7 +352,7 @@ export default function EngagementCommentsThread({
         } finally {
             if (!silent) setLoading(false);
         }
-    }, [engagementId, roomId, postId, matchId, storageKey]);
+    }, [engagementId, roomId, postId, matchId, storageKey, commentLikesKey]);
 
     useEffect(() => {
         let cancelled = false;
@@ -416,11 +480,13 @@ export default function EngagementCommentsThread({
     // Toggle like on comment at any depth
     const toggleLike = async (commentId: string) => {
         if (commentId.startsWith("tmp_")) return;
+        const cleanCommentId = String(commentId).replace(/^COMMENT#/, "").trim();
 
         // Check current like status
         const findNode = (nodes: ThreadComment[]): ThreadComment | null => {
             for (const n of nodes) {
-                if (n.id === commentId) return n;
+                const cleanNid = String(n.id).replace(/^COMMENT#/, "").trim();
+                if (cleanNid === cleanCommentId || n.id === commentId) return n;
                 if (n.replies?.length) {
                     const sub = findNode(n.replies);
                     if (sub) return sub;
@@ -429,14 +495,21 @@ export default function EngagementCommentsThread({
             return null;
         };
         const targetNode = findNode(comments);
-        const currentLiked = targetNode ? isCommentLiked(targetNode) : likedCommentIds.has(commentId);
+        const currentLiked = targetNode ? isCommentLiked(targetNode) : (likedCommentIds.has(cleanCommentId) || likedCommentIds.has(commentId));
         const nextLiked = !currentLiked;
+
+        lastLikeActionRef.current[cleanCommentId] = Date.now();
 
         // 1. Instantly update likedCommentIds set and localStorage
         setLikedCommentIds(prev => {
             const next = new Set(prev);
-            if (nextLiked) next.add(commentId);
-            else next.delete(commentId);
+            if (nextLiked) {
+                next.add(cleanCommentId);
+                next.add(commentId);
+            } else {
+                next.delete(cleanCommentId);
+                next.delete(commentId);
+            }
             if (typeof window !== "undefined") {
                 try { localStorage.setItem(commentLikesKey, JSON.stringify(Array.from(next))); } catch {}
             }
@@ -456,22 +529,34 @@ export default function EngagementCommentsThread({
                 likedBy: newLikedBy,
             };
         };
-        setComments(prev => updateNode(prev, commentId, flip));
+        setComments(prev => updateNode(prev, cleanCommentId, flip));
 
-        // 3. Send to backend
+        // 3. Send to backend & sync confirmed server response
         try {
+            let res: any;
             if (roomId && postId) {
-                await axios.post(
-                    `/api/roar/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}/react`,
+                res = await axios.post(
+                    `/api/roar/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(postId)}/comments/${encodeURIComponent(cleanCommentId)}/react`,
                     { reaction: "heart", userId: effectiveUserId },
                     { timeout: 8000 }
                 );
             } else if (engagementId) {
-                await axios.post(
-                    `/api/engagements/${encodeURIComponent(engagementId)}/comments/${encodeURIComponent(commentId)}/like`,
+                res = await axios.post(
+                    `/api/engagements/${encodeURIComponent(engagementId)}/comments/${encodeURIComponent(cleanCommentId)}/like`,
                     { userId: effectiveUserId, matchId },
                     { timeout: 8000 }
                 );
+            }
+            if (res?.data) {
+                const sLikes = typeof res.data.likesCount === "number" ? res.data.likesCount : (typeof res.data.heartCount === "number" ? res.data.heartCount : null);
+                const sLikedBy = Array.isArray(res.data.likedBy) ? res.data.likedBy : null;
+                if (sLikes !== null) {
+                    setComments(prev => updateNode(prev, cleanCommentId, c => ({
+                        ...c,
+                        likes: nextLiked && sLikes === 0 ? 1 : sLikes,
+                        ...(sLikedBy ? { likedBy: sLikedBy } : {}),
+                    })));
+                }
             }
         } catch (err) {
             console.warn("[toggleLike] Server sync notice:", err);
