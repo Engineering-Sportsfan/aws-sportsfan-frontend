@@ -45,7 +45,6 @@ function timeAgo(ts?: number | string): string {
 
 // Maps API shapes (DynamoDB RealTimeChat, SocialAndContent, Firestore) -> UI shape
 function normalize(c: any): ThreadComment {
-    const rawLikes = Number(c.likesCount ?? c.heartCount ?? c.likes ?? 0);
     const reactions = c.reactions && typeof c.reactions === "object" ? c.reactions : {};
     const reactionUids = Object.entries(reactions)
         .filter(([_, r]) => r === "heart" || r === "like" || r === true)
@@ -54,6 +53,11 @@ function normalize(c: any): ThreadComment {
         ? Array.from(new Set([...c.likedBy, ...reactionUids]))
         : reactionUids;
     const isLikedByUser = c.userReaction === "heart" || c.userLiked === true;
+    const finalLikedBy = isLikedByUser && !rawLikedBy.includes("me") ? [...rawLikedBy, "me"] : rawLikedBy;
+    const rawLikes = Math.max(
+        Number(c.likesCount ?? c.heartCount ?? c.likes ?? 0),
+        finalLikedBy.length
+    );
     const rawId = String(c.id || c.commentId || c._id || "");
     const cleanId = rawId.replace(/^COMMENT#/, "").trim() || `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
@@ -66,7 +70,7 @@ function normalize(c: any): ThreadComment {
         userAvatar: c.authorAvatarUrl || c.userAvatar || c.avatarUrl || "",
         createdAt: Number(c.createdAt) || Date.now(),
         likes: rawLikes,
-        likedBy: isLikedByUser && !rawLikedBy.includes("me") ? [...rawLikedBy, "me"] : rawLikedBy,
+        likedBy: finalLikedBy,
         parentCommentId: c.parentId ? String(c.parentId).replace(/^COMMENT#/, "").trim() : (c.parentCommentId ? String(c.parentCommentId).replace(/^COMMENT#/, "").trim() : null),
         replies: Array.isArray(c.replies) ? c.replies.map(normalize) : [],
     };
@@ -317,17 +321,26 @@ export default function EngagementCommentsThread({
                     return next;
                 });
 
-                // Recursive patch node so nested replies at ANY depth never revert like counts to 0
+                // Recursive patch node so nested replies at ANY depth never revert like counts to 0 and sync across users
                 const patchNode = (node: ThreadComment): ThreadComment => {
                     const cleanCid = String(node.id).replace(/^COMMENT#/, "").trim();
+                    const serverHasMyLike = (node.likedBy || []).some(uid =>
+                        myIdCandidatesRef.current.has(uid) || myIdCandidatesRef.current.has(String(uid).toLowerCase())
+                    );
                     const isLocallyLiked =
                         likedCommentIdsRef.current.has(node.id) ||
                         likedCommentIdsRef.current.has(cleanCid) ||
-                        (node.likedBy || []).some(uid => myIdCandidatesRef.current.has(uid) || myIdCandidatesRef.current.has(String(uid).toLowerCase()));
-                    const finalLikes = isLocallyLiked && (node.likes === 0 || !node.likes) ? Math.max(1, node.likes || 0) : (node.likes || 0);
-                    const finalLikedBy = isLocallyLiked && !(node.likedBy || []).includes(effectiveUserIdRef.current)
+                        serverHasMyLike;
+
+                    const hasPendingLocalLike = isLocallyLiked && !serverHasMyLike;
+                    const finalLikes = Math.max(
+                        (node.likes || 0) + (hasPendingLocalLike ? 1 : 0),
+                        (isLocallyLiked || serverHasMyLike) ? 1 : 0
+                    );
+                    const finalLikedBy = (isLocallyLiked || serverHasMyLike) && !(node.likedBy || []).includes(effectiveUserIdRef.current)
                         ? [...(node.likedBy || []), effectiveUserIdRef.current]
                         : node.likedBy;
+
                     return {
                         ...node,
                         id: cleanCid,
@@ -548,7 +561,11 @@ export default function EngagementCommentsThread({
                 );
             }
             if (res?.data) {
-                const sLikes = typeof res.data.likesCount === "number" ? res.data.likesCount : (typeof res.data.heartCount === "number" ? res.data.heartCount : null);
+                const sLikes = typeof res.data.likesCount === "number"
+                    ? res.data.likesCount
+                    : (typeof res.data.heartCount === "number"
+                        ? res.data.heartCount
+                        : (typeof res.data.likes === "number" ? res.data.likes : null));
                 const sLikedBy = Array.isArray(res.data.likedBy) ? res.data.likedBy : null;
                 if (sLikes !== null) {
                     setComments(prev => updateNode(prev, cleanCommentId, c => ({
@@ -558,6 +575,8 @@ export default function EngagementCommentsThread({
                     })));
                 }
             }
+            // Trigger quick background refresh so all clients get the synced state
+            setTimeout(() => { loadComments(true); }, 300);
         } catch (err) {
             console.warn("[toggleLike] Server sync notice:", err);
         }
