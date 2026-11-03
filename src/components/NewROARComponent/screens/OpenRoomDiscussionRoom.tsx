@@ -6717,18 +6717,9 @@ export default function OpenRoomDiscussionRoom({
             }
             return { kind: "engagement" as const, data: e, sortKey: key };
         });
-                // ── Visual Recognitions (Filtered by target user / all) ──
+                // ── Visual Recognitions (Both stadium-wide and targeted VIP recognitions show in room) ──
         const isRecTargetMatch = (rec: any) => {
-            if (!rec.targetType || rec.targetType === "all") return true;
-            const targetId = String(rec.targetUserId || "").trim().toLowerCase();
-            const targetName = String(rec.targetUserName || "").trim().toLowerCase();
-            const myName = String(userUsername || userProfile?.username || "").trim().toLowerCase();
-            if (targetId && currentUserIdCandidates.has(targetId)) return true;
-            if (targetName && (myName === targetName || currentUserIdCandidates.has(targetName))) return true;
-            for (const cand of currentUserIdCandidates) {
-                if (cand && (targetId.includes(cand) || cand.includes(targetId))) return true;
-            }
-            return false;
+            return Boolean(rec && (rec.headline || rec.message || rec.recognitionId || rec.id));
         };
 
         const recognitionItems: FeedItem[] = (engagementFilter === "all" ? recognitions : [])
@@ -6764,12 +6755,7 @@ export default function OpenRoomDiscussionRoom({
                 sortKey: getTimestamp(rev.createdAt || Date.now()),
             }));
 
-        // Visual Recognitions & Outcome Reveals in Live ROAR Stream: hidden for now
-        // (they showed up as empty green / yellow lines between posts).
-        // return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
-        void recognitionItems;
-        void outcomeItems;
-        return [...postItems, ...engagementItems].sort((a, b) => a.sortKey - b.sortKey);
+        return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
     }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
 
     const renderReactionPicker = (p: any) => {
