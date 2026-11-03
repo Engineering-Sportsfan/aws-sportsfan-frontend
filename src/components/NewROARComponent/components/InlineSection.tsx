@@ -15,6 +15,7 @@ interface InlineSectionProps {
   onCommentPosted?: () => void;
   onCommentDeleted?: () => void;
   onToast?: (m: string) => void;
+  onCountChange?: (count: number) => void;
 }
 
 export default function InlineSection({
@@ -28,6 +29,7 @@ export default function InlineSection({
   currentUsername,
   onFanProfile,
   onCommentPosted,
+  onCountChange,
 }: InlineSectionProps) {
   if (!isOpen) return null;
 
@@ -47,8 +49,8 @@ export default function InlineSection({
         currentUserId={currentUserId}
         currentUsername={currentUsername}
         onFanProfile={onFanProfile}
-        onCommentCountChange={() => {
-          onCommentPosted?.();
+        onCommentCountChange={(count) => {
+          onCountChange?.(count);
         }}
       />
     </motion.div>

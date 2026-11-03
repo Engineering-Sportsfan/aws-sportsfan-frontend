@@ -173,6 +173,7 @@ export default function EngagementCommentsThread({
     const onCountRef = useRef(onCommentCountChange);
     useEffect(() => { onCountRef.current = onCommentCountChange; });
     const loadedRef = useRef(false);
+    const prevReportedTotal = useRef<number | null>(null);
 
     // ── Load & Live Poll comments (runs every 2 seconds for instant updates) ──
     const loadComments = useCallback(async (silent = false) => {
@@ -238,11 +239,14 @@ export default function EngagementCommentsThread({
         };
     }, [loadComments]);
 
-    // Report recursive total count to parent on every change
+    // Report recursive total count to parent only when count actually changes
     useEffect(() => {
         if (!loadedRef.current) return;
         const total = countTotal(comments);
-        onCountRef.current?.(total);
+        if (prevReportedTotal.current !== total) {
+            prevReportedTotal.current = total;
+            onCountRef.current?.(total);
+        }
         try { localStorage.setItem(storageKey, JSON.stringify(comments)); } catch { /* ignore */ }
     }, [comments, storageKey]);
 
@@ -491,15 +495,7 @@ export default function EngagementCommentsThread({
     };
 
     return (
-        <div className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-2.5">
-            {/* ── Comments Header ── */}
-            <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-white/80 flex items-center gap-1.5 uppercase tracking-wide">
-                    <MessageSquare size={13} className="text-[#e91e8c]" />
-                    Comments ({countTotal(comments)})
-                </span>
-            </div>
-
+        <div className="mt-2 pt-2.5 border-t border-white/10 flex flex-col gap-2">
             {/* ── Top Input Form ── */}
             <form onSubmit={handleSend} className="relative flex flex-col gap-1.5">
                 {sendError && (

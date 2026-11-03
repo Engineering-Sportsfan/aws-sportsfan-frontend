@@ -4343,12 +4343,14 @@ function BattleCard({ post, onToast, onPostClick, roomId, onFanProfile }: {
 function InlineSection({
     postId, roomId, roomName, isOpen, onOpenFull, accentColor, currentAvatarUrl,
     onCommentPosted, onCommentDeleted, currentUserId, currentUsername, onFanProfile, onToast,
+    onCountChange,
 }: {
-    postId: string; roomId: string; roomName?: string; isOpen: boolean; onOpenFull: () => void;
-    accentColor: string; currentAvatarUrl?: string; onCommentPosted: () => void;
+    postId: string; roomId: string; roomName?: string; isOpen: boolean; onOpenFull?: () => void;
+    accentColor: string; currentAvatarUrl?: string; onCommentPosted?: () => void;
     onCommentDeleted?: () => void;
     currentUserId?: string; currentUsername?: string; onFanProfile?: (fan: any) => void;
     onToast: (m: string) => void;
+    onCountChange?: (count: number) => void;
 }) {
     if (!isOpen) return null;
 
@@ -4369,7 +4371,7 @@ function InlineSection({
                 currentUsername={currentUsername}
                 onFanProfile={onFanProfile}
                 onCommentCountChange={(count) => {
-                    onCommentPosted();
+                    onCountChange?.(count);
                 }}
             />
         </motion.div>
@@ -7361,6 +7363,7 @@ export default function OpenRoomDiscussionRoom({
                                     <div style={{ display: "flex", gap: 6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 4, alignItems: "center" }}>
                                         {renderReactionPicker(p)}
                                         <button
+                                            type="button"
                                             onClick={e => {
                                                 e.stopPropagation();
                                                 if (isOpen) {
@@ -7371,20 +7374,21 @@ export default function OpenRoomDiscussionRoom({
                                                     setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.delete(p.id); return next; });
                                                 }
                                             }}
-                                            style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: isOpen ? accent : "#9494ad", fontSize: 11, fontWeight: 600, transition: "color 0.15s", padding: 0 }}
+                                            className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${isOpen ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"}`}
+                                            title="View comments"
                                         >
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                                            </svg>
-                                            <span style={{ fontSize: 9 }}>{replyCount}</span>
-                                            {isOpen ? <ChevronUp size={10} style={{ opacity: 0.7 }} /> : <ChevronDown size={10} style={{ opacity: 0.5 }} />}
+                                            <MessageSquare size={12} />
+                                            <span style={{ fontSize: 10 }}>Comments ({replyCount})</span>
+                                            {isOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                                         </button>
-                                        <button onClick={e => { e.stopPropagation(); handleSharePost(p); }} style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", color: "#9494ad", fontSize: 11, fontWeight: 600 }} title="Share post">
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-                                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                                            </svg>
-                                            <span style={{ fontSize: 9 }}>{p.shareCount || 0}</span>
+                                        <button
+                                            type="button"
+                                            onClick={e => { e.stopPropagation(); handleSharePost(p); }}
+                                            className={`flex items-center gap-1 text-[11px] transition-colors relative ${(p.shareCount || 0) > 0 ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"}`}
+                                            title="Share post"
+                                        >
+                                            <Share2 size={12} />
+                                            <span style={{ fontSize: 10 }}>{p.shareCount || 0}</span>
                                         </button>
                                         {renderReactionsTrigger(p)}
                                     </div>
@@ -7407,14 +7411,8 @@ export default function OpenRoomDiscussionRoom({
                                                 currentUsername={userUsername}
                                                 onFanProfile={onFanProfile}
                                                 onToast={onToast}
-                                                onCommentPosted={() => {
-                                                    setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: (x.replyCount || 0) + 1 } : x));
-                                                    playSound("comment");
-                                                    onToast("Comment posted!");
-                                                }}
-                                                onCommentDeleted={() => {
-                                                    setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: Math.max(0, (x.replyCount || 0) - 1) } : x));
-                                                    onToast("Reply deleted");
+                                                onCountChange={(count) => {
+                                                    setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: count } : x));
                                                 }}
                                             />
                                         )}
