@@ -412,7 +412,7 @@ export default function EngagementCommentsThread({
                     : "flex flex-col gap-1.5 bg-white/[0.02] p-2 rounded-lg"}
             >
                 <div className="flex items-start gap-2">
-                    <div className={`${isRoot ? "w-6 h-6" : "w-5 h-5"} rounded-full overflow-hidden bg-white/10 shrink-0 border border-white/10`}>
+                    <div className={`${isRoot ? "w-7 h-7" : "w-5 h-5"} rounded-full overflow-hidden bg-white/10 shrink-0 border border-white/10`}>
                         {comment.userAvatar ? (
                             <img src={comment.userAvatar} alt={comment.userName} className="w-full h-full object-cover" />
                         ) : (
