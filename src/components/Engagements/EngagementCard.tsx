@@ -1030,6 +1030,7 @@ export interface EngagementCardProps {
     className?: string;
     compact?: boolean;
     variant?: "post" | "card";
+    onShowLikers?: (id: string) => void;
 }
 
 function timeAgo(ts?: number | string): string {
@@ -1098,6 +1099,7 @@ export default function EngagementCard({
     className = "",
     compact = false,
     variant = "post",
+    onShowLikers,
 }: EngagementCardProps) {
     const { userProfile } = useUserProfile();
     const currentUserId = userProfile?.actualUserId || userProfile?.email || "fan_guest";
@@ -1232,12 +1234,15 @@ export default function EngagementCard({
         // ignore a list refresh right after the user toggled, so it can't flash a stale value
         const likeLocked = Date.now() - likeLockRef.current < 15000;
         if (!likeLocked) {
-            if (item.likes !== undefined) setLikes(Number(item.likes) || 0);
+            let savedLike = false;
+            try { savedLike = localStorage.getItem(likeKey) === "true"; } catch { }
+            if (item.likes !== undefined) {
+                const sLikes = Number(item.likes) || 0;
+                setLikes(prev => ((isLiked || savedLike) && sLikes === 0 ? Math.max(prev, 1) : sLikes));
+            }
             // A list saying "not liked" must not undo a like this browser made and the server confirmed
             // (the list may have been computed for another user id). Only a "liked" answer, or this
             // browser never having liked it, is applied.
-            let savedLike = false;
-            try { savedLike = localStorage.getItem(likeKey) === "true"; } catch { }
             if (item.userLiked !== undefined && (item.userLiked || !savedLike || !likeConfirmedRef.current)) {
                 setIsLiked(Boolean(item.userLiked));
                 try { localStorage.setItem(likeKey, String(Boolean(item.userLiked))); } catch { }
@@ -1245,7 +1250,49 @@ export default function EngagementCard({
         }
         if (item.shares !== undefined) setShares(Number(item.shares) || 0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [item.likes, item.userLiked, item.shares]);
+    }, [item.likes, item.userLiked, item.shares, isLiked]);
+
+    // Live Sync: Poll like state and comments count every 3s so multi-user updates reflect live
+    useEffect(() => {
+        if (!item.id) return;
+        let cancelled = false;
+        const syncSocial = async () => {
+            if (Date.now() - likeLockRef.current < 15000) return;
+            try {
+                const res = await axios.get(`/api/engagements/${encodeURIComponent(item.id)}/like`, {
+                    params: { userId: currentUserId, matchId: item.matchId, _t: Date.now() },
+                    timeout: 6000,
+                });
+                if (cancelled) return;
+                if (typeof res.data?.likes === "number") {
+                    setLikes(prev => (isLiked && res.data.likes === 0 ? Math.max(prev, 1) : res.data.likes));
+                }
+                if (typeof res.data?.liked === "boolean") {
+                    if (res.data.liked) {
+                        setIsLiked(true);
+                        try { localStorage.setItem(likeKey, "true"); } catch {}
+                    }
+                }
+            } catch {}
+            try {
+                const cRes = await axios.get(`/api/engagements/${encodeURIComponent(item.id)}/comments`, {
+                    params: { countOnly: "1", matchId: item.matchId, _t: Date.now() },
+                    timeout: 6000,
+                });
+                if (cancelled) return;
+                if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
+            } catch {}
+        };
+
+        const interval = setInterval(() => {
+            if (!cancelled && !document.hidden) syncSocial();
+        }, 3000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [item.id, currentUserId, item.matchId, likeKey, isLiked]);
 
     // Server vote state wins once it arrives (localStorage stays as the optimistic fallback).
     useEffect(() => {
@@ -1994,16 +2041,28 @@ export default function EngagementCard({
                 {/* ── Action Bar (Comments, Likes, Shares) ── */}
                 <div style={{ display: "flex", gap: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 5, alignItems: "center" }}>
                     {/* Live Like */}
-                    <button
-                        type="button"
-                        onClick={handleToggleLike}
-                        className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
-                            }`}
-                        title="Like this moment"
-                    >
-                        <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
-                        <span style={{ fontSize: 10 }}>{likes}</span>
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <button
+                            type="button"
+                            onClick={handleToggleLike}
+                            className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"}`}
+                            title={isLiked ? "Unlike" : "Like this moment"}
+                        >
+                            <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (likes > 0) onShowLikers?.(item.id);
+                                else handleToggleLike();
+                            }}
+                            className={`text-[10px] transition-colors ${likes > 0 ? "hover:underline cursor-pointer hover:text-white" : ""} ${isLiked ? "text-[#e91e8c] font-bold" : "text-[#9494ad]"}`}
+                            title={likes > 0 ? "See who liked this" : "Like this moment"}
+                        >
+                            {likes}
+                        </button>
+                    </div>
 
                     {/* Comments Toggle Button */}
                     <button
@@ -2033,6 +2092,33 @@ export default function EngagementCard({
                             </span>
                         )}
                     </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(item.id);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
                 </div>
 
                 {/* ── Inline Comments Thread ── */}
@@ -2144,6 +2230,33 @@ export default function EngagementCard({
                             </span>
                         )}
                     </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(item.id);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
                 </div>
             </div>
 

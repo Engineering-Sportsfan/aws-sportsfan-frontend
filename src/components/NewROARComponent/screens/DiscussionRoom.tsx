@@ -22,6 +22,7 @@
 // import PredictionsLivePanel from "../components/PredictionsLivePanel";
 // import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
 // import VotersDialog from "../components/VotersDialog";
+// import EngagementCommentsThread from "@/components/Engagements/EngagementCommentsThread";
 
 // const REQUEST_TIMEOUT_MS = 12000;
 // const PRESENCE_TIMEOUT_MS = 20000; 
@@ -3347,6 +3348,7 @@ import {
 import PredictionsLivePanel from "../components/PredictionsLivePanel";
 import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
 import VotersDialog from "../components/VotersDialog";
+import EngagementCommentsThread from "@/components/Engagements/EngagementCommentsThread";
 
 const REQUEST_TIMEOUT_MS = 12000;
 // Presence polling (join heartbeat / active-fans refresh) gets a longer
@@ -3743,310 +3745,27 @@ function InlineSection({
   currentUserId?: string; currentUsername?: string; onFanProfile?: (fan: any) => void;
   onToast: (m: string) => void;
 }) {
-  const phog = usePostHog();
-  const [replies, setReplies] = useState<any[]>([]);
-  const [showAllReplies, setShowAllReplies] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [commentText, setCommentText] = useState("");
-  const [sending, setSending] = useState(false);
-  const [replyTo, setReplyTo] = useState<{ commentId: string; authorUsername: string } | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [isAnimatingHeight, setIsAnimatingHeight] = useState(true);
-  const [commentReactions, setCommentReactions] = useState<Record<string, { reaction: Reaction | null; heartCount: number }>>({});
-  const pendingCommentReactRef = useRef<Record<string, boolean>>({});
-  const commentTopReactionsCache = useRef<Record<string, string[]>>({});
-  const [commentTopReactionsMap, setCommentTopReactionsMap] = useState<Record<string, string[]>>({});
-  const [reactionsDialogCommentId, setReactionsDialogCommentId] = useState<string | null>(null);
-  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
-  const mention = useMentionAutocomplete(currentUsername);
-
-  const REACTION_EMOJI: Record<string, string> = {
-    fire: "🔥", heart: "❤️", mindblown: "🤯", goat: "🐐", clap: "👏",
-    nochance: "🙅", laugh: "😂", sad: "😢", thumb: "👍",
-  };
-
-  const fetchCommentTopReactions = useCallback(async (commentId: string) => {
-    if (commentTopReactionsCache.current[commentId] !== undefined) return;
-    commentTopReactionsCache.current[commentId] = [];
-    try {
-      const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}/reactions`, { timeout: REQUEST_TIMEOUT_MS });
-      const reactors: { reaction: string }[] = res.data?.reactors ?? [];
-      const counts: Record<string, number> = {};
-      reactors.forEach(r => { counts[r.reaction] = (counts[r.reaction] ?? 0) + 1; });
-      const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 3).map(([type]) => type);
-      commentTopReactionsCache.current[commentId] = top;
-      setCommentTopReactionsMap(prev => ({ ...prev, [commentId]: top }));
-    } catch { commentTopReactionsCache.current[commentId] = []; }
-  }, [roomId, postId]);
-
-  const handleCommentReact = useCallback(async (commentId: string, reaction: Reaction | null) => {
-    if (pendingCommentReactRef.current[commentId]) return;
-    const comment = replies.find(c => (c.commentId || c.id) === commentId);
-    const persistedReaction: Reaction | null =
-      comment?.userReaction ?? (currentUserId ? (comment?.reactions?.[currentUserId] ?? null) : null);
-    const prev = commentReactions[commentId] ?? { reaction: persistedReaction, heartCount: comment?.heartCount ?? 0 };
-    const sameReaction = prev.reaction === reaction;
-    const newReaction = sameReaction ? null : reaction;
-    const wasActive = prev.reaction !== null;
-    const newActive = newReaction !== null;
-    const delta = newActive && !wasActive ? 1 : (!newActive && wasActive ? -1 : 0);
-    const optimistic = { reaction: newReaction, heartCount: Math.max(0, prev.heartCount + delta) };
-
-    setCommentReactions(p => ({ ...p, [commentId]: optimistic }));
-    delete commentTopReactionsCache.current[commentId];
-    pendingCommentReactRef.current[commentId] = true;
-    const failsafe = setTimeout(() => { pendingCommentReactRef.current[commentId] = false; }, REQUEST_TIMEOUT_MS + 3000);
-    try {
-      const res = await axios.post(
-        `/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}/react`,
-        { reaction: newReaction ?? prev.reaction },
-        { timeout: REQUEST_TIMEOUT_MS }
-      );
-      if (res.data && typeof res.data.heartCount === "number") {
-        setCommentReactions(p => ({ ...p, [commentId]: { ...optimistic, heartCount: res.data.heartCount } }));
-      }
-      delete commentTopReactionsCache.current[commentId];
-      setCommentTopReactionsMap(p => { const n = { ...p }; delete n[commentId]; return n; });
-    } catch {
-      setCommentReactions(p => ({ ...p, [commentId]: prev }));
-    } finally {
-      clearTimeout(failsafe);
-      pendingCommentReactRef.current[commentId] = false;
-    }
-  }, [roomId, postId, replies, commentReactions, currentUserId]);
-
-  const fetchReplies = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { params: { limit: 50 }, timeout: REQUEST_TIMEOUT_MS });
-      const list: any[] = res.data?.comments ?? [];
-      const oldestFirst = [...list].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-      const threaded = threadSort(oldestFirst);
-      setReplies(threaded);
-    } catch { setReplies([]); }
-    finally { setLoading(false); }
-  }, [postId, roomId]);
-
-  useEffect(() => {
-    if (isOpen) { fetchReplies(); setTimeout(() => inputRef.current?.focus(), 180); }
-  }, [isOpen, fetchReplies]);
-
-  const handleSend = async () => {
-    console.log("[handleSend] fired", { commentText, sending, replyTo });
-    const fullText = replyTo ? `@${replyTo.authorUsername} ${commentText.trim()}` : commentText.trim();
-    if (!fullText || sending) return;
-    setSending(true);
-    try {
-      trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "", text: fullText });
-      if (phog) {
-        phog.capture("meaningful_interaction", {
-          interaction_type: "comment",
-          post_id: postId,
-          room_id: roomId,
-          room_name: roomName || "",
-          text: fullText,
-        });
-      }
-    } catch (e) {}
-    try {
-      await axios.post(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { text: fullText }, { timeout: REQUEST_TIMEOUT_MS });
-      if (phog) {
-        phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
-      }
-      try {
-        trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
-      } catch (e) {}
-      setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
-    } catch (err: any) {
-      const isTimeout = err?.code === "ECONNABORTED" || err?.message?.includes("timeout");
-      onToast(isTimeout ? "Taking too long — please try again" : "Failed to send comment");
-      console.log("[handleSend] caught error", err);
-    }
-    finally { setSending(false); }
-  };
-
-  const handleDeleteComment = useCallback(async (commentId: string) => {
-    if (!window.confirm("Delete this reply?")) return;
-    setDeletingCommentId(commentId);
-    try {
-      await axios.delete(`/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}`, { timeout: REQUEST_TIMEOUT_MS });
-      setReplies(prev => prev.filter(r => (r.id ?? r.commentId) !== commentId));
-      onCommentDeleted?.();
-    } catch {
-      // leave it in place on failure
-    } finally {
-      setDeletingCommentId(null);
-    }
-  }, [roomId, postId, onCommentDeleted]);
-
   if (!isOpen) return null;
 
   return (
     <motion.div
-      initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-      exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}
-      onAnimationStart={() => setIsAnimatingHeight(true)}
-      onAnimationComplete={() => setIsAnimatingHeight(false)}
-      style={{ overflow: isAnimatingHeight ? "hidden" : "visible" }}
+      initial={{ opacity: 0, height: 0 }}
+      animate={{ opacity: 1, height: "auto" }}
+      exit={{ opacity: 0, height: 0 }}
+      transition={{ duration: 0.22, ease: "easeOut" }}
       onClick={e => e.stopPropagation()}
     >
-      <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 0 }}>
-        {loading ? (
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginBottom: 6, paddingLeft: 4 }}>Loading replies…</p>
-        ) : replies.length === 0 ? (
-          <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginBottom: 6, paddingLeft: 4 }}>No replies yet — be the first!</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
-            {(showAllReplies ? replies : replies.slice(0, 2)).map((r, i) => {
-              const isReply = /^@\S+/.test((r.text ?? "").trimStart());
-              const commentId = r.id ?? r.commentId ?? String(i);
-              const persistedReaction: Reaction | null =
-                r.userReaction ?? (currentUserId ? (r.reactions?.[currentUserId] ?? null) : null);
-              const lo = commentReactions[commentId];
-              const currentReaction: Reaction | null = lo !== undefined ? lo.reaction : persistedReaction;
-              const liveHeartCount = lo !== undefined ? lo.heartCount : (r.heartCount ?? 0);
-              const topReactions = commentTopReactionsMap[commentId] ?? [];
-              if (liveHeartCount > 0 && topReactions.length === 0 && !commentTopReactionsCache.current[commentId]) {
-                fetchCommentTopReactions(commentId);
-              }
-              const displayReactions = topReactions.length > 0 ? topReactions : (currentReaction ? [currentReaction] : []);
-              const isOwnComment = currentUserId && r.authorUid === currentUserId;
-              // const mention = useMentionAutocomplete(currentUsername);
-              return (
-                <div key={commentId} style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingLeft: isReply ? 24 : 0, minWidth: 0, width: "100%" }}>
-                  <div style={{ width: 14, height: 14, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: onFanProfile ? "pointer" : "default" }}
-                    onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid }); }}
-                  >
-                    {(() => {
-                      const resolvedAvatar =
-                        r.authorAvatarUrl ||
-                        r.avatarUrl ||
-                        (r.authorUsername === currentUsername ? currentAvatarUrl : undefined);
-                      return resolvedAvatar
-                        ? <img src={resolvedAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        : <span style={{ fontSize: 7, fontWeight: 800, color: "#fff" }}>{(r.authorUsername ?? "?")[0].toUpperCase()}</span>;
-                    })()}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                    <span
-                      style={{ fontWeight: 700, color: "#fff", fontSize: 10, display: "block", wordBreak: "break-word", cursor: onFanProfile ? "pointer" : "default" }}
-                      onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid }); }}
-                    >
-                      {r.authorUsername ?? "Fan"}
-                    </span>
-                    <p style={{ margin: 0, fontSize: 10, lineHeight: 1.4, color: "rgba(255,255,255,0.75)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                      {isReply ? (() => {
-                        const spaceIdx = (r.text ?? "").indexOf(" ");
-                        const mention = spaceIdx > -1 ? (r.text ?? "").slice(0, spaceIdx) : (r.text ?? "");
-                        const rest = spaceIdx > -1 ? (r.text ?? "").slice(spaceIdx) : "";
-                        return (<><span style={{ color: accentColor, fontWeight: 600 }}>{mention}</span>{rest}</>);
-                      })() : (r.text ?? "")}
-                    </p>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
-                      {liveHeartCount > 0 && (
-                        <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>{liveHeartCount} {liveHeartCount === 1 ? "like" : "likes"}</span>
-                      )}
-                      <button type="button" onClick={e => { e.stopPropagation(); setReplyTo({ commentId, authorUsername: r.authorUsername ?? "Fan" }); setTimeout(() => inputRef.current?.focus(), 80); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.35)", padding: 0 }}>Reply</button>
-                      {isOwnComment && (
-                        <button
-                          type="button"
-                          onClick={e => { e.stopPropagation(); handleDeleteComment(commentId); }}
-                          disabled={deletingCommentId === commentId}
-                          style={{ background: "none", border: "none", cursor: deletingCommentId === commentId ? "wait" : "pointer", fontSize: 9, fontWeight: 700, color: "#f87171", padding: 0, display: "flex", alignItems: "center", gap: 2 }}
-                        >
-                          <Trash2 size={9} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                    <ReactionPicker
-                      currentReaction={currentReaction}
-                      count={liveHeartCount}
-                      onReact={(reaction) => handleCommentReact(commentId, reaction)}
-                      postId={commentId}
-                      roomId={roomId}
-                      roomName={roomName}
-                    />
-                    {liveHeartCount > 0 && displayReactions.length > 0 && (
-                      <button
-                        onClick={() => setReactionsDialogCommentId(commentId)}
-                        style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                        title="See who reacted"
-                      >
-                        <div style={{ display: "flex" }}>
-                          {displayReactions.map((type, idx) => (
-                            <div key={type} style={{ width: 12, height: 12, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, marginLeft: idx === 0 ? 0 : -4, zIndex: displayReactions.length - idx, position: "relative" }}>
-                              {REACTION_EMOJI[type] ?? "❤️"}
-                            </div>
-                          ))}
-                        </div>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-            {replies.length > 2 && !showAllReplies && (
-              <button type="button" onClick={e => { e.stopPropagation(); setShowAllReplies(true); }} style={{ alignSelf: "flex-start", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: accentColor, padding: 0, marginTop: 1 }}>View all replies →</button>
-            )}
-          </div>
-        )}
-
-        <AnimatePresence>
-          {replyTo && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden", marginBottom: 3 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 4, paddingLeft: 2 }}>
-                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Replying to</span>
-                <span style={{ fontSize: 9, fontWeight: 700, color: accentColor, background: `${accentColor}18`, border: `1px solid ${accentColor}40`, borderRadius: 999, padding: "1px 6px" }}>@{replyTo.authorUsername}</span>
-                <button type="button" onClick={e => { e.stopPropagation(); setReplyTo(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 12, lineHeight: 1, padding: 0 }}>×</button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 5px", borderRadius: 14, background: "rgba(255,255,255,0.04)", border: `1px solid ${accentColor}40`, position: "relative" }}>
-          {mention.showMentionPopup && (
-            <MentionPopup
-              mentionUsers={mention.mentionUsers}
-              mentionIndex={mention.mentionIndex}
-              setMentionIndex={mention.setMentionIndex}
-              onSelect={(u) => mention.insertMention(u, commentText, setCommentText, inputRef)}
-            />
-          )}
-          {currentAvatarUrl ? <img src={currentAvatarUrl} alt="" style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, objectFit: "cover" }} /> : <div style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)" }} />}
-          <input
-            ref={inputRef}
-            type="text"
-            value={commentText}
-            onChange={e => {
-              const value = e.target.value;
-              setCommentText(value);
-              mention.handleMentionInputChange(value, e.target.selectionStart || value.length);
-            }}
-            onKeyDown={e => {
-              if (mention.handleMentionKeyDown(e, commentText, setCommentText, inputRef)) return;
-              if (e.key === "Enter") handleSend();
-            }}
-            placeholder={replyTo ? `…` : "Add a comment…"}
-            style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 11, fontWeight: 500 }}
-          />
-          <button type="button" onClick={e => { e.stopPropagation(); onOpenFull(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", padding: "0 2px" }}>All</button>
-          <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={e => { e.stopPropagation(); handleSend(); }} disabled={!commentText.trim() || sending} style={{ background: commentText.trim() ? `linear-gradient(135deg,${accentColor},#ff6b35)` : "rgba(255,255,255,0.08)", border: "none", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: commentText.trim() ? "pointer" : "default", transition: "background 0.2s", flexShrink: 0 }}>
-            <Send size={12} color={commentText.trim() ? "#fff" : "rgba(255,255,255,0.3)"} />
-          </motion.button>
-        </div>
-      </div>
-
-      <ReactionsDialog
-        postId={reactionsDialogCommentId ?? ""}
-        isOpen={reactionsDialogCommentId !== null}
-        onClose={() => setReactionsDialogCommentId(null)}
-        onFanProfile={onFanProfile}
+      <EngagementCommentsThread
         roomId={roomId}
-        msgId={postId}
-        commentId={reactionsDialogCommentId ?? undefined}
+        postId={postId}
+        accentColor={accentColor}
+        currentAvatarUrl={currentAvatarUrl}
+        currentUserId={currentUserId}
+        currentUsername={currentUsername}
+        onFanProfile={onFanProfile}
+        onCommentCountChange={(count) => {
+          setPosts(prev => prev.map(x => x.id === postId ? { ...x, replyCount: count } : x));
+        }}
       />
     </motion.div>
   );
@@ -5815,7 +5534,7 @@ export default function DiscussionRoom({
     try {
       const res = await axios.post(
         `/api/roar/rooms/${roomId}/messages/${msgId}/react`,
-        { reaction: newReaction },
+        { reaction: newReaction, userId: currentUserId || userProfile?.actualUserId || userProfile?.userId || "guest_fan" },
         { timeout: REQUEST_TIMEOUT_MS }
       );
       if (res.data && typeof res.data.heartCount === "number") {
@@ -5823,8 +5542,7 @@ export default function DiscussionRoom({
         lastLocalReactAtRef.current[msgId] = Date.now();
       }
     } catch {
-      setLocalReactions(p => ({ ...p, [msgId]: prev }));
-      onToast("Failed to save reaction");
+      lastLocalReactAtRef.current[msgId] = Date.now();
     } finally {
       clearTimeout(failsafe);
       pendingReactRef.current[msgId] = false;

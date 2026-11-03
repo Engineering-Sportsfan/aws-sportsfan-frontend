@@ -14,7 +14,7 @@
 // import {
 //     Image, ChevronLeft, Flame, TrendingUp, Zap, History, PenTool,
 //     Brain, Users, Volume2, VolumeX, Share2, Send, ChevronDown, ChevronUp,
-//     Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle,
+//     Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle, Heart, Heart,
 // } from "lucide-react";
 // import EmojiPicker from "@emoji-mart/react";
 // import data from "@emoji-mart/data";
@@ -22,6 +22,7 @@
 // import VotersDialog from "../components/VotersDialog";
 // import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
 // import EngagementCard from "@/components/Engagements/EngagementCard";
+import EngagementCommentsThread from "@/components/Engagements/EngagementCommentsThread";
 // import type { EngagementItem } from "@/types/engagements";
 
 // const REQUEST_TIMEOUT_MS = 12000;
@@ -2052,7 +2053,7 @@
 //     }, [fetchMsgs, roomId, selectedChannelId]);
 
 //     useVisibilityInterval(fetchMsgs, 15000);
-//     useVisibilityInterval(fetchReactionUpdates, 5000);
+//     useVisibilityInterval(fetchReactionUpdates, 2000);
 
 //     useEffect(() => {
 //         if (!roomId) return;
@@ -3526,7 +3527,7 @@ import { roarApi } from "@/lib/roarApi";
 import {
     Image, ChevronLeft, Flame, TrendingUp, Zap, History, PenTool,
     Brain, Users, Volume2, VolumeX, Share2, Send, ChevronDown, ChevronUp,
-    Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle,
+    Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle, Heart, CornerDownRight, Reply,
 } from "lucide-react";
 import EmojiPicker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
@@ -4342,332 +4343,204 @@ function BattleCard({ post, onToast, onPostClick, roomId, onFanProfile }: {
 function InlineSection({
     postId, roomId, roomName, isOpen, onOpenFull, accentColor, currentAvatarUrl,
     onCommentPosted, onCommentDeleted, currentUserId, currentUsername, onFanProfile, onToast,
+    onCountChange,
 }: {
-    postId: string; roomId: string; roomName?: string; isOpen: boolean; onOpenFull: () => void;
-    accentColor: string; currentAvatarUrl?: string; onCommentPosted: () => void;
+    postId: string; roomId: string; roomName?: string; isOpen: boolean; onOpenFull?: () => void;
+    accentColor: string; currentAvatarUrl?: string; onCommentPosted?: () => void;
     onCommentDeleted?: () => void;
     currentUserId?: string; currentUsername?: string; onFanProfile?: (fan: any) => void;
     onToast: (m: string) => void;
+    onCountChange?: (count: number) => void;
 }) {
-    const phog = usePostHog();
-    const [replies, setReplies] = useState<any[]>([]);
-    const [showAllReplies, setShowAllReplies] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const [commentText, setCommentText] = useState("");
-    const [sending, setSending] = useState(false);
-    const [replyTo, setReplyTo] = useState<{ commentId: string; authorUsername: string } | null>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
-    const [isAnimatingHeight, setIsAnimatingHeight] = useState(true);
-    const [commentReactions, setCommentReactions] = useState<Record<string, { reaction: Reaction | null; heartCount: number }>>({});
-    const pendingCommentReactRef = useRef<Record<string, boolean>>({});
-    const commentTopReactionsCache = useRef<Record<string, string[]>>({});
-    const [commentTopReactionsMap, setCommentTopReactionsMap] = useState<Record<string, string[]>>({});
-    const [reactionsDialogCommentId, setReactionsDialogCommentId] = useState<string | null>(null);
-    const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
-    const mention = useMentionAutocomplete(currentUsername);
-
-    const REACTION_EMOJI: Record<string, string> = {
-        fire: "🔥", heart: "❤️", mindblown: "🤯", goat: "🐐", clap: "👏",
-        nochance: "🙅", laugh: "😂", sad: "😢", thumb: "👍",
-    };
-
-    const fetchCommentTopReactions = useCallback(async (commentId: string) => {
-        if (commentTopReactionsCache.current[commentId] !== undefined) return;
-        commentTopReactionsCache.current[commentId] = [];
-        try {
-            const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}/reactions`, { timeout: REQUEST_TIMEOUT_MS });
-            const reactors: { reaction: string }[] = res.data?.reactors ?? [];
-            const counts: Record<string, number> = {};
-            reactors.forEach(r => { counts[r.reaction] = (counts[r.reaction] ?? 0) + 1; });
-            const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 3).map(([type]) => type);
-            commentTopReactionsCache.current[commentId] = top;
-            setCommentTopReactionsMap(prev => ({ ...prev, [commentId]: top }));
-        } catch { commentTopReactionsCache.current[commentId] = []; }
-    }, [roomId, postId]);
-
-    const handleCommentReact = useCallback(async (commentId: string, reaction: Reaction | null) => {
-        if (pendingCommentReactRef.current[commentId]) return;
-        const comment = replies.find(c => (c.commentId || c.id) === commentId);
-        const persistedReaction: Reaction | null =
-            comment?.userReaction ?? (currentUserId ? (comment?.reactions?.[currentUserId] ?? null) : null);
-        const prev = commentReactions[commentId] ?? { reaction: persistedReaction, heartCount: comment?.heartCount ?? 0 };
-        const sameReaction = prev.reaction === reaction;
-        const newReaction = sameReaction ? null : reaction;
-        const wasActive = prev.reaction !== null;
-        const newActive = newReaction !== null;
-        const delta = newActive && !wasActive ? 1 : (!newActive && wasActive ? -1 : 0);
-        const optimistic = { reaction: newReaction, heartCount: Math.max(0, prev.heartCount + delta) };
-
-        setCommentReactions(p => ({ ...p, [commentId]: optimistic }));
-        delete commentTopReactionsCache.current[commentId];
-        pendingCommentReactRef.current[commentId] = true;
-        const failsafe = setTimeout(() => { pendingCommentReactRef.current[commentId] = false; }, REQUEST_TIMEOUT_MS + 3000);
-        try {
-            const res = await axios.post(
-                `/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}/react`,
-                { reaction: newReaction ?? prev.reaction },
-                { timeout: REQUEST_TIMEOUT_MS }
-            );
-            if (res.data && typeof res.data.heartCount === "number") {
-                setCommentReactions(p => ({ ...p, [commentId]: { ...optimistic, heartCount: res.data.heartCount } }));
-            }
-            delete commentTopReactionsCache.current[commentId];
-            setCommentTopReactionsMap(p => { const n = { ...p }; delete n[commentId]; return n; });
-        } catch {
-            setCommentReactions(p => ({ ...p, [commentId]: prev }));
-        } finally {
-            clearTimeout(failsafe);
-            pendingCommentReactRef.current[commentId] = false;
-        }
-    }, [roomId, postId, replies, commentReactions, currentUserId]);
-
-    const fetchReplies = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { params: { limit: 50 }, timeout: REQUEST_TIMEOUT_MS });
-            const list: any[] = res.data?.comments ?? [];
-            const oldestFirst = [...list].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-            const threaded = threadSort(oldestFirst);
-            setReplies(threaded);
-        } catch { setReplies([]); }
-        finally { setLoading(false); }
-    }, [postId, roomId]);
-
-    useEffect(() => {
-        if (isOpen) { fetchReplies(); setTimeout(() => inputRef.current?.focus(), 180); }
-    }, [isOpen, fetchReplies]);
-
-    const handleSend = async () => {
-        const fullText = replyTo ? `@${replyTo.authorUsername} ${commentText.trim()}` : commentText.trim();
-        if (!fullText || sending) return;
-        setSending(true);
-        try {
-            trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "", text: fullText });
-            if (phog) {
-                phog.capture("meaningful_interaction", {
-                    interaction_type: "comment",
-                    post_id: postId,
-                    room_id: roomId,
-                    room_name: roomName || "",
-                    text: fullText,
-                });
-            }
-        } catch (e) { }
-        try {
-            await axios.post(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { text: fullText }, { timeout: REQUEST_TIMEOUT_MS });
-            if (phog) {
-                phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
-            }
-            try {
-                trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
-            } catch (e) { }
-            setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
-        } catch (err: any) {
-            const isTimeout = err?.code === "ECONNABORTED" || err?.message?.includes("timeout");
-            onToast(isTimeout ? "Taking too long — please try again" : "Failed to send comment");
-        }
-        finally { setSending(false); }
-    };
-
-    const handleDeleteComment = useCallback(async (commentId: string) => {
-        if (!window.confirm("Delete this reply?")) return;
-        setDeletingCommentId(commentId);
-        try {
-            await axios.delete(`/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}`, { timeout: REQUEST_TIMEOUT_MS });
-            setReplies(prev => prev.filter(r => (r.id ?? r.commentId) !== commentId));
-            onCommentDeleted?.();
-        } catch {
-        } finally {
-            setDeletingCommentId(null);
-        }
-    }, [roomId, postId, onCommentDeleted]);
-
     if (!isOpen) return null;
 
     return (
         <motion.div
-            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}
-            onAnimationStart={() => setIsAnimatingHeight(true)}
-            onAnimationComplete={() => setIsAnimatingHeight(false)}
-            style={{ overflow: isAnimatingHeight ? "hidden" : "visible" }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
             onClick={e => e.stopPropagation()}
         >
-            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 0 }}>
-                {loading ? (
-                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginBottom: 6, paddingLeft: 4 }}>Loading replies…</p>
-                ) : replies.length === 0 ? (
-                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginBottom: 6, paddingLeft: 4 }}>No replies yet — be the first!</p>
-                ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
-                        {(showAllReplies ? replies : replies.slice(0, 2)).map((r, i) => {
-                            const isReply = /^@\S+/.test((r.text ?? "").trimStart());
-                            const commentId = r.id ?? r.commentId ?? String(i);
-                            const persistedReaction: Reaction | null =
-                                r.userReaction ?? (currentUserId ? (r.reactions?.[currentUserId] ?? null) : null);
-                            const lo = commentReactions[commentId];
-                            const currentReaction: Reaction | null = lo !== undefined ? lo.reaction : persistedReaction;
-                            const liveHeartCount = lo !== undefined ? lo.heartCount : (r.heartCount ?? 0);
-                            const topReactions = commentTopReactionsMap[commentId] ?? [];
-                            if (liveHeartCount > 0 && topReactions.length === 0 && !commentTopReactionsCache.current[commentId]) {
-                                fetchCommentTopReactions(commentId);
-                            }
-                            const displayReactions = topReactions.length > 0 ? topReactions : (currentReaction ? [currentReaction] : []);
-                            const isOwnComment = currentUserId && r.authorUid === currentUserId;
-
-                            return (
-                                <div key={commentId} style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingLeft: isReply ? 24 : 0, minWidth: 0, width: "100%" }}>
-                                    <div style={{ width: 14, height: 14, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: onFanProfile ? "pointer" : "default" }}
-                                        onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: getKnownBotAvatarUrl(r.authorUsername) || r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid, isBot: Boolean(getKnownBotAvatarUrl(r.authorUsername)) }); }}
-                                    >
-                                        {(() => {
-                                            const resolvedAvatar =
-                                                getKnownBotAvatarUrl(r.authorUsername) ||
-                                                r.authorAvatarUrl ||
-                                                r.avatarUrl ||
-                                                (r.authorUsername === currentUsername ? currentAvatarUrl : undefined);
-                                            return resolvedAvatar
-                                                ? <img src={resolvedAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                                : <span style={{ fontSize: 7, fontWeight: 800, color: "#fff" }}>{(r.authorUsername ?? "?")[0].toUpperCase()}</span>;
-                                        })()}
-                                    </div>
-                                    <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                                        <span
-                                            style={{ fontWeight: 700, color: "#fff", fontSize: 10, display: "block", wordBreak: "break-word", cursor: onFanProfile ? "pointer" : "default" }}
-                                            onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: getKnownBotAvatarUrl(r.authorUsername) || r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid, isBot: Boolean(getKnownBotAvatarUrl(r.authorUsername)) }); }}
-                                        >
-                                            {r.authorUsername ?? "Fan"}
-                                        </span>
-                                        <p style={{ margin: 0, fontSize: 10, lineHeight: 1.4, color: "rgba(255,255,255,0.75)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                                            {isReply ? (() => {
-                                                const spaceIdx = (r.text ?? "").indexOf(" ");
-                                                const mention = spaceIdx > -1 ? (r.text ?? "").slice(0, spaceIdx) : (r.text ?? "");
-                                                const rest = spaceIdx > -1 ? (r.text ?? "").slice(spaceIdx) : "";
-                                                return (<><span style={{ color: accentColor, fontWeight: 600 }}>{mention}</span>{rest}</>);
-                                            })() : (r.text ?? "")}
-                                        </p>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
-                                            {liveHeartCount > 0 && (
-                                                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>{liveHeartCount} {liveHeartCount === 1 ? "like" : "likes"}</span>
-                                            )}
-                                            <button type="button" onClick={e => { e.stopPropagation(); setReplyTo({ commentId, authorUsername: r.authorUsername ?? "Fan" }); setTimeout(() => inputRef.current?.focus(), 80); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.35)", padding: 0 }}>Reply</button>
-                                            {isOwnComment && (
-                                                <button
-                                                    type="button"
-                                                    onClick={e => { e.stopPropagation(); handleDeleteComment(commentId); }}
-                                                    disabled={deletingCommentId === commentId}
-                                                    style={{ background: "none", border: "none", cursor: deletingCommentId === commentId ? "wait" : "pointer", fontSize: 9, fontWeight: 700, color: "#f87171", padding: 0, display: "flex", alignItems: "center", gap: 2 }}
-                                                >
-                                                    <Trash2 size={9} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                                        <ReactionPicker
-                                            currentReaction={currentReaction}
-                                            count={liveHeartCount}
-                                            onReact={(reaction) => handleCommentReact(commentId, reaction)}
-                                            postId={commentId}
-                                            roomId={roomId}
-                                            roomName={roomName}
-                                        />
-                                        {liveHeartCount > 0 && displayReactions.length > 0 && (
-                                            <button
-                                                onClick={() => setReactionsDialogCommentId(commentId)}
-                                                style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                                                title="See who reacted"
-                                            >
-                                                <div style={{ display: "flex" }}>
-                                                    {displayReactions.map((type, idx) => (
-                                                        <div key={type} style={{ width: 12, height: 12, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, marginLeft: idx === 0 ? 0 : -4, zIndex: displayReactions.length - idx, position: "relative" }}>
-                                                            {REACTION_EMOJI[type] ?? "❤️"}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        {replies.length > 2 && !showAllReplies && (
-                            <button type="button" onClick={e => { e.stopPropagation(); setShowAllReplies(true); }} style={{ alignSelf: "flex-start", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: accentColor, padding: 0, marginTop: 1 }}>View all replies →</button>
-                        )}
-                    </div>
-                )}
-
-                <AnimatePresence>
-                    {replyTo && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden", marginBottom: 3 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, paddingLeft: 2 }}>
-                                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Replying to</span>
-                                <span style={{ fontSize: 9, fontWeight: 700, color: accentColor, background: `${accentColor}18`, border: `1px solid ${accentColor}40`, borderRadius: 999, padding: "1px 6px" }}>@{replyTo.authorUsername}</span>
-                                <button type="button" onClick={e => { e.stopPropagation(); setReplyTo(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 12, lineHeight: 1, padding: 0 }}>×</button>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 5px", borderRadius: 14, background: "rgba(255,255,255,0.04)", border: `1px solid ${accentColor}40`, position: "relative" }}>
-                    {mention.showMentionPopup && (
-                        <MentionPopup
-                            mentionUsers={mention.mentionUsers}
-                            mentionIndex={mention.mentionIndex}
-                            setMentionIndex={mention.setMentionIndex}
-                            onSelect={(u) => mention.insertMention(u, commentText, setCommentText, inputRef)}
-                        />
-                    )}
-                    {currentAvatarUrl ? <img src={currentAvatarUrl} alt="" style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, objectFit: "cover" }} /> : <div style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)" }} />}
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={commentText}
-                        onChange={e => {
-                            const value = e.target.value;
-                            setCommentText(value);
-                            mention.handleMentionInputChange(value, e.target.selectionStart || value.length);
-                        }}
-                        onKeyDown={e => {
-                            if (mention.handleMentionKeyDown(e, commentText, setCommentText, inputRef)) return;
-                            if (e.key === "Enter") handleSend();
-                        }}
-                        placeholder={replyTo ? `…` : "Add a comment…"}
-                        style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 11, fontWeight: 500 }}
-                    />
-                    <button type="button" onClick={e => { e.stopPropagation(); onOpenFull(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", padding: "0 2px" }}>All</button>
-                    <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={e => { e.stopPropagation(); handleSend(); }} disabled={!commentText.trim() || sending} style={{ background: commentText.trim() ? `linear-gradient(135deg,${accentColor},#ff6b35)` : "rgba(255,255,255,0.08)", border: "none", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: commentText.trim() ? "pointer" : "default", transition: "background 0.2s", flexShrink: 0 }}>
-                        <Send size={12} color={commentText.trim() ? "#fff" : "rgba(255,255,255,0.3)"} />
-                    </motion.button>
-                </div>
-            </div>
-
-            <ReactionsDialog
-                postId={reactionsDialogCommentId ?? ""}
-                isOpen={reactionsDialogCommentId !== null}
-                onClose={() => setReactionsDialogCommentId(null)}
-                onFanProfile={onFanProfile}
+            <EngagementCommentsThread
                 roomId={roomId}
-                msgId={postId}
-                commentId={reactionsDialogCommentId ?? undefined}
+                postId={postId}
+                accentColor={accentColor}
+                currentAvatarUrl={currentAvatarUrl}
+                currentUserId={currentUserId}
+                currentUsername={currentUsername}
+                onFanProfile={onFanProfile}
+                onCommentCountChange={(count) => {
+                    onCountChange?.(count);
+                }}
             />
         </motion.div>
     );
 }
 
-
 // ── INLINE CELEBRATION CARDS (VISUAL RECOGNITION & OUTCOME REVEAL) ───────────
 function InlineRecognitionCard({
     item,
     isTargetUser,
+    onShowLikers,
+    currentUserId,
+    matchId,
 }: {
     item: any;
     isTargetUser: boolean;
+    onShowLikers?: (id: string) => void;
+    currentUserId?: string;
+    matchId?: string;
 }) {
     const themeColor = item.themeColor || "#f59e0b";
     const rewards = item.rewards || { totalSxp: 25, accuracySxp: 15, participationSxp: 10 };
     const dateStr = item.createdAt ? new Date(getTimestamp(item.createdAt)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+    const itemId = String(item.recognitionId || item.id || "").trim();
+    const effectiveUserId = currentUserId || "fan_guest";
+
+    const likeKey = `sf_rec_like_${itemId}_${effectiveUserId}`;
+    const shareKey = `sf_rec_share_${itemId}_${effectiveUserId}`;
+
+    const [likes, setLikes] = useState<number>(Number(item.likes || item.likesCount || 0));
+    const [isLiked, setIsLiked] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(likeKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [commentsCount, setCommentsCount] = useState<number>(Number(item.commentsCount || 0));
+    const [shares, setShares] = useState<number>(Number(item.shares || 0));
+    const [hasShared, setHasShared] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(shareKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [shareCopied, setShareCopied] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+
+    useEffect(() => {
+        if (typeof item.likes === "number") {
+            setLikes(prev => (isLiked && item.likes === 0 ? Math.max(prev, 1) : Math.max(prev, item.likes)));
+        }
+        if (typeof item.commentsCount === "number") setCommentsCount(prev => Math.max(prev, item.commentsCount));
+        if (typeof item.shares === "number") setShares(prev => Math.max(prev, item.shares));
+    }, [item.likes, item.commentsCount, item.shares, isLiked]);
+
+    // Live Sync: Poll like status & comments count every 2.5s so other users see updates instantly
+    useEffect(() => {
+        if (!itemId) return;
+        let cancelled = false;
+        const syncStatus = async () => {
+            try {
+                const res = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
+                    params: { userId: effectiveUserId, matchId, _t: Date.now() },
+                    timeout: 8000,
+                });
+                if (cancelled) return;
+                if (typeof res.data?.likes === "number") {
+                    setLikes(prev => (isLiked && res.data.likes === 0 ? Math.max(prev, 1) : res.data.likes));
+                }
+                if (typeof res.data?.liked === "boolean") {
+                    if (res.data.liked) {
+                        setIsLiked(true);
+                        try { localStorage.setItem(likeKey, "true"); } catch {}
+                    }
+                }
+            } catch {}
+            try {
+                const cRes = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/comments`, {
+                    params: { countOnly: "1", matchId, _t: Date.now() },
+                    timeout: 8000,
+                });
+                if (cancelled) return;
+                if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
+            } catch {}
+        };
+
+        syncStatus();
+        const interval = setInterval(() => {
+            if (!cancelled && !document.hidden) syncStatus();
+        }, 2500);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [itemId, effectiveUserId, matchId, likeKey, isLiked]);
+
+    const handleToggleLike = async () => {
+        const nextLiked = !isLiked;
+        const prevLikes = likes;
+        setIsLiked(nextLiked);
+        const optimisticLikes = Math.max(0, prevLikes + (nextLiked ? 1 : -1));
+        setLikes(optimisticLikes);
+        try { localStorage.setItem(likeKey, String(nextLiked)); } catch {}
+
+        try {
+            const res = await axios.post(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
+                userId: effectiveUserId,
+                matchId,
+            }, { timeout: 8000 });
+            if (typeof res.data?.likes === "number") {
+                const sLikes = res.data.likes;
+                setLikes(nextLiked && sLikes === 0 ? Math.max(optimisticLikes, 1) : sLikes);
+            }
+            if (typeof res.data?.liked === "boolean") {
+                setIsLiked(res.data.liked);
+                try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
+            }
+        } catch (err) {
+            console.warn("Recognition like sync notice:", err);
+        }
+    };
+
+    const handleShare = async () => {
+        const shareUrl = typeof window !== "undefined"
+            ? `${window.location.origin}${window.location.pathname}?recognition=${itemId}` : "";
+        const shareTitle = item.headline || "SportsFan360 Recognition";
+        let didShare = false;
+
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({ title: shareTitle, text: item.message || shareTitle, url: shareUrl });
+                didShare = true;
+            } catch (err: any) {
+                if (err?.name === "AbortError") return;
+            }
+        }
+
+        if (!didShare) {
+            try {
+                if (typeof navigator !== "undefined" && navigator.clipboard) {
+                    await navigator.clipboard.writeText(shareUrl);
+                } else {
+                    const ta = document.createElement("textarea");
+                    ta.value = shareUrl;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                }
+                didShare = true;
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2200);
+            } catch {}
+        }
+
+        if (!didShare || hasShared) return;
+        setHasShared(true);
+        setShares(s => s + 1);
+        try { localStorage.setItem(shareKey, "true"); } catch {}
+
+        try {
+            const res = await axios.post(`/api/engagements/${encodeURIComponent(itemId)}/share`, {
+                userId: effectiveUserId,
+                matchId,
+            }, { timeout: 8000 });
+            if (typeof res.data?.shares === "number") setShares(res.data.shares);
+        } catch {}
+    };
 
     return (
         <motion.div
@@ -4766,6 +4639,121 @@ function InlineRecognitionCard({
                     </div>
                 )}
             </div>
+
+            {/* ACTION BAR (Like, Comment, Share) */}
+            <div className="px-3.5 pb-2.5 pt-1">
+                <div style={{ display: "flex", gap: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6, alignItems: "center" }}>
+                    {/* Live Like with show likers */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <button
+                            type="button"
+                            onClick={handleToggleLike}
+                            className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${
+                                isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                            }`}
+                            title={isLiked ? "Unlike" : "Like this recognition"}
+                        >
+                            <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (likes > 0) onShowLikers?.(itemId);
+                                else handleToggleLike();
+                            }}
+                            className={`text-[10px] transition-colors ${
+                                likes > 0 ? "hover:underline cursor-pointer hover:text-white" : ""
+                            } ${isLiked ? "text-[#e91e8c] font-bold" : "text-[#9494ad]"}`}
+                            title={likes > 0 ? "See who liked this" : "Like this recognition"}
+                        >
+                            {likes}
+                        </button>
+                    </div>
+
+                    {/* Comments Toggle Button */}
+                    <button
+                        type="button"
+                        onClick={() => setShowComments(prev => !prev)}
+                        className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${
+                            showComments ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                        }`}
+                        title="View comments"
+                    >
+                        <MessageSquare size={12} />
+                        <span style={{ fontSize: 10 }}>Comments ({commentsCount})</span>
+                        {showComments ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </button>
+
+                    {/* Native Share */}
+                    <button
+                        type="button"
+                        onClick={handleShare}
+                        className={`flex items-center gap-1 text-[11px] transition-colors relative ${
+                            hasShared ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                        }`}
+                        title="Share"
+                    >
+                        <Share2 size={12} />
+                        <span style={{ fontSize: 10 }}>{shares}</span>
+                        {shareCopied && (
+                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/90 border border-white/20 text-[9px] text-white whitespace-nowrap shadow-md pointer-events-none">
+                                Copied!
+                            </span>
+                        )}
+                    </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(itemId);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
+                </div>
+
+                {/* ── Inline Comments Thread ── */}
+                <AnimatePresence>
+                    {showComments && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                        >
+                            <EngagementCommentsThread
+                                engagementId={itemId}
+                                matchId={item.matchId || matchId}
+                                accentColor={themeColor}
+                                currentUserId={effectiveUserId}
+                                onCommentCountChange={(cnt: number) => {
+                                    setCommentsCount(cnt);
+                                }}
+                            />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
         </motion.div>
     );
 }
@@ -4774,14 +4762,166 @@ function InlineOutcomeRevealCard({
     item,
     isWinner,
     isParticipant,
+    onShowLikers,
+    currentUserId,
+    matchId,
 }: {
     item: any;
     isWinner: boolean;
     isParticipant: boolean;
+    onShowLikers?: (id: string) => void;
+    currentUserId?: string;
+    matchId?: string;
 }) {
     const dateStr = item.createdAt ? new Date(getTimestamp(item.createdAt)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
     const winningText = item.winningChoiceText || item.winningChoiceId || "Resolved";
     const bonusPoints = item.bonusPoints || 10;
+    const itemId = String(item.id || item.engagementId || "").trim();
+    const effectiveUserId = currentUserId || "fan_guest";
+
+    const likeKey = `sf_rev_like_${itemId}_${effectiveUserId}`;
+    const shareKey = `sf_rev_share_${itemId}_${effectiveUserId}`;
+
+    const [likes, setLikes] = useState<number>(Number(item.likes || item.likesCount || 0));
+    const [isLiked, setIsLiked] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(likeKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [commentsCount, setCommentsCount] = useState<number>(Number(item.commentsCount || 0));
+    const [shares, setShares] = useState<number>(Number(item.shares || 0));
+    const [hasShared, setHasShared] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(shareKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [shareCopied, setShareCopied] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+
+    useEffect(() => {
+        if (typeof item.likes === "number") {
+            setLikes(prev => (isLiked && item.likes === 0 ? Math.max(prev, 1) : Math.max(prev, item.likes)));
+        }
+        if (typeof item.commentsCount === "number") setCommentsCount(prev => Math.max(prev, item.commentsCount));
+        if (typeof item.shares === "number") setShares(prev => Math.max(prev, item.shares));
+    }, [item.likes, item.commentsCount, item.shares, isLiked]);
+
+    // Live Sync: Poll like status & comments count every 2.5s so other users see updates instantly
+    useEffect(() => {
+        if (!itemId) return;
+        let cancelled = false;
+        const syncStatus = async () => {
+            try {
+                const res = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
+                    params: { userId: effectiveUserId, matchId, _t: Date.now() },
+                    timeout: 8000,
+                });
+                if (cancelled) return;
+                if (typeof res.data?.likes === "number") {
+                    setLikes(prev => (isLiked && res.data.likes === 0 ? Math.max(prev, 1) : res.data.likes));
+                }
+                if (typeof res.data?.liked === "boolean") {
+                    if (res.data.liked) {
+                        setIsLiked(true);
+                        try { localStorage.setItem(likeKey, "true"); } catch {}
+                    }
+                }
+            } catch {}
+            try {
+                const cRes = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/comments`, {
+                    params: { countOnly: "1", matchId, _t: Date.now() },
+                    timeout: 8000,
+                });
+                if (cancelled) return;
+                if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
+            } catch {}
+        };
+
+        syncStatus();
+        const interval = setInterval(() => {
+            if (!cancelled && !document.hidden) syncStatus();
+        }, 2500);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [itemId, effectiveUserId, matchId, likeKey, isLiked]);
+
+    const handleToggleLike = async () => {
+        const nextLiked = !isLiked;
+        const prevLikes = likes;
+        setIsLiked(nextLiked);
+        const optimisticLikes = Math.max(0, prevLikes + (nextLiked ? 1 : -1));
+        setLikes(optimisticLikes);
+        try { localStorage.setItem(likeKey, String(nextLiked)); } catch {}
+
+        try {
+            const res = await axios.post(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
+                userId: effectiveUserId,
+                matchId,
+            }, { timeout: 8000 });
+            if (typeof res.data?.likes === "number") {
+                const sLikes = res.data.likes;
+                setLikes(nextLiked && sLikes === 0 ? Math.max(optimisticLikes, 1) : sLikes);
+            }
+            if (typeof res.data?.liked === "boolean") {
+                setIsLiked(res.data.liked);
+                try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
+            }
+        } catch (err) {
+            console.warn("Recognition like sync notice:", err);
+        }
+    };
+
+    const handleShare = async () => {
+        const shareUrl = typeof window !== "undefined"
+            ? `${window.location.origin}${window.location.pathname}?reveal=${itemId}` : "";
+        const shareTitle = item.title || "Match Moment Outcome Revealed";
+        let didShare = false;
+
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({ title: shareTitle, text: winningText || shareTitle, url: shareUrl });
+                didShare = true;
+            } catch (err: any) {
+                if (err?.name === "AbortError") return;
+            }
+        }
+
+        if (!didShare) {
+            try {
+                if (typeof navigator !== "undefined" && navigator.clipboard) {
+                    await navigator.clipboard.writeText(shareUrl);
+                } else {
+                    const ta = document.createElement("textarea");
+                    ta.value = shareUrl;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                }
+                didShare = true;
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2200);
+            } catch {}
+        }
+
+        if (!didShare || hasShared) return;
+        setHasShared(true);
+        setShares(s => s + 1);
+        try { localStorage.setItem(shareKey, "true"); } catch {}
+
+        try {
+            const res = await axios.post(`/api/engagements/${encodeURIComponent(itemId)}/share`, {
+                userId: effectiveUserId,
+                matchId,
+            }, { timeout: 8000 });
+            if (typeof res.data?.shares === "number") setShares(res.data.shares);
+        } catch {}
+    };
 
     return (
         <motion.div
@@ -4863,6 +5003,121 @@ function InlineOutcomeRevealCard({
                         </span>
                     )}
                 </div>
+            </div>
+
+            {/* ACTION BAR (Like, Comment, Share) */}
+            <div className="px-3.5 pb-2.5 pt-1">
+                <div style={{ display: "flex", gap: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6, alignItems: "center" }}>
+                    {/* Live Like with show likers */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <button
+                            type="button"
+                            onClick={handleToggleLike}
+                            className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${
+                                isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                            }`}
+                            title={isLiked ? "Unlike" : "Like this outcome"}
+                        >
+                            <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (likes > 0) onShowLikers?.(itemId);
+                                else handleToggleLike();
+                            }}
+                            className={`text-[10px] transition-colors ${
+                                likes > 0 ? "hover:underline cursor-pointer hover:text-white" : ""
+                            } ${isLiked ? "text-[#e91e8c] font-bold" : "text-[#9494ad]"}`}
+                            title={likes > 0 ? "See who liked this" : "Like this outcome"}
+                        >
+                            {likes}
+                        </button>
+                    </div>
+
+                    {/* Comments Toggle Button */}
+                    <button
+                        type="button"
+                        onClick={() => setShowComments(prev => !prev)}
+                        className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${
+                            showComments ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                        }`}
+                        title="View comments"
+                    >
+                        <MessageSquare size={12} />
+                        <span style={{ fontSize: 10 }}>Comments ({commentsCount})</span>
+                        {showComments ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </button>
+
+                    {/* Native Share */}
+                    <button
+                        type="button"
+                        onClick={handleShare}
+                        className={`flex items-center gap-1 text-[11px] transition-colors relative ${
+                            hasShared ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                        }`}
+                        title="Share"
+                    >
+                        <Share2 size={12} />
+                        <span style={{ fontSize: 10 }}>{shares}</span>
+                        {shareCopied && (
+                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/90 border border-white/20 text-[9px] text-white whitespace-nowrap shadow-md pointer-events-none">
+                                Copied!
+                            </span>
+                        )}
+                    </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(itemId);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
+                </div>
+
+                {/* ── Inline Comments Thread ── */}
+                <AnimatePresence>
+                    {showComments && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                        >
+                            <EngagementCommentsThread
+                                engagementId={itemId}
+                                matchId={item.matchId || matchId}
+                                accentColor="#10b981"
+                                currentUserId={effectiveUserId}
+                                onCommentCountChange={(cnt: number) => {
+                                    setCommentsCount(cnt);
+                                }}
+                            />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </motion.div>
     );
@@ -5167,11 +5422,18 @@ export default function OpenRoomDiscussionRoom({
         }
 
         const cleanMatchId = mId ? String(mId).replace(/^MATCH#/, "").trim() : "";
+        const effUserId = currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId || "";
+        const effUsername = userUsername || userProfile?.username || userProfile?.name || "";
 
         try {
-            const url = cleanMatchId
-                ? `/api/roar/celebrations?matchId=${encodeURIComponent(cleanMatchId)}&roomId=${encodeURIComponent(roomId)}`
-                : `/api/roar/celebrations?roomId=${encodeURIComponent(roomId)}`;
+            const qParams = new URLSearchParams();
+            if (cleanMatchId) qParams.set("matchId", cleanMatchId);
+            if (roomId) qParams.set("roomId", roomId);
+            if (effUserId) qParams.set("userId", effUserId);
+            if (effUsername) qParams.set("username", effUsername);
+            qParams.set("_t", String(Date.now()));
+
+            const url = `/api/roar/celebrations?${qParams.toString()}`;
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
             if (res.data?.success) {
                 if (Array.isArray(res.data.recognitions)) {
@@ -5197,7 +5459,7 @@ export default function OpenRoomDiscussionRoom({
         } catch (e) {
             console.warn("fetchCelebrations notice:", e);
         }
-    }, [roomId, roomMatchId, onToast]);
+    }, [roomId, roomMatchId, onToast, currentUserId, userUsername, userProfile]);
 
     // ── Fetch active Match Engagements for Room / Match ──
     const fetchEngagements = useCallback(async () => {
@@ -5473,6 +5735,7 @@ export default function OpenRoomDiscussionRoom({
             replyCount: Math.max(m.replyCount ?? 0, existing?.replyCount ?? 0),
             agreeCount: m.agreeCount ?? 0,
             disagreeCount: m.disagreeCount ?? 0,
+            shareCount: m.shareCount ?? existing?.shareCount ?? 0,
             userVote: (existing?.userVote && !m.userVote) ? existing.userVote : (m.userVote ?? existing?.userVote ?? null),
             sideA: m.sideA ?? null,
             sideB: m.sideB ?? null,
@@ -5650,6 +5913,7 @@ export default function OpenRoomDiscussionRoom({
                             heartCount: isPending ? p.heartCount : (updated.heartCount ?? p.heartCount),
                             userReaction: isPending ? p.userReaction : (updated.userReaction ?? null),
                             replyCount: Math.max(p.replyCount ?? 0, updated.replyCount ?? 0),
+                            shareCount: updated.shareCount ?? p.shareCount,
                             agreeCount: updated.agreeCount ?? p.agreeCount,
                             disagreeCount: updated.disagreeCount ?? p.disagreeCount,
                             userVote: (p.userVote && !updated.userVote) ? p.userVote : (updated.userVote ?? p.userVote ?? null),
@@ -5889,20 +6153,20 @@ export default function OpenRoomDiscussionRoom({
         fetchMsgs();
     }, [fetchMsgs, roomId, selectedChannelId]);
 
-    useVisibilityInterval(fetchMsgs, 5000);
-    useVisibilityInterval(fetchReactionUpdates, 5000);
+    useVisibilityInterval(fetchMsgs, 2000);
+    useVisibilityInterval(fetchReactionUpdates, 2000);
 
     useEffect(() => {
         if (!roomId) return;
         fetchEngagements();
     }, [fetchEngagements, roomId]);
-    useVisibilityInterval(fetchEngagements, 5000);
+    useVisibilityInterval(fetchEngagements, 2000);
 
     useEffect(() => {
         if (!roomId) return;
         fetchCelebrations();
     }, [fetchCelebrations, roomId, roomMatchId]);
-    useVisibilityInterval(fetchCelebrations, 8000);
+    useVisibilityInterval(fetchCelebrations, 2000);
 
     // useEffect(() => {
     //     const list = listRef.current;
@@ -6093,7 +6357,10 @@ export default function OpenRoomDiscussionRoom({
         try {
             const res = await axios.post(
                 `/api/roar/rooms/${roomId}/messages/${msgId}/react`,
-                { reaction: newReaction },
+                {
+                    reaction: newReaction,
+                    userId: currentUserId || userProfile?.actualUserId || userProfile?.userId || userProfile?.email || "guest_fan"
+                },
                 { timeout: REQUEST_TIMEOUT_MS }
             );
             if (res.data && typeof res.data.heartCount === "number") {
@@ -6104,11 +6371,8 @@ export default function OpenRoomDiscussionRoom({
                 lastLocalReactAtRef.current[msgId] = Date.now();
             }
         } catch (err) {
-            console.error("Reaction failed:", err);
-            setLocalReactions(p => ({ ...p, [msgId]: prevReactionState }));
-            setPosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: prevReactionState.heartCount, userReaction: prevReactionState.reaction } : p));
-            setMorePosts(prevList => prevList.map(p => p.id === msgId ? { ...p, heartCount: prevReactionState.heartCount, userReaction: prevReactionState.reaction } : p));
-            onToast("Failed to save reaction");
+            console.warn("Reaction notice:", err);
+            lastLocalReactAtRef.current[msgId] = Date.now();
         } finally {
             clearTimeout(failsafe);
             pendingReactRef.current[msgId] = false;
@@ -6346,16 +6610,45 @@ export default function OpenRoomDiscussionRoom({
         finally { setUploading(false); if (e.target) e.target.value = ""; }
     };
 
-    const handleSharePost = (post: any) => {
+    const handleSharePost = async (post: any) => {
         try {
             trackAdvocacy("content_shared", { post_id: post.id, room_id: roomId, room_name: roomName || "" });
-            if (phog) {
+        } catch { }
+
+        // Optimistically increment share count
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shareCount: (p.shareCount || 0) + 1 } : p));
+
+        const shareUrl = typeof window !== "undefined" ? window.location.origin + `/MainModules/ROAR?post=${post.id}` : "";
+        let didShare = false;
+
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({
+                    title: "SportsFan360 Match Discussion",
+                    text: post.text || "Check out this live discussion on SportsFan360!",
+                    url: shareUrl,
+                });
+                didShare = true;
+            } catch (err: any) {
+                if (err?.name === "AbortError") return;
             }
-        } catch (e) { }
-        if (typeof navigator !== "undefined" && navigator.clipboard) {
-            navigator.clipboard.writeText(window.location.origin + `/MainModules/ROAR?post=${post.id}`).then(() => onToast("Post link copied to clipboard!"));
-        } else {
-            onToast("Link copied!");
+        }
+
+        if (!didShare) {
+            if (typeof navigator !== "undefined" && navigator.clipboard) {
+                navigator.clipboard.writeText(shareUrl).then(() => onToast("Post link copied to clipboard!"));
+            } else {
+                onToast("Link copied!");
+            }
+        }
+
+        if (roomId && post.id) {
+            try {
+                const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/share`, {}, { timeout: 8000 });
+                if (res.data?.success && typeof res.data.shareCount === "number") {
+                    setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shareCount: res.data.shareCount } : p));
+                }
+            } catch { }
         }
     };
 
@@ -6464,18 +6757,9 @@ export default function OpenRoomDiscussionRoom({
             }
             return { kind: "engagement" as const, data: e, sortKey: key };
         });
-                // ── Visual Recognitions (Filtered by target user / all) ──
+                // ── Visual Recognitions (Both stadium-wide and targeted VIP recognitions show in room) ──
         const isRecTargetMatch = (rec: any) => {
-            if (!rec.targetType || rec.targetType === "all") return true;
-            const targetId = String(rec.targetUserId || "").trim().toLowerCase();
-            const targetName = String(rec.targetUserName || "").trim().toLowerCase();
-            const myName = String(userUsername || userProfile?.username || "").trim().toLowerCase();
-            if (targetId && currentUserIdCandidates.has(targetId)) return true;
-            if (targetName && (myName === targetName || currentUserIdCandidates.has(targetName))) return true;
-            for (const cand of currentUserIdCandidates) {
-                if (cand && (targetId.includes(cand) || cand.includes(targetId))) return true;
-            }
-            return false;
+            return Boolean(rec && (rec.headline || rec.message || rec.recognitionId || rec.id));
         };
 
         const recognitionItems: FeedItem[] = (engagementFilter === "all" ? recognitions : [])
@@ -6511,12 +6795,7 @@ export default function OpenRoomDiscussionRoom({
                 sortKey: getTimestamp(rev.createdAt || Date.now()),
             }));
 
-        // Visual Recognitions & Outcome Reveals in Live ROAR Stream: hidden for now
-        // (they showed up as empty green / yellow lines between posts).
-        // return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
-        void recognitionItems;
-        void outcomeItems;
-        return [...postItems, ...engagementItems].sort((a, b) => a.sortKey - b.sortKey);
+        return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
     }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
 
     const renderReactionPicker = (p: any) => {
@@ -6790,6 +7069,9 @@ export default function OpenRoomDiscussionRoom({
                                     key={`rec-${item.data.id || item.data.recognitionId || item.sortKey}`}
                                     item={item.data}
                                     isTargetUser={isTargetUser}
+                                    onShowLikers={(id) => setReactionsMsgId(id)}
+                                    currentUserId={currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId}
+                                    matchId={roomMatchId || item.data.matchId}
                                 />
                             );
                         }
@@ -6810,6 +7092,9 @@ export default function OpenRoomDiscussionRoom({
                                     item={item.data}
                                     isWinner={isWin}
                                     isParticipant={isPart}
+                                    onShowLikers={(id) => setReactionsMsgId(id)}
+                                    currentUserId={currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId}
+                                    matchId={roomMatchId || item.data.matchId}
                                 />
                             );
                         }
@@ -6825,6 +7110,7 @@ export default function OpenRoomDiscussionRoom({
                                     }}
                                     variant="post"
                                     onInteraction={(data) => handleEngagementInteraction(item.data.id, data)}
+                                    onShowLikers={(id) => setReactionsMsgId(id)}
                                 />
                             );
                         }
@@ -7115,6 +7401,7 @@ export default function OpenRoomDiscussionRoom({
                                     <div style={{ display: "flex", gap: 6, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 4, alignItems: "center" }}>
                                         {renderReactionPicker(p)}
                                         <button
+                                            type="button"
                                             onClick={e => {
                                                 e.stopPropagation();
                                                 if (isOpen) {
@@ -7125,19 +7412,21 @@ export default function OpenRoomDiscussionRoom({
                                                     setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.delete(p.id); return next; });
                                                 }
                                             }}
-                                            style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: isOpen ? accent : "#9494ad", fontSize: 11, fontWeight: 600, transition: "color 0.15s", padding: 0 }}
+                                            className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${isOpen ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"}`}
+                                            title="View comments"
                                         >
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                                            </svg>
-                                            <span style={{ fontSize: 9 }}>{replyCount}</span>
-                                            {isOpen ? <ChevronUp size={10} style={{ opacity: 0.7 }} /> : <ChevronDown size={10} style={{ opacity: 0.5 }} />}
+                                            <MessageSquare size={12} />
+                                            <span style={{ fontSize: 10 }}>Comments ({replyCount})</span>
+                                            {isOpen ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                                         </button>
-                                        <button onClick={e => { e.stopPropagation(); handleSharePost(p); }} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#9494ad", fontSize: 11, fontWeight: 600 }}>
-                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
-                                                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                                            </svg>
+                                        <button
+                                            type="button"
+                                            onClick={e => { e.stopPropagation(); handleSharePost(p); }}
+                                            className={`flex items-center gap-1 text-[11px] transition-colors relative ${(p.shareCount || 0) > 0 ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"}`}
+                                            title="Share post"
+                                        >
+                                            <Share2 size={12} />
+                                            <span style={{ fontSize: 10 }}>{p.shareCount || 0}</span>
                                         </button>
                                         {renderReactionsTrigger(p)}
                                     </div>
@@ -7160,14 +7449,8 @@ export default function OpenRoomDiscussionRoom({
                                                 currentUsername={userUsername}
                                                 onFanProfile={onFanProfile}
                                                 onToast={onToast}
-                                                onCommentPosted={() => {
-                                                    setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: (x.replyCount || 0) + 1 } : x));
-                                                    playSound("comment");
-                                                    onToast("Comment posted!");
-                                                }}
-                                                onCommentDeleted={() => {
-                                                    setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: Math.max(0, (x.replyCount || 0) - 1) } : x));
-                                                    onToast("Reply deleted");
+                                                onCountChange={(count) => {
+                                                    setPosts(prev => prev.map(x => x.id === p.id ? { ...x, replyCount: count } : x));
                                                 }}
                                             />
                                         )}
