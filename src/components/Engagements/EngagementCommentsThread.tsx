@@ -81,24 +81,23 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
     useEffect(() => { onCountRef.current = onCommentCountChange; });
     const loadedRef = useRef(false);
 
-    // ── Load ONCE per engagement ──
+    // ── Load & Live Poll comments for engagement ──
     useEffect(() => {
         let cancelled = false;
         loadedRef.current = false;
-        (async () => {
-            setLoading(true);
+
+        const loadComments = async (silent = false) => {
+            if (!silent) setLoading(true);
             try {
                 const url = `/api/engagements/${encodeURIComponent(engagementId)}/comments`;
                 let res;
                 try {
-                    res = await axios.get(url, { params: matchId ? { matchId } : undefined, timeout: 8000 });
+                    res = await axios.get(url, { params: { ...(matchId ? { matchId } : {}), _t: Date.now() }, timeout: 8000 });
                 } catch (firstErr) {
-                    console.warn("Comments load failed, retrying without matchId:", firstErr);
                     if (!matchId) throw firstErr;
-                    res = await axios.get(url, { timeout: 8000 });
+                    res = await axios.get(url, { params: { _t: Date.now() }, timeout: 8000 });
                 }
                 if (cancelled) return;
-                // Accept { comments }, { data: [...] }, { data: { comments } } or a bare array
                 const d = res.data;
                 const list = Array.isArray(d) ? d
                     : Array.isArray(d?.comments) ? d.comments
@@ -108,22 +107,31 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                 if (list) {
                     loadedRef.current = true;
                     setComments(list.map(normalize));
-                } else {
-                    console.warn("Unexpected comments response shape:", d);
                 }
             } catch (err) {
                 if (cancelled) return;
-                console.warn("Comments load failed:", err);
-                try {
-                    const cached = JSON.parse(localStorage.getItem(storageKey) || "[]");
-                    if (Array.isArray(cached)) setComments(cached.map(normalize));
-                } catch { /* ignore */ }
-                loadedRef.current = true;
+                if (!silent) {
+                    try {
+                        const cached = JSON.parse(localStorage.getItem(storageKey) || "[]");
+                        if (Array.isArray(cached)) setComments(cached.map(normalize));
+                    } catch { /* ignore */ }
+                    loadedRef.current = true;
+                }
             } finally {
-                if (!cancelled) setLoading(false);
+                if (!cancelled && !silent) setLoading(false);
             }
-        })();
-        return () => { cancelled = true; };
+        };
+
+        loadComments(false);
+
+        const interval = setInterval(() => {
+            loadComments(true);
+        }, 4000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
     }, [engagementId, matchId, storageKey]);
 
     // Report count to parent only when comments actually change (after first load)
@@ -306,7 +314,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                     {comments.map((comment) => {
                         const isLiked = (comment.likedBy || []).includes(currentUserId);
                         const replies = comment.replies || [];
-                        const open = expandedReplies[comment.id] ?? false;
+                        const open = expandedReplies[comment.id] !== false;
                         return (
                             <div key={comment.id} className="flex flex-col gap-1.5 bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
                                 <div className="flex items-start gap-2">

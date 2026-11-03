@@ -1028,6 +1028,7 @@ export interface EngagementCardProps {
     className?: string;
     compact?: boolean;
     variant?: "post" | "card";
+    onShowLikers?: (id: string) => void;
 }
 
 function timeAgo(ts?: number | string): string {
@@ -1096,6 +1097,7 @@ export default function EngagementCard({
     className = "",
     compact = false,
     variant = "post",
+    onShowLikers,
 }: EngagementCardProps) {
     const { userProfile } = useUserProfile();
     const currentUserId = userProfile?.actualUserId || userProfile?.email || "fan_guest";
@@ -1910,16 +1912,28 @@ export default function EngagementCard({
                 {/* ── Action Bar (Comments, Likes, Shares) ── */}
                 <div style={{ display: "flex", gap: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 5, alignItems: "center" }}>
                     {/* Live Like */}
-                    <button
-                        type="button"
-                        onClick={handleToggleLike}
-                        className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
-                            }`}
-                        title="Like this moment"
-                    >
-                        <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
-                        <span style={{ fontSize: 10 }}>{likes}</span>
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <button
+                            type="button"
+                            onClick={handleToggleLike}
+                            className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"}`}
+                            title={isLiked ? "Unlike" : "Like this moment"}
+                        >
+                            <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (likes > 0) onShowLikers?.(item.id);
+                                else handleToggleLike();
+                            }}
+                            className={`text-[10px] transition-colors ${likes > 0 ? "hover:underline cursor-pointer hover:text-white" : ""} ${isLiked ? "text-[#e91e8c] font-bold" : "text-[#9494ad]"}`}
+                            title={likes > 0 ? "See who liked this" : "Like this moment"}
+                        >
+                            {likes}
+                        </button>
+                    </div>
 
                     {/* Comments Toggle Button */}
                     <button
@@ -1949,6 +1963,33 @@ export default function EngagementCard({
                             </span>
                         )}
                     </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(item.id);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
                 </div>
 
                 {/* ── Inline Comments Thread ── */}
@@ -2060,6 +2101,33 @@ export default function EngagementCard({
                             </span>
                         )}
                     </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(item.id);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
                 </div>
             </div>
 

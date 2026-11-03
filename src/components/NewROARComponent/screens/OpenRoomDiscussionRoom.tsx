@@ -14,7 +14,7 @@
 // import {
 //     Image, ChevronLeft, Flame, TrendingUp, Zap, History, PenTool,
 //     Brain, Users, Volume2, VolumeX, Share2, Send, ChevronDown, ChevronUp,
-//     Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle,
+//     Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle, Heart, Heart,
 // } from "lucide-react";
 // import EmojiPicker from "@emoji-mart/react";
 // import data from "@emoji-mart/data";
@@ -22,6 +22,7 @@
 // import VotersDialog from "../components/VotersDialog";
 // import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
 // import EngagementCard from "@/components/Engagements/EngagementCard";
+import EngagementCommentsThread from "@/components/Engagements/EngagementCommentsThread";
 // import type { EngagementItem } from "@/types/engagements";
 
 // const REQUEST_TIMEOUT_MS = 12000;
@@ -3526,7 +3527,7 @@ import { roarApi } from "@/lib/roarApi";
 import {
     Image, ChevronLeft, Flame, TrendingUp, Zap, History, PenTool,
     Brain, Users, Volume2, VolumeX, Share2, Send, ChevronDown, ChevronUp,
-    Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle,
+    Clock, MoreVertical, Trash2, MessageSquare, Hash, CheckCircle2, XCircle, Heart, CornerDownRight, Reply,
 } from "lucide-react";
 import EmojiPicker from "@emoji-mart/react";
 import data from "@emoji-mart/data";
@@ -4339,6 +4340,76 @@ function BattleCard({ post, onToast, onPostClick, roomId, onFanProfile }: {
     );
 }
 
+function timeAgo(ts?: number | string): string {
+    if (!ts) return "now";
+    const date = typeof ts === "number" ? ts : new Date(ts).getTime();
+    if (isNaN(date)) return "now";
+    const diff = Math.max(0, Date.now() - date);
+    if (diff < 60000) return "just now";
+    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
+    return `${Math.floor(diff / 86400000)}d`;
+}
+
+function buildThreadedComments(flat: any[]): any[] {
+    const list = [...flat].sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
+    const topLevel: any[] = [];
+    const idMap = new Map<string, any>();
+    const userToParentId = new Map<string, string>();
+
+    const normalized = list.map((r, i) => {
+        const id = String(r.id ?? r.commentId ?? String(i));
+        const text = String(r.text ?? "");
+        const rawParentId = r.parentId ? String(r.parentId).replace(/^COMMENT#/, "").trim() : null;
+        const authorUsername = r.authorUsername || r.username || "Fan";
+        return {
+            ...r,
+            id,
+            commentId: id,
+            text,
+            authorUid: String(r.authorUid || r.userId || ""),
+            authorUsername,
+            authorAvatarUrl: r.authorAvatarUrl || r.avatarUrl,
+            authorBadge: r.authorBadge || r.badge,
+            createdAt: Number(r.createdAt || Date.now()),
+            heartCount: Number(r.heartCount ?? r.likesCount ?? r.likes ?? 0),
+            userReaction: r.userReaction ?? null,
+            reactions: r.reactions || {},
+            parentId: rawParentId,
+            replies: [] as any[],
+        };
+    });
+
+    normalized.forEach(item => {
+        idMap.set(item.id, item);
+        if (!item.parentId) {
+            userToParentId.set(item.authorUsername.toLowerCase(), item.id);
+        }
+    });
+
+    normalized.forEach(item => {
+        let parent = item.parentId ? idMap.get(item.parentId) : null;
+        if (!parent && !item.parentId) {
+            const match = item.text.match(/^@([a-zA-Z0-9_.\s]+?)(?:\s|$)/);
+            if (match) {
+                const targetName = match[1].trim().toLowerCase();
+                const priorParentId = userToParentId.get(targetName);
+                if (priorParentId && idMap.has(priorParentId) && priorParentId !== item.id) {
+                    parent = idMap.get(priorParentId);
+                }
+            }
+        }
+
+        if (parent) {
+            parent.replies.push(item);
+        } else {
+            topLevel.push(item);
+        }
+    });
+
+    return topLevel;
+}
+
 function InlineSection({
     postId, roomId, roomName, isOpen, onOpenFull, accentColor, currentAvatarUrl,
     onCommentPosted, onCommentDeleted, currentUserId, currentUsername, onFanProfile, onToast,
@@ -4351,39 +4422,95 @@ function InlineSection({
 }) {
     const phog = usePostHog();
     const [replies, setReplies] = useState<any[]>([]);
-    const [showAllReplies, setShowAllReplies] = useState(false);
     const [loading, setLoading] = useState(false);
     const [commentText, setCommentText] = useState("");
     const [sending, setSending] = useState(false);
     const [replyTo, setReplyTo] = useState<{ commentId: string; authorUsername: string } | null>(null);
+    const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
     const inputRef = useRef<HTMLInputElement>(null);
     const [isAnimatingHeight, setIsAnimatingHeight] = useState(true);
     const [commentReactions, setCommentReactions] = useState<Record<string, { reaction: Reaction | null; heartCount: number }>>({});
     const pendingCommentReactRef = useRef<Record<string, boolean>>({});
-    const commentTopReactionsCache = useRef<Record<string, string[]>>({});
-    const [commentTopReactionsMap, setCommentTopReactionsMap] = useState<Record<string, string[]>>({});
     const [reactionsDialogCommentId, setReactionsDialogCommentId] = useState<string | null>(null);
     const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
-    const mention = useMentionAutocomplete(currentUsername);
 
-    const REACTION_EMOJI: Record<string, string> = {
-        fire: "🔥", heart: "❤️", mindblown: "🤯", goat: "🐐", clap: "👏",
-        nochance: "🙅", laugh: "😂", sad: "😢", thumb: "👍",
-    };
-
-    const fetchCommentTopReactions = useCallback(async (commentId: string) => {
-        if (commentTopReactionsCache.current[commentId] !== undefined) return;
-        commentTopReactionsCache.current[commentId] = [];
+    const fetchReplies = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
-            const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}/reactions`, { timeout: REQUEST_TIMEOUT_MS });
-            const reactors: { reaction: string }[] = res.data?.reactors ?? [];
-            const counts: Record<string, number> = {};
-            reactors.forEach(r => { counts[r.reaction] = (counts[r.reaction] ?? 0) + 1; });
-            const top = Object.entries(counts).sort(([, a], [, b]) => b - a).slice(0, 3).map(([type]) => type);
-            commentTopReactionsCache.current[commentId] = top;
-            setCommentTopReactionsMap(prev => ({ ...prev, [commentId]: top }));
-        } catch { commentTopReactionsCache.current[commentId] = []; }
-    }, [roomId, postId]);
+            const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, {
+                params: { limit: 50, _t: Date.now() },
+                timeout: REQUEST_TIMEOUT_MS,
+            });
+            const list: any[] = res.data?.comments ?? [];
+            setReplies(list);
+        } catch {
+            if (!silent) setReplies([]);
+        } finally {
+            if (!silent) setLoading(false);
+        }
+    }, [postId, roomId]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        fetchReplies(false);
+        const interval = setInterval(() => {
+            fetchReplies(true);
+        }, 4000);
+        return () => clearInterval(interval);
+    }, [isOpen, fetchReplies]);
+
+    const handleSend = async () => {
+        const text = commentText.trim();
+        if (!text || sending) return;
+        setSending(true);
+
+        const parentId = replyTo ? replyTo.commentId : null;
+        const tempId = `tmp_${Date.now()}`;
+        const optimisticComment = {
+            id: tempId,
+            commentId: tempId,
+            text,
+            parentId,
+            authorUid: currentUserId || "guest_fan",
+            authorUsername: currentUsername || "SportsFan",
+            authorAvatarUrl: currentAvatarUrl,
+            createdAt: Date.now(),
+            heartCount: 0,
+            reactions: {},
+        };
+
+        setReplies(prev => [optimisticComment, ...prev]);
+        if (parentId) {
+            setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
+        }
+
+        setCommentText("");
+        setReplyTo(null);
+
+        try {
+            trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "", text });
+            if (phog) {
+                phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
+            }
+        } catch { }
+
+        try {
+            await axios.post(
+                `/api/roar/rooms/${roomId}/messages/${postId}/comments`,
+                { text, parentId },
+                { timeout: REQUEST_TIMEOUT_MS }
+            );
+            onCommentPosted();
+            await fetchReplies(true);
+        } catch (err: any) {
+            setReplies(prev => prev.filter(c => (c.id || c.commentId) !== tempId));
+            setCommentText(text);
+            const isTimeout = err?.code === "ECONNABORTED" || err?.message?.includes("timeout");
+            onToast(isTimeout ? "Taking too long — please try again" : "Failed to send comment");
+        } finally {
+            setSending(false);
+        }
+    };
 
     const handleCommentReact = useCallback(async (commentId: string, reaction: Reaction | null) => {
         if (pendingCommentReactRef.current[commentId]) return;
@@ -4399,7 +4526,6 @@ function InlineSection({
         const optimistic = { reaction: newReaction, heartCount: Math.max(0, prev.heartCount + delta) };
 
         setCommentReactions(p => ({ ...p, [commentId]: optimistic }));
-        delete commentTopReactionsCache.current[commentId];
         pendingCommentReactRef.current[commentId] = true;
         const failsafe = setTimeout(() => { pendingCommentReactRef.current[commentId] = false; }, REQUEST_TIMEOUT_MS + 3000);
         try {
@@ -4411,8 +4537,6 @@ function InlineSection({
             if (res.data && typeof res.data.heartCount === "number") {
                 setCommentReactions(p => ({ ...p, [commentId]: { ...optimistic, heartCount: res.data.heartCount } }));
             }
-            delete commentTopReactionsCache.current[commentId];
-            setCommentTopReactionsMap(p => { const n = { ...p }; delete n[commentId]; return n; });
         } catch {
             setCommentReactions(p => ({ ...p, [commentId]: prev }));
         } finally {
@@ -4421,227 +4545,277 @@ function InlineSection({
         }
     }, [roomId, postId, replies, commentReactions, currentUserId]);
 
-    const fetchReplies = useCallback(async () => {
-        setLoading(true);
-        try {
-            const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { params: { limit: 50 }, timeout: REQUEST_TIMEOUT_MS });
-            const list: any[] = res.data?.comments ?? [];
-            const oldestFirst = [...list].sort((a, b) => (a.createdAt ?? 0) - (b.createdAt ?? 0));
-            const threaded = threadSort(oldestFirst);
-            setReplies(threaded);
-        } catch { setReplies([]); }
-        finally { setLoading(false); }
-    }, [postId, roomId]);
-
-    useEffect(() => {
-        if (isOpen) { fetchReplies(); setTimeout(() => inputRef.current?.focus(), 180); }
-    }, [isOpen, fetchReplies]);
-
-    const handleSend = async () => {
-        const fullText = replyTo ? `@${replyTo.authorUsername} ${commentText.trim()}` : commentText.trim();
-        if (!fullText || sending) return;
-        setSending(true);
-        try {
-            trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "", text: fullText });
-            if (phog) {
-                phog.capture("meaningful_interaction", {
-                    interaction_type: "comment",
-                    post_id: postId,
-                    room_id: roomId,
-                    room_name: roomName || "",
-                    text: fullText,
-                });
-            }
-        } catch (e) { }
-        try {
-            await axios.post(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, { text: fullText }, { timeout: REQUEST_TIMEOUT_MS });
-            if (phog) {
-                phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
-            }
-            try {
-                trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
-            } catch (e) { }
-            setCommentText(""); setReplyTo(null); onCommentPosted(); fetchReplies();
-        } catch (err: any) {
-            const isTimeout = err?.code === "ECONNABORTED" || err?.message?.includes("timeout");
-            onToast(isTimeout ? "Taking too long — please try again" : "Failed to send comment");
-        }
-        finally { setSending(false); }
-    };
-
     const handleDeleteComment = useCallback(async (commentId: string) => {
-        if (!window.confirm("Delete this reply?")) return;
+        if (!window.confirm("Delete this comment?")) return;
         setDeletingCommentId(commentId);
         try {
             await axios.delete(`/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}`, { timeout: REQUEST_TIMEOUT_MS });
             setReplies(prev => prev.filter(r => (r.id ?? r.commentId) !== commentId));
             onCommentDeleted?.();
         } catch {
+            onToast("Failed to delete comment");
         } finally {
             setDeletingCommentId(null);
         }
-    }, [roomId, postId, onCommentDeleted]);
+    }, [roomId, postId, onCommentDeleted, onToast]);
+
+    const startReply = (rootId: string, authorUsername: string) => {
+        setReplyTo({ commentId: rootId, authorUsername });
+        setCommentText(`@${authorUsername} `);
+        setExpandedReplies(p => ({ ...p, [rootId]: true }));
+        setTimeout(() => inputRef.current?.focus(), 50);
+    };
+
+    const threaded = React.useMemo(() => buildThreadedComments(replies), [replies]);
 
     if (!isOpen) return null;
 
     return (
         <motion.div
-            initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.22, ease: "easeOut" }}
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
             onAnimationStart={() => setIsAnimatingHeight(true)}
             onAnimationComplete={() => setIsAnimatingHeight(false)}
             style={{ overflow: isAnimatingHeight ? "hidden" : "visible" }}
             onClick={e => e.stopPropagation()}
+            className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-2.5"
         >
-            <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 0 }}>
-                {loading ? (
-                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginBottom: 6, paddingLeft: 4 }}>Loading replies…</p>
-                ) : replies.length === 0 ? (
-                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.3)", fontStyle: "italic", marginBottom: 6, paddingLeft: 4 }}>No replies yet — be the first!</p>
-                ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
-                        {(showAllReplies ? replies : replies.slice(0, 2)).map((r, i) => {
-                            const isReply = /^@\S+/.test((r.text ?? "").trimStart());
-                            const commentId = r.id ?? r.commentId ?? String(i);
-                            const persistedReaction: Reaction | null =
-                                r.userReaction ?? (currentUserId ? (r.reactions?.[currentUserId] ?? null) : null);
-                            const lo = commentReactions[commentId];
-                            const currentReaction: Reaction | null = lo !== undefined ? lo.reaction : persistedReaction;
-                            const liveHeartCount = lo !== undefined ? lo.heartCount : (r.heartCount ?? 0);
-                            const topReactions = commentTopReactionsMap[commentId] ?? [];
-                            if (liveHeartCount > 0 && topReactions.length === 0 && !commentTopReactionsCache.current[commentId]) {
-                                fetchCommentTopReactions(commentId);
-                            }
-                            const displayReactions = topReactions.length > 0 ? topReactions : (currentReaction ? [currentReaction] : []);
-                            const isOwnComment = currentUserId && r.authorUid === currentUserId;
+            {/* ── Header ── */}
+            <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-white/80 flex items-center gap-1.5 uppercase tracking-wide">
+                    <MessageSquare size={13} className="text-[#e91e8c]" />
+                    Comments ({replies.length})
+                </span>
+            </div>
 
-                            return (
-                                <div key={commentId} style={{ display: "flex", gap: 6, alignItems: "flex-start", paddingLeft: isReply ? 24 : 0, minWidth: 0, width: "100%" }}>
-                                    <div style={{ width: 14, height: 14, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", cursor: onFanProfile ? "pointer" : "default" }}
-                                        onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: getKnownBotAvatarUrl(r.authorUsername) || r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid, isBot: Boolean(getKnownBotAvatarUrl(r.authorUsername)) }); }}
-                                    >
-                                        {(() => {
-                                            const resolvedAvatar =
-                                                getKnownBotAvatarUrl(r.authorUsername) ||
-                                                r.authorAvatarUrl ||
-                                                r.avatarUrl ||
-                                                (r.authorUsername === currentUsername ? currentAvatarUrl : undefined);
-                                            return resolvedAvatar
-                                                ? <img src={resolvedAvatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                                : <span style={{ fontSize: 7, fontWeight: 800, color: "#fff" }}>{(r.authorUsername ?? "?")[0].toUpperCase()}</span>;
-                                        })()}
-                                    </div>
-                                    <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
-                                        <span
-                                            style={{ fontWeight: 700, color: "#fff", fontSize: 10, display: "block", wordBreak: "break-word", cursor: onFanProfile ? "pointer" : "default" }}
-                                            onClick={e => { e.stopPropagation(); onFanProfile?.({ username: r.authorUsername, badge: r.authorBadge, avatarUrl: getKnownBotAvatarUrl(r.authorUsername) || r.authorAvatarUrl || r.avatarUrl, authorUid: r.authorUid, isBot: Boolean(getKnownBotAvatarUrl(r.authorUsername)) }); }}
-                                        >
-                                            {r.authorUsername ?? "Fan"}
-                                        </span>
-                                        <p style={{ margin: 0, fontSize: 10, lineHeight: 1.4, color: "rgba(255,255,255,0.75)", wordBreak: "break-word", overflowWrap: "anywhere" }}>
-                                            {isReply ? (() => {
-                                                const spaceIdx = (r.text ?? "").indexOf(" ");
-                                                const mention = spaceIdx > -1 ? (r.text ?? "").slice(0, spaceIdx) : (r.text ?? "");
-                                                const rest = spaceIdx > -1 ? (r.text ?? "").slice(spaceIdx) : "";
-                                                return (<><span style={{ color: accentColor, fontWeight: 600 }}>{mention}</span>{rest}</>);
-                                            })() : (r.text ?? "")}
-                                        </p>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 1 }}>
-                                            {liveHeartCount > 0 && (
-                                                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.35)" }}>{liveHeartCount} {liveHeartCount === 1 ? "like" : "likes"}</span>
-                                            )}
-                                            <button type="button" onClick={e => { e.stopPropagation(); setReplyTo({ commentId, authorUsername: r.authorUsername ?? "Fan" }); setTimeout(() => inputRef.current?.focus(), 80); }} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 9, fontWeight: 700, color: "rgba(255,255,255,0.35)", padding: 0 }}>Reply</button>
-                                            {isOwnComment && (
-                                                <button
-                                                    type="button"
-                                                    onClick={e => { e.stopPropagation(); handleDeleteComment(commentId); }}
-                                                    disabled={deletingCommentId === commentId}
-                                                    style={{ background: "none", border: "none", cursor: deletingCommentId === commentId ? "wait" : "pointer", fontSize: 9, fontWeight: 700, color: "#f87171", padding: 0, display: "flex", alignItems: "center", gap: 2 }}
-                                                >
-                                                    <Trash2 size={9} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                                        <ReactionPicker
-                                            currentReaction={currentReaction}
-                                            count={liveHeartCount}
-                                            onReact={(reaction) => handleCommentReact(commentId, reaction)}
-                                            postId={commentId}
-                                            roomId={roomId}
-                                            roomName={roomName}
-                                        />
-                                        {liveHeartCount > 0 && displayReactions.length > 0 && (
-                                            <button
-                                                onClick={() => setReactionsDialogCommentId(commentId)}
-                                                style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-                                                title="See who reacted"
-                                            >
-                                                <div style={{ display: "flex" }}>
-                                                    {displayReactions.map((type, idx) => (
-                                                        <div key={type} style={{ width: 12, height: 12, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 7, marginLeft: idx === 0 ? 0 : -4, zIndex: displayReactions.length - idx, position: "relative" }}>
-                                                            {REACTION_EMOJI[type] ?? "❤️"}
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
-                        {replies.length > 2 && !showAllReplies && (
-                            <button type="button" onClick={e => { e.stopPropagation(); setShowAllReplies(true); }} style={{ alignSelf: "flex-start", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 700, color: accentColor, padding: 0, marginTop: 1 }}>View all replies →</button>
-                        )}
+            {/* ── Top Input Form ── */}
+            <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="relative flex flex-col gap-1.5">
+                {replyTo && (
+                    <div className="flex items-center justify-between text-[10px] text-white/70 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
+                        <span className="flex items-center gap-1">
+                            <CornerDownRight size={11} className="text-[#e91e8c]" />
+                            Replying to <strong className="text-white">@{replyTo.authorUsername}</strong>
+                        </span>
+                        <button
+                            type="button"
+                            onClick={() => { setReplyTo(null); setCommentText(""); }}
+                            className="text-white/40 hover:text-white"
+                        >
+                            ✕ Cancel
+                        </button>
                     </div>
                 )}
-
-                <AnimatePresence>
-                    {replyTo && (
-                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} style={{ overflow: "hidden", marginBottom: 3 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 4, paddingLeft: 2 }}>
-                                <span style={{ fontSize: 9, color: "rgba(255,255,255,0.4)" }}>Replying to</span>
-                                <span style={{ fontSize: 9, fontWeight: 700, color: accentColor, background: `${accentColor}18`, border: `1px solid ${accentColor}40`, borderRadius: 999, padding: "1px 6px" }}>@{replyTo.authorUsername}</span>
-                                <button type="button" onClick={e => { e.stopPropagation(); setReplyTo(null); }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 12, lineHeight: 1, padding: 0 }}>×</button>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "3px 5px", borderRadius: 14, background: "rgba(255,255,255,0.04)", border: `1px solid ${accentColor}40`, position: "relative" }}>
-                    {mention.showMentionPopup && (
-                        <MentionPopup
-                            mentionUsers={mention.mentionUsers}
-                            mentionIndex={mention.mentionIndex}
-                            setMentionIndex={mention.setMentionIndex}
-                            onSelect={(u) => mention.insertMention(u, commentText, setCommentText, inputRef)}
-                        />
-                    )}
-                    {currentAvatarUrl ? <img src={currentAvatarUrl} alt="" style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, objectFit: "cover" }} /> : <div style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, background: "linear-gradient(135deg,#e91e8c,#ff6b35)" }} />}
+                <div className="flex items-center gap-2">
                     <input
                         ref={inputRef}
                         type="text"
                         value={commentText}
-                        onChange={e => {
-                            const value = e.target.value;
-                            setCommentText(value);
-                            mention.handleMentionInputChange(value, e.target.selectionStart || value.length);
-                        }}
-                        onKeyDown={e => {
-                            if (mention.handleMentionKeyDown(e, commentText, setCommentText, inputRef)) return;
-                            if (e.key === "Enter") handleSend();
-                        }}
-                        placeholder={replyTo ? `…` : "Add a comment…"}
-                        style={{ flex: 1, background: "none", border: "none", outline: "none", color: "#fff", fontSize: 11, fontWeight: 500 }}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        placeholder={replyTo ? `Reply to @${replyTo.authorUsername}...` : "Write a comment..."}
+                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#e91e8c]"
                     />
-                    <button type="button" onClick={e => { e.stopPropagation(); onOpenFull(); }} style={{ background: "none", border: "none", cursor: "pointer", color: "rgba(255,255,255,0.3)", fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", padding: "0 2px" }}>All</button>
-                    <motion.button whileTap={{ scale: 0.9 }} type="button" onClick={e => { e.stopPropagation(); handleSend(); }} disabled={!commentText.trim() || sending} style={{ background: commentText.trim() ? `linear-gradient(135deg,${accentColor},#ff6b35)` : "rgba(255,255,255,0.08)", border: "none", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", cursor: commentText.trim() ? "pointer" : "default", transition: "background 0.2s", flexShrink: 0 }}>
-                        <Send size={12} color={commentText.trim() ? "#fff" : "rgba(255,255,255,0.3)"} />
-                    </motion.button>
+                    <button
+                        type="submit"
+                        disabled={!commentText.trim() || sending}
+                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#e91e8c] to-[#ff6b35] text-white text-xs font-bold flex items-center gap-1 disabled:opacity-40 shrink-0"
+                    >
+                        <Send size={12} /><span>Send</span>
+                    </button>
                 </div>
-            </div>
+            </form>
+
+            {loading && replies.length === 0 ? (
+                <div className="text-center py-2 text-[10px] text-white/40 italic">Loading comments...</div>
+            ) : replies.length === 0 ? (
+                <div className="text-center py-3 text-[11px] text-white/40">No comments yet. Start the conversation!!</div>
+            ) : (
+                <div className="flex flex-col gap-2 mt-1">
+                    {threaded.map((comment: any) => {
+                        const commentId = comment.id;
+                        const lo = commentReactions[commentId];
+                        const persistedReaction = comment.userReaction ?? (currentUserId ? comment.reactions?.[currentUserId] : null);
+                        const currentReaction = lo !== undefined ? lo.reaction : persistedReaction;
+                        const isLiked = currentReaction === "heart";
+                        const liveHeartCount = lo !== undefined ? lo.heartCount : (comment.heartCount ?? 0);
+                        const isOwnComment = Boolean(currentUserId && (comment.authorUid === currentUserId || comment.authorUsername === currentUsername));
+                        const commentReplies = comment.replies || [];
+                        const open = expandedReplies[commentId] !== false;
+
+                        return (
+                            <div key={commentId} className="flex flex-col gap-1.5 bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
+                                <div className="flex items-start gap-2">
+                                    <div className="w-6 h-6 rounded-full overflow-hidden bg-white/10 shrink-0 border border-white/10">
+                                        {comment.authorAvatarUrl ? (
+                                            <img src={comment.authorAvatarUrl} alt={comment.authorUsername} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]">
+                                                {(comment.authorUsername || "F").charAt(0).toUpperCase()}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                            <span
+                                                className="text-[11px] font-bold text-white truncate cursor-pointer hover:underline"
+                                                onClick={() => onFanProfile?.({ username: comment.authorUsername, badge: comment.authorBadge, avatarUrl: comment.authorAvatarUrl, authorUid: comment.authorUid })}
+                                            >
+                                                {comment.authorUsername}
+                                            </span>
+                                            <span className="text-[9px] text-white/35 shrink-0">{timeAgo(comment.createdAt)}</span>
+                                        </div>
+                                        <p className="text-[11px] text-white/85 leading-relaxed break-words">{comment.text}</p>
+                                        <div className="flex items-center gap-3 mt-1.5 text-[10px]">
+                                            <div className="flex items-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCommentReact(commentId, isLiked ? null : "heart")}
+                                                    className={`flex items-center gap-1 ${isLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"}`}
+                                                    title={isLiked ? "Unlike" : "Like"}
+                                                >
+                                                    <Heart size={11} fill={isLiked ? "currentColor" : "none"} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (liveHeartCount > 0) setReactionsDialogCommentId(commentId);
+                                                        else handleCommentReact(commentId, isLiked ? null : "heart");
+                                                    }}
+                                                    className={`${liveHeartCount > 0 ? "hover:underline cursor-pointer hover:text-white" : ""} ${isLiked ? "text-[#e91e8c] font-bold" : "text-white/45"}`}
+                                                    title={liveHeartCount > 0 ? "See who liked" : "Like"}
+                                                >
+                                                    {liveHeartCount}
+                                                </button>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => startReply(commentId, comment.authorUsername || "Fan")}
+                                                className="flex items-center gap-1 text-white/45 hover:text-white/80"
+                                            >
+                                                <Reply size={11} /><span>Reply</span>
+                                            </button>
+                                            {isOwnComment && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleDeleteComment(commentId)}
+                                                    disabled={deletingCommentId === commentId}
+                                                    className="text-white/25 hover:text-red-400 ml-auto"
+                                                    title="Delete comment"
+                                                >
+                                                    <Trash2 size={11} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Reply count toggle */}
+                                {commentReplies.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpandedReplies(p => ({ ...p, [commentId]: !open }))}
+                                        className="flex items-center gap-1 ml-7 text-[10px] text-[#e91e8c] hover:underline font-semibold"
+                                    >
+                                        {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                                        <span>{open ? "Hide replies" : `View ${commentReplies.length} ${commentReplies.length === 1 ? "reply" : "replies"}`}</span>
+                                    </button>
+                                )}
+
+                                {/* Nested replies list */}
+                                {open && commentReplies.length > 0 && (
+                                    <div className="flex flex-col gap-1.5 ml-7 pl-2.5 border-l-2 border-[#e91e8c]/30 mt-1">
+                                        {commentReplies.map((reply: any) => {
+                                            const replyId = reply.id;
+                                            const rLo = commentReactions[replyId];
+                                            const rPersisted = reply.userReaction ?? (currentUserId ? reply.reactions?.[currentUserId] : null);
+                                            const rReaction = rLo !== undefined ? rLo.reaction : rPersisted;
+                                            const rLiked = rReaction === "heart";
+                                            const rHeartCount = rLo !== undefined ? rLo.heartCount : (reply.heartCount ?? 0);
+                                            const isOwnReply = Boolean(currentUserId && (reply.authorUid === currentUserId || reply.authorUsername === currentUsername));
+
+                                            const spaceIdx = (reply.text ?? "").indexOf(" ");
+                                            const hasMention = (reply.text ?? "").startsWith("@") && spaceIdx > -1;
+                                            const mentionPart = hasMention ? (reply.text ?? "").slice(0, spaceIdx) : "";
+                                            const bodyPart = hasMention ? (reply.text ?? "").slice(spaceIdx) : (reply.text ?? "");
+
+                                            return (
+                                                <div key={replyId} className="flex items-start gap-2 bg-white/[0.02] p-2 rounded-lg">
+                                                    <div className="w-5 h-5 rounded-full overflow-hidden bg-white/10 shrink-0 border border-white/10">
+                                                        {reply.authorAvatarUrl ? (
+                                                            <img src={reply.authorAvatarUrl} alt={reply.authorUsername} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-white bg-white/20">
+                                                                {(reply.authorUsername || "F").charAt(0).toUpperCase()}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                                                            <span
+                                                                className="text-[10px] font-bold text-white truncate cursor-pointer hover:underline"
+                                                                onClick={() => onFanProfile?.({ username: reply.authorUsername, badge: reply.authorBadge, avatarUrl: reply.authorAvatarUrl, authorUid: reply.authorUid })}
+                                                            >
+                                                                {reply.authorUsername}
+                                                            </span>
+                                                            <span className="text-[9px] text-white/35 shrink-0">{timeAgo(reply.createdAt)}</span>
+                                                        </div>
+                                                        <p className="text-[10px] text-white/80 leading-relaxed break-words">
+                                                            {hasMention && <strong className="text-[#e91e8c] font-semibold mr-1">{mentionPart}</strong>}
+                                                            {bodyPart}
+                                                        </p>
+                                                        <div className="flex items-center gap-3 mt-1 text-[9px]">
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleCommentReact(replyId, rLiked ? null : "heart")}
+                                                                    className={`flex items-center gap-1 ${rLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"}`}
+                                                                    title={rLiked ? "Unlike" : "Like"}
+                                                                >
+                                                                    <Heart size={10} fill={rLiked ? "currentColor" : "none"} />
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (rHeartCount > 0) setReactionsDialogCommentId(replyId);
+                                                                        else handleCommentReact(replyId, rLiked ? null : "heart");
+                                                                    }}
+                                                                    className={`${rHeartCount > 0 ? "hover:underline cursor-pointer hover:text-white" : ""} ${rLiked ? "text-[#e91e8c] font-bold" : "text-white/45"}`}
+                                                                    title={rHeartCount > 0 ? "See who liked" : "Like"}
+                                                                >
+                                                                    {rHeartCount}
+                                                                </button>
+                                                            </div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => startReply(commentId, reply.authorUsername || "Fan")}
+                                                                className="flex items-center gap-1 text-white/45 hover:text-white/80"
+                                                            >
+                                                                <Reply size={10} /><span>Reply</span>
+                                                            </button>
+                                                            {isOwnReply && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleDeleteComment(replyId)}
+                                                                    disabled={deletingCommentId === replyId}
+                                                                    className="text-white/25 hover:text-red-400 ml-auto"
+                                                                    title="Delete reply"
+                                                                >
+                                                                    <Trash2 size={10} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
 
             <ReactionsDialog
                 postId={reactionsDialogCommentId ?? ""}
@@ -4656,18 +4830,151 @@ function InlineSection({
     );
 }
 
-
 // ── INLINE CELEBRATION CARDS (VISUAL RECOGNITION & OUTCOME REVEAL) ───────────
 function InlineRecognitionCard({
     item,
     isTargetUser,
+    onShowLikers,
+    currentUserId,
+    matchId,
 }: {
     item: any;
     isTargetUser: boolean;
+    onShowLikers?: (id: string) => void;
+    currentUserId?: string;
+    matchId?: string;
 }) {
     const themeColor = item.themeColor || "#f59e0b";
     const rewards = item.rewards || { totalSxp: 25, accuracySxp: 15, participationSxp: 10 };
     const dateStr = item.createdAt ? new Date(getTimestamp(item.createdAt)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+    const itemId = String(item.recognitionId || item.id || "").trim();
+    const effectiveUserId = currentUserId || "fan_guest";
+
+    const likeKey = `sf_rec_like_${itemId}_${effectiveUserId}`;
+    const shareKey = `sf_rec_share_${itemId}_${effectiveUserId}`;
+
+    const [likes, setLikes] = useState<number>(Number(item.likes || item.likesCount || 0));
+    const [isLiked, setIsLiked] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(likeKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [commentsCount, setCommentsCount] = useState<number>(Number(item.commentsCount || 0));
+    const [shares, setShares] = useState<number>(Number(item.shares || 0));
+    const [hasShared, setHasShared] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(shareKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [shareCopied, setShareCopied] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+
+    useEffect(() => {
+        if (item.likes !== undefined) setLikes(Number(item.likes) || 0);
+        if (item.commentsCount !== undefined) setCommentsCount(Number(item.commentsCount) || 0);
+        if (item.shares !== undefined) setShares(Number(item.shares) || 0);
+    }, [item.likes, item.commentsCount, item.shares]);
+
+    useEffect(() => {
+        if (!itemId) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
+                    params: { userId: effectiveUserId, matchId },
+                    timeout: 8000,
+                });
+                if (cancelled) return;
+                if (typeof res.data?.likes === "number") setLikes(res.data.likes);
+                if (typeof res.data?.liked === "boolean") {
+                    setIsLiked(res.data.liked);
+                    try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
+                }
+            } catch {}
+            try {
+                const cRes = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/comments`, {
+                    params: { countOnly: "1", matchId },
+                    timeout: 8000,
+                });
+                if (cancelled) return;
+                if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
+            } catch {}
+        })();
+        return () => { cancelled = true; };
+    }, [itemId, effectiveUserId, matchId, likeKey]);
+
+    const handleToggleLike = async () => {
+        const nextLiked = !isLiked;
+        const prevLikes = likes;
+        setIsLiked(nextLiked);
+        setLikes(prev => Math.max(0, prev + (nextLiked ? 1 : -1)));
+        try { localStorage.setItem(likeKey, String(nextLiked)); } catch {}
+
+        try {
+            const res = await axios.post(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
+                userId: effectiveUserId,
+                matchId,
+            }, { timeout: 8000 });
+            if (typeof res.data?.likes === "number") setLikes(res.data.likes);
+            if (typeof res.data?.liked === "boolean") {
+                setIsLiked(res.data.liked);
+                try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
+            }
+        } catch {
+            setIsLiked(!nextLiked);
+            setLikes(prevLikes);
+            try { localStorage.setItem(likeKey, String(!nextLiked)); } catch {}
+        }
+    };
+
+    const handleShare = async () => {
+        const shareUrl = typeof window !== "undefined"
+            ? `${window.location.origin}${window.location.pathname}?recognition=${itemId}` : "";
+        const shareTitle = item.headline || "SportsFan360 Recognition";
+        let didShare = false;
+
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({ title: shareTitle, text: item.message || shareTitle, url: shareUrl });
+                didShare = true;
+            } catch (err: any) {
+                if (err?.name === "AbortError") return;
+            }
+        }
+
+        if (!didShare) {
+            try {
+                if (typeof navigator !== "undefined" && navigator.clipboard) {
+                    await navigator.clipboard.writeText(shareUrl);
+                } else {
+                    const ta = document.createElement("textarea");
+                    ta.value = shareUrl;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                }
+                didShare = true;
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2200);
+            } catch {}
+        }
+
+        if (!didShare || hasShared) return;
+        setHasShared(true);
+        setShares(s => s + 1);
+        try { localStorage.setItem(shareKey, "true"); } catch {}
+
+        try {
+            const res = await axios.post(`/api/engagements/${encodeURIComponent(itemId)}/share`, {
+                userId: effectiveUserId,
+                matchId,
+            }, { timeout: 8000 });
+            if (typeof res.data?.shares === "number") setShares(res.data.shares);
+        } catch {}
+    };
 
     return (
         <motion.div
@@ -4766,6 +5073,120 @@ function InlineRecognitionCard({
                     </div>
                 )}
             </div>
+
+            {/* ACTION BAR (Like, Comment, Share) */}
+            <div className="px-3.5 pb-2.5 pt-1">
+                <div style={{ display: "flex", gap: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6, alignItems: "center" }}>
+                    {/* Live Like with show likers */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <button
+                            type="button"
+                            onClick={handleToggleLike}
+                            className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${
+                                isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                            }`}
+                            title={isLiked ? "Unlike" : "Like this recognition"}
+                        >
+                            <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (likes > 0) onShowLikers?.(itemId);
+                                else handleToggleLike();
+                            }}
+                            className={`text-[10px] transition-colors ${
+                                likes > 0 ? "hover:underline cursor-pointer hover:text-white" : ""
+                            } ${isLiked ? "text-[#e91e8c] font-bold" : "text-[#9494ad]"}`}
+                            title={likes > 0 ? "See who liked this" : "Like this recognition"}
+                        >
+                            {likes}
+                        </button>
+                    </div>
+
+                    {/* Comments Toggle Button */}
+                    <button
+                        type="button"
+                        onClick={() => setShowComments(prev => !prev)}
+                        className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${
+                            showComments ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                        }`}
+                        title="View comments"
+                    >
+                        <MessageSquare size={12} />
+                        <span style={{ fontSize: 10 }}>Comments ({commentsCount})</span>
+                        {showComments ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </button>
+
+                    {/* Native Share */}
+                    <button
+                        type="button"
+                        onClick={handleShare}
+                        className={`flex items-center gap-1 text-[11px] transition-colors relative ${
+                            hasShared ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                        }`}
+                        title="Share"
+                    >
+                        <Share2 size={12} />
+                        <span style={{ fontSize: 10 }}>{shares}</span>
+                        {shareCopied && (
+                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/90 border border-white/20 text-[9px] text-white whitespace-nowrap shadow-md pointer-events-none">
+                                Copied!
+                            </span>
+                        )}
+                    </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(itemId);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
+                </div>
+
+                {/* ── Inline Comments Thread ── */}
+                <AnimatePresence>
+                    {showComments && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                        >
+                            <EngagementCommentsThread
+                                engagementId={itemId}
+                                matchId={item.matchId || matchId}
+                                accentColor={themeColor}
+                                onCommentCountChange={(cnt: number) => {
+                                    setCommentsCount(cnt);
+                                }}
+                            />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+            </div>
         </motion.div>
     );
 }
@@ -4774,14 +5195,148 @@ function InlineOutcomeRevealCard({
     item,
     isWinner,
     isParticipant,
+    onShowLikers,
+    currentUserId,
+    matchId,
 }: {
     item: any;
     isWinner: boolean;
     isParticipant: boolean;
+    onShowLikers?: (id: string) => void;
+    currentUserId?: string;
+    matchId?: string;
 }) {
     const dateStr = item.createdAt ? new Date(getTimestamp(item.createdAt)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
     const winningText = item.winningChoiceText || item.winningChoiceId || "Resolved";
     const bonusPoints = item.bonusPoints || 10;
+    const itemId = String(item.id || item.engagementId || "").trim();
+    const effectiveUserId = currentUserId || "fan_guest";
+
+    const likeKey = `sf_rev_like_${itemId}_${effectiveUserId}`;
+    const shareKey = `sf_rev_share_${itemId}_${effectiveUserId}`;
+
+    const [likes, setLikes] = useState<number>(Number(item.likes || item.likesCount || 0));
+    const [isLiked, setIsLiked] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(likeKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [commentsCount, setCommentsCount] = useState<number>(Number(item.commentsCount || 0));
+    const [shares, setShares] = useState<number>(Number(item.shares || 0));
+    const [hasShared, setHasShared] = useState<boolean>(() => {
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(shareKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [shareCopied, setShareCopied] = useState(false);
+    const [showComments, setShowComments] = useState(false);
+
+    useEffect(() => {
+        if (item.likes !== undefined) setLikes(Number(item.likes) || 0);
+        if (item.commentsCount !== undefined) setCommentsCount(Number(item.commentsCount) || 0);
+        if (item.shares !== undefined) setShares(Number(item.shares) || 0);
+    }, [item.likes, item.commentsCount, item.shares]);
+
+    useEffect(() => {
+        if (!itemId) return;
+        let cancelled = false;
+        (async () => {
+            try {
+                const res = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
+                    params: { userId: effectiveUserId, matchId },
+                    timeout: 8000,
+                });
+                if (cancelled) return;
+                if (typeof res.data?.likes === "number") setLikes(res.data.likes);
+                if (typeof res.data?.liked === "boolean") {
+                    setIsLiked(res.data.liked);
+                    try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
+                }
+            } catch {}
+            try {
+                const cRes = await axios.get(`/api/engagements/${encodeURIComponent(itemId)}/comments`, {
+                    params: { countOnly: "1", matchId },
+                    timeout: 8000,
+                });
+                if (cancelled) return;
+                if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
+            } catch {}
+        })();
+        return () => { cancelled = true; };
+    }, [itemId, effectiveUserId, matchId, likeKey]);
+
+    const handleToggleLike = async () => {
+        const nextLiked = !isLiked;
+        const prevLikes = likes;
+        setIsLiked(nextLiked);
+        setLikes(prev => Math.max(0, prev + (nextLiked ? 1 : -1)));
+        try { localStorage.setItem(likeKey, String(nextLiked)); } catch {}
+
+        try {
+            const res = await axios.post(`/api/engagements/${encodeURIComponent(itemId)}/like`, {
+                userId: effectiveUserId,
+                matchId,
+            }, { timeout: 8000 });
+            if (typeof res.data?.likes === "number") setLikes(res.data.likes);
+            if (typeof res.data?.liked === "boolean") {
+                setIsLiked(res.data.liked);
+                try { localStorage.setItem(likeKey, String(res.data.liked)); } catch {}
+            }
+        } catch {
+            setIsLiked(!nextLiked);
+            setLikes(prevLikes);
+            try { localStorage.setItem(likeKey, String(!nextLiked)); } catch {}
+        }
+    };
+
+    const handleShare = async () => {
+        const shareUrl = typeof window !== "undefined"
+            ? `${window.location.origin}${window.location.pathname}?reveal=${itemId}` : "";
+        const shareTitle = item.title || "Match Moment Outcome Revealed";
+        let didShare = false;
+
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({ title: shareTitle, text: winningText || shareTitle, url: shareUrl });
+                didShare = true;
+            } catch (err: any) {
+                if (err?.name === "AbortError") return;
+            }
+        }
+
+        if (!didShare) {
+            try {
+                if (typeof navigator !== "undefined" && navigator.clipboard) {
+                    await navigator.clipboard.writeText(shareUrl);
+                } else {
+                    const ta = document.createElement("textarea");
+                    ta.value = shareUrl;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                }
+                didShare = true;
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2200);
+            } catch {}
+        }
+
+        if (!didShare || hasShared) return;
+        setHasShared(true);
+        setShares(s => s + 1);
+        try { localStorage.setItem(shareKey, "true"); } catch {}
+
+        try {
+            const res = await axios.post(`/api/engagements/${encodeURIComponent(itemId)}/share`, {
+                userId: effectiveUserId,
+                matchId,
+            }, { timeout: 8000 });
+            if (typeof res.data?.shares === "number") setShares(res.data.shares);
+        } catch {}
+    };
 
     return (
         <motion.div
@@ -4863,6 +5418,120 @@ function InlineOutcomeRevealCard({
                         </span>
                     )}
                 </div>
+            </div>
+
+            {/* ACTION BAR (Like, Comment, Share) */}
+            <div className="px-3.5 pb-2.5 pt-1">
+                <div style={{ display: "flex", gap: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 6, alignItems: "center" }}>
+                    {/* Live Like with show likers */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <button
+                            type="button"
+                            onClick={handleToggleLike}
+                            className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${
+                                isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                            }`}
+                            title={isLiked ? "Unlike" : "Like this outcome"}
+                        >
+                            <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (likes > 0) onShowLikers?.(itemId);
+                                else handleToggleLike();
+                            }}
+                            className={`text-[10px] transition-colors ${
+                                likes > 0 ? "hover:underline cursor-pointer hover:text-white" : ""
+                            } ${isLiked ? "text-[#e91e8c] font-bold" : "text-[#9494ad]"}`}
+                            title={likes > 0 ? "See who liked this" : "Like this outcome"}
+                        >
+                            {likes}
+                        </button>
+                    </div>
+
+                    {/* Comments Toggle Button */}
+                    <button
+                        type="button"
+                        onClick={() => setShowComments(prev => !prev)}
+                        className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${
+                            showComments ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                        }`}
+                        title="View comments"
+                    >
+                        <MessageSquare size={12} />
+                        <span style={{ fontSize: 10 }}>Comments ({commentsCount})</span>
+                        {showComments ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                    </button>
+
+                    {/* Native Share */}
+                    <button
+                        type="button"
+                        onClick={handleShare}
+                        className={`flex items-center gap-1 text-[11px] transition-colors relative ${
+                            hasShared ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
+                        }`}
+                        title="Share"
+                    >
+                        <Share2 size={12} />
+                        <span style={{ fontSize: 10 }}>{shares}</span>
+                        {shareCopied && (
+                            <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded bg-black/90 border border-white/20 text-[9px] text-white whitespace-nowrap shadow-md pointer-events-none">
+                                Copied!
+                            </span>
+                        )}
+                    </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(itemId);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
+                </div>
+
+                {/* ── Inline Comments Thread ── */}
+                <AnimatePresence>
+                    {showComments && (
+                        <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                        >
+                            <EngagementCommentsThread
+                                engagementId={itemId}
+                                matchId={item.matchId || matchId}
+                                accentColor="#10b981"
+                                onCommentCountChange={(cnt: number) => {
+                                    setCommentsCount(cnt);
+                                }}
+                            />
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
         </motion.div>
     );
@@ -5167,11 +5836,18 @@ export default function OpenRoomDiscussionRoom({
         }
 
         const cleanMatchId = mId ? String(mId).replace(/^MATCH#/, "").trim() : "";
+        const effUserId = currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId || "";
+        const effUsername = userUsername || userProfile?.username || userProfile?.name || "";
 
         try {
-            const url = cleanMatchId
-                ? `/api/roar/celebrations?matchId=${encodeURIComponent(cleanMatchId)}&roomId=${encodeURIComponent(roomId)}`
-                : `/api/roar/celebrations?roomId=${encodeURIComponent(roomId)}`;
+            const qParams = new URLSearchParams();
+            if (cleanMatchId) qParams.set("matchId", cleanMatchId);
+            if (roomId) qParams.set("roomId", roomId);
+            if (effUserId) qParams.set("userId", effUserId);
+            if (effUsername) qParams.set("username", effUsername);
+            qParams.set("_t", String(Date.now()));
+
+            const url = `/api/roar/celebrations?${qParams.toString()}`;
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
             if (res.data?.success) {
                 if (Array.isArray(res.data.recognitions)) {
@@ -5197,7 +5873,7 @@ export default function OpenRoomDiscussionRoom({
         } catch (e) {
             console.warn("fetchCelebrations notice:", e);
         }
-    }, [roomId, roomMatchId, onToast]);
+    }, [roomId, roomMatchId, onToast, currentUserId, userUsername, userProfile]);
 
     // ── Fetch active Match Engagements for Room / Match ──
     const fetchEngagements = useCallback(async () => {
@@ -5899,7 +6575,7 @@ export default function OpenRoomDiscussionRoom({
         if (!roomId) return;
         fetchCelebrations();
     }, [fetchCelebrations, roomId, roomMatchId]);
-    useVisibilityInterval(fetchCelebrations, 8000);
+    useVisibilityInterval(fetchCelebrations, 4000);
 
     // useEffect(() => {
     //     const list = listRef.current;
@@ -6783,6 +7459,9 @@ export default function OpenRoomDiscussionRoom({
                                     key={`rec-${item.data.id || item.data.recognitionId || item.sortKey}`}
                                     item={item.data}
                                     isTargetUser={isTargetUser}
+                                    onShowLikers={(id) => setReactionsMsgId(id)}
+                                    currentUserId={currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId}
+                                    matchId={roomMatchId || item.data.matchId}
                                 />
                             );
                         }
@@ -6803,6 +7482,9 @@ export default function OpenRoomDiscussionRoom({
                                     item={item.data}
                                     isWinner={isWin}
                                     isParticipant={isPart}
+                                    onShowLikers={(id) => setReactionsMsgId(id)}
+                                    currentUserId={currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId}
+                                    matchId={roomMatchId || item.data.matchId}
                                 />
                             );
                         }
@@ -6818,6 +7500,7 @@ export default function OpenRoomDiscussionRoom({
                                     }}
                                     variant="post"
                                     onInteraction={(data) => handleEngagementInteraction(item.data.id, data)}
+                                    onShowLikers={(id) => setReactionsMsgId(id)}
                                 />
                             );
                         }
