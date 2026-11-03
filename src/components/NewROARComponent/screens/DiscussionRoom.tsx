@@ -3764,7 +3764,7 @@ function InlineSection({
         currentUsername={currentUsername}
         onFanProfile={onFanProfile}
         onCommentCountChange={(count) => {
-          onCommentPosted();
+          setPosts(prev => prev.map(x => x.id === postId ? { ...x, replyCount: count } : x));
         }}
       />
     </motion.div>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Heart, MessageSquare, Reply, Send, Trash2, ChevronDown, ChevronUp, CornerDownRight } from "lucide-react";
 import axios from "axios";
 import { useUserProfile } from "@/context/UserProfileContext";
@@ -46,8 +46,14 @@ function timeAgo(ts?: number | string): string {
 // Maps API shapes (DynamoDB RealTimeChat, SocialAndContent, Firestore) -> UI shape
 function normalize(c: any): ThreadComment {
     const rawLikes = Number(c.likesCount ?? c.heartCount ?? c.likes ?? 0);
-    const rawLikedBy = Array.isArray(c.likedBy) ? c.likedBy : [];
-    const isLikedByUser = c.userReaction === "heart";
+    const reactions = c.reactions && typeof c.reactions === "object" ? c.reactions : {};
+    const reactionUids = Object.entries(reactions)
+        .filter(([_, r]) => r === "heart" || r === "like" || r === true)
+        .map(([uid]) => uid);
+    const rawLikedBy = Array.isArray(c.likedBy) && c.likedBy.length > 0
+        ? Array.from(new Set([...c.likedBy, ...reactionUids]))
+        : reactionUids;
+    const isLikedByUser = c.userReaction === "heart" || c.userLiked === true;
 
     return {
         id: String(c.id || c.commentId || c._id || `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`),
@@ -58,7 +64,7 @@ function normalize(c: any): ThreadComment {
         userAvatar: c.authorAvatarUrl || c.userAvatar || c.avatarUrl || "",
         createdAt: Number(c.createdAt) || Date.now(),
         likes: rawLikes,
-        likedBy: isLikedByUser && rawLikedBy.length === 0 ? ["me"] : rawLikedBy,
+        likedBy: isLikedByUser && !rawLikedBy.includes("me") ? [...rawLikedBy, "me"] : rawLikedBy,
         parentCommentId: c.parentId ? String(c.parentId).replace(/^COMMENT#/, "").trim() : (c.parentCommentId || null),
         replies: Array.isArray(c.replies) ? c.replies.map(normalize) : [],
     };
@@ -150,11 +156,53 @@ export default function EngagementCommentsThread({
     onCommentCountChange,
 }: Props) {
     const { userProfile } = useUserProfile();
-    const effectiveUserId = propUserId || userProfile?.actualUserId || userProfile?.email || "guest_fan";
+    const effectiveUserId =
+        propUserId ||
+        userProfile?.actualUserId ||
+        userProfile?.userId ||
+        userProfile?.authUserId ||
+        userProfile?.email ||
+        (typeof window !== "undefined" ? localStorage.getItem("roar_user_id") || localStorage.getItem("sf_user_id") : null) ||
+        "guest_fan";
     const realUserName =
         propUsername || userProfile?.username || userProfile?.name || (userProfile?.email ? userProfile.email.split("@")[0] : "");
     const effectiveUserName = realUserName || "SportsFan";
     const effectiveAvatar = currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || "";
+
+    const myIdCandidates = useMemo(() => {
+        const set = new Set<string>(["me"]);
+        if (effectiveUserId) set.add(effectiveUserId);
+        if (propUserId) set.add(propUserId);
+        if (userProfile?.actualUserId) set.add(userProfile.actualUserId);
+        if (userProfile?.userId) set.add(userProfile.userId);
+        if (userProfile?.authUserId) set.add(userProfile.authUserId);
+        if (userProfile?.email) set.add(userProfile.email.toLowerCase());
+        if (userProfile?.username) set.add(userProfile.username.toLowerCase());
+        if (effectiveUserName) set.add(effectiveUserName.toLowerCase());
+        return set;
+    }, [effectiveUserId, propUserId, userProfile, effectiveUserName]);
+
+    const commentLikesKey = `sf_comment_likes_${effectiveUserId}`;
+    const [likedCommentIds, setLikedCommentIds] = useState<Set<string>>(() => {
+        if (typeof window !== "undefined") {
+            try {
+                const stored = localStorage.getItem(commentLikesKey);
+                if (stored) return new Set<string>(JSON.parse(stored));
+            } catch {}
+        }
+        return new Set<string>();
+    });
+
+    const isCommentLiked = useCallback((c: ThreadComment): boolean => {
+        if (likedCommentIds.has(c.id)) return true;
+        const likedBy = c.likedBy || [];
+        for (const uid of likedBy) {
+            if (myIdCandidates.has(uid) || myIdCandidates.has(String(uid).toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
+    }, [likedCommentIds, myIdCandidates]);
 
     const [comments, setComments] = useState<ThreadComment[]>([]);
     const [loading, setLoading] = useState(true);
@@ -204,6 +252,28 @@ export default function EngagementCommentsThread({
             if (list) {
                 loadedRef.current = true;
                 const normalized = list.map(normalize);
+
+                // Sync server-confirmed likes to local Set
+                setLikedCommentIds(prev => {
+                    let changed = false;
+                    const next = new Set(prev);
+                    const scan = (nodes: ThreadComment[]) => {
+                        for (const node of nodes) {
+                            const hasMyLike = (node.likedBy || []).some(uid => myIdCandidates.has(uid) || myIdCandidates.has(String(uid).toLowerCase()));
+                            if (hasMyLike && !next.has(node.id)) {
+                                next.add(node.id);
+                                changed = true;
+                            }
+                            if (node.replies?.length) scan(node.replies);
+                        }
+                    };
+                    scan(normalized);
+                    if (changed && typeof window !== "undefined") {
+                        try { localStorage.setItem(commentLikesKey, JSON.stringify(Array.from(next))); } catch {}
+                    }
+                    return next;
+                });
+
                 const tree = buildTree(normalized);
                 setComments(tree);
             }
@@ -346,25 +416,54 @@ export default function EngagementCommentsThread({
     // Toggle like on comment at any depth
     const toggleLike = async (commentId: string) => {
         if (commentId.startsWith("tmp_")) return;
+
+        // Check current like status
+        const findNode = (nodes: ThreadComment[]): ThreadComment | null => {
+            for (const n of nodes) {
+                if (n.id === commentId) return n;
+                if (n.replies?.length) {
+                    const sub = findNode(n.replies);
+                    if (sub) return sub;
+                }
+            }
+            return null;
+        };
+        const targetNode = findNode(comments);
+        const currentLiked = targetNode ? isCommentLiked(targetNode) : likedCommentIds.has(commentId);
+        const nextLiked = !currentLiked;
+
+        // 1. Instantly update likedCommentIds set and localStorage
+        setLikedCommentIds(prev => {
+            const next = new Set(prev);
+            if (nextLiked) next.add(commentId);
+            else next.delete(commentId);
+            if (typeof window !== "undefined") {
+                try { localStorage.setItem(commentLikesKey, JSON.stringify(Array.from(next))); } catch {}
+            }
+            return next;
+        });
+
+        // 2. Optimistically update node in state
         const flip = (c: ThreadComment): ThreadComment => {
-            const liked = (c.likedBy || []).includes(effectiveUserId) || (c.likedBy || []).includes("me");
+            const currentLikedBy = c.likedBy || [];
+            const newLikedBy = nextLiked
+                ? Array.from(new Set([...currentLikedBy, effectiveUserId, "me"]))
+                : currentLikedBy.filter(u => !myIdCandidates.has(u) && !myIdCandidates.has(String(u).toLowerCase()));
+            const newLikesCount = Math.max(0, c.likes + (nextLiked ? 1 : -1));
             return {
                 ...c,
-                likes: Math.max(0, c.likes + (liked ? -1 : 1)),
-                likedBy: liked
-                    ? (c.likedBy || []).filter(u => u !== effectiveUserId && u !== "me")
-                    : [...(c.likedBy || []), effectiveUserId],
+                likes: newLikesCount,
+                likedBy: newLikedBy,
             };
         };
+        setComments(prev => updateNode(prev, commentId, flip));
 
-        const applyFlip = () => setComments(prev => updateNode(prev, commentId, flip));
-        applyFlip();
-
+        // 3. Send to backend
         try {
             if (roomId && postId) {
                 await axios.post(
                     `/api/roar/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}/react`,
-                    { reaction: "heart" },
+                    { reaction: "heart", userId: effectiveUserId },
                     { timeout: 8000 }
                 );
             } else if (engagementId) {
@@ -374,8 +473,8 @@ export default function EngagementCommentsThread({
                     { timeout: 8000 }
                 );
             }
-        } catch {
-            applyFlip(); // revert if failed
+        } catch (err) {
+            console.warn("[toggleLike] Server sync notice:", err);
         }
     };
 
@@ -394,7 +493,7 @@ export default function EngagementCommentsThread({
 
     // ── Recursive Comment Renderer (Level 0, 1, 2, 3...) ──
     const renderComment = (comment: ThreadComment, depth: number = 0): React.ReactNode => {
-        const isLiked = (comment.likedBy || []).includes(effectiveUserId) || (comment.likedBy || []).includes("me");
+        const isLiked = isCommentLiked(comment);
         const replies = comment.replies || [];
         // Default to TRUE so all replies show immediately after refresh, matching screenshot
         const open = expandedReplies[comment.id] !== false;
@@ -443,11 +542,18 @@ export default function EngagementCommentsThread({
                             <button
                                 type="button"
                                 onClick={() => toggleLike(comment.id)}
-                                className={`flex items-center gap-1 ${isLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"}`}
+                                className={`flex items-center gap-1 transition-colors ${
+                                    isLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"
+                                }`}
                                 title={isLiked ? "Unlike" : "Like"}
                             >
-                                <Heart size={isRoot ? 11 : 10} fill={isLiked ? "currentColor" : "none"} />
-                                <span>{comment.likes}</span>
+                                <Heart
+                                    size={isRoot ? 11 : 10}
+                                    fill={isLiked ? "#e91e8c" : "none"}
+                                    color={isLiked ? "#e91e8c" : "currentColor"}
+                                    strokeWidth={isLiked ? 2.5 : 2}
+                                />
+                                <span className={isLiked ? "text-[#e91e8c] font-bold" : ""}>{comment.likes}</span>
                             </button>
                             <button
                                 type="button"

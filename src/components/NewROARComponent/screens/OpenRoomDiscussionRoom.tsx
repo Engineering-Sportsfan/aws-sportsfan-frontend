@@ -4727,6 +4727,7 @@ function InlineRecognitionCard({
                                 engagementId={itemId}
                                 matchId={item.matchId || matchId}
                                 accentColor={themeColor}
+                                currentUserId={effectiveUserId}
                                 onCommentCountChange={(cnt: number) => {
                                     setCommentsCount(cnt);
                                 }}
@@ -5073,6 +5074,7 @@ function InlineOutcomeRevealCard({
                                 engagementId={itemId}
                                 matchId={item.matchId || matchId}
                                 accentColor="#10b981"
+                                currentUserId={effectiveUserId}
                                 onCommentCountChange={(cnt: number) => {
                                     setCommentsCount(cnt);
                                 }}
