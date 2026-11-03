@@ -2053,7 +2053,7 @@ import EngagementCommentsThread from "@/components/Engagements/EngagementComment
 //     }, [fetchMsgs, roomId, selectedChannelId]);
 
 //     useVisibilityInterval(fetchMsgs, 15000);
-//     useVisibilityInterval(fetchReactionUpdates, 5000);
+//     useVisibilityInterval(fetchReactionUpdates, 2000);
 
 //     useEffect(() => {
 //         if (!roomId) return;
@@ -4340,76 +4340,6 @@ function BattleCard({ post, onToast, onPostClick, roomId, onFanProfile }: {
     );
 }
 
-function timeAgo(ts?: number | string): string {
-    if (!ts) return "now";
-    const date = typeof ts === "number" ? ts : new Date(ts).getTime();
-    if (isNaN(date)) return "now";
-    const diff = Math.max(0, Date.now() - date);
-    if (diff < 60000) return "just now";
-    if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
-    if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
-    return `${Math.floor(diff / 86400000)}d`;
-}
-
-function buildThreadedComments(flat: any[]): any[] {
-    const list = [...flat].sort((a, b) => (Number(a.createdAt) || 0) - (Number(b.createdAt) || 0));
-    const topLevel: any[] = [];
-    const idMap = new Map<string, any>();
-    const userToParentId = new Map<string, string>();
-
-    const normalized = list.map((r, i) => {
-        const id = String(r.id ?? r.commentId ?? String(i));
-        const text = String(r.text ?? "");
-        const rawParentId = r.parentId ? String(r.parentId).replace(/^COMMENT#/, "").trim() : null;
-        const authorUsername = r.authorUsername || r.username || "Fan";
-        return {
-            ...r,
-            id,
-            commentId: id,
-            text,
-            authorUid: String(r.authorUid || r.userId || ""),
-            authorUsername,
-            authorAvatarUrl: r.authorAvatarUrl || r.avatarUrl,
-            authorBadge: r.authorBadge || r.badge,
-            createdAt: Number(r.createdAt || Date.now()),
-            heartCount: Number(r.heartCount ?? r.likesCount ?? r.likes ?? 0),
-            userReaction: r.userReaction ?? null,
-            reactions: r.reactions || {},
-            parentId: rawParentId,
-            replies: [] as any[],
-        };
-    });
-
-    normalized.forEach(item => {
-        idMap.set(item.id, item);
-        if (!item.parentId) {
-            userToParentId.set(item.authorUsername.toLowerCase(), item.id);
-        }
-    });
-
-    normalized.forEach(item => {
-        let parent = item.parentId ? idMap.get(item.parentId) : null;
-        if (!parent && !item.parentId) {
-            const match = item.text.match(/^@([a-zA-Z0-9_.\s]+?)(?:\s|$)/);
-            if (match) {
-                const targetName = match[1].trim().toLowerCase();
-                const priorParentId = userToParentId.get(targetName);
-                if (priorParentId && idMap.has(priorParentId) && priorParentId !== item.id) {
-                    parent = idMap.get(priorParentId);
-                }
-            }
-        }
-
-        if (parent) {
-            parent.replies.push(item);
-        } else {
-            topLevel.push(item);
-        }
-    });
-
-    return topLevel;
-}
-
 function InlineSection({
     postId, roomId, roomName, isOpen, onOpenFull, accentColor, currentAvatarUrl,
     onCommentPosted, onCommentDeleted, currentUserId, currentUsername, onFanProfile, onToast,
@@ -4420,154 +4350,6 @@ function InlineSection({
     currentUserId?: string; currentUsername?: string; onFanProfile?: (fan: any) => void;
     onToast: (m: string) => void;
 }) {
-    const phog = usePostHog();
-    const [replies, setReplies] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [commentText, setCommentText] = useState("");
-    const [sending, setSending] = useState(false);
-    const [replyTo, setReplyTo] = useState<{ commentId: string; authorUsername: string } | null>(null);
-    const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
-    const inputRef = useRef<HTMLInputElement>(null);
-    const [isAnimatingHeight, setIsAnimatingHeight] = useState(true);
-    const [commentReactions, setCommentReactions] = useState<Record<string, { reaction: Reaction | null; heartCount: number }>>({});
-    const pendingCommentReactRef = useRef<Record<string, boolean>>({});
-    const [reactionsDialogCommentId, setReactionsDialogCommentId] = useState<string | null>(null);
-    const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
-
-    const fetchReplies = useCallback(async (silent = false) => {
-        if (!silent) setLoading(true);
-        try {
-            const res = await axios.get(`/api/roar/rooms/${roomId}/messages/${postId}/comments`, {
-                params: { limit: 50, _t: Date.now() },
-                timeout: REQUEST_TIMEOUT_MS,
-            });
-            const list: any[] = res.data?.comments ?? [];
-            setReplies(list);
-        } catch {
-            if (!silent) setReplies([]);
-        } finally {
-            if (!silent) setLoading(false);
-        }
-    }, [postId, roomId]);
-
-    useEffect(() => {
-        if (!isOpen) return;
-        fetchReplies(false);
-        const interval = setInterval(() => {
-            fetchReplies(true);
-        }, 4000);
-        return () => clearInterval(interval);
-    }, [isOpen, fetchReplies]);
-
-    const handleSend = async () => {
-        const text = commentText.trim();
-        if (!text || sending) return;
-        setSending(true);
-
-        const parentId = replyTo ? replyTo.commentId : null;
-        const tempId = `tmp_${Date.now()}`;
-        const optimisticComment = {
-            id: tempId,
-            commentId: tempId,
-            text,
-            parentId,
-            authorUid: currentUserId || "guest_fan",
-            authorUsername: currentUsername || "SportsFan",
-            authorAvatarUrl: currentAvatarUrl,
-            createdAt: Date.now(),
-            heartCount: 0,
-            reactions: {},
-        };
-
-        setReplies(prev => [optimisticComment, ...prev]);
-        if (parentId) {
-            setExpandedReplies(prev => ({ ...prev, [parentId]: true }));
-        }
-
-        setCommentText("");
-        setReplyTo(null);
-
-        try {
-            trackMeaningfulInteraction("comment", { post_id: postId, room_id: roomId, room_name: roomName || "", text });
-            if (phog) {
-                phog.capture("post_comment", { post_id: postId, room_id: roomId, room_name: roomName || "" });
-            }
-        } catch { }
-
-        try {
-            await axios.post(
-                `/api/roar/rooms/${roomId}/messages/${postId}/comments`,
-                { text, parentId },
-                { timeout: REQUEST_TIMEOUT_MS }
-            );
-            onCommentPosted();
-            await fetchReplies(true);
-        } catch (err: any) {
-            setReplies(prev => prev.filter(c => (c.id || c.commentId) !== tempId));
-            setCommentText(text);
-            const isTimeout = err?.code === "ECONNABORTED" || err?.message?.includes("timeout");
-            onToast(isTimeout ? "Taking too long — please try again" : "Failed to send comment");
-        } finally {
-            setSending(false);
-        }
-    };
-
-    const handleCommentReact = useCallback(async (commentId: string, reaction: Reaction | null) => {
-        if (pendingCommentReactRef.current[commentId]) return;
-        const comment = replies.find(c => (c.commentId || c.id) === commentId);
-        const persistedReaction: Reaction | null =
-            comment?.userReaction ?? (currentUserId ? (comment?.reactions?.[currentUserId] ?? null) : null);
-        const prev = commentReactions[commentId] ?? { reaction: persistedReaction, heartCount: comment?.heartCount ?? 0 };
-        const sameReaction = prev.reaction === reaction;
-        const newReaction = sameReaction ? null : reaction;
-        const wasActive = prev.reaction !== null;
-        const newActive = newReaction !== null;
-        const delta = newActive && !wasActive ? 1 : (!newActive && wasActive ? -1 : 0);
-        const optimistic = { reaction: newReaction, heartCount: Math.max(0, prev.heartCount + delta) };
-
-        setCommentReactions(p => ({ ...p, [commentId]: optimistic }));
-        pendingCommentReactRef.current[commentId] = true;
-        const failsafe = setTimeout(() => { pendingCommentReactRef.current[commentId] = false; }, REQUEST_TIMEOUT_MS + 3000);
-        try {
-            const res = await axios.post(
-                `/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}/react`,
-                { reaction: newReaction ?? prev.reaction },
-                { timeout: REQUEST_TIMEOUT_MS }
-            );
-            if (res.data && typeof res.data.heartCount === "number") {
-                setCommentReactions(p => ({ ...p, [commentId]: { ...optimistic, heartCount: res.data.heartCount } }));
-            }
-        } catch {
-            setCommentReactions(p => ({ ...p, [commentId]: prev }));
-        } finally {
-            clearTimeout(failsafe);
-            pendingCommentReactRef.current[commentId] = false;
-        }
-    }, [roomId, postId, replies, commentReactions, currentUserId]);
-
-    const handleDeleteComment = useCallback(async (commentId: string) => {
-        if (!window.confirm("Delete this comment?")) return;
-        setDeletingCommentId(commentId);
-        try {
-            await axios.delete(`/api/roar/rooms/${roomId}/messages/${postId}/comments/${commentId}`, { timeout: REQUEST_TIMEOUT_MS });
-            setReplies(prev => prev.filter(r => (r.id ?? r.commentId) !== commentId));
-            onCommentDeleted?.();
-        } catch {
-            onToast("Failed to delete comment");
-        } finally {
-            setDeletingCommentId(null);
-        }
-    }, [roomId, postId, onCommentDeleted, onToast]);
-
-    const startReply = (rootId: string, authorUsername: string) => {
-        setReplyTo({ commentId: rootId, authorUsername });
-        setCommentText(`@${authorUsername} `);
-        setExpandedReplies(p => ({ ...p, [rootId]: true }));
-        setTimeout(() => inputRef.current?.focus(), 50);
-    };
-
-    const threaded = React.useMemo(() => buildThreadedComments(replies), [replies]);
-
     if (!isOpen) return null;
 
     return (
@@ -4576,255 +4358,19 @@ function InlineSection({
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            onAnimationStart={() => setIsAnimatingHeight(true)}
-            onAnimationComplete={() => setIsAnimatingHeight(false)}
-            style={{ overflow: isAnimatingHeight ? "hidden" : "visible" }}
             onClick={e => e.stopPropagation()}
-            className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-2.5"
         >
-            {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-white/80 flex items-center gap-1.5 uppercase tracking-wide">
-                    <MessageSquare size={13} className="text-[#e91e8c]" />
-                    Comments ({replies.length})
-                </span>
-            </div>
-
-            {/* ── Top Input Form ── */}
-            <form onSubmit={(e) => { e.preventDefault(); handleSend(); }} className="relative flex flex-col gap-1.5">
-                {replyTo && (
-                    <div className="flex items-center justify-between text-[10px] text-white/70 bg-white/5 px-2.5 py-1 rounded-lg border border-white/10">
-                        <span className="flex items-center gap-1">
-                            <CornerDownRight size={11} className="text-[#e91e8c]" />
-                            Replying to <strong className="text-white">@{replyTo.authorUsername}</strong>
-                        </span>
-                        <button
-                            type="button"
-                            onClick={() => { setReplyTo(null); setCommentText(""); }}
-                            className="text-white/40 hover:text-white"
-                        >
-                            ✕ Cancel
-                        </button>
-                    </div>
-                )}
-                <div className="flex items-center gap-2">
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={commentText}
-                        onChange={(e) => setCommentText(e.target.value)}
-                        placeholder={replyTo ? `Reply to @${replyTo.authorUsername}...` : "Write a comment..."}
-                        className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#e91e8c]"
-                    />
-                    <button
-                        type="submit"
-                        disabled={!commentText.trim() || sending}
-                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#e91e8c] to-[#ff6b35] text-white text-xs font-bold flex items-center gap-1 disabled:opacity-40 shrink-0"
-                    >
-                        <Send size={12} /><span>Send</span>
-                    </button>
-                </div>
-            </form>
-
-            {loading && replies.length === 0 ? (
-                <div className="text-center py-2 text-[10px] text-white/40 italic">Loading comments...</div>
-            ) : replies.length === 0 ? (
-                <div className="text-center py-3 text-[11px] text-white/40">No comments yet. Start the conversation!!</div>
-            ) : (
-                <div className="flex flex-col gap-2 mt-1">
-                    {threaded.map((comment: any) => {
-                        const commentId = comment.id;
-                        const lo = commentReactions[commentId];
-                        const persistedReaction = comment.userReaction ?? (currentUserId ? comment.reactions?.[currentUserId] : null);
-                        const currentReaction = lo !== undefined ? lo.reaction : persistedReaction;
-                        const isLiked = currentReaction === "heart";
-                        const liveHeartCount = lo !== undefined ? lo.heartCount : (comment.heartCount ?? 0);
-                        const isOwnComment = Boolean(currentUserId && (comment.authorUid === currentUserId || comment.authorUsername === currentUsername));
-                        const commentReplies = comment.replies || [];
-                        const open = expandedReplies[commentId] !== false;
-
-                        return (
-                            <div key={commentId} className="flex flex-col gap-1.5 bg-white/[0.02] border border-white/5 rounded-xl p-2.5">
-                                <div className="flex items-start gap-2">
-                                    <div className="w-6 h-6 rounded-full overflow-hidden bg-white/10 shrink-0 border border-white/10">
-                                        {comment.authorAvatarUrl ? (
-                                            <img src={comment.authorAvatarUrl} alt={comment.authorUsername} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-white bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]">
-                                                {(comment.authorUsername || "F").charAt(0).toUpperCase()}
-                                            </div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                                            <span
-                                                className="text-[11px] font-bold text-white truncate cursor-pointer hover:underline"
-                                                onClick={() => onFanProfile?.({ username: comment.authorUsername, badge: comment.authorBadge, avatarUrl: comment.authorAvatarUrl, authorUid: comment.authorUid })}
-                                            >
-                                                {comment.authorUsername}
-                                            </span>
-                                            <span className="text-[9px] text-white/35 shrink-0">{timeAgo(comment.createdAt)}</span>
-                                        </div>
-                                        <p className="text-[11px] text-white/85 leading-relaxed break-words">{comment.text}</p>
-                                        <div className="flex items-center gap-3 mt-1.5 text-[10px]">
-                                            <div className="flex items-center gap-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleCommentReact(commentId, isLiked ? null : "heart")}
-                                                    className={`flex items-center gap-1 ${isLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"}`}
-                                                    title={isLiked ? "Unlike" : "Like"}
-                                                >
-                                                    <Heart size={11} fill={isLiked ? "currentColor" : "none"} />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        if (liveHeartCount > 0) setReactionsDialogCommentId(commentId);
-                                                        else handleCommentReact(commentId, isLiked ? null : "heart");
-                                                    }}
-                                                    className={`${liveHeartCount > 0 ? "hover:underline cursor-pointer hover:text-white" : ""} ${isLiked ? "text-[#e91e8c] font-bold" : "text-white/45"}`}
-                                                    title={liveHeartCount > 0 ? "See who liked" : "Like"}
-                                                >
-                                                    {liveHeartCount}
-                                                </button>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => startReply(commentId, comment.authorUsername || "Fan")}
-                                                className="flex items-center gap-1 text-white/45 hover:text-white/80"
-                                            >
-                                                <Reply size={11} /><span>Reply</span>
-                                            </button>
-                                            {isOwnComment && (
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDeleteComment(commentId)}
-                                                    disabled={deletingCommentId === commentId}
-                                                    className="text-white/25 hover:text-red-400 ml-auto"
-                                                    title="Delete comment"
-                                                >
-                                                    <Trash2 size={11} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Reply count toggle */}
-                                {commentReplies.length > 0 && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setExpandedReplies(p => ({ ...p, [commentId]: !open }))}
-                                        className="flex items-center gap-1 ml-7 text-[10px] text-[#e91e8c] hover:underline font-semibold"
-                                    >
-                                        {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
-                                        <span>{open ? "Hide replies" : `View ${commentReplies.length} ${commentReplies.length === 1 ? "reply" : "replies"}`}</span>
-                                    </button>
-                                )}
-
-                                {/* Nested replies list */}
-                                {open && commentReplies.length > 0 && (
-                                    <div className="flex flex-col gap-1.5 ml-7 pl-2.5 border-l-2 border-[#e91e8c]/30 mt-1">
-                                        {commentReplies.map((reply: any) => {
-                                            const replyId = reply.id;
-                                            const rLo = commentReactions[replyId];
-                                            const rPersisted = reply.userReaction ?? (currentUserId ? reply.reactions?.[currentUserId] : null);
-                                            const rReaction = rLo !== undefined ? rLo.reaction : rPersisted;
-                                            const rLiked = rReaction === "heart";
-                                            const rHeartCount = rLo !== undefined ? rLo.heartCount : (reply.heartCount ?? 0);
-                                            const isOwnReply = Boolean(currentUserId && (reply.authorUid === currentUserId || reply.authorUsername === currentUsername));
-
-                                            const spaceIdx = (reply.text ?? "").indexOf(" ");
-                                            const hasMention = (reply.text ?? "").startsWith("@") && spaceIdx > -1;
-                                            const mentionPart = hasMention ? (reply.text ?? "").slice(0, spaceIdx) : "";
-                                            const bodyPart = hasMention ? (reply.text ?? "").slice(spaceIdx) : (reply.text ?? "");
-
-                                            return (
-                                                <div key={replyId} className="flex items-start gap-2 bg-white/[0.02] p-2 rounded-lg">
-                                                    <div className="w-5 h-5 rounded-full overflow-hidden bg-white/10 shrink-0 border border-white/10">
-                                                        {reply.authorAvatarUrl ? (
-                                                            <img src={reply.authorAvatarUrl} alt={reply.authorUsername} className="w-full h-full object-cover" />
-                                                        ) : (
-                                                            <div className="w-full h-full flex items-center justify-center text-[9px] font-bold text-white bg-white/20">
-                                                                {(reply.authorUsername || "F").charAt(0).toUpperCase()}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center justify-between gap-1 mb-0.5">
-                                                            <span
-                                                                className="text-[10px] font-bold text-white truncate cursor-pointer hover:underline"
-                                                                onClick={() => onFanProfile?.({ username: reply.authorUsername, badge: reply.authorBadge, avatarUrl: reply.authorAvatarUrl, authorUid: reply.authorUid })}
-                                                            >
-                                                                {reply.authorUsername}
-                                                            </span>
-                                                            <span className="text-[9px] text-white/35 shrink-0">{timeAgo(reply.createdAt)}</span>
-                                                        </div>
-                                                        <p className="text-[10px] text-white/80 leading-relaxed break-words">
-                                                            {hasMention && <strong className="text-[#e91e8c] font-semibold mr-1">{mentionPart}</strong>}
-                                                            {bodyPart}
-                                                        </p>
-                                                        <div className="flex items-center gap-3 mt-1 text-[9px]">
-                                                            <div className="flex items-center gap-1">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleCommentReact(replyId, rLiked ? null : "heart")}
-                                                                    className={`flex items-center gap-1 ${rLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"}`}
-                                                                    title={rLiked ? "Unlike" : "Like"}
-                                                                >
-                                                                    <Heart size={10} fill={rLiked ? "currentColor" : "none"} />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        if (rHeartCount > 0) setReactionsDialogCommentId(replyId);
-                                                                        else handleCommentReact(replyId, rLiked ? null : "heart");
-                                                                    }}
-                                                                    className={`${rHeartCount > 0 ? "hover:underline cursor-pointer hover:text-white" : ""} ${rLiked ? "text-[#e91e8c] font-bold" : "text-white/45"}`}
-                                                                    title={rHeartCount > 0 ? "See who liked" : "Like"}
-                                                                >
-                                                                    {rHeartCount}
-                                                                </button>
-                                                            </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => startReply(commentId, reply.authorUsername || "Fan")}
-                                                                className="flex items-center gap-1 text-white/45 hover:text-white/80"
-                                                            >
-                                                                <Reply size={10} /><span>Reply</span>
-                                                            </button>
-                                                            {isOwnReply && (
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleDeleteComment(replyId)}
-                                                                    disabled={deletingCommentId === replyId}
-                                                                    className="text-white/25 hover:text-red-400 ml-auto"
-                                                                    title="Delete reply"
-                                                                >
-                                                                    <Trash2 size={10} />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            <ReactionsDialog
-                postId={reactionsDialogCommentId ?? ""}
-                isOpen={reactionsDialogCommentId !== null}
-                onClose={() => setReactionsDialogCommentId(null)}
-                onFanProfile={onFanProfile}
+            <EngagementCommentsThread
                 roomId={roomId}
-                msgId={postId}
-                commentId={reactionsDialogCommentId ?? undefined}
+                postId={postId}
+                accentColor={accentColor}
+                currentAvatarUrl={currentAvatarUrl}
+                currentUserId={currentUserId}
+                currentUsername={currentUsername}
+                onFanProfile={onFanProfile}
+                onCommentCountChange={(count) => {
+                    onCommentPosted();
+                }}
             />
         </motion.div>
     );
@@ -6149,6 +5695,7 @@ export default function OpenRoomDiscussionRoom({
             replyCount: Math.max(m.replyCount ?? 0, existing?.replyCount ?? 0),
             agreeCount: m.agreeCount ?? 0,
             disagreeCount: m.disagreeCount ?? 0,
+            shareCount: m.shareCount ?? existing?.shareCount ?? 0,
             userVote: (existing?.userVote && !m.userVote) ? existing.userVote : (m.userVote ?? existing?.userVote ?? null),
             sideA: m.sideA ?? null,
             sideB: m.sideB ?? null,
@@ -6326,6 +5873,7 @@ export default function OpenRoomDiscussionRoom({
                             heartCount: isPending ? p.heartCount : (updated.heartCount ?? p.heartCount),
                             userReaction: isPending ? p.userReaction : (updated.userReaction ?? null),
                             replyCount: Math.max(p.replyCount ?? 0, updated.replyCount ?? 0),
+                            shareCount: updated.shareCount ?? p.shareCount,
                             agreeCount: updated.agreeCount ?? p.agreeCount,
                             disagreeCount: updated.disagreeCount ?? p.disagreeCount,
                             userVote: (p.userVote && !updated.userVote) ? p.userVote : (updated.userVote ?? p.userVote ?? null),
@@ -6565,20 +6113,20 @@ export default function OpenRoomDiscussionRoom({
         fetchMsgs();
     }, [fetchMsgs, roomId, selectedChannelId]);
 
-    useVisibilityInterval(fetchMsgs, 5000);
+    useVisibilityInterval(fetchMsgs, 2000);
     useVisibilityInterval(fetchReactionUpdates, 5000);
 
     useEffect(() => {
         if (!roomId) return;
         fetchEngagements();
     }, [fetchEngagements, roomId]);
-    useVisibilityInterval(fetchEngagements, 5000);
+    useVisibilityInterval(fetchEngagements, 2000);
 
     useEffect(() => {
         if (!roomId) return;
         fetchCelebrations();
     }, [fetchCelebrations, roomId, roomMatchId]);
-    useVisibilityInterval(fetchCelebrations, 4000);
+    useVisibilityInterval(fetchCelebrations, 2000);
 
     // useEffect(() => {
     //     const list = listRef.current;
@@ -7022,16 +6570,45 @@ export default function OpenRoomDiscussionRoom({
         finally { setUploading(false); if (e.target) e.target.value = ""; }
     };
 
-    const handleSharePost = (post: any) => {
+    const handleSharePost = async (post: any) => {
         try {
             trackAdvocacy("content_shared", { post_id: post.id, room_id: roomId, room_name: roomName || "" });
-            if (phog) {
+        } catch { }
+
+        // Optimistically increment share count
+        setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shareCount: (p.shareCount || 0) + 1 } : p));
+
+        const shareUrl = typeof window !== "undefined" ? window.location.origin + `/MainModules/ROAR?post=${post.id}` : "";
+        let didShare = false;
+
+        if (typeof navigator !== "undefined" && navigator.share) {
+            try {
+                await navigator.share({
+                    title: "SportsFan360 Match Discussion",
+                    text: post.text || "Check out this live discussion on SportsFan360!",
+                    url: shareUrl,
+                });
+                didShare = true;
+            } catch (err: any) {
+                if (err?.name === "AbortError") return;
             }
-        } catch (e) { }
-        if (typeof navigator !== "undefined" && navigator.clipboard) {
-            navigator.clipboard.writeText(window.location.origin + `/MainModules/ROAR?post=${post.id}`).then(() => onToast("Post link copied to clipboard!"));
-        } else {
-            onToast("Link copied!");
+        }
+
+        if (!didShare) {
+            if (typeof navigator !== "undefined" && navigator.clipboard) {
+                navigator.clipboard.writeText(shareUrl).then(() => onToast("Post link copied to clipboard!"));
+            } else {
+                onToast("Link copied!");
+            }
+        }
+
+        if (roomId && post.id) {
+            try {
+                const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/share`, {}, { timeout: 8000 });
+                if (res.data?.success && typeof res.data.shareCount === "number") {
+                    setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shareCount: res.data.shareCount } : p));
+                }
+            } catch { }
         }
     };
 
@@ -7816,11 +7393,12 @@ export default function OpenRoomDiscussionRoom({
                                             <span style={{ fontSize: 9 }}>{replyCount}</span>
                                             {isOpen ? <ChevronUp size={10} style={{ opacity: 0.7 }} /> : <ChevronDown size={10} style={{ opacity: 0.5 }} />}
                                         </button>
-                                        <button onClick={e => { e.stopPropagation(); handleSharePost(p); }} style={{ display: "flex", alignItems: "center", gap: 4, background: "none", border: "none", cursor: "pointer", color: "#9494ad", fontSize: 11, fontWeight: 600 }}>
+                                        <button onClick={e => { e.stopPropagation(); handleSharePost(p); }} style={{ display: "flex", alignItems: "center", gap: 3, background: "none", border: "none", cursor: "pointer", color: "#9494ad", fontSize: 11, fontWeight: 600 }} title="Share post">
                                             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                                 <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
                                                 <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
                                             </svg>
+                                            <span style={{ fontSize: 9 }}>{p.shareCount || 0}</span>
                                         </button>
                                         {renderReactionsTrigger(p)}
                                     </div>
