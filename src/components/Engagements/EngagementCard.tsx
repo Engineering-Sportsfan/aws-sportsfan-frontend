@@ -1016,6 +1016,8 @@ import {
     Clock,
     ChevronDown,
     ChevronUp,
+    Lock,
+    Pencil,
 } from "lucide-react";
 import axios from "axios";
 import type { EngagementItem } from "@/types/engagements";
@@ -1124,10 +1126,18 @@ export default function EngagementCard({
     const [isVoting, setIsVoting] = useState(false);
     // true only while the vote request is in flight; drives the optimistic +1
     const [pendingVote, setPendingVote] = useState(false);
+    // "Edit vote": the user re-opens the options to change a pick while the timer is still running
+    const [isEditingVote, setIsEditingVote] = useState(false);
+    // the in-flight request is a change of an existing vote (no optimistic +1)
+    const [pendingChange, setPendingChange] = useState(false);
+    const [voteError, setVoteError] = useState<string | null>(null);
+    // when this browser last cast a vote (0 = not in this session); limits the optimistic +1
+    const votedAtRef = useRef(0);
 
     // Likes state
     const [likes, setLikes] = useState<number>(Number(item.likes) || 0);
     const likeLockRef = useRef(0); // timestamp of last local toggle
+    const likeConfirmedRef = useRef(false); // true once the like endpoint confirmed this browser's like
     const [isLiked, setIsLiked] = useState<boolean>(() => {
         if (item.userLiked) return true;
         if (typeof window !== "undefined") {
@@ -1183,11 +1193,23 @@ export default function EngagementCard({
     const isTimerExpired = runningTimer === "Expired" || isResolved;
     const timerLabel = isResolved ? "Resolved" : runningTimer === "Expired" ? "Expired" : `${runningTimer} remaining`;
     // Resolved posts show the result bars even to users who did not vote.
-    const showResults = userVoted || isResolved;
+    // While editing, the options are shown again so the user can pick a different one.
+    // (if the timer ends mid-edit, fall back to the results)
+    const showResults = (userVoted || isResolved) && (!isEditingVote || isTimerExpired);
+    // Only prediction / poll / debate / express can be edited, and only until the timer ends.
+    const canEditVote = userVoted && !isTimerExpired && !isEditingVote &&
+        ["prediction", "poll", "debate", "express"].includes(String(item.type));
+    // The admin's post-lock note is revealed once the timer has ended (or the outcome is resolved).
+    const postLockText = isTimerExpired ? String((item as any).postLock ?? "").trim() : "";
 
     // Add +1 to the user's pick only when no fresher count includes it: the vote request is in flight,
     // or it succeeded but the server sent no option counts and the list item doesn't know about the vote yet.
-    const needsLocalBump = pendingVote || (userVoted && !item.userVoted && !liveVoteData?.options);
+    // A changed vote never gets a +1 (it would double count against the old pick).
+    // The +1 only covers the first seconds after voting: if the list still doesn't count the vote after that,
+    // showing +1 forever would make the total wrong (the server count is the truth).
+    const needsLocalBump = !pendingChange && (pendingVote || (
+        userVoted && !item.userVoted && !liveVoteData?.options && Date.now() - votedAtRef.current < 8000
+    ));
 
     // The profile (and so currentUserId / voteKey) can resolve after first render. The lazy useState
     // initialisers above only run once, so re-read the saved vote whenever the key changes.
@@ -1213,7 +1235,12 @@ export default function EngagementCard({
         const likeLocked = Date.now() - likeLockRef.current < 15000;
         if (!likeLocked) {
             if (item.likes !== undefined) setLikes(Number(item.likes) || 0);
-            if (item.userLiked !== undefined) {
+            // A list saying "not liked" must not undo a like this browser made and the server confirmed
+            // (the list may have been computed for another user id). Only a "liked" answer, or this
+            // browser never having liked it, is applied.
+            let savedLike = false;
+            try { savedLike = localStorage.getItem(likeKey) === "true"; } catch { }
+            if (item.userLiked !== undefined && (item.userLiked || !savedLike || !likeConfirmedRef.current)) {
                 setIsLiked(Boolean(item.userLiked));
                 try { localStorage.setItem(likeKey, String(Boolean(item.userLiked))); } catch { }
             }
@@ -1327,12 +1354,24 @@ export default function EngagementCard({
 
     // ── Submit Vote / Participation ──
     const handleVote = async (optionId: string) => {
-        if (userVoted || isVoting || isTimerExpired) return;
+        if ((userVoted && !isEditingVote) || isVoting || isTimerExpired) return;
 
+        const isChange = userVoted && isEditingVote;
+        const previousOptionId = selectedOptionId;
+        setVoteError(null);
+        // picking the same option again just closes the editor
+        if (isChange && previousOptionId !== null && String(previousOptionId) === String(optionId)) {
+            setIsEditingVote(false);
+            return;
+        }
+
+        votedAtRef.current = Date.now();
         setIsVoting(true);
         setSelectedOptionId(optionId);
         setUserVoted(true);
         setPendingVote(true);
+        setPendingChange(isChange);
+        setIsEditingVote(false);
         // Persist immediately so a refresh mid-request still shows the result view
         try { localStorage.setItem(voteKey, optionId); } catch { }
 
@@ -1345,6 +1384,7 @@ export default function EngagementCard({
                     userName: currentUserName,
                     userAvatar: currentUserAvatar,
                     matchId: item.matchId,
+                    ...(isChange ? { changeVote: true, previousOptionId } : {}),
                 },
                 { timeout: 8000 }
             );
@@ -1367,7 +1407,14 @@ export default function EngagementCard({
                 totalEngaged: res.data?.totalEngaged,
             });
         } catch (err: any) {
-            if (err?.response?.data?.alreadyVoted) {
+            if (isChange && (err?.response?.data?.alreadyVoted || (err?.response && err.response.status < 500))) {
+                // Change refused (server may not support it yet, or the timer just ended): go back to the old pick
+                const msg = err?.response?.data?.error || err?.response?.data?.message || "Could not change your vote.";
+                console.warn("Vote change rejected:", err?.response?.status, err?.response?.data);
+                setVoteError(String(msg));
+                setSelectedOptionId(previousOptionId);
+                try { if (previousOptionId) localStorage.setItem(voteKey, String(previousOptionId)); } catch { }
+            } else if (err?.response?.data?.alreadyVoted) {
                 // Server says this user already voted: show their real pick
                 setSelectedOptionId(err.response.data.selectedOptionId ?? optionId);
                 try { localStorage.setItem(voteKey, String(err.response.data.selectedOptionId ?? optionId)); } catch { }
@@ -1385,9 +1432,42 @@ export default function EngagementCard({
             }
         } finally {
             setPendingVote(false);
+            setPendingChange(false);
             setIsVoting(false);
         }
     };
+
+    // Edit-vote button, vote error and the admin's "post lock" note, shown under the options.
+    const renderVoteExtras = () => (
+        <>
+            {postLockText && (
+                <div className="flex items-start gap-1.5 mt-1.5 px-2 py-1.5 rounded-lg bg-purple-500/10 border border-purple-400/30 text-[10px] text-purple-200">
+                    <Lock size={11} className="shrink-0 mt-0.5 text-purple-300" />
+                    <span className="break-words min-w-0">{postLockText}</span>
+                </div>
+            )}
+            {voteError && <div className="mt-1 text-[10px] text-rose-400">{voteError}</div>}
+            {canEditVote && (
+                <button
+                    type="button"
+                    disabled={isVoting}
+                    onClick={() => { setVoteError(null); setIsEditingVote(true); }}
+                    className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-white/60 hover:text-white transition-colors disabled:opacity-50"
+                >
+                    <Pencil size={10} /> Edit vote
+                </button>
+            )}
+            {isEditingVote && (
+                <button
+                    type="button"
+                    onClick={() => setIsEditingVote(false)}
+                    className="mt-1.5 text-[10px] font-bold text-white/50 hover:text-white transition-colors"
+                >
+                    Cancel
+                </button>
+            )}
+        </>
+    );
 
     // ── Toggle Like ──
     const handleToggleLike = async () => {
@@ -1414,6 +1494,7 @@ export default function EngagementCard({
             if (!isNaN(L)) setLikes(L);
             if (!isNaN(T)) setTotalEngaged(T);
             setIsLiked(liked);
+            likeConfirmedRef.current = liked;
             try { localStorage.setItem(likeKey, String(liked)); } catch { }
             onInteraction?.({
                 likes: isNaN(L) ? undefined : L,
@@ -1569,6 +1650,7 @@ export default function EngagementCard({
                         </div>
                     </div>
                 )}
+                {renderVoteExtras()}
             </div>
         );
     };
@@ -1656,6 +1738,7 @@ export default function EngagementCard({
                         {totalVotes} total votes
                     </div>
                 )}
+                {renderVoteExtras()}
             </div>
         );
     };
@@ -1711,6 +1794,7 @@ export default function EngagementCard({
                         {quiz.explanation}
                     </div>
                 )}
+                {renderVoteExtras()}
             </div>
         );
     };

@@ -5892,7 +5892,10 @@ export default function OpenRoomDiscussionRoom({
                 } catch (rErr) { console.warn("room details:", rErr); }
             }
             const cleanMatchId = mId ? String(mId).replace(/^MATCH#/, "").trim() : "";
-            const userParam = currentUserId ? `&userId=${encodeURIComponent(currentUserId)}` : "";
+            // Must be the SAME id EngagementCard uses when it votes / likes, otherwise the list can't
+            // tell which votes and likes belong to this user (wrong totals, like button turning grey).
+            const engagementUserId = userProfile?.actualUserId || userProfile?.email || currentUserId;
+            const userParam = engagementUserId ? `&userId=${encodeURIComponent(engagementUserId)}` : "";
             const bust = `&t=${Date.now()}`;
             const cfg = { timeout: REQUEST_TIMEOUT_MS, headers: { "Cache-Control": "no-cache" } };
             const pick = (d: any) => d?.engagements || d?.data || (Array.isArray(d) ? d : []);
@@ -5916,7 +5919,7 @@ export default function OpenRoomDiscussionRoom({
         } finally {
             setEngagementsLoaded(true);
         }
-    }, [roomId, roomMatchId, currentUserId]);
+    }, [roomId, roomMatchId, currentUserId, userProfile?.actualUserId, userProfile?.email]);
 
     const displayCounts = React.useMemo(() => {
         const c = { ...roomCounts };
@@ -7184,8 +7187,12 @@ export default function OpenRoomDiscussionRoom({
                 sortKey: getTimestamp(rev.createdAt || Date.now()),
             }));
 
-        // Visual Recognitions & Outcome Reveals in Live ROAR Stream
-        return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
+        // Visual Recognitions & Outcome Reveals in Live ROAR Stream: hidden for now
+        // (they showed up as empty green / yellow lines between posts).
+        // return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
+        void recognitionItems;
+        void outcomeItems;
+        return [...postItems, ...engagementItems].sort((a, b) => a.sortKey - b.sortKey);
     }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
 
     const renderReactionPicker = (p: any) => {

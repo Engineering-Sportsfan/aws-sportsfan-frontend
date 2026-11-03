@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Heart, MessageSquare, Reply, Send, Trash2, ChevronDown, ChevronUp, CornerDownRight } from "lucide-react";
+import { Heart, Reply, Send, Trash2, ChevronDown, ChevronUp, CornerDownRight } from "lucide-react";
 import axios from "axios";
 import { useUserProfile } from "@/context/UserProfileContext";
 
@@ -51,8 +51,54 @@ function normalize(c: any): ThreadComment {
     };
 }
 
-const countTotal = (list: ThreadComment[]) =>
-    list.reduce((acc, c) => acc + 1 + (c.replies?.length || 0), 0);
+// ── Tree helpers (comments can be nested to any depth) ──
+
+// Every comment in the tree, replies included, as a flat list (children detached).
+function flatten(list: ThreadComment[]): ThreadComment[] {
+    const out: ThreadComment[] = [];
+    const walk = (nodes: ThreadComment[]) => {
+        for (const n of nodes) {
+            out.push({ ...n, replies: [] });
+            if (n.replies?.length) walk(n.replies);
+        }
+    };
+    walk(list);
+    return out;
+}
+
+// Builds the tree from parentCommentId links. Works whether the API sends a flat list,
+// a one-level `replies` array, or fully nested replies. Newest top-level first, replies oldest first.
+function buildTree(list: ThreadComment[]): ThreadComment[] {
+    const flat = flatten(list);
+    const byId = new Map<string, ThreadComment>();
+    for (const c of flat) if (!byId.has(c.id)) byId.set(c.id, c);
+    const nodes = Array.from(byId.values());
+
+    const roots: ThreadComment[] = [];
+    for (const c of nodes) {
+        const parent = c.parentCommentId ? byId.get(c.parentCommentId) : undefined;
+        if (parent && parent.id !== c.id) parent.replies = [...(parent.replies || []), c];
+        else roots.push(c);
+    }
+    const sortReplies = (c: ThreadComment) => {
+        c.replies = (c.replies || []).sort((a, b) => a.createdAt - b.createdAt);
+        c.replies.forEach(sortReplies);
+    };
+    roots.forEach(sortReplies);
+    return roots.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+const countTotal = (list: ThreadComment[]): number =>
+    list.reduce((acc, c) => acc + 1 + countTotal(c.replies || []), 0);
+
+const updateNode = (list: ThreadComment[], id: string, fn: (c: ThreadComment) => ThreadComment): ThreadComment[] =>
+    list.map(c => (c.id === id ? fn(c) : { ...c, replies: updateNode(c.replies || [], id, fn) }));
+
+const removeNode = (list: ThreadComment[], id: string): ThreadComment[] =>
+    list.filter(c => c.id !== id).map(c => ({ ...c, replies: removeNode(c.replies || [], id) }));
+
+// Past this depth replies stop indenting further so deep threads still fit on a phone.
+const MAX_INDENT_DEPTH = 4;
 
 export default function EngagementCommentsThread({ engagementId, matchId, accentColor = "#e91e8c", onCommentCountChange }: Props) {
     const { userProfile } = useUserProfile();
@@ -68,9 +114,8 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
     const [inputText, setInputText] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [sendError, setSendError] = useState<string | null>(null);
-    // rootId = the top-level comment the reply is stored under (the API supports 2 levels).
-    // userName = who we are talking to (shown as @mention), which can be a reply's author.
-    const [replyTo, setReplyTo] = useState<{ rootId: string; userName: string } | null>(null);
+    // The comment (or reply) the next message is posted under.
+    const [replyTo, setReplyTo] = useState<{ parentId: string; userName: string } | null>(null);
     const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
 
     const inputRef = useRef<HTMLInputElement>(null);
@@ -141,13 +186,10 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         try { localStorage.setItem(storageKey, JSON.stringify(comments)); } catch { /* ignore */ }
     }, [comments, storageKey]);
 
-    // Start a reply. Works for top-level comments AND replies.
-    // A reply to a reply is stored under the same root comment (so it shows in the tree)
-    // and prefixed with @name so it's clear who it is addressed to.
-    const startReply = (rootId: string, userName: string) => {
-        setReplyTo({ rootId, userName });
-        setInputText(`@${userName} `);
-        setExpandedReplies(p => ({ ...p, [rootId]: true }));
+    // Start a reply to any comment, at any depth.
+    const startReply = (parentId: string, userName: string) => {
+        setReplyTo({ parentId, userName });
+        setExpandedReplies(p => ({ ...p, [parentId]: true }));
         setTimeout(() => inputRef.current?.focus(), 0);
     };
 
@@ -159,7 +201,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
 
         setSubmitting(true);
         setSendError(null);
-        const parentId = replyTo?.rootId || null;
+        const parentId = replyTo?.parentId || null;
         const tempId = `tmp_${Date.now()}`;
         const optimistic: ThreadComment = {
             id: tempId, engagementId, text, userId: currentUserId, userName: currentUserName,
@@ -169,7 +211,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
 
         setComments(prev =>
             parentId
-                ? prev.map(c => c.id === parentId ? { ...c, replies: [...(c.replies || []), optimistic] } : c)
+                ? updateNode(prev, parentId, c => ({ ...c, replies: [...(c.replies || []), optimistic] }))
                 : [optimistic, ...prev]
         );
         if (parentId) setExpandedReplies(p => ({ ...p, [parentId]: true }));
@@ -193,11 +235,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
             const saved = res.data?.comment ? normalize(res.data.comment) : null;
             if (saved) {
                 // swap temp -> real (no refetch, no flicker)
-                setComments(prev => prev.map(c => {
-                    if (c.id === tempId) return { ...saved, replies: c.replies };
-                    if (c.id === parentId) return { ...c, replies: (c.replies || []).map(r => r.id === tempId ? saved : r) };
-                    return c;
-                }));
+                setComments(prev => updateNode(prev, tempId, c => ({ ...saved, parentCommentId: c.parentCommentId, replies: c.replies })));
             }
         } catch (err: any) {
             const status = err?.response?.status;
@@ -209,9 +247,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                     : "Comment not saved: the server took too long to answer. Please try again."
             );
             // rollback
-            setComments(prev =>
-                prev.filter(c => c.id !== tempId).map(c => ({ ...c, replies: (c.replies || []).filter(r => r.id !== tempId) }))
-            );
+            setComments(prev => removeNode(prev, tempId));
             setInputText(text);
         } finally {
             setSubmitting(false);
@@ -219,7 +255,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
     };
 
     // Optimistic flip, then persisted via the comment-like endpoint (reverted if it fails).
-    const toggleLike = async (commentId: string, parentId?: string) => {
+    const toggleLike = async (commentId: string) => {
         if (commentId.startsWith("tmp_")) return; // not saved yet
         const flip = (c: ThreadComment): ThreadComment => {
             const liked = (c.likedBy || []).includes(currentUserId);
@@ -229,11 +265,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                 likedBy: liked ? (c.likedBy || []).filter(u => u !== currentUserId) : [...(c.likedBy || []), currentUserId],
             };
         };
-        const applyFlip = () => setComments(prev => prev.map(c => {
-            if (!parentId && c.id === commentId) return flip(c);
-            if (parentId && c.id === parentId) return { ...c, replies: (c.replies || []).map(r => r.id === commentId ? flip(r) : r) };
-            return c;
-        }));
+        const applyFlip = () => setComments(prev => updateNode(prev, commentId, flip));
 
         applyFlip();
         try {
@@ -248,11 +280,75 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
     };
 
     // NOTE: no engagement-comment DELETE endpoint is known, so delete is local-only.
-    const handleDelete = (commentId: string, parentId?: string) => {
-        setComments(prev =>
-            parentId
-                ? prev.map(c => c.id === parentId ? { ...c, replies: (c.replies || []).filter(r => r.id !== commentId) } : c)
-                : prev.filter(c => c.id !== commentId)
+    const handleDelete = (commentId: string) => {
+        setComments(prev => removeNode(prev, commentId));
+    };
+
+    // One comment and, recursively, everything under it.
+    const renderComment = (comment: ThreadComment, depth: number): React.ReactNode => {
+        const isLiked = (comment.likedBy || []).includes(currentUserId);
+        const replies = comment.replies || [];
+        const open = expandedReplies[comment.id] ?? false;
+        const isRoot = depth === 0;
+        const replyTotal = countTotal(replies);
+
+        return (
+            <div
+                key={comment.id}
+                className={isRoot
+                    ? "flex flex-col gap-1.5 bg-white/[0.02] border border-white/5 rounded-xl p-2.5"
+                    : "flex flex-col gap-1.5 bg-white/[0.02] p-2 rounded-lg"}
+            >
+                <div className="flex items-start gap-2">
+                    <div className={`${isRoot ? "w-6 h-6" : "w-5 h-5"} rounded-full overflow-hidden bg-white/10 shrink-0 border border-white/10`}>
+                        {comment.userAvatar ? (
+                            <img src={comment.userAvatar} alt={comment.userName} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className={`w-full h-full flex items-center justify-center ${isRoot ? "text-[10px]" : "text-[9px]"} font-bold text-white ${isRoot ? "bg-gradient-to-br from-[#e91e8c] to-[#ff6b35]" : "bg-white/20"}`}>
+                                {(comment.userName || "F").charAt(0).toUpperCase()}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-1 mb-0.5">
+                            <span className={`${isRoot ? "text-[11px]" : "text-[10px]"} font-bold text-white truncate`}>{comment.userName}</span>
+                            <span className="text-[9px] text-white/35 shrink-0">{timeAgo(comment.createdAt)}</span>
+                        </div>
+                        <p className={`${isRoot ? "text-[11px] text-white/85" : "text-[10px] text-white/80"} leading-relaxed break-words`}>{comment.text}</p>
+                        <div className={`flex items-center gap-3 ${isRoot ? "mt-1.5 text-[10px]" : "mt-1 text-[9px]"}`}>
+                            <button type="button" onClick={() => toggleLike(comment.id)}
+                                className={`flex items-center gap-1 ${isLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"}`}>
+                                <Heart size={isRoot ? 11 : 10} fill={isLiked ? "currentColor" : "none"} /><span>{comment.likes}</span>
+                            </button>
+                            <button type="button"
+                                onClick={() => startReply(comment.id, comment.userName || "Fan")}
+                                className="flex items-center gap-1 text-white/45 hover:text-white/80">
+                                <Reply size={isRoot ? 11 : 10} /><span>Reply</span>
+                            </button>
+                            {comment.userId === currentUserId && (
+                                <button type="button" onClick={() => handleDelete(comment.id)} className="text-white/25 hover:text-red-400 ml-auto">
+                                    <Trash2 size={isRoot ? 11 : 10} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {replies.length > 0 && (
+                    <button type="button" onClick={() => setExpandedReplies(p => ({ ...p, [comment.id]: !open }))}
+                        className="flex items-center gap-1 ml-7 text-[10px] text-[#e91e8c] hover:underline font-semibold">
+                        {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                        <span>{open ? "Hide replies" : `View ${replyTotal} ${replyTotal === 1 ? "reply" : "replies"}`}</span>
+                    </button>
+                )}
+
+                {open && replies.length > 0 && (
+                    // Each level indents and gets its own guide line, up to MAX_INDENT_DEPTH
+                    <div className={`flex flex-col gap-1.5 mt-1 ${depth < MAX_INDENT_DEPTH ? "ml-7 pl-2.5 border-l-2 border-[#e91e8c]/30" : "ml-0 pl-1.5 border-l border-[#e91e8c]/20"}`}>
+                        {replies.map(reply => renderComment(reply, depth + 1))}
+                    </div>
+                )}
+            </div>
         );
     };
 
@@ -260,8 +356,8 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         <div className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-2.5">
             <div className="flex items-center justify-between">
                 <span className="text-[11px] font-bold text-white/80 flex items-center gap-1.5 uppercase tracking-wide">
-                    <MessageSquare size={13} className="text-[#e91e8c]" />
-                    Comments ({countTotal(comments)})
+                    {/* <MessageSquare size={13} className="text-[#e91e8c]" />
+                    Comments ({countTotal(comments)}) */}
                 </span>
             </div>
 
