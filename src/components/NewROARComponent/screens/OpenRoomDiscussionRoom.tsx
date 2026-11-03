@@ -6511,8 +6511,12 @@ export default function OpenRoomDiscussionRoom({
                 sortKey: getTimestamp(rev.createdAt || Date.now()),
             }));
 
-        // Visual Recognitions & Outcome Reveals in Live ROAR Stream
-        return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
+        // Visual Recognitions & Outcome Reveals in Live ROAR Stream: hidden for now
+        // (they showed up as empty green / yellow lines between posts).
+        // return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems].sort((a, b) => a.sortKey - b.sortKey);
+        void recognitionItems;
+        void outcomeItems;
+        return [...postItems, ...engagementItems].sort((a, b) => a.sortKey - b.sortKey);
     }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
 
     const renderReactionPicker = (p: any) => {
