@@ -4396,7 +4396,10 @@ function InlineRecognitionCard({
     const rewards = item.rewards || { totalSxp: 25, accuracySxp: 15, participationSxp: 10 };
     const dateStr = item.createdAt ? new Date(getTimestamp(item.createdAt)).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
     const itemId = String(item.recognitionId || item.id || "").trim();
-    const effectiveUserId = currentUserId || "fan_guest";
+    const effectiveUserId =
+        (currentUserId && currentUserId !== "fan_guest" ? currentUserId : null) ||
+        (typeof window !== "undefined" ? localStorage.getItem("roar_actual_user_id") || localStorage.getItem("roar_user_id") || localStorage.getItem("sf_user_id") : null) ||
+        "fan_guest";
 
     const likeKey = `sf_rec_like_${itemId}_${effectiveUserId}`;
     const shareKey = `sf_rec_share_${itemId}_${effectiveUserId}`;
@@ -4777,7 +4780,10 @@ function InlineOutcomeRevealCard({
     const winningText = item.winningChoiceText || item.winningChoiceId || "Resolved";
     const bonusPoints = item.bonusPoints || 10;
     const itemId = String(item.id || item.engagementId || "").trim();
-    const effectiveUserId = currentUserId || "fan_guest";
+    const effectiveUserId =
+        (currentUserId && currentUserId !== "fan_guest" ? currentUserId : null) ||
+        (typeof window !== "undefined" ? localStorage.getItem("roar_actual_user_id") || localStorage.getItem("roar_user_id") || localStorage.getItem("sf_user_id") : null) ||
+        "fan_guest";
 
     const likeKey = `sf_rev_like_${itemId}_${effectiveUserId}`;
     const shareKey = `sf_rev_share_${itemId}_${effectiveUserId}`;
@@ -6359,7 +6365,7 @@ export default function OpenRoomDiscussionRoom({
                 `/api/roar/rooms/${roomId}/messages/${msgId}/react`,
                 {
                     reaction: newReaction,
-                    userId: currentUserId || userProfile?.actualUserId || userProfile?.userId || userProfile?.email || "guest_fan"
+                    userId: currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId || userProfile?.email || "guest_fan"
                 },
                 { timeout: REQUEST_TIMEOUT_MS }
             );
@@ -7445,8 +7451,17 @@ export default function OpenRoomDiscussionRoom({
                                                 }}
                                                 accentColor={accent}
                                                 currentAvatarUrl={getEffectiveUserAvatar() || userAvatarUrl}
-                                                currentUserId={currentUserId}
-                                                currentUsername={userUsername}
+                                                currentUserId={
+                                                    (currentUserId && currentUserId !== "fan_guest" ? currentUserId : undefined) ||
+                                                    userProfile?.actualUserId ||
+                                                    (userProfile as any)?.userId ||
+                                                    (typeof window !== "undefined" ? (localStorage.getItem("roar_actual_user_id") || localStorage.getItem("roar_user_id") || localStorage.getItem("sf_user_id") || undefined) : undefined)
+                                                }
+                                                currentUsername={
+                                                    userUsername ||
+                                                    userProfile?.username ||
+                                                    (typeof window !== "undefined" ? (localStorage.getItem("roar_username") || undefined) : undefined)
+                                                }
                                                 onFanProfile={onFanProfile}
                                                 onToast={onToast}
                                                 onCountChange={(count) => {

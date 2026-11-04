@@ -175,13 +175,13 @@ export default function EngagementCommentsThread({
 }: Props) {
     const { userProfile } = useUserProfile();
     const effectiveUserId =
-        propUserId ||
+        (propUserId && propUserId !== "fan_guest" ? propUserId : null) ||
         userProfile?.actualUserId ||
-        userProfile?.userId ||
-        userProfile?.authUserId ||
+        (userProfile as any)?.userId ||
+        (userProfile as any)?.authUserId ||
         userProfile?.email ||
-        (typeof window !== "undefined" ? localStorage.getItem("roar_user_id") || localStorage.getItem("sf_user_id") : null) ||
-        "guest_fan";
+        (typeof window !== "undefined" ? localStorage.getItem("roar_actual_user_id") || localStorage.getItem("roar_user_id") || localStorage.getItem("sf_user_id") : null) ||
+        (propUserId || "guest_fan");
     const realUserName =
         propUsername || userProfile?.username || userProfile?.name || (userProfile?.email ? userProfile.email.split("@")[0] : "");
     const effectiveUserName = realUserName || "SportsFan";
@@ -189,14 +189,35 @@ export default function EngagementCommentsThread({
 
     const myIdCandidates = useMemo(() => {
         const set = new Set<string>(["me"]);
-        if (effectiveUserId) set.add(effectiveUserId);
-        if (propUserId) set.add(propUserId);
-        if (userProfile?.actualUserId) set.add(userProfile.actualUserId);
-        if (userProfile?.userId) set.add(userProfile.userId);
-        if (userProfile?.authUserId) set.add(userProfile.authUserId);
-        if (userProfile?.email) set.add(userProfile.email.toLowerCase());
-        if (userProfile?.username) set.add(userProfile.username.toLowerCase());
-        if (effectiveUserName) set.add(effectiveUserName.toLowerCase());
+        const add = (v?: string | null) => {
+            if (!v) return;
+            const s = String(v).trim();
+            if (!s) return;
+            set.add(s);
+            set.add(s.toLowerCase());
+            const stripped = s.replace(/^USER#/i, "");
+            set.add(stripped);
+            set.add(stripped.toLowerCase());
+            set.add(`USER#${stripped}`);
+            set.add(`USER#${stripped.toLowerCase()}`);
+        };
+
+        add(effectiveUserId);
+        add(propUserId);
+        add(userProfile?.actualUserId);
+        add((userProfile as any)?.userId);
+        add((userProfile as any)?.authUserId);
+        add(userProfile?.email);
+        add(userProfile?.username);
+        add(effectiveUserName);
+        if (typeof window !== "undefined") {
+            try {
+                add(localStorage.getItem("roar_actual_user_id"));
+                add(localStorage.getItem("roar_user_id"));
+                add(localStorage.getItem("sf_user_id"));
+                add(localStorage.getItem("roar_username"));
+            } catch {}
+        }
         return set;
     }, [effectiveUserId, propUserId, userProfile, effectiveUserName]);
 
@@ -240,7 +261,14 @@ export default function EngagementCommentsThread({
         if (likedCommentIds.has(c.id) || likedCommentIds.has(cleanId)) return true;
         const likedBy = c.likedBy || [];
         for (const uid of likedBy) {
-            if (myIdCandidates.has(uid) || myIdCandidates.has(String(uid).toLowerCase())) {
+            if (!uid) continue;
+            const s = String(uid).trim();
+            const stripped = s.replace(/^USER#/i, "").toLowerCase();
+            if (
+                myIdCandidates.has(s) ||
+                myIdCandidates.has(s.toLowerCase()) ||
+                myIdCandidates.has(stripped)
+            ) {
                 return true;
             }
         }
@@ -305,9 +333,21 @@ export default function EngagementCommentsThread({
                             const cleanNid = String(node.id).replace(/^COMMENT#/, "").trim();
                             const justToggled = Date.now() - (lastLikeActionRef.current[cleanNid] || 0) < 4000;
                             if (!justToggled) {
-                                const hasMyLike = (node.likedBy || []).some(uid => myIdCandidatesRef.current.has(uid) || myIdCandidatesRef.current.has(String(uid).toLowerCase()));
+                                const hasMyLike = (node.likedBy || []).some(uid => {
+                                    if (!uid) return false;
+                                    const s = String(uid).trim();
+                                    const stripped = s.replace(/^USER#/i, "").toLowerCase();
+                                    return (
+                                        myIdCandidatesRef.current.has(s) ||
+                                        myIdCandidatesRef.current.has(s.toLowerCase()) ||
+                                        myIdCandidatesRef.current.has(stripped)
+                                    );
+                                });
                                 if (hasMyLike && !next.has(cleanNid)) {
                                     next.add(cleanNid);
+                                    changed = true;
+                                } else if (!hasMyLike && next.has(cleanNid)) {
+                                    next.delete(cleanNid);
                                     changed = true;
                                 }
                             }
@@ -324,18 +364,26 @@ export default function EngagementCommentsThread({
                 // Recursive patch node so nested replies at ANY depth never revert like counts to 0 and sync across users
                 const patchNode = (node: ThreadComment): ThreadComment => {
                     const cleanCid = String(node.id).replace(/^COMMENT#/, "").trim();
-                    const serverHasMyLike = (node.likedBy || []).some(uid =>
-                        myIdCandidatesRef.current.has(uid) || myIdCandidatesRef.current.has(String(uid).toLowerCase())
-                    );
+                    const serverHasMyLike = (node.likedBy || []).some(uid => {
+                        if (!uid) return false;
+                        const s = String(uid).trim();
+                        const stripped = s.replace(/^USER#/i, "").toLowerCase();
+                        return (
+                            myIdCandidatesRef.current.has(s) ||
+                            myIdCandidatesRef.current.has(s.toLowerCase()) ||
+                            myIdCandidatesRef.current.has(stripped)
+                        );
+                    });
                     const isLocallyLiked =
                         likedCommentIdsRef.current.has(node.id) ||
                         likedCommentIdsRef.current.has(cleanCid) ||
                         serverHasMyLike;
 
                     const hasPendingLocalLike = isLocallyLiked && !serverHasMyLike;
+                    const baseLikes = Number(node.likes || 0);
                     const finalLikes = Math.max(
-                        (node.likes || 0) + (hasPendingLocalLike ? 1 : 0),
-                        (isLocallyLiked || serverHasMyLike) ? 1 : 0
+                        baseLikes + (hasPendingLocalLike ? 1 : 0),
+                        isLocallyLiked ? 1 : 0
                     );
                     const finalLikedBy = (isLocallyLiked || serverHasMyLike) && !(node.likedBy || []).includes(effectiveUserIdRef.current)
                         ? [...(node.likedBy || []), effectiveUserIdRef.current]
@@ -380,9 +428,21 @@ export default function EngagementCommentsThread({
             }
         }, 2000);
 
+        const handleExternalLikeUpdate = () => {
+            if (!cancelled) {
+                loadComments(true);
+            }
+        };
+        if (typeof window !== "undefined") {
+            window.addEventListener("sf:comment_like_updated", handleExternalLikeUpdate);
+        }
+
         return () => {
             cancelled = true;
             clearInterval(interval);
+            if (typeof window !== "undefined") {
+                window.removeEventListener("sf:comment_like_updated", handleExternalLikeUpdate);
+            }
         };
     }, [loadComments]);
 
@@ -577,6 +637,9 @@ export default function EngagementCommentsThread({
             }
             // Trigger quick background refresh so all clients get the synced state
             setTimeout(() => { loadComments(true); }, 300);
+            if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("sf:comment_like_updated", { detail: { commentId: cleanCommentId, liked: nextLiked } }));
+            }
         } catch (err) {
             console.warn("[toggleLike] Server sync notice:", err);
         }
