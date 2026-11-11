@@ -24,6 +24,8 @@ interface Props {
     roomId?: string;
     postId?: string;
     matchId?: string;
+    momentId?: string;
+    seriesId?: string;
     accentColor?: string;
     currentAvatarUrl?: string;
     currentUserId?: string;
@@ -166,6 +168,8 @@ export default function EngagementCommentsThread({
     roomId,
     postId,
     matchId,
+    momentId,
+    seriesId,
     accentColor = "#e91e8c",
     currentAvatarUrl,
     currentUserId: propUserId,
@@ -446,6 +450,65 @@ export default function EngagementCommentsThread({
         };
     }, [loadComments]);
 
+    // Track peer comment impressions as separated Social Response records once per session
+    const trackedCommentImpressionsRef = useRef<Set<string>>(new Set());
+    useEffect(() => {
+        if (!engagementId || !comments.length) return;
+        if (!effectiveUserId || effectiveUserId === "guest_fan" || effectiveUserId === "fan_guest") return;
+
+        const storageSeenKey = `sf_sr_imp_${engagementId}_${effectiveUserId}`;
+        if (trackedCommentImpressionsRef.current.size === 0 && typeof window !== "undefined") {
+            try {
+                const raw = window.sessionStorage.getItem(storageSeenKey);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) parsed.forEach((cid) => trackedCommentImpressionsRef.current.add(String(cid)));
+                }
+            } catch { /* ignore */ }
+        }
+
+        const peerCommentIds: string[] = [];
+        const collectPeerIds = (nodes: ThreadComment[]) => {
+            for (const c of nodes) {
+                const cid = String(c.id || "").replace(/^COMMENT#/, "").trim();
+                const authorUid = String(c.userId || "").trim();
+                const cleanAuthor = authorUid.replace(/^USER#/i, "").toLowerCase();
+                const isOwnComment = Boolean(
+                    authorUid &&
+                    (myIdCandidates.has(authorUid) ||
+                        myIdCandidates.has(authorUid.toLowerCase()) ||
+                        myIdCandidates.has(cleanAuthor))
+                );
+                if (cid && !cid.startsWith("tmp_") && !isOwnComment && !trackedCommentImpressionsRef.current.has(cid)) {
+                    peerCommentIds.push(cid);
+                }
+                if (c.replies?.length) collectPeerIds(c.replies);
+            }
+        };
+        collectPeerIds(comments);
+
+        if (peerCommentIds.length === 0) return;
+        peerCommentIds.forEach((cid) => trackedCommentImpressionsRef.current.add(cid));
+        try {
+            if (typeof window !== "undefined") {
+                window.sessionStorage.setItem(storageSeenKey, JSON.stringify(Array.from(trackedCommentImpressionsRef.current)));
+            }
+        } catch { /* ignore */ }
+
+        axios.post(
+            `/api/engagements/${encodeURIComponent(engagementId)}/comments/impression`,
+            {
+                userId: effectiveUserId,
+                userName: effectiveUserName,
+                matchId,
+                momentId,
+                seriesId,
+                commentIds: peerCommentIds,
+            },
+            { timeout: 6000 }
+        ).catch(() => { /* non-fatal */ });
+    }, [comments, engagementId, effectiveUserId, effectiveUserName, matchId, momentId, seriesId, myIdCandidates]);
+
     // Report recursive total count to parent only when count actually changes
     useEffect(() => {
         if (!loadedRef.current) return;
@@ -517,6 +580,8 @@ export default function EngagementCommentsThread({
                         authorUsername: realUserName,
                         authorAvatarUrl: effectiveAvatar,
                         matchId,
+                        momentId,
+                        seriesId,
                     },
                     { timeout: 15000 }
                 );
@@ -616,7 +681,7 @@ export default function EngagementCommentsThread({
             } else if (engagementId) {
                 res = await axios.post(
                     `/api/engagements/${encodeURIComponent(engagementId)}/comments/${encodeURIComponent(cleanCommentId)}/like`,
-                    { userId: effectiveUserId, matchId },
+                    { userId: effectiveUserId, userName: effectiveUserName, matchId, momentId, seriesId },
                     { timeout: 8000 }
                 );
             }

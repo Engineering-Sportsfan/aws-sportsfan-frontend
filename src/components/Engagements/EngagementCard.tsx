@@ -1429,6 +1429,8 @@ export default function EngagementCard({
                     userName: currentUserName,
                     userAvatar: currentUserAvatar,
                     matchId: item.matchId,
+                    momentId: item.momentId || item.loopId,
+                    seriesId: (item as any).seriesId,
                     ...(isChange ? { changeVote: true, previousOptionId } : {}),
                 },
                 { timeout: 8000 }
@@ -1529,7 +1531,13 @@ export default function EngagementCard({
         try {
             const res = await axios.post(
                 `/api/engagements/${encodeURIComponent(item.id)}/like`,
-                { userId: currentUserId, matchId: item.matchId },
+                {
+                    userId: currentUserId,
+                    userName: currentUserName,
+                    matchId: item.matchId,
+                    momentId: item.momentId || item.loopId,
+                    seriesId: (item as any).seriesId,
+                },
                 { timeout: 8000 }
             );
             const L = Number(res.data?.likes);
@@ -1600,7 +1608,13 @@ export default function EngagementCard({
         try {
             const res = await axios.post(
                 `/api/engagements/${encodeURIComponent(item.id)}/share`,
-                { userId: currentUserId, matchId: item.matchId },
+                {
+                    userId: currentUserId,
+                    userName: currentUserName,
+                    matchId: item.matchId,
+                    momentId: item.momentId || item.loopId,
+                    seriesId: (item as any).seriesId,
+                },
                 { timeout: 8000 }
             );
             const s = Number(res.data?.shares);
@@ -1975,12 +1989,68 @@ export default function EngagementCard({
         );
     };
 
+    const cardRef = useRef<HTMLDivElement | null>(null);
+    const impressionTrackedKeyRef = useRef<string>("");
+
+    useEffect(() => {
+        if (!item?.id || !currentUserId || currentUserId === "fan_guest") return;
+        const sessionKey = `sf_eng_imp_${item.id}_${currentUserId}`;
+        if (impressionTrackedKeyRef.current === sessionKey) return;
+        try {
+            if (typeof window !== "undefined" && window.sessionStorage.getItem(sessionKey)) {
+                impressionTrackedKeyRef.current = sessionKey;
+                return;
+            }
+        } catch { /* ignore */ }
+
+        const el = cardRef.current;
+        if (!el || typeof IntersectionObserver === "undefined") return;
+
+        let cancelled = false;
+        const sendImpression = () => {
+            if (cancelled || impressionTrackedKeyRef.current === sessionKey) return;
+            impressionTrackedKeyRef.current = sessionKey;
+            try {
+                if (typeof window !== "undefined") window.sessionStorage.setItem(sessionKey, "1");
+            } catch { /* ignore */ }
+            axios.post(
+                `/api/engagements/${encodeURIComponent(item.id)}/impression`,
+                {
+                    userId: currentUserId,
+                    userName: currentUserName,
+                    userAvatar: currentUserAvatar,
+                    matchId: item.matchId,
+                    momentId: item.momentId || item.loopId,
+                    seriesId: (item as any).seriesId,
+                },
+                { timeout: 6000 }
+            ).catch(() => { /* non-fatal */ });
+        };
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.35)) {
+                    sendImpression();
+                    observer.disconnect();
+                }
+            },
+            { threshold: [0.35] }
+        );
+
+        observer.observe(el);
+        return () => {
+            cancelled = true;
+            observer.disconnect();
+        };
+    }, [item?.id, item?.matchId, item?.momentId, item?.loopId, currentUserId, currentUserName, currentUserAvatar]);
+
     // ─────────────────────────────────────────────────────────────
     // VARIANT: "post" (Matches regular room discussion posts seamlessly)
     // ─────────────────────────────────────────────────────────────
     if (variant === "post") {
         return (
             <motion.div
+                ref={cardRef}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
@@ -2134,6 +2204,8 @@ export default function EngagementCard({
                             <EngagementCommentsThread
                                 engagementId={item.id}
                                 matchId={item.matchId}
+                                momentId={item.momentId || item.loopId}
+                                seriesId={(item as any).seriesId}
                                 accentColor={theme.accent}
                                 onCommentCountChange={(cnt: number) => {
                                     setCommentsCount(cnt);
@@ -2152,6 +2224,7 @@ export default function EngagementCard({
     // ─────────────────────────────────────────────────────────────
     return (
         <div
+            ref={cardRef}
             className={`rounded-2xl bg-gradient-to-b from-[#181822]/95 to-[#101016]/98 border border-white/10 p-3 shadow-xl hover:border-white/20 transition-all ${className}`}
         >
             {/* ── CARD HEADER ── */}
@@ -2273,6 +2346,8 @@ export default function EngagementCard({
                         <EngagementCommentsThread
                             engagementId={item.id}
                             matchId={item.matchId}
+                            momentId={item.momentId || item.loopId}
+                            seriesId={(item as any).seriesId}
                             accentColor={theme.accent}
                             onCommentCountChange={(cnt: number) => {
                                 setCommentsCount(cnt);
