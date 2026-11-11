@@ -1895,9 +1895,10 @@ export default function SportScoreSection({
     };
 
     fetchData(); // Fetch immediately
-    const interval = setInterval(fetchData, 15000); // Poll every 15s
-
-    return () => clearInterval(interval);
+    // Score polling disabled (scores not shown) to save billed API calls.
+    // Re-enable by uncommenting:
+    // const interval = setInterval(() => { if (!document.hidden) fetchData(); }, 30000);
+    // return () => clearInterval(interval);
   }, [selectedSport, router]);
 
   return (

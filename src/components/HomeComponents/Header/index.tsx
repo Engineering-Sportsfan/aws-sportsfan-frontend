@@ -1462,7 +1462,8 @@ export default function Header() {
       }
     };
     fetchMainUnread();
-    const interval = setInterval(fetchMainUnread, 30000);
+    // Poll every 60s (was 30s) and skip while the tab is hidden, to cut billed API calls
+    const interval = setInterval(() => { if (!document.hidden) fetchMainUnread(); }, 60000);
 
     const handleNotifUpdate = (e: any) => {
       if (e?.detail?.all || e?.detail?.cleared) {

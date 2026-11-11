@@ -66,7 +66,7 @@ export default function RootLayout({
   suppressHydrationWarning
 >
         <PostHogProvider>
-        <SessionProvider>
+        <SessionProvider refetchOnWindowFocus={false}>
           <AuthProvider>
             <ClubProfileProvider>
               <WatchAlongProvider>

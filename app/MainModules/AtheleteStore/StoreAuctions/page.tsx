@@ -161,8 +161,10 @@ function AuctionDetail({ auctionId, dbId, title, description, image, reservePric
 
   useEffect(() => {
     loadAuctionData();
-    const interval = setInterval(loadAuctionData, 5000); // Poll every 5s for real-time bid updates
-    return () => clearInterval(interval);
+    // Auction polling disabled (feature not in use) to save billed API calls.
+    // Re-enable by uncommenting:
+    // const interval = setInterval(() => { if (!document.hidden) loadAuctionData(); }, 10000);
+    // return () => clearInterval(interval);
   }, [dbId]);
 
   const [autoBidStatusMessage, setAutoBidStatusMessage] = useState<string | null>(null);

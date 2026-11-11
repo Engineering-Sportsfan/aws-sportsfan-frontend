@@ -58,6 +58,7 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
     matcher: [
-        '/((?!_next/static|_next/image|favicon.ico|public).*)',
+        // api, ingest and images are public routes anyway, so skip running auth() on them
+        '/((?!api|ingest|images|_next/static|_next/image|favicon.ico|public).*)',
     ],
 };
