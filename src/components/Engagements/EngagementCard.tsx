@@ -1030,6 +1030,7 @@ export interface EngagementCardProps {
     className?: string;
     compact?: boolean;
     variant?: "post" | "card";
+    onShowLikers?: (id: string) => void;
 }
 
 function timeAgo(ts?: number | string): string {
@@ -1098,6 +1099,7 @@ export default function EngagementCard({
     className = "",
     compact = false,
     variant = "post",
+    onShowLikers,
 }: EngagementCardProps) {
     const { userProfile } = useUserProfile();
     const currentUserId = userProfile?.actualUserId || userProfile?.email || "fan_guest";
@@ -1232,12 +1234,15 @@ export default function EngagementCard({
         // ignore a list refresh right after the user toggled, so it can't flash a stale value
         const likeLocked = Date.now() - likeLockRef.current < 15000;
         if (!likeLocked) {
-            if (item.likes !== undefined) setLikes(Number(item.likes) || 0);
+            let savedLike = false;
+            try { savedLike = localStorage.getItem(likeKey) === "true"; } catch { }
+            if (item.likes !== undefined) {
+                const sLikes = Number(item.likes) || 0;
+                setLikes(prev => ((isLiked || savedLike) && sLikes === 0 ? Math.max(prev, 1) : sLikes));
+            }
             // A list saying "not liked" must not undo a like this browser made and the server confirmed
             // (the list may have been computed for another user id). Only a "liked" answer, or this
             // browser never having liked it, is applied.
-            let savedLike = false;
-            try { savedLike = localStorage.getItem(likeKey) === "true"; } catch { }
             if (item.userLiked !== undefined && (item.userLiked || !savedLike || !likeConfirmedRef.current)) {
                 setIsLiked(Boolean(item.userLiked));
                 try { localStorage.setItem(likeKey, String(Boolean(item.userLiked))); } catch { }
@@ -1245,7 +1250,49 @@ export default function EngagementCard({
         }
         if (item.shares !== undefined) setShares(Number(item.shares) || 0);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [item.likes, item.userLiked, item.shares]);
+    }, [item.likes, item.userLiked, item.shares, isLiked]);
+
+    // Live Sync: Poll like state and comments count every 3s so multi-user updates reflect live
+    useEffect(() => {
+        if (!item.id) return;
+        let cancelled = false;
+        const syncSocial = async () => {
+            if (Date.now() - likeLockRef.current < 15000) return;
+            try {
+                const res = await axios.get(`/api/engagements/${encodeURIComponent(item.id)}/like`, {
+                    params: { userId: currentUserId, matchId: item.matchId, _t: Date.now() },
+                    timeout: 6000,
+                });
+                if (cancelled) return;
+                if (typeof res.data?.likes === "number") {
+                    setLikes(prev => (isLiked && res.data.likes === 0 ? Math.max(prev, 1) : res.data.likes));
+                }
+                if (typeof res.data?.liked === "boolean") {
+                    if (res.data.liked) {
+                        setIsLiked(true);
+                        try { localStorage.setItem(likeKey, "true"); } catch {}
+                    }
+                }
+            } catch {}
+            try {
+                const cRes = await axios.get(`/api/engagements/${encodeURIComponent(item.id)}/comments`, {
+                    params: { countOnly: "1", matchId: item.matchId, _t: Date.now() },
+                    timeout: 6000,
+                });
+                if (cancelled) return;
+                if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
+            } catch {}
+        };
+
+        const interval = setInterval(() => {
+            if (!cancelled && !document.hidden) syncSocial();
+        }, 3000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, [item.id, currentUserId, item.matchId, likeKey, isLiked]);
 
     // Server vote state wins once it arrives (localStorage stays as the optimistic fallback).
     useEffect(() => {
@@ -1382,6 +1429,8 @@ export default function EngagementCard({
                     userName: currentUserName,
                     userAvatar: currentUserAvatar,
                     matchId: item.matchId,
+                    momentId: item.momentId || item.loopId,
+                    seriesId: (item as any).seriesId,
                     ...(isChange ? { changeVote: true, previousOptionId } : {}),
                 },
                 { timeout: 8000 }
@@ -1482,7 +1531,13 @@ export default function EngagementCard({
         try {
             const res = await axios.post(
                 `/api/engagements/${encodeURIComponent(item.id)}/like`,
-                { userId: currentUserId, matchId: item.matchId },
+                {
+                    userId: currentUserId,
+                    userName: currentUserName,
+                    matchId: item.matchId,
+                    momentId: item.momentId || item.loopId,
+                    seriesId: (item as any).seriesId,
+                },
                 { timeout: 8000 }
             );
             const L = Number(res.data?.likes);
@@ -1553,7 +1608,13 @@ export default function EngagementCard({
         try {
             const res = await axios.post(
                 `/api/engagements/${encodeURIComponent(item.id)}/share`,
-                { userId: currentUserId, matchId: item.matchId },
+                {
+                    userId: currentUserId,
+                    userName: currentUserName,
+                    matchId: item.matchId,
+                    momentId: item.momentId || item.loopId,
+                    seriesId: (item as any).seriesId,
+                },
                 { timeout: 8000 }
             );
             const s = Number(res.data?.shares);
@@ -1928,12 +1989,68 @@ export default function EngagementCard({
         );
     };
 
+    const cardRef = useRef<HTMLDivElement | null>(null);
+    const impressionTrackedKeyRef = useRef<string>("");
+
+    useEffect(() => {
+        if (!item?.id || !currentUserId || currentUserId === "fan_guest") return;
+        const sessionKey = `sf_eng_imp_${item.id}_${currentUserId}`;
+        if (impressionTrackedKeyRef.current === sessionKey) return;
+        try {
+            if (typeof window !== "undefined" && window.sessionStorage.getItem(sessionKey)) {
+                impressionTrackedKeyRef.current = sessionKey;
+                return;
+            }
+        } catch { /* ignore */ }
+
+        const el = cardRef.current;
+        if (!el || typeof IntersectionObserver === "undefined") return;
+
+        let cancelled = false;
+        const sendImpression = () => {
+            if (cancelled || impressionTrackedKeyRef.current === sessionKey) return;
+            impressionTrackedKeyRef.current = sessionKey;
+            try {
+                if (typeof window !== "undefined") window.sessionStorage.setItem(sessionKey, "1");
+            } catch { /* ignore */ }
+            axios.post(
+                `/api/engagements/${encodeURIComponent(item.id)}/impression`,
+                {
+                    userId: currentUserId,
+                    userName: currentUserName,
+                    userAvatar: currentUserAvatar,
+                    matchId: item.matchId,
+                    momentId: item.momentId || item.loopId,
+                    seriesId: (item as any).seriesId,
+                },
+                { timeout: 6000 }
+            ).catch(() => { /* non-fatal */ });
+        };
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.35)) {
+                    sendImpression();
+                    observer.disconnect();
+                }
+            },
+            { threshold: [0.35] }
+        );
+
+        observer.observe(el);
+        return () => {
+            cancelled = true;
+            observer.disconnect();
+        };
+    }, [item?.id, item?.matchId, item?.momentId, item?.loopId, currentUserId, currentUserName, currentUserAvatar]);
+
     // ─────────────────────────────────────────────────────────────
     // VARIANT: "post" (Matches regular room discussion posts seamlessly)
     // ─────────────────────────────────────────────────────────────
     if (variant === "post") {
         return (
             <motion.div
+                ref={cardRef}
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
@@ -1994,16 +2111,28 @@ export default function EngagementCard({
                 {/* ── Action Bar (Comments, Likes, Shares) ── */}
                 <div style={{ display: "flex", gap: 8, borderTop: "1px solid rgba(255,255,255,0.06)", paddingTop: 5, alignItems: "center" }}>
                     {/* Live Like */}
-                    <button
-                        type="button"
-                        onClick={handleToggleLike}
-                        className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
-                            }`}
-                        title="Like this moment"
-                    >
-                        <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
-                        <span style={{ fontSize: 10 }}>{likes}</span>
-                    </button>
+                    <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                        <button
+                            type="button"
+                            onClick={handleToggleLike}
+                            className={`flex items-center gap-1 text-[11px] font-medium transition-colors ${isLiked ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"}`}
+                            title={isLiked ? "Unlike" : "Like this moment"}
+                        >
+                            <Heart size={12} fill={isLiked ? "currentColor" : "none"} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (likes > 0) onShowLikers?.(item.id);
+                                else handleToggleLike();
+                            }}
+                            className={`text-[10px] transition-colors ${likes > 0 ? "hover:underline cursor-pointer hover:text-white" : ""} ${isLiked ? "text-[#e91e8c] font-bold" : "text-[#9494ad]"}`}
+                            title={likes > 0 ? "See who liked this" : "Like this moment"}
+                        >
+                            {likes}
+                        </button>
+                    </div>
 
                     {/* Comments Toggle Button */}
                     <button
@@ -2033,6 +2162,33 @@ export default function EngagementCard({
                             </span>
                         )}
                     </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(item.id);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
                 </div>
 
                 {/* ── Inline Comments Thread ── */}
@@ -2048,6 +2204,8 @@ export default function EngagementCard({
                             <EngagementCommentsThread
                                 engagementId={item.id}
                                 matchId={item.matchId}
+                                momentId={item.momentId || item.loopId}
+                                seriesId={(item as any).seriesId}
                                 accentColor={theme.accent}
                                 onCommentCountChange={(cnt: number) => {
                                     setCommentsCount(cnt);
@@ -2066,6 +2224,7 @@ export default function EngagementCard({
     // ─────────────────────────────────────────────────────────────
     return (
         <div
+            ref={cardRef}
             className={`rounded-2xl bg-gradient-to-b from-[#181822]/95 to-[#101016]/98 border border-white/10 p-3 shadow-xl hover:border-white/20 transition-all ${className}`}
         >
             {/* ── CARD HEADER ── */}
@@ -2144,6 +2303,33 @@ export default function EngagementCard({
                             </span>
                         )}
                     </button>
+
+                    {/* Rightmost Heart Pill to see who reacted */}
+                    {likes > 0 && (
+                        <motion.button
+                            whileTap={{ scale: 0.93 }}
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onShowLikers?.(item.id);
+                            }}
+                            style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 3,
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                marginLeft: "auto",
+                                padding: 0,
+                            }}
+                            title="See who reacted"
+                        >
+                            <div style={{ width: 18, height: 18, borderRadius: "50%", background: "#1e1e2a", border: "1.5px solid rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, position: "relative" }}>
+                                ❤️
+                            </div>
+                        </motion.button>
+                    )}
                 </div>
             </div>
 
@@ -2160,6 +2346,8 @@ export default function EngagementCard({
                         <EngagementCommentsThread
                             engagementId={item.id}
                             matchId={item.matchId}
+                            momentId={item.momentId || item.loopId}
+                            seriesId={(item as any).seriesId}
                             accentColor={theme.accent}
                             onCommentCountChange={(cnt: number) => {
                                 setCommentsCount(cnt);

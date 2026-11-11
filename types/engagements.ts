@@ -167,8 +167,22 @@ export interface EngagementItem {
   shares: number;
   totalEngaged: number;
   commentsCount?: number;
+  impressions?: number;
+  impressionsCount?: number;
+  participationsCount?: number;
+  totalActionsCount?: number;
+  actionCommentsCount?: number;
+  socialLikesCount?: number;
+  socialCommentsCount?: number;
+  socialImpressionsCount?: number;
+  totalSocialResponsesCount?: number;
 
+  seriesId?: string;
   matchId?: string;
+  momentId?: string;
+  loopId?: string;
+  recognitionId?: string;
+  hasRecognition?: boolean;
   debateData?: any;
   expressData?: any;
   questionData?: any;

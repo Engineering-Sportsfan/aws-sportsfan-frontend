@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { Heart, Reply, Send, Trash2, ChevronDown, ChevronUp, CornerDownRight } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { Heart, MessageSquare, Reply, Send, Trash2, ChevronDown, ChevronUp, CornerDownRight } from "lucide-react";
 import axios from "axios";
 import { useUserProfile } from "@/context/UserProfileContext";
 
@@ -20,40 +20,66 @@ export interface ThreadComment {
 }
 
 interface Props {
-    engagementId: string;
+    engagementId?: string;
+    roomId?: string;
+    postId?: string;
     matchId?: string;
+    momentId?: string;
+    seriesId?: string;
     accentColor?: string;
+    currentAvatarUrl?: string;
+    currentUserId?: string;
+    currentUsername?: string;
+    onFanProfile?: (fan: any) => void;
     onCommentCountChange?: (count: number) => void;
 }
 
-function timeAgo(ts: number): string {
-    const diff = Math.max(0, Date.now() - ts);
+function timeAgo(ts?: number | string): string {
+    if (!ts) return "now";
+    const date = typeof ts === "number" ? ts : new Date(ts).getTime();
+    if (isNaN(date)) return "now";
+    const diff = Math.max(0, Date.now() - date);
     if (diff < 60000) return "just now";
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
     return `${Math.floor(diff / 86400000)}d`;
 }
 
-// Maps API shape (authorUid / authorUsername / likesCount / parentId) -> UI shape
+// Maps API shapes (DynamoDB RealTimeChat, SocialAndContent, Firestore) -> UI shape
 function normalize(c: any): ThreadComment {
+    const reactions = c.reactions && typeof c.reactions === "object" ? c.reactions : {};
+    const reactionUids = Object.entries(reactions)
+        .filter(([_, r]) => r === "heart" || r === "like" || r === true)
+        .map(([uid]) => uid);
+    const rawLikedBy = Array.isArray(c.likedBy) && c.likedBy.length > 0
+        ? Array.from(new Set([...c.likedBy, ...reactionUids]))
+        : reactionUids;
+    const isLikedByUser = c.userReaction === "heart" || c.userLiked === true;
+    const finalLikedBy = isLikedByUser && !rawLikedBy.includes("me") ? [...rawLikedBy, "me"] : rawLikedBy;
+    const rawLikes = Math.max(
+        Number(c.likesCount ?? c.heartCount ?? c.likes ?? 0),
+        finalLikedBy.length
+    );
+    const rawId = String(c.id || c.commentId || c._id || "");
+    const cleanId = rawId.replace(/^COMMENT#/, "").trim() || `cmt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
     return {
-        id: String(c.id || c.commentId || c._id),
-        engagementId: c.engagementId,
-        text: c.text || "",
+        id: cleanId,
+        engagementId: String(c.engagementId || c.postId || ""),
+        text: String(c.text || ""),
         userId: String(c.authorUid || c.userId || ""),
-        userName: c.authorUsername || c.userName || c.username || "Fan",
+        userName: String(c.authorUsername || c.userName || c.username || "Fan"),
         userAvatar: c.authorAvatarUrl || c.userAvatar || c.avatarUrl || "",
         createdAt: Number(c.createdAt) || Date.now(),
-        likes: Number(c.likesCount ?? c.likes) || 0,
-        likedBy: Array.isArray(c.likedBy) ? c.likedBy : [],
-        parentCommentId: c.parentId || c.parentCommentId || null,
+        likes: rawLikes,
+        likedBy: finalLikedBy,
+        parentCommentId: c.parentId ? String(c.parentId).replace(/^COMMENT#/, "").trim() : (c.parentCommentId ? String(c.parentCommentId).replace(/^COMMENT#/, "").trim() : null),
         replies: Array.isArray(c.replies) ? c.replies.map(normalize) : [],
     };
 }
 
-// ── Tree helpers (comments can be nested to any depth) ──
+// ── Recursive Tree helpers (support infinite nesting depth) ──
 
-// Every comment in the tree, replies included, as a flat list (children detached).
 function flatten(list: ThreadComment[]): ThreadComment[] {
     const out: ThreadComment[] = [];
     const walk = (nodes: ThreadComment[]) => {
@@ -66,20 +92,46 @@ function flatten(list: ThreadComment[]): ThreadComment[] {
     return out;
 }
 
-// Builds the tree from parentCommentId links. Works whether the API sends a flat list,
-// a one-level `replies` array, or fully nested replies. Newest top-level first, replies oldest first.
+// Builds the multi-level tree from parentCommentId links. Works for any nesting depth.
 function buildTree(list: ThreadComment[]): ThreadComment[] {
     const flat = flatten(list);
     const byId = new Map<string, ThreadComment>();
-    for (const c of flat) if (!byId.has(c.id)) byId.set(c.id, c);
+    const userToCommentId = new Map<string, string>();
+
+    for (const c of flat) {
+        if (!byId.has(c.id)) {
+            byId.set(c.id, { ...c, replies: [] });
+        }
+        if (!c.parentCommentId && c.userName) {
+            userToCommentId.set(c.userName.toLowerCase(), c.id);
+        }
+    }
     const nodes = Array.from(byId.values());
 
     const roots: ThreadComment[] = [];
     for (const c of nodes) {
-        const parent = c.parentCommentId ? byId.get(c.parentCommentId) : undefined;
-        if (parent && parent.id !== c.id) parent.replies = [...(parent.replies || []), c];
-        else roots.push(c);
+        let parent: ThreadComment | undefined;
+        if (c.parentCommentId) {
+            parent = byId.get(c.parentCommentId);
+        } else {
+            // @mention fallback if parentCommentId was not saved
+            const match = (c.text || "").match(/^@([a-zA-Z0-9_.\s]+?)(?:\s|$)/);
+            if (match) {
+                const targetName = match[1].trim().toLowerCase();
+                const priorId = userToCommentId.get(targetName);
+                if (priorId && priorId !== c.id) {
+                    parent = byId.get(priorId);
+                }
+            }
+        }
+
+        if (parent && parent.id !== c.id) {
+            parent.replies = [...(parent.replies || []), c];
+        } else {
+            roots.push(c);
+        }
     }
+
     const sortReplies = (c: ThreadComment) => {
         c.replies = (c.replies || []).sort((a, b) => a.createdAt - b.createdAt);
         c.replies.forEach(sortReplies);
@@ -88,101 +140,392 @@ function buildTree(list: ThreadComment[]): ThreadComment[] {
     return roots.sort((a, b) => b.createdAt - a.createdAt);
 }
 
-const countTotal = (list: ThreadComment[]): number =>
+export const countTotal = (list: ThreadComment[]): number =>
     list.reduce((acc, c) => acc + 1 + countTotal(c.replies || []), 0);
 
-const updateNode = (list: ThreadComment[], id: string, fn: (c: ThreadComment) => ThreadComment): ThreadComment[] =>
-    list.map(c => (c.id === id ? fn(c) : { ...c, replies: updateNode(c.replies || [], id, fn) }));
+const updateNode = (list: ThreadComment[], id: string, fn: (c: ThreadComment) => ThreadComment): ThreadComment[] => {
+    const cleanTargetId = String(id).replace(/^COMMENT#/, "").trim();
+    return list.map(c => {
+        const cleanCid = String(c.id).replace(/^COMMENT#/, "").trim();
+        if (cleanCid === cleanTargetId || c.id === id) {
+            return fn(c);
+        }
+        return { ...c, replies: updateNode(c.replies || [], id, fn) };
+    });
+};
 
-const removeNode = (list: ThreadComment[], id: string): ThreadComment[] =>
-    list.filter(c => c.id !== id).map(c => ({ ...c, replies: removeNode(c.replies || [], id) }));
+const removeNode = (list: ThreadComment[], id: string): ThreadComment[] => {
+    const cleanTargetId = String(id).replace(/^COMMENT#/, "").trim();
+    return list
+        .filter(c => String(c.id).replace(/^COMMENT#/, "").trim() !== cleanTargetId && c.id !== id)
+        .map(c => ({ ...c, replies: removeNode(c.replies || [], id) }));
+};
 
-// Past this depth replies stop indenting further so deep threads still fit on a phone.
-const MAX_INDENT_DEPTH = 4;
+const MAX_INDENT_DEPTH = 6;
 
-export default function EngagementCommentsThread({ engagementId, matchId, accentColor = "#e91e8c", onCommentCountChange }: Props) {
+export default function EngagementCommentsThread({
+    engagementId,
+    roomId,
+    postId,
+    matchId,
+    momentId,
+    seriesId,
+    accentColor = "#e91e8c",
+    currentAvatarUrl,
+    currentUserId: propUserId,
+    currentUsername: propUsername,
+    onFanProfile,
+    onCommentCountChange,
+}: Props) {
     const { userProfile } = useUserProfile();
-    const currentUserId = userProfile?.actualUserId || userProfile?.email || "guest_fan";
-    // Real name only: "" when the profile has not loaded, so the placeholder is never sent to (and saved by) the server
+    const effectiveUserId =
+        (propUserId && propUserId !== "fan_guest" ? propUserId : null) ||
+        userProfile?.actualUserId ||
+        (userProfile as any)?.userId ||
+        (userProfile as any)?.authUserId ||
+        userProfile?.email ||
+        (typeof window !== "undefined" ? localStorage.getItem("roar_actual_user_id") || localStorage.getItem("roar_user_id") || localStorage.getItem("sf_user_id") : null) ||
+        (propUserId || "guest_fan");
     const realUserName =
-        userProfile?.username || userProfile?.name || (userProfile?.email ? userProfile.email.split("@")[0] : "");
-    const currentUserName = realUserName || "SportsFan";
-    const currentUserAvatar = userProfile?.avatarUrl || userProfile?.avatar || "";
+        propUsername || userProfile?.username || userProfile?.name || (userProfile?.email ? userProfile.email.split("@")[0] : "");
+    const effectiveUserName = realUserName || "SportsFan";
+    const effectiveAvatar = currentAvatarUrl || userProfile?.avatarUrl || userProfile?.avatar || "";
+
+    const myIdCandidates = useMemo(() => {
+        const set = new Set<string>(["me"]);
+        const add = (v?: string | null) => {
+            if (!v) return;
+            const s = String(v).trim();
+            if (!s) return;
+            set.add(s);
+            set.add(s.toLowerCase());
+            const stripped = s.replace(/^USER#/i, "");
+            set.add(stripped);
+            set.add(stripped.toLowerCase());
+            set.add(`USER#${stripped}`);
+            set.add(`USER#${stripped.toLowerCase()}`);
+        };
+
+        add(effectiveUserId);
+        add(propUserId);
+        add(userProfile?.actualUserId);
+        add((userProfile as any)?.userId);
+        add((userProfile as any)?.authUserId);
+        add(userProfile?.email);
+        add(userProfile?.username);
+        add(effectiveUserName);
+        if (typeof window !== "undefined") {
+            try {
+                add(localStorage.getItem("roar_actual_user_id"));
+                add(localStorage.getItem("roar_user_id"));
+                add(localStorage.getItem("sf_user_id"));
+                add(localStorage.getItem("roar_username"));
+            } catch {}
+        }
+        return set;
+    }, [effectiveUserId, propUserId, userProfile, effectiveUserName]);
+
+    const commentLikesKey = `sf_comment_likes_${effectiveUserId}`;
+    const [likedCommentIds, setLikedCommentIds] = useState<Set<string>>(() => {
+        if (typeof window !== "undefined") {
+            try {
+                const stored = localStorage.getItem(commentLikesKey);
+                if (stored) return new Set<string>(JSON.parse(stored));
+            } catch {}
+        }
+        return new Set<string>();
+    });
+
+    // Re-hydrate liked comment IDs when effectiveUserId or key changes
+    useEffect(() => {
+        if (typeof window !== "undefined") {
+            try {
+                const stored = localStorage.getItem(commentLikesKey);
+                if (stored) {
+                    const ids = JSON.parse(stored);
+                    if (Array.isArray(ids)) {
+                        setLikedCommentIds(prev => new Set([...prev, ...ids]));
+                    }
+                }
+            } catch {}
+        }
+    }, [commentLikesKey]);
+
+    // Active refs to guard polling intervals against stale React hook closures
+    const likedCommentIdsRef = useRef<Set<string>>(likedCommentIds);
+    useEffect(() => { likedCommentIdsRef.current = likedCommentIds; }, [likedCommentIds]);
+    const myIdCandidatesRef = useRef(myIdCandidates);
+    useEffect(() => { myIdCandidatesRef.current = myIdCandidates; }, [myIdCandidates]);
+    const effectiveUserIdRef = useRef(effectiveUserId);
+    useEffect(() => { effectiveUserIdRef.current = effectiveUserId; }, [effectiveUserId]);
+    const lastLikeActionRef = useRef<Record<string, number>>({});
+
+    const isCommentLiked = useCallback((c: ThreadComment): boolean => {
+        const cleanId = String(c.id).replace(/^COMMENT#/, "").trim();
+        if (likedCommentIds.has(c.id) || likedCommentIds.has(cleanId)) return true;
+        const likedBy = c.likedBy || [];
+        for (const uid of likedBy) {
+            if (!uid) continue;
+            const s = String(uid).trim();
+            const stripped = s.replace(/^USER#/i, "").toLowerCase();
+            if (
+                myIdCandidates.has(s) ||
+                myIdCandidates.has(s.toLowerCase()) ||
+                myIdCandidates.has(stripped)
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }, [likedCommentIds, myIdCandidates]);
 
     const [comments, setComments] = useState<ThreadComment[]>([]);
     const [loading, setLoading] = useState(true);
     const [inputText, setInputText] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [sendError, setSendError] = useState<string | null>(null);
-    // The comment (or reply) the next message is posted under.
+
+    // The parent comment or reply that the user is replying to
     const [replyTo, setReplyTo] = useState<{ parentId: string; userName: string } | null>(null);
     const [expandedReplies, setExpandedReplies] = useState<Record<string, boolean>>({});
 
     const inputRef = useRef<HTMLInputElement>(null);
-    const storageKey = `sf_eng_comments_${engagementId}`;
+    const threadKey = engagementId ? `eng_${engagementId}` : `post_${roomId}_${postId}`;
+    const storageKey = `sf_thread_comments_${threadKey}`;
 
-    // Keep latest callback in a ref so it never retriggers effects
     const onCountRef = useRef(onCommentCountChange);
     useEffect(() => { onCountRef.current = onCommentCountChange; });
     const loadedRef = useRef(false);
+    const prevReportedTotal = useRef<number | null>(null);
 
-    // ── Load ONCE per engagement ──
-    useEffect(() => {
-        let cancelled = false;
-        loadedRef.current = false;
-        (async () => {
-            setLoading(true);
-            try {
-                const url = `/api/engagements/${encodeURIComponent(engagementId)}/comments`;
-                let res;
-                try {
-                    res = await axios.get(url, { params: matchId ? { matchId } : undefined, timeout: 8000 });
-                } catch (firstErr) {
-                    console.warn("Comments load failed, retrying without matchId:", firstErr);
-                    if (!matchId) throw firstErr;
-                    res = await axios.get(url, { timeout: 8000 });
-                }
-                if (cancelled) return;
-                // Accept { comments }, { data: [...] }, { data: { comments } } or a bare array
-                const d = res.data;
-                const list = Array.isArray(d) ? d
-                    : Array.isArray(d?.comments) ? d.comments
-                    : Array.isArray(d?.data) ? d.data
-                    : Array.isArray(d?.data?.comments) ? d.data.comments
-                    : null;
-                if (list) {
-                    loadedRef.current = true;
-                    setComments(buildTree(list.map(normalize)));
-                } else {
-                    console.warn("Unexpected comments response shape:", d);
-                }
-            } catch (err) {
-                if (cancelled) return;
-                console.warn("Comments load failed:", err);
+    // ── Load & Live Poll comments (runs every 2 seconds for instant updates) ──
+    const loadComments = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
+        try {
+            let res;
+            if (roomId && postId) {
+                res = await axios.get(
+                    `/api/roar/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(postId)}/comments`,
+                    { params: { limit: 100, _t: Date.now() }, timeout: 8000 }
+                );
+            } else if (engagementId) {
+                res = await axios.get(
+                    `/api/engagements/${encodeURIComponent(engagementId)}/comments`,
+                    { params: { ...(matchId ? { matchId } : {}), limit: 100, _t: Date.now() }, timeout: 8000 }
+                );
+            } else {
+                return;
+            }
+
+            const d = res.data;
+            const list = Array.isArray(d) ? d
+                : Array.isArray(d?.comments) ? d.comments
+                : Array.isArray(d?.data) ? d.data
+                : Array.isArray(d?.data?.comments) ? d.data.comments
+                : null;
+
+            if (list) {
+                loadedRef.current = true;
+                const normalized = list.map(normalize);
+
+                // Sync server-confirmed likes to local Set
+                setLikedCommentIds(prev => {
+                    let changed = false;
+                    const next = new Set(prev);
+                    const scan = (nodes: ThreadComment[]) => {
+                        for (const node of nodes) {
+                            const cleanNid = String(node.id).replace(/^COMMENT#/, "").trim();
+                            const justToggled = Date.now() - (lastLikeActionRef.current[cleanNid] || 0) < 4000;
+                            if (!justToggled) {
+                                const hasMyLike = (node.likedBy || []).some(uid => {
+                                    if (!uid) return false;
+                                    const s = String(uid).trim();
+                                    const stripped = s.replace(/^USER#/i, "").toLowerCase();
+                                    return (
+                                        myIdCandidatesRef.current.has(s) ||
+                                        myIdCandidatesRef.current.has(s.toLowerCase()) ||
+                                        myIdCandidatesRef.current.has(stripped)
+                                    );
+                                });
+                                if (hasMyLike && !next.has(cleanNid)) {
+                                    next.add(cleanNid);
+                                    changed = true;
+                                } else if (!hasMyLike && next.has(cleanNid)) {
+                                    next.delete(cleanNid);
+                                    changed = true;
+                                }
+                            }
+                            if (node.replies?.length) scan(node.replies);
+                        }
+                    };
+                    scan(normalized);
+                    if (changed && typeof window !== "undefined") {
+                        try { localStorage.setItem(commentLikesKey, JSON.stringify(Array.from(next))); } catch {}
+                    }
+                    return next;
+                });
+
+                // Recursive patch node so nested replies at ANY depth never revert like counts to 0 and sync across users
+                const patchNode = (node: ThreadComment): ThreadComment => {
+                    const cleanCid = String(node.id).replace(/^COMMENT#/, "").trim();
+                    const serverHasMyLike = (node.likedBy || []).some(uid => {
+                        if (!uid) return false;
+                        const s = String(uid).trim();
+                        const stripped = s.replace(/^USER#/i, "").toLowerCase();
+                        return (
+                            myIdCandidatesRef.current.has(s) ||
+                            myIdCandidatesRef.current.has(s.toLowerCase()) ||
+                            myIdCandidatesRef.current.has(stripped)
+                        );
+                    });
+                    const isLocallyLiked =
+                        likedCommentIdsRef.current.has(node.id) ||
+                        likedCommentIdsRef.current.has(cleanCid) ||
+                        serverHasMyLike;
+
+                    const hasPendingLocalLike = isLocallyLiked && !serverHasMyLike;
+                    const baseLikes = Number(node.likes || 0);
+                    const finalLikes = Math.max(
+                        baseLikes + (hasPendingLocalLike ? 1 : 0),
+                        isLocallyLiked ? 1 : 0
+                    );
+                    const finalLikedBy = (isLocallyLiked || serverHasMyLike) && !(node.likedBy || []).includes(effectiveUserIdRef.current)
+                        ? [...(node.likedBy || []), effectiveUserIdRef.current]
+                        : node.likedBy;
+
+                    return {
+                        ...node,
+                        id: cleanCid,
+                        likes: finalLikes,
+                        likedBy: finalLikedBy,
+                        replies: (node.replies || []).map(patchNode),
+                    };
+                };
+
+                const patched = normalized.map(patchNode);
+                const tree = buildTree(patched);
+                setComments(tree);
+            }
+        } catch {
+            if (!silent) {
                 try {
                     const cached = JSON.parse(localStorage.getItem(storageKey) || "[]");
                     if (Array.isArray(cached)) setComments(buildTree(cached.map(normalize)));
                 } catch { /* ignore */ }
                 loadedRef.current = true;
-            } finally {
-                if (!cancelled) setLoading(false);
             }
-        })();
-        return () => { cancelled = true; };
-    }, [engagementId, matchId, storageKey]);
+        } finally {
+            if (!silent) setLoading(false);
+        }
+    }, [engagementId, roomId, postId, matchId, storageKey, commentLikesKey]);
 
-    // Report count to parent only when comments actually change (after first load)
+    useEffect(() => {
+        let cancelled = false;
+        loadedRef.current = false;
+
+        loadComments(false);
+
+        // Poll every 2000ms (2 seconds) so other users' comments appear near-instantly
+        const interval = setInterval(() => {
+            if (!cancelled && !document.hidden) {
+                loadComments(true);
+            }
+        }, 2000);
+
+        const handleExternalLikeUpdate = () => {
+            if (!cancelled) {
+                loadComments(true);
+            }
+        };
+        if (typeof window !== "undefined") {
+            window.addEventListener("sf:comment_like_updated", handleExternalLikeUpdate);
+        }
+
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+            if (typeof window !== "undefined") {
+                window.removeEventListener("sf:comment_like_updated", handleExternalLikeUpdate);
+            }
+        };
+    }, [loadComments]);
+
+    // Track peer comment impressions as separated Social Response records once per session
+    const trackedCommentImpressionsRef = useRef<Set<string>>(new Set());
+    useEffect(() => {
+        if (!engagementId || !comments.length) return;
+        if (!effectiveUserId || effectiveUserId === "guest_fan" || effectiveUserId === "fan_guest") return;
+
+        const storageSeenKey = `sf_sr_imp_${engagementId}_${effectiveUserId}`;
+        if (trackedCommentImpressionsRef.current.size === 0 && typeof window !== "undefined") {
+            try {
+                const raw = window.sessionStorage.getItem(storageSeenKey);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) parsed.forEach((cid) => trackedCommentImpressionsRef.current.add(String(cid)));
+                }
+            } catch { /* ignore */ }
+        }
+
+        const peerCommentIds: string[] = [];
+        const collectPeerIds = (nodes: ThreadComment[]) => {
+            for (const c of nodes) {
+                const cid = String(c.id || "").replace(/^COMMENT#/, "").trim();
+                const authorUid = String(c.userId || "").trim();
+                const cleanAuthor = authorUid.replace(/^USER#/i, "").toLowerCase();
+                const isOwnComment = Boolean(
+                    authorUid &&
+                    (myIdCandidates.has(authorUid) ||
+                        myIdCandidates.has(authorUid.toLowerCase()) ||
+                        myIdCandidates.has(cleanAuthor))
+                );
+                if (cid && !cid.startsWith("tmp_") && !isOwnComment && !trackedCommentImpressionsRef.current.has(cid)) {
+                    peerCommentIds.push(cid);
+                }
+                if (c.replies?.length) collectPeerIds(c.replies);
+            }
+        };
+        collectPeerIds(comments);
+
+        if (peerCommentIds.length === 0) return;
+        peerCommentIds.forEach((cid) => trackedCommentImpressionsRef.current.add(cid));
+        try {
+            if (typeof window !== "undefined") {
+                window.sessionStorage.setItem(storageSeenKey, JSON.stringify(Array.from(trackedCommentImpressionsRef.current)));
+            }
+        } catch { /* ignore */ }
+
+        axios.post(
+            `/api/engagements/${encodeURIComponent(engagementId)}/comments/impression`,
+            {
+                userId: effectiveUserId,
+                userName: effectiveUserName,
+                matchId,
+                momentId,
+                seriesId,
+                commentIds: peerCommentIds,
+            },
+            { timeout: 6000 }
+        ).catch(() => { /* non-fatal */ });
+    }, [comments, engagementId, effectiveUserId, effectiveUserName, matchId, momentId, seriesId, myIdCandidates]);
+
+    // Report recursive total count to parent only when count actually changes
     useEffect(() => {
         if (!loadedRef.current) return;
-        onCountRef.current?.(countTotal(comments));
+        const total = countTotal(comments);
+        if (prevReportedTotal.current !== total) {
+            prevReportedTotal.current = total;
+            onCountRef.current?.(total);
+        }
         try { localStorage.setItem(storageKey, JSON.stringify(comments)); } catch { /* ignore */ }
     }, [comments, storageKey]);
 
-    // Start a reply to any comment, at any depth.
+    // Start a reply to any comment or nested reply at any depth
     const startReply = (parentId: string, userName: string) => {
         setReplyTo({ parentId, userName });
         setExpandedReplies(p => ({ ...p, [parentId]: true }));
-        setTimeout(() => inputRef.current?.focus(), 0);
+        setInputText(`@${userName} `);
+        setTimeout(() => inputRef.current?.focus(), 50);
     };
 
     // ── Send comment / reply ──
@@ -196,11 +539,20 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         const parentId = replyTo?.parentId || null;
         const tempId = `tmp_${Date.now()}`;
         const optimistic: ThreadComment = {
-            id: tempId, engagementId, text, userId: currentUserId, userName: currentUserName,
-            userAvatar: currentUserAvatar, createdAt: Date.now(), likes: 0, likedBy: [],
-            parentCommentId: parentId, replies: [],
+            id: tempId,
+            engagementId: engagementId || postId || "",
+            text,
+            userId: effectiveUserId,
+            userName: effectiveUserName,
+            userAvatar: effectiveAvatar,
+            createdAt: Date.now(),
+            likes: 0,
+            likedBy: [],
+            parentCommentId: parentId,
+            replies: [],
         };
 
+        // Optimistically insert into tree immediately
         setComments(prev =>
             parentId
                 ? updateNode(prev, parentId, c => ({ ...c, replies: [...(c.replies || []), optimistic] }))
@@ -211,32 +563,49 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         setReplyTo(null);
 
         try {
-            const res = await axios.post(
-                `/api/engagements/${encodeURIComponent(engagementId)}/comments`,
-                {
-                    text,
-                    parentId,
-                    authorUid: currentUserId,
-                    authorUsername: realUserName,
-                    authorAvatarUrl: currentUserAvatar,
-                    matchId,
-                },
-                // The route does several sequential database writes, so allow longer than a read
-                { timeout: 20000 }
-            );
-            const saved = res.data?.comment ? normalize(res.data.comment) : null;
-            if (saved) {
-                // swap temp -> real (no refetch, no flicker)
-                setComments(prev => updateNode(prev, tempId, c => ({ ...saved, parentCommentId: c.parentCommentId, replies: c.replies })));
+            let res;
+            if (roomId && postId) {
+                res = await axios.post(
+                    `/api/roar/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(postId)}/comments`,
+                    { text, parentId },
+                    { timeout: 15000 }
+                );
+            } else if (engagementId) {
+                res = await axios.post(
+                    `/api/engagements/${encodeURIComponent(engagementId)}/comments`,
+                    {
+                        text,
+                        parentId,
+                        authorUid: effectiveUserId,
+                        authorUsername: realUserName,
+                        authorAvatarUrl: effectiveAvatar,
+                        matchId,
+                        momentId,
+                        seriesId,
+                    },
+                    { timeout: 15000 }
+                );
             }
+
+            const saved = res?.data?.comment ? normalize(res.data.comment) : null;
+            if (saved) {
+                setComments(prev =>
+                    updateNode(prev, tempId, c => ({
+                        ...saved,
+                        parentCommentId: c.parentCommentId,
+                        replies: c.replies,
+                    }))
+                );
+            }
+            // Trigger instant refresh
+            loadComments(true);
         } catch (err: any) {
             const status = err?.response?.status;
             const serverMsg = err?.response?.data?.error;
-            console.warn("Comment send failed:", status ?? err?.code, serverMsg ?? err?.message, err);
             setSendError(
                 status
                     ? `Comment not saved (${status}${serverMsg ? `: ${serverMsg}` : ""}). Please try again.`
-                    : "Comment not saved: the server took too long to answer. Please try again."
+                    : "Comment not saved: connection timed out. Please try again."
             );
             // rollback
             setComments(prev => removeNode(prev, tempId));
@@ -246,43 +615,129 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
         }
     };
 
-    // Optimistic flip, then persisted via the comment-like endpoint (reverted if it fails).
+    // Toggle like on comment at any depth
     const toggleLike = async (commentId: string) => {
-        if (commentId.startsWith("tmp_")) return; // not saved yet
+        if (commentId.startsWith("tmp_")) return;
+        const cleanCommentId = String(commentId).replace(/^COMMENT#/, "").trim();
+
+        // Check current like status
+        const findNode = (nodes: ThreadComment[]): ThreadComment | null => {
+            for (const n of nodes) {
+                const cleanNid = String(n.id).replace(/^COMMENT#/, "").trim();
+                if (cleanNid === cleanCommentId || n.id === commentId) return n;
+                if (n.replies?.length) {
+                    const sub = findNode(n.replies);
+                    if (sub) return sub;
+                }
+            }
+            return null;
+        };
+        const targetNode = findNode(comments);
+        const currentLiked = targetNode ? isCommentLiked(targetNode) : (likedCommentIds.has(cleanCommentId) || likedCommentIds.has(commentId));
+        const nextLiked = !currentLiked;
+
+        lastLikeActionRef.current[cleanCommentId] = Date.now();
+
+        // 1. Instantly update likedCommentIds set and localStorage
+        setLikedCommentIds(prev => {
+            const next = new Set(prev);
+            if (nextLiked) {
+                next.add(cleanCommentId);
+                next.add(commentId);
+            } else {
+                next.delete(cleanCommentId);
+                next.delete(commentId);
+            }
+            if (typeof window !== "undefined") {
+                try { localStorage.setItem(commentLikesKey, JSON.stringify(Array.from(next))); } catch {}
+            }
+            return next;
+        });
+
+        // 2. Optimistically update node in state
         const flip = (c: ThreadComment): ThreadComment => {
-            const liked = (c.likedBy || []).includes(currentUserId);
+            const currentLikedBy = c.likedBy || [];
+            const newLikedBy = nextLiked
+                ? Array.from(new Set([...currentLikedBy, effectiveUserId, "me"]))
+                : currentLikedBy.filter(u => !myIdCandidates.has(u) && !myIdCandidates.has(String(u).toLowerCase()));
+            const newLikesCount = Math.max(0, c.likes + (nextLiked ? 1 : -1));
             return {
                 ...c,
-                likes: Math.max(0, c.likes + (liked ? -1 : 1)),
-                likedBy: liked ? (c.likedBy || []).filter(u => u !== currentUserId) : [...(c.likedBy || []), currentUserId],
+                likes: newLikesCount,
+                likedBy: newLikedBy,
             };
         };
-        const applyFlip = () => setComments(prev => updateNode(prev, commentId, flip));
+        setComments(prev => updateNode(prev, cleanCommentId, flip));
 
-        applyFlip();
+        // 3. Send to backend & sync confirmed server response
         try {
-            await axios.post(
-                `/api/engagements/${encodeURIComponent(engagementId)}/comments/${encodeURIComponent(commentId)}/like`,
-                { userId: currentUserId, matchId },
-                { timeout: 8000 }
-            );
-        } catch {
-            applyFlip(); // flipping again restores the previous state
+            let res: any;
+            if (roomId && postId) {
+                res = await axios.post(
+                    `/api/roar/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(postId)}/comments/${encodeURIComponent(cleanCommentId)}/react`,
+                    { reaction: "heart", userId: effectiveUserId },
+                    { timeout: 8000 }
+                );
+            } else if (engagementId) {
+                res = await axios.post(
+                    `/api/engagements/${encodeURIComponent(engagementId)}/comments/${encodeURIComponent(cleanCommentId)}/like`,
+                    { userId: effectiveUserId, userName: effectiveUserName, matchId, momentId, seriesId },
+                    { timeout: 8000 }
+                );
+            }
+            if (res?.data) {
+                const sLikes = typeof res.data.likesCount === "number"
+                    ? res.data.likesCount
+                    : (typeof res.data.heartCount === "number"
+                        ? res.data.heartCount
+                        : (typeof res.data.likes === "number" ? res.data.likes : null));
+                const sLikedBy = Array.isArray(res.data.likedBy) ? res.data.likedBy : null;
+                if (sLikes !== null) {
+                    setComments(prev => updateNode(prev, cleanCommentId, c => ({
+                        ...c,
+                        likes: nextLiked && sLikes === 0 ? 1 : sLikes,
+                        ...(sLikedBy ? { likedBy: sLikedBy } : {}),
+                    })));
+                }
+            }
+            // Trigger quick background refresh so all clients get the synced state
+            setTimeout(() => { loadComments(true); }, 300);
+            if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("sf:comment_like_updated", { detail: { commentId: cleanCommentId, liked: nextLiked } }));
+            }
+        } catch (err) {
+            console.warn("[toggleLike] Server sync notice:", err);
         }
     };
 
-    // NOTE: no engagement-comment DELETE endpoint is known, so delete is local-only.
-    const handleDelete = (commentId: string) => {
+    const handleDelete = async (commentId: string) => {
+        if (!window.confirm("Delete this comment?")) return;
         setComments(prev => removeNode(prev, commentId));
+        if (roomId && postId) {
+            try {
+                await axios.delete(
+                    `/api/roar/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(postId)}/comments/${encodeURIComponent(commentId)}`,
+                    { timeout: 8000 }
+                );
+            } catch { /* ignore */ }
+        }
     };
 
-    // One comment and, recursively, everything under it.
-    const renderComment = (comment: ThreadComment, depth: number): React.ReactNode => {
-        const isLiked = (comment.likedBy || []).includes(currentUserId);
+    // ── Recursive Comment Renderer (Level 0, 1, 2, 3...) ──
+    const renderComment = (comment: ThreadComment, depth: number = 0): React.ReactNode => {
+        const isLiked = isCommentLiked(comment);
         const replies = comment.replies || [];
-        const open = expandedReplies[comment.id] ?? false;
+        // Default to TRUE so all replies show immediately after refresh, matching screenshot
+        const open = expandedReplies[comment.id] !== false;
         const isRoot = depth === 0;
         const replyTotal = countTotal(replies);
+        const isOwn = comment.userId === effectiveUserId || (comment.userName && comment.userName === effectiveUserName);
+
+        // Highlight @mention tag in text
+        const spaceIdx = (comment.text || "").indexOf(" ");
+        const hasMention = (comment.text || "").startsWith("@") && spaceIdx > -1;
+        const mentionPart = hasMention ? (comment.text || "").slice(0, spaceIdx) : "";
+        const bodyPart = hasMention ? (comment.text || "").slice(spaceIdx) : (comment.text || "");
 
         return (
             <div
@@ -292,7 +747,7 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                     : "flex flex-col gap-1.5 bg-white/[0.02] p-2 rounded-lg"}
             >
                 <div className="flex items-start gap-2">
-                    <div className={`${isRoot ? "w-6 h-6" : "w-5 h-5"} rounded-full overflow-hidden bg-white/10 shrink-0 border border-white/10`}>
+                    <div className={`${isRoot ? "w-7 h-7" : "w-5 h-5"} rounded-full overflow-hidden bg-white/10 shrink-0 border border-white/10`}>
                         {comment.userAvatar ? (
                             <img src={comment.userAvatar} alt={comment.userName} className="w-full h-full object-cover" />
                         ) : (
@@ -303,22 +758,51 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1 mb-0.5">
-                            <span className={`${isRoot ? "text-[11px]" : "text-[10px]"} font-bold text-white truncate`}>{comment.userName}</span>
+                            <span
+                                className={`${isRoot ? "text-[11px]" : "text-[10px]"} font-bold text-white truncate cursor-pointer hover:underline`}
+                                onClick={() => onFanProfile?.({ username: comment.userName, avatarUrl: comment.userAvatar, authorUid: comment.userId })}
+                            >
+                                {comment.userName}
+                            </span>
                             <span className="text-[9px] text-white/35 shrink-0">{timeAgo(comment.createdAt)}</span>
                         </div>
-                        <p className={`${isRoot ? "text-[11px] text-white/85" : "text-[10px] text-white/80"} leading-relaxed break-words`}>{comment.text}</p>
+                        <p className={`${isRoot ? "text-[11px] text-white/85" : "text-[10px] text-white/80"} leading-relaxed break-words`}>
+                            {hasMention && <strong className="text-[#e91e8c] font-semibold mr-1">{mentionPart}</strong>}
+                            {bodyPart}
+                        </p>
                         <div className={`flex items-center gap-3 ${isRoot ? "mt-1.5 text-[10px]" : "mt-1 text-[9px]"}`}>
-                            <button type="button" onClick={() => toggleLike(comment.id)}
-                                className={`flex items-center gap-1 ${isLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"}`}>
-                                <Heart size={isRoot ? 11 : 10} fill={isLiked ? "currentColor" : "none"} /><span>{comment.likes}</span>
+                            <button
+                                type="button"
+                                onClick={() => toggleLike(comment.id)}
+                                className={`flex items-center gap-1 transition-colors ${
+                                    isLiked ? "text-[#e91e8c] font-bold" : "text-white/45 hover:text-white/80"
+                                }`}
+                                title={isLiked ? "Unlike" : "Like"}
+                            >
+                                <Heart
+                                    size={isRoot ? 11 : 10}
+                                    fill={isLiked ? "#e91e8c" : "none"}
+                                    color={isLiked ? "#e91e8c" : "currentColor"}
+                                    strokeWidth={isLiked ? 2.5 : 2}
+                                />
+                                <span className={isLiked ? "text-[#e91e8c] font-bold" : ""}>{comment.likes}</span>
                             </button>
-                            <button type="button"
+                            <button
+                                type="button"
                                 onClick={() => startReply(comment.id, comment.userName || "Fan")}
-                                className="flex items-center gap-1 text-white/45 hover:text-white/80">
-                                <Reply size={isRoot ? 11 : 10} /><span>Reply</span>
+                                className="flex items-center gap-1 text-white/45 hover:text-white/80"
+                                title="Reply to this comment"
+                            >
+                                <Reply size={isRoot ? 11 : 10} />
+                                <span>Reply</span>
                             </button>
-                            {comment.userId === currentUserId && (
-                                <button type="button" onClick={() => handleDelete(comment.id)} className="text-white/25 hover:text-red-400 ml-auto">
+                            {isOwn && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleDelete(comment.id)}
+                                    className="text-white/25 hover:text-red-400 ml-auto"
+                                    title="Delete comment"
+                                >
                                     <Trash2 size={isRoot ? 11 : 10} />
                                 </button>
                             )}
@@ -326,16 +810,20 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                     </div>
                 </div>
 
+                {/* Reply count toggle button */}
                 {replies.length > 0 && (
-                    <button type="button" onClick={() => setExpandedReplies(p => ({ ...p, [comment.id]: !open }))}
-                        className="flex items-center gap-1 ml-7 text-[10px] text-[#e91e8c] hover:underline font-semibold">
+                    <button
+                        type="button"
+                        onClick={() => setExpandedReplies(p => ({ ...p, [comment.id]: !open }))}
+                        className="flex items-center gap-1 ml-7 text-[10px] text-[#e91e8c] hover:underline font-semibold"
+                    >
                         {open ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
                         <span>{open ? "Hide replies" : `View ${replyTotal} ${replyTotal === 1 ? "reply" : "replies"}`}</span>
                     </button>
                 )}
 
+                {/* Recursive nested replies list with guide line */}
                 {open && replies.length > 0 && (
-                    // Each level indents and gets its own guide line, up to MAX_INDENT_DEPTH
                     <div className={`flex flex-col gap-1.5 mt-1 ${depth < MAX_INDENT_DEPTH ? "ml-7 pl-2.5 border-l-2 border-[#e91e8c]/30" : "ml-0 pl-1.5 border-l border-[#e91e8c]/20"}`}>
                         {replies.map(reply => renderComment(reply, depth + 1))}
                     </div>
@@ -345,14 +833,8 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
     };
 
     return (
-        <div className="mt-3 pt-3 border-t border-white/10 flex flex-col gap-2.5">
-            <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-white/80 flex items-center gap-1.5 uppercase tracking-wide">
-                    {/* <MessageSquare size={13} className="text-[#e91e8c]" />
-                    Comments ({countTotal(comments)}) */}
-                </span>
-            </div>
-
+        <div className="mt-2 pt-2.5 border-t border-white/10 flex flex-col gap-2">
+            {/* ── Top Input Form ── */}
             <form onSubmit={handleSend} className="relative flex flex-col gap-1.5">
                 {sendError && (
                     <div className="text-[10px] text-rose-300 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/30">
@@ -393,13 +875,14 @@ export default function EngagementCommentsThread({ engagementId, matchId, accent
                 </div>
             </form>
 
+            {/* ── Comments List ── */}
             {loading && comments.length === 0 ? (
                 <div className="text-center py-2 text-[10px] text-white/40 italic">Loading comments...</div>
             ) : comments.length === 0 ? (
                 <div className="text-center py-3 text-[11px] text-white/40">No comments yet. Start the conversation!!</div>
             ) : (
                 <div className="flex flex-col gap-2 mt-1">
-                    {comments.map(comment => renderComment(comment, 0))}
+                    {comments.map((comment) => renderComment(comment, 0))}
                 </div>
             )}
         </div>
