@@ -1245,8 +1245,9 @@ export default function EngagementCard({
         (["settled", "resolved"].includes(String(anyItem.status || "").toLowerCase()) || winningOptionId !== "");
     const isWinnerOption = (opt: any) =>
         isResolved && (opt?.isWinner === true || (winningOptionId !== "" && String(opt?.id) === winningOptionId));
-    // Voting closes when the countdown ends or the outcome is resolved; the vote route also rejects votes after expiry.
-    const isTimerExpired = runningTimer === "Expired" || isResolved;
+    // Voting closes when the countdown ends or the outcome is resolved; Follow & Match Result cards do not expire.
+    const isNoTimerType = item.type === "follow" || item.type === "match_result";
+    const isTimerExpired = !isNoTimerType && (runningTimer === "Expired" || isResolved);
     const timerLabel = isResolved ? "Resolved" : runningTimer === "Expired" ? "Expired" : `${runningTimer} remaining`;
     // Resolved posts show the result bars even to users who did not vote.
     // While editing, the options are shown again so the user can pick a different one.
@@ -1827,7 +1828,7 @@ export default function EngagementCard({
         const matchLabel = fd.matchLabel || "T20 INTERNATIONAL";
         const matchTimeLabel = fd.matchTimeLabel || "Upcoming";
         const headline = fd.team1Code && fd.team2Code ? `${team1Code} vs ${team2Code}` : item.title;
-        const countdownLabel = formatMatchCountdown(fd.matchStartTime || item.expiresAt);
+        const countdownLabel = formatMatchCountdown(fd.matchStartTime || fd.matchStartMs);
 
         return (
             <div className="rounded-xl border border-white/15 bg-gradient-to-b from-[#161026] via-[#110d1f] to-[#0b0914] overflow-hidden shadow-lg mt-1">
@@ -2592,7 +2593,7 @@ export default function EngagementCard({
                         </span>
 
                         {/* Running Timer */}
-                        {item.type !== "match_result" && (
+                        {!isNoTimerType && (
                             <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 flex items-center gap-1 ml-auto">
                                 <Clock size={10} className="text-amber-400" />
                                 <span>{timerLabel}</span>
@@ -2750,7 +2751,7 @@ export default function EngagementCard({
                     <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${theme.badgeBg}`}>
                         {theme.icon} {theme.label}
                     </span>
-                    {item.type !== "match_result" && (
+                    {!isNoTimerType && (
                         <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 flex items-center gap-1">
                             <Clock size={10} className="text-amber-400" />
                             <span>{timerLabel}</span>
