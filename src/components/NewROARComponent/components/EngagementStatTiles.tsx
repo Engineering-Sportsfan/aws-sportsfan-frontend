@@ -10,6 +10,10 @@ export interface EngagementStats {
   shares: number;
 }
 
+export type CategoryKey = "predictions" | "debates" | "polls" | "takes" | "trivia" | "reactions";
+export type CategoryStats = Record<CategoryKey, number>;
+const ZERO_CATS: CategoryStats = { predictions: 0, debates: 0, polls: 0, takes: 0, trivia: 0, reactions: 0 };
+
 interface EngagementMetrics {
   participations?: number;
   likes?: number;
@@ -36,6 +40,7 @@ interface EngagementListItem {
   matchId?: string;
   momentId?: string;
   loopId?: string;
+  type?: string;
 }
 
 interface EngagementListResponse {
@@ -45,7 +50,7 @@ interface EngagementListResponse {
 type State =
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; stats: EngagementStats };
+  | { status: "ready"; stats: EngagementStats; cats: CategoryStats };
 
 const TAG = "[EngagementStats]";
 const LIST_URL = "/api/engagements?excludeFlipArena=true&source=match_moment&allEnvs=true&limit=500";
@@ -61,6 +66,26 @@ const TILES: { key: keyof EngagementStats; label: string; color: string }[] = [
   { key: "shares", label: "Shares", color: "#c084fc" },
 ];
 
+const CATEGORY_TILES: { key: CategoryKey; label: string; color: string }[] = [
+  { key: "predictions", label: "Predictions", color: "#fbbf24" },
+  { key: "debates", label: "Debates", color: "#60a5fa" },
+  { key: "polls", label: "Polls", color: "#38bdf8" },
+  { key: "takes", label: "Takes", color: "#22d3ee" },
+  { key: "trivia", label: "Trivia", color: "#34d399" },
+  { key: "reactions", label: "Reactions", color: "#fb923c" },
+];
+
+/** Engagement `type` -> category tile. Participation counts per type come from the same telemetry as the totals. */
+const categoryOfType = (t: string | undefined): Exclude<CategoryKey, "reactions"> | null => {
+  const v = String(t ?? "").toLowerCase();
+  if (v === "prediction") return "predictions";
+  if (v === "debate") return "debates";
+  if (v === "poll") return "polls";
+  if (v === "express") return "takes";
+  if (v === "quiz" || v === "question" || v === "trivia") return "trivia";
+  return null;
+};
+
 const aliases = (s: string | null | undefined): string[] => {
   const v = String(s ?? "").trim().toLowerCase().replace(/^user#/, "");
   return [v, v.replace(/[@.]/g, "_"), v.replace(/@/g, "_")].filter(Boolean);
@@ -72,6 +97,7 @@ const n = (v: number | undefined): number => (typeof v === "number" && Number.is
 interface CacheEntry {
   at: number;
   stats: EngagementStats;
+  cats?: CategoryStats;
 }
 
 function readCache(key: string): CacheEntry | null {
@@ -86,9 +112,9 @@ function readCache(key: string): CacheEntry | null {
   }
 }
 
-function writeCache(key: string, stats: EngagementStats): void {
+function writeCache(key: string, stats: EngagementStats, cats: CategoryStats): void {
   try {
-    const entry: CacheEntry = { at: Date.now(), stats };
+    const entry: CacheEntry = { at: Date.now(), stats, cats };
     sessionStorage.setItem(key, JSON.stringify(entry));
   } catch {
     /* ignore */
@@ -117,9 +143,11 @@ function describeError(err: unknown): void {
 export function EngagementStatTiles({
   identifiers,
   onParticipationsClick,
+  onCategoryClick,
 }: {
   identifiers: ReadonlyArray<string | null | undefined>;
   onParticipationsClick?: () => void;
+  onCategoryClick?: (key: CategoryKey) => void;
 }) {
   const idsRef = useRef(identifiers);
   const [state, setState] = useState<State>({ status: "loading" });
@@ -127,7 +155,7 @@ export function EngagementStatTiles({
   useEffect(() => {
     const ids = idsRef.current;
     const email = ids.find((x) => !!x && String(x).includes("@")) ?? ids.find(Boolean) ?? "";
-    const cacheKey = `engagementStats:${String(email).toLowerCase()}`;
+    const cacheKey = `engagementStats:v2:${String(email).toLowerCase()}`;
     let cancelled = false;
 
     console.log(`${TAG} mount`, { identifiers: ids, cacheKey });
@@ -136,7 +164,7 @@ export function EngagementStatTiles({
     if (cached) {
       const ageMs = Date.now() - cached.at;
       console.log(`${TAG} cache hit`, { ageMs, fresh: ageMs < CACHE_TTL_MS, stats: cached.stats });
-      setState({ status: "ready", stats: cached.stats });
+      setState({ status: "ready", stats: cached.stats, cats: cached.cats ?? ZERO_CATS });
     }
 
     (async () => {
@@ -148,11 +176,13 @@ export function EngagementStatTiles({
           .filter((e) => (e.matchId && e.matchId !== "GLOBAL") || e.momentId || e.loopId)
           .map((e) => e.id)
           .filter((id): id is string => typeof id === "string" && id.length > 0);
+        const typeById = new Map<string, string | undefined>();
+        for (const e of items) if (e.id) typeById.set(e.id, e.type);
         console.log(`${TAG} engagementIds.length`, engagementIds.length, `(of ${items.length} listed)`);
 
         if (engagementIds.length === 0) {
-          writeCache(cacheKey, ZERO);
-          if (!cancelled) setState({ status: "ready", stats: ZERO });
+          writeCache(cacheKey, ZERO, ZERO_CATS);
+          if (!cancelled) setState({ status: "ready", stats: ZERO, cats: ZERO_CATS });
           return;
         }
 
@@ -177,7 +207,11 @@ export function EngagementStatTiles({
 
         // 4) sum
         const totals: EngagementStats = { participations: 0, likes: 0, comments: 0, shares: 0 };
-        for (const m of Object.values(match?.engagements ?? {})) {
+        const cats: CategoryStats = { ...ZERO_CATS };
+        for (const [engId, m] of Object.entries(match?.engagements ?? {})) {
+          const cat = categoryOfType(typeById.get(engId));
+          if (cat) cats[cat] += n(m.participations);
+          cats.reactions += n(m.likes) + n(m.socialLikes) + n(m.comments) + n(m.socialComments);
           totals.participations += n(m.participations);
           totals.likes += n(m.likes) + n(m.socialLikes);
           totals.comments += n(m.comments) + n(m.socialComments);
@@ -185,8 +219,8 @@ export function EngagementStatTiles({
         }
         console.log(`${TAG} totals`, totals);
 
-        writeCache(cacheKey, totals);
-        if (!cancelled) setState({ status: "ready", stats: totals });
+        writeCache(cacheKey, totals, cats);
+        if (!cancelled) setState({ status: "ready", stats: totals, cats });
       } catch (err) {
         describeError(err);
         // Keep a cached value on screen if we have one; otherwise show "–".
@@ -203,13 +237,59 @@ export function EngagementStatTiles({
 
   const loading = state.status === "loading";
 
+  const skeleton = (
+    <div
+      style={{
+        height: 24, width: 40, margin: "8px auto 0", borderRadius: 6,
+        background: "rgba(255,255,255,0.12)", animation: "engagement-pulse 1.2s ease-in-out infinite",
+      }}
+    />
+  );
+
   return (
-    <div className="engagement-tiles" style={{ display: "grid", gap: 8, marginTop: 14 }}>
+    <>
       <style>{`
+        .engagement-cats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-top: 14px; }
         .engagement-tiles { grid-template-columns: repeat(4, 1fr); }
-        @media (max-width: 480px) { .engagement-tiles { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 480px) {
+          .engagement-cats { display: flex; overflow-x: auto; }
+          .engagement-cats > div { flex: 0 0 96px; }
+          .engagement-tiles { gap: 6px !important; }
+          .engagement-tiles > div { padding: 10px 4px !important; min-width: 0; }
+          .engagement-tiles .engagement-tile-label { font-size: 8px !important; letter-spacing: 0.02em !important; }
+          .engagement-tiles .engagement-tile-value { font-size: 18px !important; }
+        }
         @keyframes engagement-pulse { 0%,100% { opacity: .35 } 50% { opacity: .7 } }
       `}</style>
+
+      {/* Row 1: participation categories (tap to open Contribution History on that tab) */}
+      <div className="engagement-cats">
+        {CATEGORY_TILES.map(({ key, label, color }) => (
+          <div
+            key={key}
+            role="button"
+            tabIndex={0}
+            aria-label={`View ${label}`}
+            onClick={() => onCategoryClick?.(key)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onCategoryClick?.(key); }}
+            style={{
+              background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: 14, padding: "12px 6px", textAlign: "center", cursor: onCategoryClick ? "pointer" : "default",
+            }}
+          >
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color }}>
+              {label}
+            </div>
+            {loading ? skeleton : (
+              <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginTop: 6 }}>
+                {state.status === "ready" ? state.cats[key].toLocaleString() : "–"}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+    <div className="engagement-tiles" style={{ display: "grid", gap: 8, marginTop: 14 }}>
       {TILES.map(({ key, label, color }) => {
         const clickable = key === "participations" && !!onParticipationsClick;
         return (
@@ -232,18 +312,18 @@ export function EngagementStatTiles({
             cursor: clickable ? "pointer" : "default",
           }}
         >
-          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color }}>
+          <div className="engagement-tile-label" style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color }}>
             {label}
           </div>
           {loading ? (
             <div
               style={{
-                height: 24, width: 48, margin: "8px auto 0", borderRadius: 6,
+                height: 24, width: 40, maxWidth: "70%", margin: "8px auto 0", borderRadius: 6,
                 background: "rgba(255,255,255,0.12)", animation: "engagement-pulse 1.2s ease-in-out infinite",
               }}
             />
           ) : (
-            <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginTop: 6 }}>
+            <div className="engagement-tile-value" style={{ fontSize: 22, fontWeight: 800, color: "#fff", marginTop: 6 }}>
               {state.status === "ready" ? state.stats[key].toLocaleString() : "–"}
             </div>
           )}
@@ -251,5 +331,6 @@ export function EngagementStatTiles({
         );
       })}
     </div>
+    </>
   );
 }

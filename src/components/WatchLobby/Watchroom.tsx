@@ -2580,6 +2580,7 @@ import Link from "next/link";
 import { Mic, MicOff, Video, VideoOff, MonitorUp, Maximize2, Minimize2, CircleDot, Plus, BarChart3, Brain, Zap, Pin, Share2, Info, X, Cloud, HardDrive, Crown, TrendingUp, Flame, MoreHorizontal, PanelRightClose, PanelRightOpen, ChevronDown, ChevronUp, MessageSquare, Users, Check, XCircle, Trophy, RotateCw, Search, Medal } from "lucide-react";
 import { engagementService } from "@/services/engagement.service";
 import { EngagementItem } from "@/types/engagements";
+import { useEngagementImpression } from "@/src/hooks/useEngagementImpression";
 import { EXPERT_USERNAMES, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 
 const JitsiMeeting = dynamic<any>(
@@ -4510,6 +4511,17 @@ function WatchRoomEngagementDialog({
         },
     }[type];
 
+    const targetEngagementId = question?.engagementId || question?.id;
+    const { ref: dialogCardRef } = useEngagementImpression({
+        engagementId: targetEngagementId,
+        matchId: question?.matchId || room?.liveMatchId,
+        momentId: question?.momentId || question?.loopId,
+        seriesId: question?.seriesId,
+        userId,
+        userName,
+        enabled: question?.source === "engagement" && Boolean(targetEngagementId),
+    });
+
     return (
         <div
             onClick={(e) => {
@@ -4518,6 +4530,7 @@ function WatchRoomEngagementDialog({
             className="fixed inset-0 z-[150] flex items-center justify-center p-3 bg-black/20 backdrop-blur-[1px] animate-in fade-in duration-150"
         >
             <div
+                ref={dialogCardRef}
                 className={`w-full max-w-md bg-[#0e111a] border-l-4 ${config.borderColor} border-y border-r border-white/[0.08] rounded-xl overflow-hidden shadow-2xl ${config.accentGlow} flex flex-col relative`}
             >
                 {/* 30s Countdown Bar */}

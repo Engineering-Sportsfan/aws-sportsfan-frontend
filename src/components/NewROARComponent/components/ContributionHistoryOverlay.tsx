@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
-type TabKey = "all" | "predictions" | "reactions" | "debates";
+export type TabKey = "all" | "predictions" | "reactions" | "debates" | "polls" | "takes" | "trivia";
 type Kind = Exclude<TabKey, "all">;
 
 const TABS: { key: TabKey; label: string }[] = [
@@ -11,14 +11,21 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: "predictions", label: "Predictions" },
   { key: "reactions", label: "Reactions" },
   { key: "debates", label: "Debates" },
+  { key: "polls", label: "Polls" },
+  { key: "takes", label: "Takes" },
+  { key: "trivia", label: "Trivia" },
 ];
 
-const LIMIT = 5; // every tab shows only the latest 5
+const LIMIT = 5; // each category tab shows only the latest 5
+const ALL_TAB_KINDS: Kind[] = ["predictions", "debates", "reactions", "polls", "takes", "trivia"];
 
 const KIND_STYLE: Record<Kind, { bg: string; icon: string }> = {
   predictions: { bg: "linear-gradient(135deg,#be123c,#e11d48)", icon: "🏆" },
   reactions: { bg: "linear-gradient(135deg,#ea580c,#f97316)", icon: "⚡" },
   debates: { bg: "linear-gradient(135deg,#7c3aed,#9333ea)", icon: "💬" },
+  polls: { bg: "linear-gradient(135deg,#0369a1,#0ea5e9)", icon: "📊" },
+  takes: { bg: "linear-gradient(135deg,#0e7490,#22d3ee)", icon: "🎙️" },
+  trivia: { bg: "linear-gradient(135deg,#047857,#10b981)", icon: "🧠" },
 };
 
 interface HistoryItem {
@@ -50,11 +57,27 @@ function isMatchEngagement(a: any): boolean {
   return !!matchId && matchId !== "GLOBAL" && !roomId;
 }
 
-function classify(a: any): Kind | null {
-  if (!isMatchEngagement(a)) return null;
+/** Bare "I created this" activity types. Only participation (voting, answering, predicting) is shown. */
+const CREATION_TYPES = new Set([
+  "ROAR_POST", "ROAR_DEBATE", "ROAR_PREDICTION", "ROAR_HOT_TAKE", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ",
+]);
+
+function isParticipation(a: any): boolean {
   const t = typeOf(a);
+  if (t.includes("CREATE")) return false;
+  return !CREATION_TYPES.has(t);
+}
+
+function classify(a: any): Kind | null {
+  if (!isMatchEngagement(a) || !isParticipation(a)) return null;
+  const m = a?.metadata ?? {};
+  // Engagement subtype can live in the activity type or in metadata.
+  const t = [typeOf(a), m.engagementType, m.engagement_type, m.type].map((x) => String(x ?? "").toUpperCase()).join(" ");
   if (t.includes("PREDICTION")) return "predictions";
   if (t.includes("DEBATE")) return "debates";
+  if (t.includes("POLL")) return "polls";
+  if (t.includes("EXPRESS")) return "takes";
+  if (t.includes("TRIVIA") || t.includes("QUIZ") || t.includes("QUESTION")) return "trivia";
   if (t.includes("LIKE") || t.includes("COMMENT") || t.includes("REPLY") || t.includes("REPLIED")) return "reactions";
   return null;
 }
@@ -67,7 +90,14 @@ function titleFor(a: any, kind: Kind): string {
     const verb = t.includes("REPLY") ? "Replied to" : t.includes("COMMENT") ? "Commented on" : "Liked";
     return text ? `${verb} “${text}”` : `${verb} a post`;
   }
-  return text || (kind === "predictions" ? "Made a prediction" : "Joined a debate");
+  const fallback: Record<Exclude<Kind, "reactions">, string> = {
+    predictions: "Made a prediction",
+    debates: "Joined a debate",
+    polls: "Voted in a poll",
+    takes: "Shared a take",
+    trivia: "Answered a trivia question",
+  };
+  return text || fallback[kind as Exclude<Kind, "reactions">];
 }
 
 function timeAgo(ts: number): string {
@@ -87,6 +117,8 @@ export interface ContributionHistoryOverlayProps {
   activities: any[];
   /** Current user's id/email. Reactions (likes/comments/replies) are only loaded for the own profile. */
   userId?: string | null;
+  /** Tab to show when the screen opens (defaults to "all"). */
+  initialTab?: TabKey;
 }
 
 const REACTIONS_URL = "/api/engagements/my-reactions";
@@ -141,8 +173,13 @@ async function loadMyReactions(userId: string): Promise<HistoryItem[]> {
   }
 }
 
-export function ContributionHistoryOverlay({ open, onClose, loading, activities, userId }: ContributionHistoryOverlayProps) {
-  const [tab, setTab] = useState<TabKey>("all");
+export function ContributionHistoryOverlay({ open, onClose, loading, activities, userId, initialTab }: ContributionHistoryOverlayProps) {
+  const [tab, setTab] = useState<TabKey>(initialTab ?? "all");
+
+  // Jump to the requested tab each time the screen opens.
+  useEffect(() => {
+    if (open) setTab(initialTab ?? "all");
+  }, [open, initialTab]);
   const [reactionItems, setReactionItems] = useState<HistoryItem[]>([]);
   const [reactionsLoading, setReactionsLoading] = useState(false);
 
@@ -178,7 +215,13 @@ export function ContributionHistoryOverlay({ open, onClose, loading, activities,
 
   if (!open) return null;
 
-  const visible = (tab === "all" ? items : items.filter((i) => i.kind === tab)).slice(0, LIMIT);
+  // All tab: the single latest item from each category (items are already newest-first).
+  // Category tabs: the latest LIMIT items of that category.
+  const visible =
+    tab === "all"
+      ? ALL_TAB_KINDS.map((k) => items.find((i) => i.kind === k)).filter((i): i is HistoryItem => !!i)
+          .sort((a, b) => b.createdAt - a.createdAt)
+      : items.filter((i) => i.kind === tab).slice(0, LIMIT);
 
   return (
     <div

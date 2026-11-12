@@ -3295,7 +3295,7 @@ import { RoarJourneySection } from "../components/RoarJourneySection";
 import { ProfileSetupSections, MyPreferencesCard } from "../components/ProfileSetupSections";
 import { LevelOverlay } from "../components/LevelOverlay";
 import { EngagementStatTiles } from "../components/EngagementStatTiles";
-import { ContributionHistoryOverlay } from "../components/ContributionHistoryOverlay";
+import { ContributionHistoryOverlay, type TabKey } from "../components/ContributionHistoryOverlay";
 import { useLeaderboard } from "@/context/LeaderboardContext";
 import { engagementService } from "@/services/engagement.service";
 import { EngagementItem } from "@/types/engagements";
@@ -4068,6 +4068,7 @@ export default function Profile({
   const [globalTierProgress, setGlobalTierProgress] = useState(0);
   const [levelOpen, setLevelOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyTab, setHistoryTab] = useState<TabKey>("all");
   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
   const [specialBadges, setSpecialBadges] = useState<any[]>(() =>
     normalizeSpecialBadges(
@@ -6352,10 +6353,12 @@ export default function Profile({
               loading={isLoadingActivities}
               activities={sourceActivities}
               userId={isOtherProfile ? null : (authUser?.actualUserId || authUser?.userId || authUser?.email || null)}
+              initialTab={historyTab}
             />
 
             <EngagementStatTiles
-              onParticipationsClick={() => setHistoryOpen(true)}
+              onParticipationsClick={() => { setHistoryTab("all"); setHistoryOpen(true); }}
+              onCategoryClick={(key) => { setHistoryTab(key); setHistoryOpen(true); }}
               identifiers={
                 isOtherProfile
                   ? [user?.email, user?.uid, user?.userId, user?.actualUserId, user?.username]

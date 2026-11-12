@@ -45,11 +45,27 @@ function compact(n: number | undefined): string {
 
 export function LevelOverlay(p: LevelOverlayProps) {
   const [tab, setTab] = useState<Tab>("badges");
+  const [showAllBadges, setShowAllBadges] = useState(false);
   if (!p.open) return null;
 
   const wonFeature = p.featureBadges.filter((fb) => fb.level > 0);
   const wonSpecial = p.specialBadges.filter((b) => b.unlocked !== false);
   const badgeCount = wonFeature.length + wonSpecial.length;
+
+  // One combined list, latest-earned first (stable: keeps the existing order when no timestamps exist).
+  const earnedAt = (b: any): number => {
+    const raw = b?.earnedAt ?? b?.unlockedAt ?? b?.awardedAt ?? b?.achievedAt ?? b?.updatedAt ?? b?.createdAt;
+    const t = typeof raw === "number" ? raw : raw ? Date.parse(String(raw)) : 0;
+    return Number.isFinite(t) ? t : 0;
+  };
+  const badgeEntries = [
+    ...wonFeature.map((badge) => ({ kind: "feature" as const, badge })),
+    ...wonSpecial.map((badge) => ({ kind: "special" as const, badge })),
+  ]
+    .map((e, i) => ({ ...e, i, t: earnedAt(e.badge) }))
+    .sort((a, b) => b.t - a.t || a.i - b.i);
+  // Single row only: the latest 4 until "View all" is tapped.
+  const shownBadges = showAllBadges ? badgeEntries : badgeEntries.slice(0, 4);
 
   const body = (
     <div
@@ -135,10 +151,24 @@ export function LevelOverlay(p: LevelOverlayProps) {
         </div>
 
         {tab === "badges" && (
-          <div style={{ padding: "16px 14px 0" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div className="badges-section" style={{ padding: "16px 14px 0" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
               <span style={{ fontSize: 17, fontWeight: 700 }}>My Badges</span>
-              <span style={{ color: "#3ea6ff", fontSize: 13, fontWeight: 600 }}>{badgeCount} won</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                {/* <span style={{ color: "#3ea6ff", fontSize: 13, fontWeight: 600 }}>{badgeCount} won</span> */}
+                {badgeCount > 4 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllBadges((v) => !v)}
+                    style={{
+                      padding: "4px 12px", borderRadius: 16, cursor: "pointer", fontSize: 12, fontWeight: 600,
+                      color: "#3ea6ff", background: "rgba(62,166,255,0.1)", border: "1px solid rgba(62,166,255,0.3)",
+                    }}
+                  >
+                    {showAllBadges ? "Show less" : "View all"}
+                  </button>
+                )}
+              </span>
             </div>
 
             {badgeCount === 0 ? (
@@ -147,36 +177,19 @@ export function LevelOverlay(p: LevelOverlayProps) {
               </div>
             ) : (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-                {wonFeature.map((fb) => {
-                  const icon = fb.icons?.[Math.max(0, fb.level - 1)];
-                  const name = fb.labels?.[Math.max(0, fb.level - 1)] || fb.label || fb.feature;
+                {shownBadges.map(({ kind, badge }) => {
+                  const isFeature = kind === "feature";
+                  const icon = isFeature
+                    ? badge.icons?.[Math.max(0, badge.level - 1)]
+                    : (p.resolveSpecialIcon ? p.resolveSpecialIcon(badge) : badge.iconSrc || badge.icon || badge.imageUrl);
+                  const name = isFeature
+                    ? (badge.labels?.[Math.max(0, badge.level - 1)] || badge.label || badge.feature)
+                    : (badge.name || badge.title || "Special Badge");
                   return (
                     <button
-                      key={fb.feature}
+                      key={isFeature ? `f-${badge.feature}` : `s-${badge.id ?? name}`}
                       type="button"
-                      onClick={() => p.onBadgeClick?.({ kind: "feature", badge: fb })}
-                      style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}
-                    >
-                      <span style={{ width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {icon ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={icon} alt={name} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                        ) : (
-                          <span style={{ fontSize: 30 }}>🏅</span>
-                        )}
-                      </span>
-                      <span style={{ fontSize: 11.5, fontWeight: 600, textAlign: "center", lineHeight: 1.2 }}>{name}</span>
-                    </button>
-                  );
-                })}
-                {wonSpecial.map((b) => {
-                  const icon = p.resolveSpecialIcon ? p.resolveSpecialIcon(b) : b.iconSrc || b.icon || b.imageUrl;
-                  const name = b.name || b.title || "Special Badge";
-                  return (
-                    <button
-                      key={b.id ?? name}
-                      type="button"
-                      onClick={() => p.onBadgeClick?.({ kind: "special", badge: b })}
+                      onClick={() => p.onBadgeClick?.({ kind, badge })}
                       style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}
                     >
                       <span style={{ width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
