@@ -1086,19 +1086,66 @@ export function useRunningCountdown(
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function formatMatchCountdown(targetTs?: number | string | null): string {
-    if (!targetTs) return "Soon";
-    const targetMs = typeof targetTs === "number" ? targetTs : new Date(targetTs).getTime();
-    if (!Number.isFinite(targetMs) || targetMs <= 0) return "Soon";
-    const diffMs = targetMs - Date.now();
-    if (diffMs <= 0) return "Live";
-    const totalMinutes = Math.floor(diffMs / 60000);
-    const days = Math.floor(totalMinutes / (60 * 24));
-    const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
-    const mins = totalMinutes % 60;
-    if (days >= 1) return `${days * 24 + hours}h ${mins}m`;
-    if (hours >= 1) return `${hours}h ${mins}m`;
-    return `${Math.max(1, mins)}m`;
+export interface FollowMatchCountdownState {
+    isLive: boolean;
+    hasTarget: boolean;
+    remainingMs: number;
+    label: string;
+    statusText: string;
+}
+
+/** Compute live reverse-countdown state for a Follow engagement card; flips to LIVE at 0. */
+export function getFollowMatchCountdownState(
+    targetTs?: number | string | null,
+    nowMs: number = Date.now(),
+    explicitStatusLabel?: string
+): FollowMatchCountdownState {
+    let targetMs = NaN;
+    if (typeof targetTs === "number") {
+        targetMs = targetTs > 0 && targetTs < 1e11 ? targetTs * 1000 : targetTs;
+    } else if (typeof targetTs === "string" && targetTs.trim()) {
+        const asNum = Number(targetTs);
+        if (Number.isFinite(asNum) && asNum > 0) {
+            targetMs = asNum < 1e11 ? asNum * 1000 : asNum;
+        } else {
+            targetMs = new Date(targetTs).getTime();
+        }
+    }
+
+    if (!Number.isFinite(targetMs) || targetMs <= 0) {
+        const isLiveFallback = String(explicitStatusLabel || "").trim().toLowerCase() === "live";
+        return {
+            isLive: isLiveFallback,
+            hasTarget: false,
+            remainingMs: 0,
+            label: isLiveFallback ? "LIVE" : "Soon",
+            statusText: isLiveFallback ? "LIVE" : String(explicitStatusLabel || "Upcoming").trim() || "Upcoming",
+        };
+    }
+
+    const diffMs = targetMs - nowMs;
+    if (diffMs <= 0) {
+        return { isLive: true, hasTarget: true, remainingMs: 0, label: "LIVE", statusText: "LIVE" };
+    }
+
+    const totalSec = Math.ceil(diffMs / 1000);
+    const hours = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    const mm = String(mins).padStart(2, "0");
+    const ss = String(secs).padStart(2, "0");
+
+    return {
+        isLive: false,
+        hasTarget: true,
+        remainingMs: diffMs,
+        label: hours >= 1 ? `${hours}h ${mm}m ${ss}s` : `${mm}m ${ss}s`,
+        statusText: "Upcoming",
+    };
+}
+
+function formatMatchCountdown(targetTs?: number | string | null, nowMs: number = Date.now()): string {
+    return getFollowMatchCountdownState(targetTs, nowMs).label;
 }
 
 // Look for a saved vote under the per-user key first, then the old shared key and the guest key
@@ -1189,6 +1236,14 @@ export default function EngagementCard({
     const [followCount, setFollowCount] = useState<number>(() => Number((item as any).followData?.followCount ?? 0));
     const [remindCount, setRemindCount] = useState<number>(() => Number((item as any).followData?.remindCount ?? 0));
     const [isTogglingFollow, setIsTogglingFollow] = useState<"follow" | "remind" | null>(null);
+    const [followNowMs, setFollowNowMs] = useState<number>(() => Date.now());
+
+    useEffect(() => {
+        if (item.type !== "follow") return;
+        setFollowNowMs(Date.now());
+        const interval = setInterval(() => setFollowNowMs(Date.now()), 1000);
+        return () => clearInterval(interval);
+    }, [item.type]);
 
     // Likes state
     const [likes, setLikes] = useState<number>(Number(item.likes) || 0);
@@ -1828,22 +1883,46 @@ export default function EngagementCard({
         const matchLabel = fd.matchLabel || "T20 INTERNATIONAL";
         const matchTimeLabel = fd.matchTimeLabel || "Upcoming";
         const headline = fd.team1Code && fd.team2Code ? `${team1Code} vs ${team2Code}` : item.title;
-        const countdownLabel = formatMatchCountdown(fd.matchStartTime || fd.matchStartMs);
+        const countdown = getFollowMatchCountdownState(
+            fd.matchStartTime || fd.matchStartMs || fd.targetStartMs || (item as any).matchStartMs || (item as any).matchStartTime,
+            followNowMs,
+            fd.statusLabel
+        );
 
         return (
             <div className="rounded-xl border border-white/15 bg-gradient-to-b from-[#161026] via-[#110d1f] to-[#0b0914] overflow-hidden shadow-lg mt-1">
-                {/* Top Upcoming strip */}
+                {/* Top Upcoming / Live countdown strip */}
                 <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-black/25">
                     <div className="relative flex items-center">
-                        <span className="text-[11px] font-bold text-white tracking-wide pb-0.5">
-                            Upcoming
-                        </span>
-                        <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#a855f7] shadow-[0_0_8px_rgba(168,85,247,0.85)]" />
+                        {countdown.isLive ? (
+                            <>
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-rose-400 pb-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                                    LIVE
+                                </span>
+                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-rose-500 to-pink-500 shadow-[0_0_8px_rgba(244,63,94,0.85)]" />
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-[11px] font-bold text-white tracking-wide pb-0.5">
+                                    {countdown.statusText}
+                                </span>
+                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#a855f7] shadow-[0_0_8px_rgba(168,85,247,0.85)]" />
+                            </>
+                        )}
                     </div>
-                    <span className="text-[11px] font-semibold text-white/85 flex items-center gap-0.5 tabular-nums">
-                        <span>{countdownLabel}</span>
-                        <ChevronRight size={13} className="text-white/60" />
-                    </span>
+                    {countdown.isLive ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wider text-emerald-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>Live Now</span>
+                        </span>
+                    ) : (
+                        <span className="text-[11px] font-semibold text-white/85 flex items-center gap-1 tabular-nums">
+                            {countdown.hasTarget && <Clock size={11} className="text-purple-300/80" />}
+                            <span>{countdown.label}</span>
+                            <ChevronRight size={13} className="text-white/60" />
+                        </span>
+                    )}
                 </div>
 
                 {/* Match Showcase */}
