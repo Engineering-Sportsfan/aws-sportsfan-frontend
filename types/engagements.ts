@@ -185,6 +185,8 @@ export interface EngagementItem {
   hasRecognition?: boolean;
   debateData?: any;
   expressData?: any;
+  inputPlaceholder?: string;
+  totalResponses?: number;
   questionData?: any;
   options?: any[];
 

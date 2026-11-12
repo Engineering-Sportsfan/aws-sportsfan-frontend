@@ -1018,6 +1018,8 @@ import {
     ChevronUp,
     Lock,
     Pencil,
+    Send,
+    Users,
 } from "lucide-react";
 import axios from "axios";
 import type { EngagementItem } from "@/types/engagements";
@@ -1138,6 +1140,16 @@ export default function EngagementCard({
     // when this browser last cast a vote (0 = not in this session); limits the optimistic +1
     const votedAtRef = useRef(0);
 
+    // Express open-text input state (no multiple-choice options)
+    const [expressInput, setExpressInput] = useState<string>(() => {
+        const stored = readSavedVote(item.id, voteKey);
+        if (stored) return stored;
+        return item.userVote ? String(item.userVote) : "";
+    });
+    const [expressResponses, setExpressResponses] = useState<any[]>([]);
+    const [showExpressResponses, setShowExpressResponses] = useState(false);
+    const [loadingExpressResponses, setLoadingExpressResponses] = useState(false);
+
     // Likes state
     const [likes, setLikes] = useState<number>(Number(item.likes) || 0);
     const likeLockRef = useRef(0); // timestamp of last local toggle
@@ -1221,6 +1233,7 @@ export default function EngagementCard({
         const stored = readSavedVote(item.id, voteKey);
         if (stored) {
             setSelectedOptionId(stored);
+            setExpressInput(stored);
             setUserVoted(true);
             // move it onto the current per-user key
             try { localStorage.setItem(voteKey, stored); } catch { /* ignore */ }
@@ -1303,6 +1316,7 @@ export default function EngagementCard({
         if (pendingVote) return;
         if (item.userVoted && item.userVote) {
             setSelectedOptionId(String(item.userVote));
+            setExpressInput(String(item.userVote));
             setUserVoted(true);
             try { localStorage.setItem(voteKey, String(item.userVote)); } catch { }
         }
@@ -1429,6 +1443,7 @@ export default function EngagementCard({
                 `/api/engagements/${encodeURIComponent(item.id)}/vote`,
                 {
                     selectedOptionId: optionId,
+                    ...(item.type === "express" ? { responseText: optionId } : {}),
                     userId: currentUserId,
                     userName: currentUserName,
                     userAvatar: currentUserAvatar,
@@ -1502,10 +1517,16 @@ export default function EngagementCard({
                 <button
                     type="button"
                     disabled={isVoting}
-                    onClick={() => { setVoteError(null); setIsEditingVote(true); }}
+                    onClick={() => {
+                        setVoteError(null);
+                        if (item.type === "express") {
+                            setExpressInput(selectedOptionId ? String(selectedOptionId) : "");
+                        }
+                        setIsEditingVote(true);
+                    }}
                     className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-white/60 hover:text-white transition-colors disabled:opacity-50"
                 >
-                    <Pencil size={10} /> Edit vote
+                    <Pencil size={10} /> {item.type === "express" ? "Edit response" : "Edit vote"}
                 </button>
             )}
             {isEditingVote && (
@@ -1719,7 +1740,170 @@ export default function EngagementCard({
     };
 
     // ─────────────────────────────────────────────────────────────
-    // RENDER: Poll / Debate / Express Body
+    // RENDER: Express Open-Text Input Body (No Options)
+    // ─────────────────────────────────────────────────────────────
+    const loadExpressResponses = async (forceRefresh = false) => {
+        if (loadingExpressResponses) return;
+        if (!forceRefresh && expressResponses.length > 0) return;
+        setLoadingExpressResponses(true);
+        try {
+            const res = await axios.get(
+                `/api/engagements/${encodeURIComponent(item.id)}/voters`,
+                {
+                    params: { matchId: item.matchId || "" },
+                    timeout: 6000,
+                }
+            );
+            if (Array.isArray(res.data?.voters)) {
+                setExpressResponses(res.data.voters);
+            }
+        } catch {
+            // silent fallback
+        } finally {
+            setLoadingExpressResponses(false);
+        }
+    };
+
+    const renderExpress = () => {
+        const anyExpress = item as any;
+        const placeholder =
+            String(
+                anyExpress.inputPlaceholder ||
+                anyExpress.expressData?.placeholder ||
+                "Write your thoughts..."
+            ).trim() || "Write your thoughts...";
+
+        const baseResponses = Number(
+            liveVoteData?.totalResponses ??
+            liveVoteData?.totalVotes ??
+            anyExpress.totalResponses ??
+            anyExpress.expressData?.totalResponses ??
+            item.totalVotes ??
+            0
+        );
+        const totalResponses = needsLocalBump
+            ? baseResponses + 1
+            : userVoted && baseResponses === 0
+              ? 1
+              : baseResponses;
+
+        const submitExpress = () => {
+            const clean = expressInput.trim();
+            if (!clean || isVoting || isTimerExpired) return;
+            handleVote(clean);
+            if (showExpressResponses) {
+                setExpressResponses((prev) => {
+                    const filtered = prev.filter((r) => String(r.userId) !== String(currentUserId));
+                    return [
+                        {
+                            userId: currentUserId,
+                            userName: currentUserName,
+                            userAvatar: currentUserAvatar,
+                            selectedOptionId: clean,
+                            votedAt: Date.now(),
+                        },
+                        ...filtered,
+                    ];
+                });
+            }
+        };
+
+        return (
+            <div className="flex flex-col gap-1.5 mt-1">
+                {!showResults ? (
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-end gap-1.5">
+                            <textarea
+                                rows={2}
+                                maxLength={280}
+                                value={expressInput}
+                                disabled={isVoting || isTimerExpired}
+                                onChange={(e) => setExpressInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        submitExpress();
+                                    }
+                                }}
+                                placeholder={isTimerExpired ? "Time expired" : placeholder}
+                                className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-white/5 focus:bg-white/10 border border-white/15 focus:border-cyan-400/60 outline-none text-xs text-white placeholder:text-white/40 resize-none transition-all disabled:opacity-50"
+                            />
+                            <button
+                                type="button"
+                                disabled={isVoting || isTimerExpired || !expressInput.trim()}
+                                onClick={submitExpress}
+                                className="shrink-0 h-9 px-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:bg-white/10 disabled:text-white/30 text-black text-xs font-extrabold inline-flex items-center gap-1 transition-all cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                <Send size={12} />
+                                <span>{isEditingVote ? "Save" : "Send"}</span>
+                            </button>
+                        </div>
+                        {baseResponses > 0 && (
+                            <div className="text-[10px] text-white/40 text-right">
+                                {baseResponses} {baseResponses === 1 ? "response" : "responses"} so far
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="rounded-lg p-2.5 bg-cyan-500/10 border border-cyan-400/30">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-300">
+                                <CheckCircle2 size={11} className="shrink-0" />
+                                {userVoted ? "Your take" : "Responses"}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const next = !showExpressResponses;
+                                    setShowExpressResponses(next);
+                                    if (next) loadExpressResponses(true);
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-white/60 hover:text-cyan-300 transition-colors"
+                            >
+                                <Users size={11} />
+                                <span>
+                                    {totalResponses} {totalResponses === 1 ? "response" : "responses"}
+                                </span>
+                                {showExpressResponses ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                            </button>
+                        </div>
+                        {selectedOptionId && (
+                            <p className="text-xs text-white break-words leading-relaxed">
+                                &ldquo;{selectedOptionId}&rdquo;
+                            </p>
+                        )}
+                        {showExpressResponses && (
+                            <div className="mt-2 pt-2 border-t border-white/10 flex flex-col gap-1.5 max-h-36 overflow-y-auto">
+                                {loadingExpressResponses && expressResponses.length === 0 ? (
+                                    <span className="text-[10px] text-white/40">Loading fan takes...</span>
+                                ) : expressResponses.length === 0 ? (
+                                    <span className="text-[10px] text-white/40">No responses loaded yet.</span>
+                                ) : (
+                                    expressResponses.slice(0, 12).map((resp: any, idx: number) => (
+                                        <div
+                                            key={`${resp.userId || idx}_${resp.votedAt || idx}`}
+                                            className="px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px]"
+                                        >
+                                            <span className="font-bold text-cyan-300 mr-1.5">
+                                                {resp.userName || "Fan"}:
+                                            </span>
+                                            <span className="text-white/90 break-words">
+                                                {resp.responseText || resp.selectedOptionId}
+                                            </span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+                {renderVoteExtras()}
+            </div>
+        );
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // RENDER: Poll / Debate Body
     // ─────────────────────────────────────────────────────────────
     const renderPoll = () => {
         const rawOptions =
@@ -2062,7 +2246,8 @@ export default function EngagementCard({
                 {/* ── Interactive Options ── */}
                 <div className="my-1.5">
                     {item.type === "prediction" && renderPrediction()}
-                    {(item.type === "debate" || item.type === "poll" || item.type === "express") && renderPoll()}
+                    {(item.type === "debate" || item.type === "poll") && renderPoll()}
+                    {item.type === "express" && renderExpress()}
                     {(item.type === "quiz" || item.type === "question") && renderQuiz()}
                     {item.type === "fan_battle" && renderFanBattle()}
                     {item.type === "meme" && renderMeme()}
@@ -2215,7 +2400,8 @@ export default function EngagementCard({
 
             {/* ── INTERACTIVE BODY ── */}
             {item.type === "prediction" && renderPrediction()}
-            {(item.type === "debate" || item.type === "poll" || item.type === "express") && renderPoll()}
+            {(item.type === "debate" || item.type === "poll") && renderPoll()}
+            {item.type === "express" && renderExpress()}
             {(item.type === "quiz" || item.type === "question") && renderQuiz()}
             {item.type === "fan_battle" && renderFanBattle()}
             {item.type === "meme" && renderMeme()}
