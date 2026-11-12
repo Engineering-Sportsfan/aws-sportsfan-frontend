@@ -1,6 +1,6 @@
 // types/engagements.ts — Type definitions for Fan Battles, Quizzes, Polls, Predictions, and Meme Arena
-export type EngagementType = "fan_battle" | "quiz" | "poll" | "prediction" | "meme" | "debate" | "express" | "question";
-export type EngagementStatus = "active" | "inactive" | "expired" | "settled";
+export type EngagementType = "fan_battle" | "quiz" | "poll" | "prediction" | "meme" | "debate" | "express" | "question" | "follow" | "match_result";
+export type EngagementStatus = "active" | "inactive" | "expired" | "settled" | "scheduled";
 
 // ─── 1. Fan Battle ─────────────────────────────────────────────────────────
 export interface Competitor {
@@ -188,6 +188,39 @@ export interface EngagementItem {
   inputPlaceholder?: string;
   totalResponses?: number;
   questionData?: any;
+  followData?: {
+    team1Name?: string;
+    team1Code?: string;
+    team1Flag?: string;
+    team2Name?: string;
+    team2Code?: string;
+    team2Flag?: string;
+    matchLabel?: string;
+    matchTimeLabel?: string;
+    matchStartMs?: number;
+    statusLabel?: string;
+    followCount?: number;
+    remindCount?: number;
+  };
+  matchResultData?: {
+    showSnapshot?: boolean;
+    snapshotHeading?: string;
+    team1Name?: string;
+    team1Code?: string;
+    team1Flag?: string;
+    team1Score?: string;
+    team2Name?: string;
+    team2Code?: string;
+    team2Flag?: string;
+    team2Score?: string;
+    resultSummary?: string;
+    showTopPerformer?: boolean;
+    performerLabel?: string;
+    playerName?: string;
+    playerStats?: string;
+    playerImageUrl?: string;
+    mode?: "combined" | "final_result" | "player_of_the_match";
+  };
   options?: any[];
 
   // Hydrated user state
@@ -195,6 +228,11 @@ export interface EngagementItem {
   userVoted?: boolean;
   totalVotes?: number;
   userVote?: string | null;
+  userFollowing?: boolean;
+  userReminded?: boolean;
+
+  // Scheduling fields
+  isScheduled?: boolean;
 
   createdAt: number;
   updatedAt: number;
