@@ -54,7 +54,8 @@ export default function LiveTicker() {
   useEffect(() => {
     fetchTickerData();
     if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(fetchTickerData, 15000); // Poll every 15s
+    // Ticker polling disabled (feature not in use) to save billed API calls.
+    // intervalRef.current = setInterval(fetchTickerData, 15000); // Poll every 15s
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);

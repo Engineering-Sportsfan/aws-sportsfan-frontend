@@ -9,6 +9,10 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   skipTrailingSlashRedirect: true,
+  experimental: {
+    // Cap proxied backend calls at 15s so a hung upstream can't bill 25s+ of Amplify compute
+    proxyTimeout: 15000,
+  },
   async rewrites() {
     const apiTarget =
       process.env.NEXT_PUBLIC_BACKEND_URL ||
@@ -812,6 +816,7 @@ const nextConfig = {
         //   source: "/api/roar/:path((?!rooms/[^/]+/dolly).*)",
         //   destination: `${apiTarget}/api/roar/:path*`,
         // },
+        
 
         {
           source: "/api/roar/:path*",

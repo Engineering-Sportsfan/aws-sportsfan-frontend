@@ -3671,6 +3671,15 @@ function getTimestamp(val: any): number {
     return 0;
 }
 
+const ENGAGEMENT_PAGE_SIZE = 15;
+const ENGAGEMENT_POLL_MS = 10000;
+
+/** Best-effort creation time (ms) of an engagement, 0 if unknown. */
+const engagementTime = (e: any): number => {
+    const raw = e?.createdAt || e?.created_at || e?.timestamp || e?.startTime || e?.start_time || e?.postingTime || e?.updatedAt || e?.updated_at;
+    return raw ? getTimestamp(raw) : 0;
+};
+
 const normalizeEngagement = (eng: any, matchId: string): EngagementItem => ({
     ...eng,
     id: String(eng.id || eng.engagementId || eng._id || `${eng.type}-${eng.title}-${eng.createdAt ?? ""}`),
@@ -4473,14 +4482,11 @@ function InlineRecognitionCard({
             } catch {}
         };
 
+        // One sync on mount only (was every 2.5s per card).
         syncStatus();
-        const interval = setInterval(() => {
-            if (!cancelled && !document.hidden) syncStatus();
-        }, 2500);
 
         return () => {
             cancelled = true;
-            clearInterval(interval);
         };
     }, [itemId, effectiveUserId, matchId, likeKey, isLiked]);
 
@@ -4857,14 +4863,11 @@ function InlineOutcomeRevealCard({
             } catch {}
         };
 
+        // One sync on mount only (was every 2.5s per card).
         syncStatus();
-        const interval = setInterval(() => {
-            if (!cancelled && !document.hidden) syncStatus();
-        }, 2500);
 
         return () => {
             cancelled = true;
-            clearInterval(interval);
         };
     }, [itemId, effectiveUserId, matchId, likeKey, isLiked]);
 
@@ -5434,6 +5437,12 @@ export default function OpenRoomDiscussionRoom({
     const isAtBottomRef = useRef(true);
     const seenEngIdsRef = useRef<Set<string> | null>(null);
     const engSortFallbackRef = useRef<Map<string, number>>(new Map());
+    const [engHasMore, setEngHasMore] = useState(true);
+    const [loadingMoreEng, setLoadingMoreEng] = useState(false);
+    const loadingMoreEngRef = useRef(false);
+    const engFirstPageLoadedRef = useRef(false);
+    const matchEngagementsRef = useRef<EngagementItem[]>([]);
+    const engScrollRestoreRef = useRef<{ prevScrollHeight: number; prevScrollTop: number } | null>(null);
     const [openInlinePostId, setOpenInlinePostId] = useState<string | null>(null);
     const [explicitlyClosedPostIds, setExplicitlyClosedPostIds] = useState<Set<string>>(new Set());
     const [postCooldown, setPostCooldown] = useState(0);
@@ -5744,12 +5753,15 @@ export default function OpenRoomDiscussionRoom({
             const cfg = { timeout: REQUEST_TIMEOUT_MS, headers: { "Cache-Control": "no-cache" } };
             const pick = (d: any) => d?.engagements || d?.data || (Array.isArray(d) ? d : []);
 
-            // For now every match-moment post is shown in this room, whichever match it was created for,
-            // so load the full list in one request instead of filtering by matchId.
+            // Only the latest page is fetched (and polled). Older pages are loaded on demand
+            // by loadMoreEngagements ("Show more"). Every match-moment post is still shown in
+            // this room, whichever match it was created for.
             let loaded: any[] = [];
+            let apiHasMore: boolean | undefined;
             try {
-                const r = await axios.get(`/api/engagements?excludeFlipArena=true&source=match_moment&limit=100${userParam}${bust}`, cfg);
+                const r = await axios.get(`/api/engagements?excludeFlipArena=true&source=match_moment&limit=${ENGAGEMENT_PAGE_SIZE}${userParam}${bust}`, cfg);
                 loaded = pick(r.data);
+                apiHasMore = r.data?.pagination?.hasMore;
             } catch (e) {
                 console.warn("match moment engagements:", e);
                 return;
@@ -5767,6 +5779,58 @@ export default function OpenRoomDiscussionRoom({
             setEngagementsLoaded(true);
         }
     }, [roomId, roomMatchId, currentUserId, userProfile?.actualUserId, userProfile?.email]);
+
+    // ── "Show more": fetch the next 15 older match-moment engagements ──
+    const loadMoreEngagements = useCallback(async () => {
+        if (loadingMoreEngRef.current || !engHasMore) return;
+        const times = matchEngagementsRef.current.map(engagementTime).filter(t => t > 0);
+        if (times.length === 0) return;
+        const oldest = Math.min(...times);
+        loadingMoreEngRef.current = true;
+        setLoadingMoreEng(true);
+        try {
+            const cleanMatchId = roomMatchId ? String(roomMatchId).replace(/^MATCH#/, "").trim() : "";
+            const engagementUserId = userProfile?.actualUserId || userProfile?.email || currentUserId;
+            const userParam = engagementUserId ? `&userId=${encodeURIComponent(engagementUserId)}` : "";
+            const r = await axios.get(
+                `/api/engagements?excludeFlipArena=true&source=match_moment&limit=${ENGAGEMENT_PAGE_SIZE}&before=${oldest}${userParam}`,
+                { timeout: REQUEST_TIMEOUT_MS }
+            );
+            const d = r.data;
+            const list: any[] = d?.engagements || d?.data || (Array.isArray(d) ? d : []);
+            const have = new Set(matchEngagementsRef.current.map(e => e.id));
+            // Only genuinely older, not-yet-loaded items (guards against a backend that ignores `before`).
+            const fresh = list
+                .map(e => normalizeEngagement(e, cleanMatchId))
+                .filter(e => !have.has(e.id) && (engagementTime(e) === 0 || engagementTime(e) < oldest));
+            if (fresh.length > 0) {
+                // Don't treat these as "new engagement" (no toast / scroll-to-bottom).
+                fresh.forEach(e => seenEngIdsRef.current?.add(e.id));
+                const list2 = listRef.current;
+                if (list2) engScrollRestoreRef.current = { prevScrollHeight: list2.scrollHeight, prevScrollTop: list2.scrollTop };
+                setMatchEngagements(prev => {
+                    const ids = new Set(prev.map(e => e.id));
+                    return [...prev, ...fresh.filter(e => !ids.has(e.id))];
+                });
+            }
+            setEngHasMore(fresh.length > 0 && (d?.pagination?.hasMore ?? list.length >= ENGAGEMENT_PAGE_SIZE));
+        } catch (e) {
+            console.warn("load more engagements:", e);
+        } finally {
+            loadingMoreEngRef.current = false;
+            setLoadingMoreEng(false);
+        }
+    }, [engHasMore, roomMatchId, currentUserId, userProfile?.actualUserId, userProfile?.email]);
+
+    useEffect(() => {
+        matchEngagementsRef.current = matchEngagements;
+        const saved = engScrollRestoreRef.current;
+        if (saved) {
+            engScrollRestoreRef.current = null;
+            const el = listRef.current;
+            if (el) el.scrollTop = saved.prevScrollTop + (el.scrollHeight - saved.prevScrollHeight);
+        }
+    }, [matchEngagements]);
 
     const displayCounts = React.useMemo(() => {
         const c = { ...roomCounts };
@@ -6410,6 +6474,9 @@ export default function OpenRoomDiscussionRoom({
         setShowNewPill(false);
         seenEngIdsRef.current = null;
         engSortFallbackRef.current.clear();
+        engFirstPageLoadedRef.current = false;
+        engScrollRestoreRef.current = null;
+        setEngHasMore(true);
         isAtBottomRef.current = true;
     }, [roomId]);
 
@@ -6418,20 +6485,20 @@ export default function OpenRoomDiscussionRoom({
         fetchMsgs();
     }, [fetchMsgs, roomId, selectedChannelId]);
 
-    useVisibilityInterval(fetchMsgs, 2000);
-    useVisibilityInterval(fetchReactionUpdates, 2000);
+    useVisibilityInterval(fetchMsgs, ENGAGEMENT_POLL_MS);
+    useVisibilityInterval(fetchReactionUpdates, ENGAGEMENT_POLL_MS);
 
     useEffect(() => {
         if (!roomId) return;
         fetchEngagements();
     }, [fetchEngagements, roomId]);
-    useVisibilityInterval(fetchEngagements, 2000);
+    useVisibilityInterval(fetchEngagements, ENGAGEMENT_POLL_MS);
 
     useEffect(() => {
         if (!roomId) return;
         fetchCelebrations();
     }, [fetchCelebrations, roomId, roomMatchId]);
-    useVisibilityInterval(fetchCelebrations, 2000);
+    useVisibilityInterval(fetchCelebrations, ENGAGEMENT_POLL_MS);
 
     // useEffect(() => {
     //     const list = listRef.current;
@@ -7320,6 +7387,22 @@ export default function OpenRoomDiscussionRoom({
             {/* ── MESSAGES LIST ── */}
             <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
                 <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0 pb-6">
+                    {feedReady && engHasMore && matchEngagements.length > 0 && (
+                        <div style={{ display: "flex", justifyContent: "center", padding: "10px 0" }}>
+                            <button
+                                type="button"
+                                onClick={loadMoreEngagements}
+                                disabled={loadingMoreEng}
+                                style={{
+                                    padding: "6px 16px", borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: loadingMoreEng ? "default" : "pointer",
+                                    color: "#fff", background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.15)",
+                                    opacity: loadingMoreEng ? 0.6 : 1,
+                                }}
+                            >
+                                {loadingMoreEng ? "Loading..." : "Show more"}
+                            </button>
+                        </div>
+                    )}
                     {hasMoreMsgs && feedReady && engagementFilter === "all" && (
                     <div ref={sentinelRef} style={{ display: "flex", justifyContent: "center", padding: "12px 0" }}>
                         {loadingMoreMsgs && <div style={{ width: 24, height: 24, borderRadius: "50%", border: "3px solid rgba(255,255,255,0.1)", borderTop: "3px solid #E91E8C", animation: "dr-spin 0.8s linear infinite" }} />}

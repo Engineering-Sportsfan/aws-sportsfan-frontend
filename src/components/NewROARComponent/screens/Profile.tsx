@@ -3292,6 +3292,10 @@ import {
 } from "@/src/constants/bots";
 import { EXPERT_TAGS, getExpertCanonicalName, EXPERT_BIOS, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 import { RoarJourneySection } from "../components/RoarJourneySection";
+import { ProfileSetupSections, MyPreferencesCard } from "../components/ProfileSetupSections";
+import { LevelOverlay } from "../components/LevelOverlay";
+import { EngagementStatTiles } from "../components/EngagementStatTiles";
+import { ContributionHistoryOverlay, type TabKey } from "../components/ContributionHistoryOverlay";
 import { useLeaderboard } from "@/context/LeaderboardContext";
 import { engagementService } from "@/services/engagement.service";
 import { EngagementItem } from "@/types/engagements";
@@ -4062,6 +4066,9 @@ export default function Profile({
 
   const [globalTier, setGlobalTier] = useState<any>(null);
   const [globalTierProgress, setGlobalTierProgress] = useState(0);
+  const [levelOpen, setLevelOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyTab, setHistoryTab] = useState<TabKey>("all");
   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
   const [specialBadges, setSpecialBadges] = useState<any[]>(() =>
     normalizeSpecialBadges(
@@ -4754,6 +4761,12 @@ export default function Profile({
   const [pointsTab, setPointsTab] = useState<"fliparena" | "roar" | "global">("fliparena");
   const [arenaStats, setArenaStats] = useState<{ points: number; rank: number; accuracy: string; correct: number; total: number } | null>(null);
   const [arenaLoading, setArenaLoading] = useState(false);
+  const [arenaSettled, setArenaSettled] = useState(false);
+  const [pointsTimedOut, setPointsTimedOut] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setPointsTimedOut(true), 4000);
+    return () => clearTimeout(t);
+  }, []);
    const [userEngagements, setUserEngagements] = useState<EngagementItem[]>([]);
 
     // ── Fetch engagements specifically for the profile being viewed ──
@@ -4870,6 +4883,7 @@ export default function Profile({
       setArenaStats(fallbackPts > 0 ? { points: fallbackPts, rank: 0, accuracy: "—", correct: 0, total: 0 } : null);
     } finally {
       setArenaLoading(false);
+      setArenaSettled(true);
     }
   }, [targetKeys, isTarget, profileMetadata?.user, user]);
 
@@ -4939,6 +4953,9 @@ export default function Profile({
   }, [roarPoints, arenaPoints, globalStats.points]);
 
   const levelInfo = useMemo(() => calculateLevelData(totalGlobalPoints), [totalGlobalPoints]);
+  // Show the points only once both the profile (ROAR) and arena parts have loaded,
+  // so the card never flashes the FlipARENA-only value before the real total.
+  const pointsReady = pointsTimedOut || (arenaSettled && !loading && profileMetadata != null);
 
   const actCounts = user?.activityCounts ?? {};
   const apiPredictions = profileMetadata?.predictions || user?.predictions || [];
@@ -6260,94 +6277,116 @@ export default function Profile({
         </>
       ) : (
         <>
-          {/* ── Points: FlipARENA / Total ── */}
+          {/* ── Level card + stats row ── */}
           <div style={{ padding: "18px 14px 0" }}>
-            <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
-              <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-                {([["fliparena", "FlipARENA"], ["roar", "RoAR"], ["global", "Global"]] as const).map(([id, label]) => (
-                  <button key={id} onClick={() => setPointsTab(id)}
-                    style={{
-                      flex: 1, padding: "7px 0", borderRadius: 20, border: "none", cursor: "pointer",
-                      fontSize: 12, fontWeight: 700, transition: "all 0.18s",
-                      background: pointsTab === id ? "#fff" : "rgba(255,255,255,0.08)",
-                      color: pointsTab === id ? "#0a0a10" : "rgba(255,255,255,0.6)",
-                    }}>
-                    {label}
-                  </button>
-                ))}
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label="View level details"
+              onClick={() => setLevelOpen((o) => !o)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setLevelOpen((o) => !o); }}
+              style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 14, padding: "14px 16px", cursor: "pointer" }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#ff8a1f" }}>Level {levelInfo.level}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: "#ff8a1f" }}>
+                    {globalTier?.label || BADGE_LABELS[userBadge] || "Fan"}
+                  </div>
+                </div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", minWidth: 80, textAlign: "right" }}>
+                  {pointsReady ? `${totalGlobalPoints.toLocaleString()} pts` : (
+                    <span style={{ display: "inline-block", height: 24, width: 80, borderRadius: 6, background: "rgba(255,255,255,0.12)", verticalAlign: "middle" }} />
+                  )}
+                </div>
               </div>
-
-              {pointsTab === "fliparena" ? (
-                arenaLoading && !arenaStats ? (
-                  <p style={{ textAlign: "center", fontSize: 12, color: "rgba(255,255,255,0.4)", margin: 0 }}>Loading…</p>
-                ) : (
-                  <>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-                      {[
-                        { label: "SXPs", value: (arenaStats?.points ?? 0).toLocaleString() },
-                        { label: "Rank", value: arenaStats?.rank ? `#${arenaStats.rank}` : "—" },
-                        { label: "Accuracy", value: arenaStats?.accuracy ?? "0%" },
-                      ].map(({ label, value }) => (
-                        <div key={label} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 12, background: "rgba(255,255,255,0.04)" }}>
-                          <div className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{value}</div>
-                          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{label}</div>
-                        </div>
-                      ))}
-                    </div>
-                    <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "10px 0 0", textAlign: "center" }}>
-                      {arenaStats ? `${arenaStats.correct}/${arenaStats.total} correct` : "No FlipARENA activity yet."}
-                    </p>
-                  </>
-                )
-              ) : pointsTab === "roar" ? (
-                <>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8 }}>
-                    {[
-                      { label: "SXPs", value: roarPoints.toLocaleString() },
-                      { label: "Rank", value: user?.rank ? `#${user.rank}` : (globalStats.rank > 0 ? `#${globalStats.rank}` : "—") },
-                      { label: "Accuracy", value: statAccuracy !== "N/A" ? statAccuracy : "0%" },
-                    ].map(({ label, value }) => (
-                      <div key={label} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 12, background: "rgba(255,255,255,0.04)" }}>
-                        <div className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{value}</div>
-                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{label}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "10px 0 0", textAlign: "center" }}>
-                    {statPosts + statDebates + statPredictions > 0
-                      ? `${statPosts} ${statPosts === 1 ? "post" : "posts"} · ${statDebates} ${statDebates === 1 ? "debate" : "debates"} · ${statPredictions} ${statPredictions === 1 ? "prediction" : "predictions"}`
-                      : "No RoAR activity yet."}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 12 }}>
-                    {[
-                      { label: "Total SXP", value: totalGlobalPoints.toLocaleString() },
-                      { label: "Global Rank", value: globalStats.rank > 0 ? `#${globalStats.rank}` : "—" },
-                      { label: "Level", value: `LVL ${levelInfo.level}` },
-                    ].map(({ label, value }) => (
-                      <div key={label} style={{ textAlign: "center", padding: "10px 4px", borderRadius: 12, background: "rgba(255,255,255,0.04)" }}>
-                        <div className="font-display" style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{value}</div>
-                        <div style={{ fontSize: 10, color: "rgba(255,255,255,0.5)", marginTop: 4 }}>{label}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ height: 8, background: "rgba(255,255,255,0.08)", borderRadius: 4, overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${levelInfo.pct}%`, background: "#ffffff", borderRadius: 4, transition: "width 1s ease" }} />
-                  </div>
-                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", margin: "8px 0 0", textAlign: "right" }}>
-                    +{levelInfo.xpRemaining.toLocaleString()} SXP to next level
-                  </p>
-                </>
-              )}
+              <div style={{ height: 10, background: "rgba(255,255,255,0.1)", borderRadius: 6, overflow: "hidden", marginTop: 12 }}>
+                <div style={{ height: "100%", width: `${levelInfo.pct}%`, background: "linear-gradient(90deg, #ff6b35, #ff8a1f)", borderRadius: 6, transition: "width 1s ease" }} />
+              </div>
             </div>
+
+            <LevelOverlay
+              open={levelOpen}
+              onClose={() => setLevelOpen(false)}
+              level={levelInfo.level}
+              levelName={globalTier?.label || BADGE_LABELS[userBadge] || "Fan"}
+              pct={levelInfo.pct}
+              xpRemaining={levelInfo.xpRemaining}
+              totalPoints={totalGlobalPoints}
+              tierLevel={globalTier?.tierLevel}
+              tierLabel={globalTier?.label}
+              featureBadges={effectiveFeatureBadges}
+              specialBadges={specialBadges}
+              opinions={[...(apiDebates || []), ...(apiHotTakes || [])]}
+              resolveSpecialIcon={(b: any) => {
+                const isRookie = b.id === "ROOKIE_FAN" || b.id === "RISING_FAN" || b.name === "Rookie Fan" || b.name === "Rising Fan";
+                if (isRookie) return "/images/badges/rookiefan.png";
+                return b.iconSrc || ((b.icon || b.imageUrl) ? toBadgeImageSrc(b.icon || b.imageUrl) : (BADGE_ICONS[b.id] || BADGE_ICONS[b.name] || "/images/badges/rookiefan.png"));
+              }}
+              onBadgeClick={({ kind, badge }: any) => {
+                setLevelOpen(false);
+                if (kind === "feature") {
+                  const fb = badge;
+                  const icon = fb.icons?.[Math.max(0, fb.level - 1)];
+                  setBadgeModal({
+                    id: `${fb.feature}_l${fb.level}`,
+                    badgeId: `${fb.feature}_l${fb.level}`,
+                    name: fb.label || fb.feature,
+                    subtitle: `${fb.feature.replace(/([A-Z])/g, " $1")} · Level ${fb.level}/5`,
+                    description: `You earned the ${fb.label || fb.feature} badge (Level ${fb.level}/5) for your activity in ${fb.feature.replace(/([A-Z])/g, " $1")} on SportsFan360.`,
+                    unlocked: true, progress: fb.progress, level: fb.level, iconSrc: icon, _feature: fb, isSpecial: false,
+                  });
+                } else {
+                  const b = badge;
+                  setBadgeModal({
+                    id: b.id, badgeId: b.id, name: b.name || b.title || "Special Achievement",
+                    description: b.description || b.desc || "Special achievement badge earned on SportsFan360.",
+                    rarity: b.rarity || "Special Achievement", unlocked: true, isSpecial: true, badge: b,
+                  });
+                }
+              }}
+            />
+
+            <ContributionHistoryOverlay
+              open={historyOpen}
+              onClose={() => setHistoryOpen(false)}
+              loading={isLoadingActivities}
+              activities={sourceActivities}
+              userId={isOtherProfile ? null : (authUser?.actualUserId || authUser?.userId || authUser?.email || null)}
+              initialTab={historyTab}
+            />
+
+            <EngagementStatTiles
+              onParticipationsClick={() => { setHistoryTab("all"); setHistoryOpen(true); }}
+              onCategoryClick={(key) => { setHistoryTab(key); setHistoryOpen(true); }}
+              identifiers={
+                isOtherProfile
+                  ? [user?.email, user?.uid, user?.userId, user?.actualUserId, user?.username]
+                  : [authUser?.email, authUser?.uid, authUser?.userId, authUser?.actualUserId, user?.username]
+              }
+            />
           </div>
 
+          {/* ── My Teams & Sports / My Loyalties / My Interests + My Preferences ── */}
+          <ProfileSetupSections
+            isOwn={!isOtherProfile}
+            selectedIds={isOtherProfile ? ((user as any)?.profileSetup ?? []) : ((user as any)?.profileSetup ?? undefined)}
+          />
+          {!isOtherProfile && <MyPreferencesCard />}
+
+          {/* TODO: re-enable the sections below (Global Reputation, Roar Journey, Overview/Badges/Activity tabs) */}
+          {false && (<>
           {/* ── Global Reputation ── */}
           {globalTier && (
             <div style={{ padding: "18px 14px 8px" }}>
-              <div style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px" }}>
+              <div
+                role="button"
+                tabIndex={0}
+                aria-label="View level details"
+                onClick={() => setLevelOpen(true)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setLevelOpen(true); }}
+                style={{ background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, padding: "14px 16px", cursor: "pointer" }}
+              >
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
                     {globalTier.label} <span style={{ color: "rgba(255,255,255,0.4)", fontWeight: 500 }}>· Tier {globalTier.tierLevel}/7</span>
@@ -7009,6 +7048,7 @@ export default function Profile({
               )}
             </div>
           )}
+          </>)}
         </>
       )}
       </div>
