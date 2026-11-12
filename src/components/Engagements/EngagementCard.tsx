@@ -1252,47 +1252,9 @@ export default function EngagementCard({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [item.likes, item.userLiked, item.shares, isLiked]);
 
-    // Live Sync: Poll like state and comments count every 3s so multi-user updates reflect live
-    useEffect(() => {
-        if (!item.id) return;
-        let cancelled = false;
-        const syncSocial = async () => {
-            if (Date.now() - likeLockRef.current < 15000) return;
-            try {
-                const res = await axios.get(`/api/engagements/${encodeURIComponent(item.id)}/like`, {
-                    params: { userId: currentUserId, matchId: item.matchId, _t: Date.now() },
-                    timeout: 6000,
-                });
-                if (cancelled) return;
-                if (typeof res.data?.likes === "number") {
-                    setLikes(prev => (isLiked && res.data.likes === 0 ? Math.max(prev, 1) : res.data.likes));
-                }
-                if (typeof res.data?.liked === "boolean") {
-                    if (res.data.liked) {
-                        setIsLiked(true);
-                        try { localStorage.setItem(likeKey, "true"); } catch {}
-                    }
-                }
-            } catch {}
-            try {
-                const cRes = await axios.get(`/api/engagements/${encodeURIComponent(item.id)}/comments`, {
-                    params: { countOnly: "1", matchId: item.matchId, _t: Date.now() },
-                    timeout: 6000,
-                });
-                if (cancelled) return;
-                if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
-            } catch {}
-        };
-
-        const interval = setInterval(() => {
-            if (!cancelled && !document.hidden) syncSocial();
-        }, 3000);
-
-        return () => {
-            cancelled = true;
-            clearInterval(interval);
-        };
-    }, [item.id, currentUserId, item.matchId, likeKey, isLiked]);
+    // NOTE: per-card polling of likes / comment count was removed (it fired 2 requests per card
+    // every 3s). The parent's list poll supplies item.likes / item.commentsCount / item.userLiked,
+    // which the effects above sync into local state.
 
     // Server vote state wins once it arrives (localStorage stays as the optimistic fallback).
     useEffect(() => {

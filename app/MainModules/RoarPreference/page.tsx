@@ -194,6 +194,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { trackFanDNACompleted, trackInterestFollowed } from "@/lib/analytics";
+import { ChevronLeft, X } from "lucide-react";
 
 type ConfigItem = {
   id: string;
@@ -215,7 +216,7 @@ const CONFIG_API = "/api/roar/onboarding-config";
 
 type LoadState = "loading" | "ready" | "error";
 type SaveState = "idle" | "saving" | "saved" | "error";
-type Tab = "sports" | "followEntities" | "engagement";
+type Tab = "sports" | "followEntities" | "engagement" | "profileSetup";
 
 const DEFAULT_TABS: { key: Tab; heading: string; subheading: string }[] = [
   {
@@ -232,6 +233,11 @@ const DEFAULT_TABS: { key: Tab; heading: string; subheading: string }[] = [
     key: "engagement",
     heading: "How do you like to enjoy a match?",
     subheading: "Pick as many as you like. This shapes how your Rooms and feed are set up — you can always change it later.",
+  },
+  {
+    key: "profileSetup",
+    heading: "Set up your profile",
+    subheading: "Pick your teams, loyalties and interests",
   },
 ];
 
@@ -255,11 +261,16 @@ export default function RoarPreferencesPage() {
       heading: DEFAULT_TABS[2].heading,
       subheading: DEFAULT_TABS[2].subheading,
     },
+    profileSetup: {
+      heading: DEFAULT_TABS[3].heading,
+      subheading: DEFAULT_TABS[3].subheading,
+    },
   });
 
   const [sportsOptions, setSportsOptions] = useState<ConfigItem[]>([]);
   const [followOptions, setFollowOptions] = useState<ConfigItem[]>([]);
   const [engagementOptions, setEngagementOptions] = useState<ConfigItem[]>([]);
+  const [profileSetupOptions, setProfileSetupOptions] = useState<ConfigItem[]>([]);
 
   // "Don't see your favorite sports?" Dropdown config & user selection
   const [requestedSportsOptions, setRequestedSportsOptions] = useState<ConfigItem[]>([]);
@@ -302,22 +313,25 @@ export default function RoarPreferencesPage() {
   const [sports, setSports] = useState<string[]>([]);
   const [followEntities, setFollowEntities] = useState<string[]>([]);
   const [engagementPrefs, setEngagementPrefs] = useState<string[]>([]);
+  const [profileSetup, setProfileSetup] = useState<string[]>([]);
 
   const [initial, setInitial] = useState<{
     sports: string[];
     followEntities: string[];
     engagementPrefs: string[];
+    profileSetup: string[];
     requestedSport: string;
-  }>({ sports: [], followEntities: [], engagementPrefs: [], requestedSport: "" });
+  }>({ sports: [], followEntities: [], engagementPrefs: [], profileSetup: [], requestedSport: "" });
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [configS, configF, configE, configReq, user] = await Promise.all([
+        const [configS, configF, configE, configReq, configP, user] = await Promise.all([
           axios.get(`${CONFIG_API}?type=sports`),
           axios.get(`${CONFIG_API}?type=followEntities`),
           axios.get(`${CONFIG_API}?type=engagement`),
           axios.get(`${CONFIG_API}?type=requestedSports`),
+          axios.get(`${CONFIG_API}?type=profileSetup`).catch(() => null),
           axios.get("/api/roar/onboarding"),
         ]);
 
@@ -326,6 +340,7 @@ export default function RoarPreferencesPage() {
         setFollowOptions(configF.data?.items ?? []);
         setEngagementOptions(configE.data?.items ?? []);
         setRequestedSportsOptions(configReq.data?.items ?? []);
+        setProfileSetupOptions(configP?.data?.items ?? []);
 
         // Load dynamic questions and subheadings from backend config
         setTabHeadings({
@@ -341,6 +356,10 @@ export default function RoarPreferencesPage() {
             heading: configE.data?.question || DEFAULT_TABS[2].heading,
             subheading: configE.data?.subtitle ?? DEFAULT_TABS[2].subheading,
           },
+          profileSetup: {
+            heading: configP?.data?.question || DEFAULT_TABS[3].heading,
+            subheading: configP?.data?.subtitle ?? DEFAULT_TABS[3].subheading,
+          },
         });
 
         if (configReq.data?.question) {
@@ -353,18 +372,28 @@ export default function RoarPreferencesPage() {
         const currentSports: string[] = user.data?.sports ?? [];
         const currentFollow: string[] = user.data?.followEntities ?? [];
         const currentEngagement: string[] = user.data?.engagementPrefs ?? [];
+        const currentProfileSetup: string[] = user.data?.profileSetup ?? [];
         const currentRequestedSport: string = user.data?.requestedSport || "";
 
         setSports(currentSports);
         setFollowEntities(currentFollow);
         setEngagementPrefs(currentEngagement);
+        setProfileSetup(currentProfileSetup);
         setRequestedSport(currentRequestedSport);
         setInitial({
           sports: currentSports,
           followEntities: currentFollow,
           engagementPrefs: currentEngagement,
+          profileSetup: currentProfileSetup,
           requestedSport: currentRequestedSport,
         });
+        // Deep link: /MainModules/RoarPreference?step=4 opens that step directly (used by Profile "Edit" / "+")
+        try {
+          const stepParam = Number(new URLSearchParams(window.location.search).get("step"));
+          if (Number.isInteger(stepParam) && stepParam >= 1 && stepParam <= DEFAULT_TABS.length) {
+            setTab(DEFAULT_TABS[stepParam - 1].key);
+          }
+        } catch {}
         setLoadState("ready");
       } catch (err) {
         console.error(err);
@@ -383,6 +412,9 @@ export default function RoarPreferencesPage() {
   const toggleEngagement = (id: string) =>
     setEngagementPrefs((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
+  const toggleProfileSetup = (id: string) =>
+    setProfileSetup((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
   const sameSet = (a: string[], b: string[]) =>
     a.length === b.length && a.every((x) => b.includes(x));
 
@@ -390,6 +422,7 @@ export default function RoarPreferencesPage() {
     !sameSet(sports, initial.sports) ||
     !sameSet(followEntities, initial.followEntities) ||
     !sameSet(engagementPrefs, initial.engagementPrefs) ||
+    !sameSet(profileSetup, initial.profileSetup) ||
     requestedSport !== initial.requestedSport;
 
   // Group follow entities by category or title
@@ -403,6 +436,20 @@ export default function RoarPreferencesPage() {
         return acc;
       }, {});
   }, [followOptions, sports]);
+
+  // Group profile setup items by category (My Teams & Sports / My Loyalties / My Interests)
+  const groupedProfileSetup = useMemo(() => {
+    return profileSetupOptions
+      .filter((i) => i.active !== false)
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .reduce((acc: Record<string, ConfigItem[]>, item) => {
+        const key = item.category || item.title || "Other";
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+      }, {});
+  }, [profileSetupOptions]);
 
   const activeIndex = DEFAULT_TABS.findIndex((t) => t.key === tab);
   const isLastStep = activeIndex === DEFAULT_TABS.length - 1;
@@ -420,8 +467,12 @@ export default function RoarPreferencesPage() {
       const hasAvailableOptions = engagementOptions.length > 0;
       return hasAvailableOptions ? engagementPrefs.length > 0 : true;
     }
+    if (tab === "profileSetup") {
+      const hasAvailableOptions = profileSetupOptions.length > 0;
+      return hasAvailableOptions ? profileSetup.length > 0 : true;
+    }
     return false;
-  }, [tab, sports, followEntities, engagementPrefs, groupedFollow, engagementOptions, requestedSport]);
+  }, [tab, sports, followEntities, engagementPrefs, profileSetup, groupedFollow, engagementOptions, profileSetupOptions, requestedSport]);
 
   const canContinue = isCurrentStepValid;
   const canSave = sports.length > 0 && isCurrentStepValid;
@@ -436,12 +487,22 @@ export default function RoarPreferencesPage() {
     setTab(DEFAULT_TABS[activeIndex - 1].key);
   };
 
+  const afterSavePath = () => {
+    try {
+      return new URLSearchParams(window.location.search).get("from") === "profile"
+        ? "/MainModules/Profile"
+        : "/MainModules/HomePage";
+    } catch {
+      return "/MainModules/HomePage";
+    }
+  };
+
   const handleSave = async () => {
     if (!canSave || saveState === "saving") return;
 
     // If no changes were made, immediately redirect
     if (!hasChanges) {
-      router.push("/MainModules/HomePage");
+      router.push(afterSavePath());
       return;
     }
 
@@ -451,6 +512,7 @@ export default function RoarPreferencesPage() {
         sports,
         followEntities,
         engagementPrefs,
+        profileSetup,
         requestedSport,
       });
       if (res.data?.success) {
@@ -464,9 +526,9 @@ export default function RoarPreferencesPage() {
             trackInterestFollowed("sports", sports.join(", "), sports.length);
           }
         } catch (e) {}
-        setInitial({ sports, followEntities, engagementPrefs, requestedSport });
+        setInitial({ sports, followEntities, engagementPrefs, profileSetup, requestedSport });
         setSaveState("saved");
-        setTimeout(() => router.push("/MainModules/HomePage"), 600);
+        setTimeout(() => router.push(afterSavePath()), 600);
       } else {
         setSaveState("error");
       }
@@ -525,21 +587,33 @@ export default function RoarPreferencesPage() {
         Step {activeIndex + 1} of {DEFAULT_TABS.length}
       </p>
 
-      {activeIndex > 0 && (
+      <div className="flex items-center justify-between mt-3">
+        {activeIndex > 0 ? (
+          <button
+            type="button"
+            onClick={handleBack}
+            className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-400 hover:text-white bg-transparent border-none cursor-pointer p-0 transition-colors"
+          >
+            <span aria-hidden="true"><ChevronLeft size={22}/></span> Back
+          </button>
+        ) : (
+          <span />
+        )}
         <button
           type="button"
-          onClick={handleBack}
-          className="flex items-center gap-1.5 mt-3 text-[13px] font-semibold text-gray-400 hover:text-white bg-transparent border-none cursor-pointer p-0 transition-colors"
+          aria-label="Close"
+          onClick={() => router.push("/MainModules/HomePage")}
+          className="flex items-center justify-center text-gray-400 hover:text-white bg-transparent border-none cursor-pointer p-0 transition-colors"
         >
-          <span aria-hidden="true">←</span> Back
+          <X size={22} />
         </button>
-      )}
+      </div>
 
       {/* Dynamic Header & Subheader from Admin Config */}
       <h1 className="font-black text-[15px] leading-[1.1] uppercase text-white mt-2">
         {currentHeading}
       </h1>
-      <p className="text-[13px] text-gray-400 mt-2">{currentSubheading}</p>
+      {/* <p className="text-[13px] text-gray-400 mt-2">{currentSubheading}</p> */}
 
       {/* Sports Tab */}
       {tab === "sports" && (
@@ -784,6 +858,94 @@ export default function RoarPreferencesPage() {
           {engagementOptions.length === 0 && (
             <div className="py-6 text-center">
               <p className="text-gray-400 text-sm">No engagement options configured yet.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Profile Setup Tab (step 4) */}
+      {tab === "profileSetup" && (
+        <div className="mt-6 space-y-6">
+          {Object.entries(groupedProfileSetup).map(([category, items]) => {
+            const isTeams = category === "My Teams & Sports";
+            return (
+              <div key={category}>
+                <p className="text-[11px] tracking-[0.1em] uppercase text-gray-400 font-semibold mb-3">
+                  {category}
+                </p>
+                {isTeams ? (
+                  <div className="flex flex-wrap gap-4">
+                    {items.map((it) => {
+                      const sel = profileSetup.includes(it.id);
+                      return (
+                        <button
+                          key={it.id}
+                          type="button"
+                          onClick={() => toggleProfileSetup(it.id)}
+                          className="flex flex-col items-center gap-1.5 w-16 bg-transparent border-none p-0 cursor-pointer"
+                        >
+                          <span className="relative">
+                            <span
+                              className={`w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center overflow-hidden border-2 transition-all ${
+                                sel
+                                  ? "border-orange-400 ring-2 ring-orange-500 ring-offset-2 ring-offset-black shadow-lg shadow-orange-500/40"
+                                  : "border-gray-800 opacity-60"
+                              }`}
+                            >
+                              {it.image ? (
+                                <img src={it.image} alt={it.label} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-[11px] font-bold text-gray-300">
+                                  {it.label.slice(0, 2).toUpperCase()}
+                                </span>
+                              )}
+                            </span>
+                            {sel && (
+                              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-r from-pink-600 to-orange-500 text-white text-[11px] font-bold flex items-center justify-center border-2 border-black">
+                                ✓
+                              </span>
+                            )}
+                          </span>
+                          <span
+                            className={`text-[11px] font-semibold text-center leading-tight ${
+                              sel ? "text-orange-400" : "text-gray-300"
+                            }`}
+                          >
+                            {it.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {items.map((it) => {
+                      const sel = profileSetup.includes(it.id);
+                      return (
+                        <button
+                          key={it.id}
+                          type="button"
+                          onClick={() => toggleProfileSetup(it.id)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 bg-gray-900/60 transition-all cursor-pointer ${
+                            sel
+                              ? "border-orange-400 shadow-sm shadow-orange-500/20"
+                              : "border-gray-800 hover:border-gray-700"
+                          }`}
+                        >
+                          <span className="text-[12px] font-semibold text-white">{it.label}</span>
+                          {sel && <span className="text-orange-400 font-bold text-[11px]">✓</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {profileSetupOptions.length === 0 && (
+            <div className="py-6 text-center">
+              <p className="text-gray-400 text-sm">No profile options configured yet.</p>
             </div>
           )}
         </div>

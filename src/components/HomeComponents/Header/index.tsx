@@ -1256,7 +1256,9 @@ export default function Header() {
   const { userProfile, loading: profileLoading } = useUserProfile();
   const { currentUserPoints, loading: pointsLoading } = useLeaderboard();
   const { user, getUserDisplayName, loading: authLoading, authReady } = useAuth();
-  const { chats } = useChats();
+  // DM/group chat unread polling disabled: GET /api/chats is a full-table Scan on the backend and ran on every page.
+  // Re-enable by uncommenting this line and the totalUnreadChats memo below.
+  // const { chats } = useChats();
 
   // ── FlipARENA Points (matches LeaderboardOverlayModal) ────────────────────────
   const [arenaPoints, setArenaPoints] = useState<number | null>(() => {
@@ -1415,10 +1417,11 @@ export default function Header() {
     return "";
   }, [headerAvatar, userProfile?.avatarUrl, userProfile?.avatar]);
 
-  const totalUnreadChats = useMemo(
-    () => chats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0),
-    [chats]
-  );
+  // const totalUnreadChats = useMemo(
+  //   () => chats.reduce((sum, chat) => sum + (chat.unreadCount || 0), 0),
+  //   [chats]
+  // );
+  const totalUnreadChats = 0;
 
   const [mainUnreadCount, setMainUnreadCount] = useState(0);
 
