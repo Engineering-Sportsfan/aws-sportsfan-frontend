@@ -3880,6 +3880,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Poll } from "@/types/Polls";
 import { EngagementItem, EngagementType, QuizOption, MemeReactionType } from "@/types/engagements";
 import { engagementService } from "@/services/engagement.service";
+import { EngagementImpressionWrapper } from "@/src/hooks/useEngagementImpression";
 import {
   ArrowLeft,
   Heart,
@@ -7890,7 +7891,20 @@ export function DynamicArenaCard(props: {
   else if (item.type === "meme" || (item.type as string) === "memes" || Boolean(item.memeData) || Boolean((item as any).memeType)) CardComponent = DynamicMemeCard;
   else CardComponent = DynamicPollCard;
 
-  return <CardComponent {...props} />;
+  return (
+    <EngagementImpressionWrapper
+      engagementId={item.id}
+      matchId={(item as any).matchId}
+      momentId={(item as any).momentId || (item as any).loopId}
+      seriesId={(item as any).seriesId}
+      userId={(props as any).userId}
+      userName={(props as any).userName}
+      userAvatar={(props as any).userAvatar}
+      className="w-full"
+    >
+      <CardComponent {...props} />
+    </EngagementImpressionWrapper>
+  );
 }
 
 // ─── Engaged Users Dialog Modal ──────────────────────────────────────────────
@@ -9034,6 +9048,16 @@ export default function FlipArena({
                     key={item.id}
                     className="w-full max-w-lg mx-auto flex flex-col items-center"
                   >
+                    <EngagementImpressionWrapper
+                      engagementId={item.id}
+                      matchId={(item as any).matchId}
+                      momentId={(item as any).momentId || (item as any).loopId}
+                      seriesId={(item as any).seriesId}
+                      userId={activeUserId}
+                      userName={currentUser.userName}
+                      userAvatar={currentUser.userAvatar}
+                      className="w-full flex flex-col items-center"
+                    >
                     <CardComponent
                       item={item}
                       userId={activeUserId}
@@ -9068,6 +9092,7 @@ export default function FlipArena({
                         }
                       }}
                     />
+                    </EngagementImpressionWrapper>
 
                     {/* Inline Engaged Users List */}
                     {engagedModalItem?.id === item.id && (

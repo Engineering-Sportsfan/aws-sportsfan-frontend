@@ -450,22 +450,15 @@ export default function EngagementCommentsThread({
         };
     }, [loadComments]);
 
-    // Track peer comment impressions as separated Social Response records once per session
+    // Track peer comment impressions as separated Social Response records per open thread view
     const trackedCommentImpressionsRef = useRef<Set<string>>(new Set());
+    useEffect(() => {
+        trackedCommentImpressionsRef.current = new Set();
+    }, [engagementId, effectiveUserId]);
+
     useEffect(() => {
         if (!engagementId || !comments.length) return;
         if (!effectiveUserId || effectiveUserId === "guest_fan" || effectiveUserId === "fan_guest") return;
-
-        const storageSeenKey = `sf_sr_imp_${engagementId}_${effectiveUserId}`;
-        if (trackedCommentImpressionsRef.current.size === 0 && typeof window !== "undefined") {
-            try {
-                const raw = window.sessionStorage.getItem(storageSeenKey);
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    if (Array.isArray(parsed)) parsed.forEach((cid) => trackedCommentImpressionsRef.current.add(String(cid)));
-                }
-            } catch { /* ignore */ }
-        }
 
         const peerCommentIds: string[] = [];
         const collectPeerIds = (nodes: ThreadComment[]) => {
@@ -489,11 +482,6 @@ export default function EngagementCommentsThread({
 
         if (peerCommentIds.length === 0) return;
         peerCommentIds.forEach((cid) => trackedCommentImpressionsRef.current.add(cid));
-        try {
-            if (typeof window !== "undefined") {
-                window.sessionStorage.setItem(storageSeenKey, JSON.stringify(Array.from(trackedCommentImpressionsRef.current)));
-            }
-        } catch { /* ignore */ }
 
         axios.post(
             `/api/engagements/${encodeURIComponent(engagementId)}/comments/impression`,

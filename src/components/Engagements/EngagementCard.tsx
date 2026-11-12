@@ -1022,6 +1022,8 @@ import {
 import axios from "axios";
 import type { EngagementItem } from "@/types/engagements";
 import { useUserProfile } from "@/context/UserProfileContext";
+import { useAuth } from "@/context/AuthContext";
+import { resolveEngagementViewer, useEngagementImpression } from "@/src/hooks/useEngagementImpression";
 import EngagementCommentsThread from "./EngagementCommentsThread";
 
 export interface EngagementCardProps {
@@ -1102,9 +1104,11 @@ export default function EngagementCard({
     onShowLikers,
 }: EngagementCardProps) {
     const { userProfile } = useUserProfile();
-    const currentUserId = userProfile?.actualUserId || userProfile?.email || "fan_guest";
-    const currentUserName = userProfile?.username || userProfile?.name || "Fan";
-    const currentUserAvatar = userProfile?.avatarUrl || userProfile?.avatar || "";
+    const { user: authUser, authReady } = useAuth();
+    const resolvedViewer = resolveEngagementViewer(userProfile, authUser, authReady);
+    const currentUserId = resolvedViewer.userId || "fan_guest";
+    const currentUserName = resolvedViewer.userName || "Fan";
+    const currentUserAvatar = resolvedViewer.userAvatar || "";
 
     // ── Local State & Storage Keys (PER USER, so several accounts in one browser don't share state) ──
     const voteKey = `sf_vote_${item.id}_${currentUserId}`;
@@ -1989,60 +1993,16 @@ export default function EngagementCard({
         );
     };
 
-    const cardRef = useRef<HTMLDivElement | null>(null);
-    const impressionTrackedKeyRef = useRef<string>("");
-
-    useEffect(() => {
-        if (!item?.id || !currentUserId || currentUserId === "fan_guest") return;
-        const sessionKey = `sf_eng_imp_${item.id}_${currentUserId}`;
-        if (impressionTrackedKeyRef.current === sessionKey) return;
-        try {
-            if (typeof window !== "undefined" && window.sessionStorage.getItem(sessionKey)) {
-                impressionTrackedKeyRef.current = sessionKey;
-                return;
-            }
-        } catch { /* ignore */ }
-
-        const el = cardRef.current;
-        if (!el || typeof IntersectionObserver === "undefined") return;
-
-        let cancelled = false;
-        const sendImpression = () => {
-            if (cancelled || impressionTrackedKeyRef.current === sessionKey) return;
-            impressionTrackedKeyRef.current = sessionKey;
-            try {
-                if (typeof window !== "undefined") window.sessionStorage.setItem(sessionKey, "1");
-            } catch { /* ignore */ }
-            axios.post(
-                `/api/engagements/${encodeURIComponent(item.id)}/impression`,
-                {
-                    userId: currentUserId,
-                    userName: currentUserName,
-                    userAvatar: currentUserAvatar,
-                    matchId: item.matchId,
-                    momentId: item.momentId || item.loopId,
-                    seriesId: (item as any).seriesId,
-                },
-                { timeout: 6000 }
-            ).catch(() => { /* non-fatal */ });
-        };
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.35)) {
-                    sendImpression();
-                    observer.disconnect();
-                }
-            },
-            { threshold: [0.35] }
-        );
-
-        observer.observe(el);
-        return () => {
-            cancelled = true;
-            observer.disconnect();
-        };
-    }, [item?.id, item?.matchId, item?.momentId, item?.loopId, currentUserId, currentUserName, currentUserAvatar]);
+    const { ref: cardRef } = useEngagementImpression({
+        engagementId: item?.id,
+        matchId: item?.matchId,
+        momentId: item?.momentId || item?.loopId,
+        seriesId: (item as any)?.seriesId,
+        userId: resolvedViewer.userId,
+        userName: resolvedViewer.userName,
+        userAvatar: resolvedViewer.userAvatar,
+        enabled: Boolean(item?.id && resolvedViewer.userId),
+    });
 
     // ─────────────────────────────────────────────────────────────
     // VARIANT: "post" (Matches regular room discussion posts seamlessly)
