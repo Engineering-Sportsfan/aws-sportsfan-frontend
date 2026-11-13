@@ -14,6 +14,8 @@ type SetupItem = {
   active?: boolean;
 };
 
+export type SummaryItem = { label: string; image?: string };
+
 const EDIT_URL = "/MainModules/RoarPreference?step=4&from=profile";
 
 const SECTIONS: { category: string; icon: string; shape: "avatar" | "pill" }[] = [
@@ -53,10 +55,13 @@ function PlusButton({ round, onClick }: { round?: boolean; onClick: () => void }
 export function ProfileSetupSections({
   isOwn,
   selectedIds,
+  onSummary,
 }: {
   isOwn: boolean;
   /** Item ids saved on the profile. For the own profile they are fetched when omitted. */
   selectedIds?: string[];
+  /** Reports the first two "My Teams & Sports" and "My Interests" labels (for the profile header). */
+  onSummary?: (s: { teams: SummaryItem[]; interests: SummaryItem[] }) => void;
 }) {
   const router = useRouter();
   const [items, setItems] = useState<SetupItem[]>([]);
@@ -101,6 +106,19 @@ export function ProfileSetupSections({
     }
     return map;
   }, [items, ids]);
+
+  const toSummary = (list: SetupItem[]): SummaryItem[] =>
+    list.slice(0, 2).map((i) => ({ label: i.label, image: i.image }));
+  const teamsKey = JSON.stringify(toSummary(grouped["My Teams & Sports"] ?? []));
+  const interestsKey = JSON.stringify(toSummary(grouped["My Interests"] ?? []));
+  useEffect(() => {
+    if (!loaded || !onSummary) return;
+    onSummary({
+      teams: JSON.parse(teamsKey),
+      interests: JSON.parse(interestsKey),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, teamsKey, interestsKey]);
 
   const goEdit = () => router.push(EDIT_URL);
 
