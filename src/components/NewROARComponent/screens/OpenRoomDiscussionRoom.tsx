@@ -5450,16 +5450,11 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
     if (!summary) return null;
 
     const mr = summary.matchResultData || summary.resultData || summary;
-    const team1Name = mr.team1Name || mr.team1 || mr.team1Code || summary.team1Name || summary.team1 || "India";
-    const team1Score = mr.team1Score || mr.score1 || summary.team1Score || "198/5(20)";
-    const team2Name = mr.team2Name || mr.team2 || mr.team2Code || summary.team2Name || summary.team2 || "New Zealand";
-    const team2Score = mr.team2Score || mr.score2 || summary.team2Score || "187/8(20)";
-    const matchTitle = summary.matchTitle || mr.matchTitle || `${team1Name} vs ${team2Name}`;
-    const resultSummary = mr.resultSummary || summary.resultSummary || `${team1Name} won the match!`;
+    const matchTitle = summary.matchTitle || mr.matchTitle || "Match Summary";
 
     const totalActions = Number(summary.totalActions ?? summary.totalInteractions ?? mr.totalActions ?? mr.totalActionsCount ?? 62) || 62;
-    const predictionsCount = String(summary.predictionsRatio || mr.predictionsRatio || "8/10");
-    const sxp = Number(summary.totalSxp ?? summary.sxpAwarded ?? mr.sxpAwarded ?? 320) || 320;
+    const totalMoments = Number(summary.totalMoments ?? summary.momentsCount ?? mr.totalMoments ?? 5) || 5;
+    const totalParticipants = Number(summary.totalParticipants ?? summary.totalFansCount ?? summary.participantsCount ?? mr.totalParticipants ?? 27) || 27;
 
     return (
         <motion.div
@@ -5479,27 +5474,27 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                         <span>MATCH SUMMARY</span>
                     </div>
                     <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        FINAL
+                        ROOM SNAPSHOT
                     </span>
                 </div>
 
-                {/* Match Identity Section matching Aarav reference card */}
+                {/* Match Identity Section — Pure app fan activity (no external scores or match results) */}
                 <div className="flex items-center gap-3">
                     <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-600 to-teal-800 border-2 border-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.55)] flex items-center justify-center text-2xl shrink-0">
-                        🏏
+                        ⚡
                     </div>
 
                     <div className="min-w-0 flex-1">
                         <div className="text-base font-bold text-emerald-300 truncate leading-tight">
                             {matchTitle}
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-slate-200 mt-0.5 truncate">
-                            <span className="font-semibold text-white/90">{team1Score}</span>
-                            <span className="text-slate-400">•</span>
-                            <span className="font-semibold text-white/90">{team2Score}</span>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-300 mt-0.5 truncate">
+                            <span className="text-emerald-400 font-semibold">⚡ Roar Pulse Activity</span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-slate-300">All Room Fans</span>
                         </div>
                         <div className="text-xs text-slate-400 font-normal mt-0.5 truncate">
-                            {resultSummary}
+                            Overall in-app fan engagement & actions summary
                         </div>
                     </div>
                 </div>
@@ -5516,25 +5511,25 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                     </div>
                     <div>
                         <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
-                            {predictionsCount}
+                            {totalMoments}
                         </div>
                         <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
-                            Predictions
+                            Total Moments
                         </div>
                     </div>
                     <div>
                         <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
-                            {sxp}
+                            {totalParticipants}
                         </div>
                         <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
-                            Total SXP
+                            Total Participants
                         </div>
                     </div>
                 </div>
 
                 {/* Footer text */}
                 <div className="text-center text-xs font-semibold text-emerald-400/90 tracking-wide pt-0.5">
-                    🏆 All Room Fans Activity & Engagement Snapshot
+                    🏆 Overall App Activity Across All Room Fans
                 </div>
             </div>
         </motion.div>
@@ -7693,7 +7688,7 @@ export default function OpenRoomDiscussionRoom({
 
             {/* ── MESSAGES LIST ── */}
             <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
-                <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0 pb-32">
+                <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0 pb-6">
                     {feedReady && engHasMore && matchEngagements.length > 0 && (
                         <div style={{ display: "flex", justifyContent: "center", padding: "10px 0" }}>
                             <button
@@ -8224,7 +8219,7 @@ export default function OpenRoomDiscussionRoom({
             )} */}
 
             {/* ── COMPOSE INPUT ── */}
-            {/* <div className="shrink-0 px-2.5 pt-1 pb-1.5 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-t border-[var(--border)] flex flex-col gap-1">
+            <div className="shrink-0 px-2.5 pt-1 pb-1.5 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-t border-[var(--border)] flex flex-col gap-1">
                 {selectedActionId === "post" && !dollyOpen && (
                     <>
                         <AnimatePresence>
@@ -8270,7 +8265,6 @@ export default function OpenRoomDiscussionRoom({
 
                         <div className="flex items-center w-full gap-0.5 -mb-1">
                             <button type="button" onClick={() => triggerUpload("image")} disabled={uploading} className="bg-transparent border-none -ml-1.5 text-white/40 cursor-pointer flex items-center justify-center p-1 shrink-0">
-                                // <Image size={16} /> 
                                 <img src="/images/gallerybg.png" alt="gallery" className="w-5 h-5 object-cover" />
                             </button>
 
@@ -8289,7 +8283,7 @@ export default function OpenRoomDiscussionRoom({
                             </button>
 
                             <div className="flex-1 relative min-w-0">
-                                // Channel Mention Popup 
+                                {/* Channel Mention Popup */}
                                 {showChannelMentionPopup && channelMentionUsers.length > 0 && (
                                     <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#181c24] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden shadow-lg z-50 max-h-[200px] overflow-y-auto">
                                         {channelMentionUsers.map((channel, idx) => (
@@ -8358,7 +8352,7 @@ export default function OpenRoomDiscussionRoom({
                 )}
             </div>
 
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" /> */}
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
             {/* ── DIALOGS ── */}
             <VotersDialog postId={votersMsgId ?? ""} isOpen={votersMsgId !== null} onClose={() => setVotersMsgId(null)} roomId={roomId} mode={votersMode} />
