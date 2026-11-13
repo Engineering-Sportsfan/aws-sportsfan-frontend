@@ -3671,6 +3671,21 @@ function getTimestamp(val: any): number {
     return 0;
 }
 
+// Only one comment thread open at a time: opening one announces its id; every other thread closes.
+const COMMENTS_OPENED_EVENT = "engagement-comments-opened";
+const announceThreadOpened = (id: string) => {
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(COMMENTS_OPENED_EVENT, { detail: id }));
+};
+function useCloseOnOtherThreadOpen(id: string, close: () => void) {
+    const closeRef = useRef(close);
+    closeRef.current = close;
+    useEffect(() => {
+        const onOpened = (e: Event) => { if ((e as CustomEvent<string>).detail !== id) closeRef.current(); };
+        window.addEventListener(COMMENTS_OPENED_EVENT, onOpened);
+        return () => window.removeEventListener(COMMENTS_OPENED_EVENT, onOpened);
+    }, [id]);
+}
+
 const ENGAGEMENT_PAGE_SIZE = 15;
 const ENGAGEMENT_POLL_MS = 10000;
 
@@ -4442,6 +4457,7 @@ function InlineRecognitionCard({
     });
     const [shareCopied, setShareCopied] = useState(false);
     const [showComments, setShowComments] = useState(false);
+    useCloseOnOtherThreadOpen(itemId, () => setShowComments(false));
 
     useEffect(() => {
         if (typeof item.likes === "number") {
@@ -4695,7 +4711,7 @@ function InlineRecognitionCard({
                     {/* Comments Toggle Button */}
                     <button
                         type="button"
-                        onClick={() => setShowComments(prev => !prev)}
+                        onClick={() => { const next = !showComments; setShowComments(next); if (next) announceThreadOpened(itemId); }}
                         className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${
                             showComments ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
                         }`}
@@ -4823,6 +4839,7 @@ function InlineOutcomeRevealCard({
     });
     const [shareCopied, setShareCopied] = useState(false);
     const [showComments, setShowComments] = useState(false);
+    useCloseOnOtherThreadOpen(itemId, () => setShowComments(false));
 
     useEffect(() => {
         if (typeof item.likes === "number") {
@@ -5060,7 +5077,7 @@ function InlineOutcomeRevealCard({
                     {/* Comments Toggle Button */}
                     <button
                         type="button"
-                        onClick={() => setShowComments(prev => !prev)}
+                        onClick={() => { const next = !showComments; setShowComments(next); if (next) announceThreadOpened(itemId); }}
                         className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${
                             showComments ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
                         }`}
@@ -5442,6 +5459,18 @@ export default function OpenRoomDiscussionRoom({
     const loadingMoreEngRef = useRef(false);
     const engFirstPageLoadedRef = useRef(false);
     const matchEngagementsRef = useRef<EngagementItem[]>([]);
+    // When an engagement / recognition thread opens, close the open post thread (functional update
+    // so a post thread that is itself being opened right now is kept).
+    useEffect(() => {
+        const onOpened = (e: Event) => {
+            const id = (e as CustomEvent<string>).detail;
+            setOpenInlinePostId(cur => (cur === id ? cur : null));
+        };
+        window.addEventListener(COMMENTS_OPENED_EVENT, onOpened);
+        return () => window.removeEventListener(COMMENTS_OPENED_EVENT, onOpened);
+    }, []);
+    const deepLinkedEngRef = useRef<string | null>(null);
+    const [highlightEngId, setHighlightEngId] = useState<string | null>(null);
     const engScrollRestoreRef = useRef<{ prevScrollHeight: number; prevScrollTop: number } | null>(null);
     const [openInlinePostId, setOpenInlinePostId] = useState<string | null>(null);
     const [explicitlyClosedPostIds, setExplicitlyClosedPostIds] = useState<Set<string>>(new Set());
@@ -6527,6 +6556,40 @@ export default function OpenRoomDiscussionRoom({
 
     const feedReady = !loading && engagementsLoaded;
 
+    // Deep link from Contribution History: /MainModules/ROAR?engagementId=<id>
+    // -> make sure that engagement is loaded, then scroll to it and highlight it briefly.
+    useEffect(() => {
+        if (!feedReady || typeof window === "undefined") return;
+        const targetId = new URLSearchParams(window.location.search).get("engagementId");
+        if (!targetId || deepLinkedEngRef.current === targetId) return;
+        deepLinkedEngRef.current = targetId;
+        (async () => {
+            if (!matchEngagementsRef.current.some(e => e.id === targetId)) {
+                try {
+                    // It may be older than the latest page: fetch just that one.
+                    const r = await axios.get(`/api/engagements/${encodeURIComponent(targetId)}`, { timeout: REQUEST_TIMEOUT_MS });
+                    const raw = r.data?.engagement || r.data?.data || r.data;
+                    if (raw && (raw.id || raw.engagementId)) {
+                        const eng = normalizeEngagement(raw, roomMatchId || "");
+                        seenEngIdsRef.current?.add(eng.id); // no "new engagement" toast
+                        setMatchEngagements(prev => (prev.some(e => e.id === eng.id) ? prev : [...prev, eng]));
+                    }
+                } catch (e) {
+                    console.warn("deep-linked engagement:", e);
+                }
+            }
+            setEngagementFilter("all");
+            // Wait for the initial jump-to-bottom and the render of the injected card.
+            setTimeout(() => {
+                const el = document.getElementById(`eng-${targetId}`);
+                if (!el) return;
+                el.scrollIntoView({ behavior: "smooth", block: "center" });
+                setHighlightEngId(targetId);
+                setTimeout(() => setHighlightEngId(null), 2500);
+            }, 600);
+        })();
+    }, [feedReady, roomMatchId]);
+
     const scrollToBottom = useCallback((smooth = true) => {
         const el = listRef.current;
         if (!el) return;
@@ -7474,17 +7537,24 @@ export default function OpenRoomDiscussionRoom({
 
                         if (item.kind === "engagement") {
                             return (
-                                <EngagementCard
+                                <div
                                     key={`eng-${item.data.id}`}
-                                    item={{
-                                        ...item.data,
-                                        creatorName: "SportsFan360",
-                                        creatorAvatar: "/images/sportsfan360logo.png",
-                                    }}
-                                    variant="post"
-                                    onInteraction={(data) => handleEngagementInteraction(item.data.id, data)}
-                                    onShowLikers={(id) => setReactionsMsgId(id)}
-                                />
+                                    id={`eng-${item.data.id}`}
+                                    style={highlightEngId === item.data.id
+                                        ? { outline: "2px solid #ff8a1f", outlineOffset: 2, borderRadius: 14, transition: "outline-color 0.3s" }
+                                        : undefined}
+                                >
+                                    <EngagementCard
+                                        item={{
+                                            ...item.data,
+                                            creatorName: "SportsFan360",
+                                            creatorAvatar: "/images/sportsfan360logo.png",
+                                        }}
+                                        variant="post"
+                                        onInteraction={(data) => handleEngagementInteraction(item.data.id, data)}
+                                        onShowLikers={(id) => setReactionsMsgId(id)}
+                                    />
+                                </div>
                             );
                         }
                         const p = item.data;
@@ -7518,8 +7588,8 @@ export default function OpenRoomDiscussionRoom({
                         const postAvatar = getKnownBotAvatarUrl(p.fan?.username) ?? (isMine ? (getEffectiveUserAvatar() || p.fan?.avatarUrl) : p.fan?.avatarUrl);
                         const defaultPayload = { id: p.id, text: p.text, fan: { ...p.fan, avatarUrl: postAvatar, isBot }, timeAgo: p.timeAgo, createdAt: p.createdAt, type: p.type || "post", isDbPost: true, roomId, mediaUrls: p.mediaUrls };
                         const replyCount = p.replyCount || 0;
-                        const defaultOpen = replyCount > 0;
-                        const isOpen = openInlinePostId === p.id || (defaultOpen && !explicitlyClosedPostIds.has(p.id));
+                        // Threads start closed (even with replies); only the one the user opened is open.
+                        const isOpen = openInlinePostId === p.id;
                         const accent = commentAccentColor(p.type || "post");
 
                         return (
@@ -7782,6 +7852,7 @@ export default function OpenRoomDiscussionRoom({
                                                     setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.add(p.id); return next; });
                                                 } else {
                                                     setOpenInlinePostId(p.id);
+                                                    announceThreadOpened(p.id);
                                                     setExplicitlyClosedPostIds(prev => { const next = new Set(prev); next.delete(p.id); return next; });
                                                 }
                                             }}

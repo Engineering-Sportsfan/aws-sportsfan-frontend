@@ -6354,6 +6354,10 @@ export default function Profile({
               activities={sourceActivities}
               userId={isOtherProfile ? null : (authUser?.actualUserId || authUser?.userId || authUser?.email || null)}
               initialTab={historyTab}
+              onOpenEngagement={(id) => {
+                setHistoryOpen(false);
+                router.push(id ? `/MainModules/ROAR?engagementId=${encodeURIComponent(id)}` : "/MainModules/ROAR");
+              }}
             />
 
             <EngagementStatTiles

@@ -35,6 +35,8 @@ interface HistoryItem {
   points: number;
   createdAt: number;
   thumb?: string;
+  /** Match-moment engagement this item belongs to (drives the tap-to-open). */
+  engagementId?: string;
 }
 
 const typeOf = (a: any): string => String(a?.type || a?.metadata?.type || "").toUpperCase();
@@ -119,6 +121,8 @@ export interface ContributionHistoryOverlayProps {
   userId?: string | null;
   /** Tab to show when the screen opens (defaults to "all"). */
   initialTab?: TabKey;
+  /** Called with the engagement id when a card is tapped. */
+  onOpenEngagement?: (engagementId: string) => void;
 }
 
 const REACTIONS_URL = "/api/engagements/my-reactions";
@@ -152,6 +156,7 @@ async function loadMyReactions(userId: string): Promise<HistoryItem[]> {
         points: Number(r.points) || 0,
         createdAt: Number(r.createdAt) || 0,
         thumb: r.imageUrl || r.thumbnail,
+        engagementId: r.engagementId ? String(r.engagementId) : undefined,
       };
     });
   } catch {
@@ -168,12 +173,13 @@ async function loadMyReactions(userId: string): Promise<HistoryItem[]> {
           title: title ? `Liked “${title}”` : "Liked a post",
           points: 0,
           createdAt: Number(e.createdAt) || 0,
+          engagementId: e.id ? String(e.id) : undefined,
         };
       });
   }
 }
 
-export function ContributionHistoryOverlay({ open, onClose, loading, activities, userId, initialTab }: ContributionHistoryOverlayProps) {
+export function ContributionHistoryOverlay({ open, onClose, loading, activities, userId, initialTab, onOpenEngagement }: ContributionHistoryOverlayProps) {
   const [tab, setTab] = useState<TabKey>(initialTab ?? "all");
 
   // Jump to the requested tab each time the screen opens.
@@ -208,6 +214,7 @@ export function ContributionHistoryOverlay({ open, onClose, loading, activities,
         points: Number(a.points) || 0,
         createdAt: Number(a.createdAt) || 0,
         thumb: a?.metadata?.imageUrl || a?.metadata?.thumbnail || a?.metadata?.image,
+        engagementId: String(a?.metadata?.engagementId || a?.engagementId || a?.metadata?.contentId || "") || undefined,
       });
     }
     return out.sort((x, y) => y.createdAt - x.createdAt);
@@ -275,8 +282,13 @@ export function ContributionHistoryOverlay({ open, onClose, loading, activities,
             {visible.map((it, idx) => (
               <div
                 key={it.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open: ${it.title}`}
+                onClick={() => onOpenEngagement?.(it.engagementId ?? "")}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onOpenEngagement?.(it.engagementId ?? ""); }}
                 style={{
-                  display: "flex", alignItems: "center", gap: 12, padding: "12px 14px",
+                  display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", cursor: "pointer",
                   borderTop: idx === 0 ? "none" : "1px solid rgba(255,255,255,0.05)",
                 }}
               >
@@ -301,6 +313,9 @@ export function ContributionHistoryOverlay({ open, onClose, loading, activities,
                     <span style={{ color: "rgba(255,255,255,0.45)" }}>{timeAgo(it.createdAt)}</span>
                   </div>
                 </div>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }} aria-hidden="true">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
               </div>
             ))}
           </div>
