@@ -118,7 +118,7 @@ export function LevelOverlay(p: LevelOverlayProps) {
                 <div style={{ textAlign: "right", fontSize: 11, color: "rgba(255,255,255,0.55)", lineHeight: 1.3 }}>
                   Next level
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#fff" }}>
-                    {p.xpRemaining.toLocaleString()} pts
+                    {p.xpRemaining.toLocaleString()} SXPs
                   </div>
                 </div>
               </div>
@@ -126,7 +126,7 @@ export function LevelOverlay(p: LevelOverlayProps) {
                 <div style={{ height: "100%", width: `${p.pct}%`, background: "linear-gradient(90deg, #ff6b35, #ff9f1c)", borderRadius: 4 }} />
               </div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginTop: 6 }}>
-                {p.totalPoints.toLocaleString()} pts total
+                {p.totalPoints.toLocaleString()} SXPs total
               </div>
             </div>
           </div>
@@ -299,8 +299,8 @@ export function LevelOverlay(p: LevelOverlayProps) {
             <div style={{ ...card, padding: 16 }}>
               <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>Earn points</div>
               <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.65)", lineHeight: 1.5 }}>
-                Posting, predicting, debating, reacting and playing quizzes all earn points. Level 1 needs 1,000 pts, and
-                each next level needs 1,000 pts more than the one before.
+                Posting, predicting, debating, reacting and playing quizzes all earn points. Level 1 needs 1,000 SXPs, and
+                each next level needs 1,000 SXPs more than the one before.
               </p>
             </div>
             <div style={{ ...card, padding: 16 }}>

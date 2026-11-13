@@ -23,6 +23,8 @@ import Onboarding from "./screens/Onboarding";
 import RoomsHome from "./screens/RoomsHome";
 // import HomeFeed from "./screens/HomeFeed";             // SF360 Infinity Room = posts feed
 import DiscussionRoom from "./screens/DiscussionRoom";
+import MatchMomentRoom from "./screens/MatchMomentRoom";
+import { MATCH_MOMENT_ROOM_ID } from "./screens/matchMomentRoomUtils";
 import Notifications from "./screens/Notifications";
 import Leaderboard from "./screens/Leaderboard";
 import Profile from "./screens/Profile";
@@ -827,6 +829,16 @@ const openRecapForRoom = useCallback(async (room: Room) => {
               ) : isRoom ? (
                 <motion.div key="room" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
                   <style dangerouslySetInnerHTML={{ __html: `#global-header-desktop,#global-header-tablet,#global-header-mobile{display:none!important}` }} />
+                  {selectedRoom?.roomId === MATCH_MOMENT_ROOM_ID ? (
+                  <MatchMomentRoom
+                    roomId={selectedRoom.roomId}
+                    roomName={selectedRoom?.name}
+                    onBack={() => {
+                      if (window.history.state?.roarRoom) window.history.back();
+                      else closeRoom();
+                    }}
+                  />
+                  ) : (
                   <DiscussionRoom
                     roomId={selectedRoom?.roomId}
                     roomSports={selectedRoom?.sport}
@@ -853,6 +865,7 @@ const openRecapForRoom = useCallback(async (room: Room) => {
                     onFanProfile={handleFanProfileClick}
                     onRecap={() => selectedRoom && openRecapForRoom(selectedRoom)}
                   />
+                  )}
                 </motion.div>
               ) : (
                 <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import axios, { isAxiosError } from "axios";
+import { getMomentEngagements } from "./momentEngagements";
 
 export interface EngagementStats {
   participations: number;
@@ -35,25 +36,12 @@ interface OverviewResponse {
   users?: OverviewUser[];
 }
 
-interface EngagementListItem {
-  id?: string;
-  matchId?: string;
-  momentId?: string;
-  loopId?: string;
-  type?: string;
-}
-
-interface EngagementListResponse {
-  engagements?: EngagementListItem[];
-}
-
 type State =
   | { status: "loading" }
   | { status: "error" }
   | { status: "ready"; stats: EngagementStats; cats: CategoryStats };
 
 const TAG = "[EngagementStats]";
-const LIST_URL = "/api/engagements?excludeFlipArena=true&source=match_moment&allEnvs=true&limit=500";
 const OVERVIEW_URL = "/api/admin/core-engine/overview";
 const TIMEOUT_MS = 30000;
 const CACHE_TTL_MS = 5 * 60 * 1000;
@@ -170,10 +158,9 @@ export function EngagementStatTiles({
     (async () => {
       try {
         // 1) engagement ids
-        const list = await axios.get<EngagementListResponse>(LIST_URL, { timeout: TIMEOUT_MS });
-        const items = list.data?.engagements ?? [];
+        // Shared + cached (5 min) with the Contribution History overlay; already limited to loopId/momentId.
+        const items = await getMomentEngagements(TIMEOUT_MS);
         const engagementIds = items
-          .filter((e) => (e.matchId && e.matchId !== "GLOBAL") || e.momentId || e.loopId)
           .map((e) => e.id)
           .filter((id): id is string => typeof id === "string" && id.length > 0);
         const typeById = new Map<string, string | undefined>();

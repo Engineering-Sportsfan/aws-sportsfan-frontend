@@ -3292,9 +3292,10 @@ import {
 } from "@/src/constants/bots";
 import { EXPERT_TAGS, getExpertCanonicalName, EXPERT_BIOS, EXPERT_AVATARS, EXPERT_ROLES } from "@/src/constants/experts";
 import { RoarJourneySection } from "../components/RoarJourneySection";
-import { ProfileSetupSections, MyPreferencesCard } from "../components/ProfileSetupSections";
+import { ProfileSetupSections, MyPreferencesCard, type SummaryItem } from "../components/ProfileSetupSections";
 import { LevelOverlay } from "../components/LevelOverlay";
 import { EngagementStatTiles } from "../components/EngagementStatTiles";
+import { MyScoreCards } from "../components/MyScoreCards";
 import { ContributionHistoryOverlay, type TabKey } from "../components/ContributionHistoryOverlay";
 import { useLeaderboard } from "@/context/LeaderboardContext";
 import { engagementService } from "@/services/engagement.service";
@@ -4031,6 +4032,8 @@ export default function Profile({
 
   const [badgeModal, setBadgeModal] = useState<any>(null);
   const [editOpen, setEditOpen] = useState(false);
+  // First two teams/sports and interests, reported by ProfileSetupSections (no extra requests).
+  const [setupSummary, setSetupSummary] = useState<{ teams: SummaryItem[]; interests: SummaryItem[] }>({ teams: [], interests: [] });
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [sharingImage, setSharingImage] = useState(false);
@@ -5938,11 +5941,23 @@ export default function Profile({
             <h1 className="font-display" style={{ fontSize: 20, fontWeight: 900, letterSpacing: "0.03em", color: "#fff", margin: "0 0 4px" }}>
               {effectiveUsername}
             </h1>
-            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>
-              {isBotProfile
-                ? (BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Official AI Bot")
-                : (globalTier?.label || BADGE_LABELS[userBadge] || "Chant I")}
-            </p>
+            {/* My Teams & Sports first, then the level tier */}
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, fontSize: 13, color: "rgba(255,255,255,0.55)", margin: "0 0 8px" }}>
+              {setupSummary.teams.map((t) =>
+                t.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={t.label} src={t.image} alt={t.label} title={t.label}
+                    style={{ width: 22, height: 22, borderRadius: "50%", objectFit: "cover", border: "1px solid rgba(255,255,255,0.25)" }} />
+                ) : (
+                  <span key={t.label} style={{ color: "rgba(255,255,255,0.8)" }}>{t.label}</span>
+                )
+              )}
+              <span>
+                {isBotProfile
+                  ? (BOT_ROLES[user.username] || BOT_ROLES[botCanonicalName || ""] || "Official AI Bot")
+                  : (globalTier?.label || BADGE_LABELS[userBadge] || "Chant I")}
+              </span>
+            </div>
 
             {(user.university || user.institution || editUniversity) && (
               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
@@ -5951,7 +5966,7 @@ export default function Profile({
             )}
             {(user.favPlayer || editFavPlayer) && (
               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", margin: "2px 0 0" }}>
-                Favourite player: <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
+              <strong style={{ color: "#fff" }}>{user.favPlayer || editFavPlayer}</strong>
               </p>
             )}
             {(user.about || editAbout) && (
@@ -6295,7 +6310,7 @@ export default function Profile({
                   </div>
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: "#fff", minWidth: 80, textAlign: "right" }}>
-                  {pointsReady ? `${totalGlobalPoints.toLocaleString()} pts` : (
+                  {pointsReady ? `${totalGlobalPoints.toLocaleString()} SXPs` : (
                     <span style={{ display: "inline-block", height: 24, width: 80, borderRadius: 6, background: "rgba(255,255,255,0.12)", verticalAlign: "middle" }} />
                   )}
                 </div>
@@ -6373,10 +6388,21 @@ export default function Profile({
 
           {/* ── My Teams & Sports / My Loyalties / My Interests + My Preferences ── */}
           <ProfileSetupSections
+            onSummary={setSetupSummary}
             isOwn={!isOtherProfile}
             selectedIds={isOtherProfile ? ((user as any)?.profileSetup ?? []) : ((user as any)?.profileSetup ?? undefined)}
           />
           {!isOtherProfile && <MyPreferencesCard />}
+          {!isOtherProfile && (
+            <MyScoreCards
+              activities={sourceActivities}
+              loading={isLoadingActivities}
+              username={effectiveUsername}
+              avatarSrc={displayAvatar}
+              teams={setupSummary.teams}
+              favPlayer={user?.favPlayer || editFavPlayer || ""}
+            />
+          )}
 
           {/* TODO: re-enable the sections below (Global Reputation, Roar Journey, Overview/Badges/Activity tabs) */}
           {false && (<>
