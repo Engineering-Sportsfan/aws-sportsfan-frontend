@@ -5348,11 +5348,11 @@ function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
 function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
     if (!summary) return null;
 
-    const userName = summary.userName || "Champion Fan";
-    const userAvatar = summary.userAvatar || "";
-    const interactions = Number(summary.interactionsCount ?? summary.totalActions ?? 24);
+    const userName = summary.userName || summary.winnerName || summary.name || "Champion Fan";
+    const userAvatar = summary.userAvatar || summary.winnerAvatar || summary.avatar || "";
+    const interactions = Number(summary.interactionsCount ?? summary.totalActions ?? summary.actionsCount ?? 24);
     const predictionsRatio = String(summary.predictionsRatio || "9/10");
-    const sxp = Number(summary.sxpAwarded ?? 450);
+    const sxp = Number(summary.sxpAwarded ?? summary.totalScore ?? 450);
     const initial = userName.trim().slice(0, 1).toUpperCase() || "F";
     const badgeText = summary.badgeText || "🏆 Fan of the Match Award · Highest Match Score";
 
@@ -5448,17 +5448,17 @@ function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
 function InlineMatchSnapshotCard({ summary }: { summary: any }) {
     if (!summary) return null;
 
-    const team1Name = summary.team1Name || "India";
-    const team1Score = summary.team1Score || "198/5 (20)";
-    const team1Flag = summary.team1Flag || "🇮🇳";
+    const team1Name = summary.team1Name || summary.team1 || "India";
+    const team1Score = summary.team1Score || summary.score1 || "198/5 (20)";
+    const team1Flag = summary.team1Flag || summary.flag1 || "🇮🇳";
 
-    const team2Name = summary.team2Name || "New Zealand";
-    const team2Score = summary.team2Score || "187/8 (20)";
-    const team2Flag = summary.team2Flag || "🇳🇿";
+    const team2Name = summary.team2Name || summary.team2 || "New Zealand";
+    const team2Score = summary.team2Score || summary.score2 || "187/8 (20)";
+    const team2Flag = summary.team2Flag || summary.flag2 || "🇳🇿";
 
-    const playerOfTheMatch = summary.playerOfTheMatch || summary.topPerformerName || "Suryakumar Yadav";
-    const playerStats = summary.playerOfTheMatchStats || summary.topPerformerStats || "65 (39) • 2 Fours • 6 Sixes";
-    const playerPhoto = summary.playerOfTheMatchPhoto || summary.topPerformerPhoto || "";
+    const playerOfTheMatch = summary.playerOfTheMatch || summary.topPerformerName || summary.playerName || "Suryakumar Yadav";
+    const playerStats = summary.playerOfTheMatchStats || summary.topPerformerStats || summary.playerStats || "65 (39) • 2 Fours • 6 Sixes";
+    const playerPhoto = summary.playerOfTheMatchPhoto || summary.topPerformerPhoto || summary.playerImageUrl || "";
 
     const renderFlag = (flag?: string, name?: string) => {
         const raw = String(flag || "").trim();
@@ -5841,6 +5841,13 @@ export default function OpenRoomDiscussionRoom({
 
         // Resolve matchId — from state, from loaded engagements, or by asking the room details API
         let mId = roomMatchId;
+        if (!mId && matchEngagementsRef.current.length > 0) {
+            const foundFromEng = matchEngagementsRef.current.find(e => e.matchId)?.matchId;
+            if (foundFromEng) {
+                mId = String(foundFromEng).replace(/^MATCH#/, "").trim();
+                setRoomMatchId(mId);
+            }
+        }
         if (!mId && matchEngagements.length > 0) {
             const foundFromEng = matchEngagements.find(e => e.matchId)?.matchId;
             if (foundFromEng) {
@@ -5877,6 +5884,9 @@ export default function OpenRoomDiscussionRoom({
             const url = `/api/roar/celebrations?${qParams.toString()}`;
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
             if (res.data?.success) {
+                if (res.data?.matchId && !roomMatchId) {
+                    setRoomMatchId(String(res.data.matchId).replace(/^MATCH#/, "").trim());
+                }
                 if (Array.isArray(res.data.recognitions)) {
                     setRecognitions(res.data.recognitions);
                 }
@@ -7362,35 +7372,44 @@ export default function OpenRoomDiscussionRoom({
                 sortKey: getTimestamp(rev.createdAt || Date.now()),
             }));
 
+        // Position match summaries at the bottom of the feed (newest items) as the conclusion of the match
+        const baseCompletionTime = Math.max(
+            Date.now() - 3000,
+            ...postItems.map((p) => p.sortKey || 0),
+            ...engagementItems.map((e) => e.sortKey || 0),
+            ...recognitionItems.map((r) => r.sortKey || 0),
+            ...outcomeItems.map((o) => o.sortKey || 0)
+        );
+
         const snapshotItems: FeedItem[] =
-            engagementFilter === "all" && matchSnapshotSummary
+            matchSnapshotSummary
                 ? [
                       {
                           kind: "match_snapshot_summary" as const,
                           data: matchSnapshotSummary,
-                          sortKey: getTimestamp(matchSnapshotSummary.updatedAt || matchSnapshotSummary.createdAt || Date.now()) - 2,
+                          sortKey: baseCompletionTime + 1,
                       },
                   ]
                 : [];
 
         const fanOfTheMatchItems: FeedItem[] =
-            engagementFilter === "all" && fanOfTheMatchSummary
+            fanOfTheMatchSummary
                 ? [
                       {
                           kind: "fan_of_the_match" as const,
                           data: fanOfTheMatchSummary,
-                          sortKey: getTimestamp(fanOfTheMatchSummary.updatedAt || fanOfTheMatchSummary.createdAt || Date.now()) - 1,
+                          sortKey: baseCompletionTime + 2,
                       },
                   ]
                 : [];
 
         const summaryItems: FeedItem[] =
-            engagementFilter === "all" && userMatchSummary
+            userMatchSummary
                 ? [
                       {
                           kind: "player_match_summary" as const,
                           data: userMatchSummary,
-                          sortKey: getTimestamp(userMatchSummary.updatedAt || userMatchSummary.createdAt || Date.now()),
+                          sortKey: baseCompletionTime + 3,
                       },
                   ]
                 : [];
