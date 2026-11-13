@@ -9,6 +9,10 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   skipTrailingSlashRedirect: true,
+  experimental: {
+    // Increased timeout for local development compilation (18s+ Turbopack compile times)
+    proxyTimeout: 60000,
+  },
   async rewrites() {
     const apiTarget =
       process.env.NEXT_PUBLIC_BACKEND_URL ||
@@ -812,6 +816,7 @@ const nextConfig = {
         //   source: "/api/roar/:path((?!rooms/[^/]+/dolly).*)",
         //   destination: `${apiTarget}/api/roar/:path*`,
         // },
+        
 
         {
           source: "/api/roar/:path*",

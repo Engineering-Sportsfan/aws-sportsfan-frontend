@@ -152,6 +152,7 @@
 //     });
 //     // Comments count state
 //     const [showComments, setShowComments] = useState(false);
+
 //     const [commentsCount, setCommentsCount] = useState<number>(() => {
 //         return Number(item.commentsCount ?? item.memeData?.commentsCount ?? 0);
 //     });
@@ -1018,11 +1019,20 @@ import {
     ChevronUp,
     Lock,
     Pencil,
+    Send,
+    Users,
+    Bell,
+    Check,
+    ChevronRight,
 } from "lucide-react";
 import axios from "axios";
 import type { EngagementItem } from "@/types/engagements";
 import { useUserProfile } from "@/context/UserProfileContext";
+import { useAuth } from "@/context/AuthContext";
+import { resolveEngagementViewer, useEngagementImpression } from "@/src/hooks/useEngagementImpression";
 import EngagementCommentsThread from "./EngagementCommentsThread";
+
+const COMMENTS_OPENED_EVENT = "engagement-comments-opened";
 
 export interface EngagementCardProps {
     item: EngagementItem;
@@ -1079,6 +1089,86 @@ export function useRunningCountdown(
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+export interface FollowMatchCountdownState {
+    isLive: boolean;
+    isCompleted: boolean;
+    hasTarget: boolean;
+    remainingMs: number;
+    label: string;
+    statusText: string;
+}
+
+/** Compute live reverse-countdown state for a Follow engagement card; flips to LIVE at 0, or Completed when match completed. */
+export function getFollowMatchCountdownState(
+    targetTs?: number | string | null,
+    nowMs: number = Date.now(),
+    explicitStatusLabel?: string
+): FollowMatchCountdownState {
+    const rawStatus = String(explicitStatusLabel || "").trim().toLowerCase();
+    const isCompleted = rawStatus === "completed" || rawStatus === "match ended" || rawStatus === "settled";
+
+    if (isCompleted) {
+        return {
+            isLive: false,
+            isCompleted: true,
+            hasTarget: false,
+            remainingMs: 0,
+            label: "Completed",
+            statusText: "Completed",
+        };
+    }
+
+    let targetMs = NaN;
+    if (typeof targetTs === "number") {
+        targetMs = targetTs > 0 && targetTs < 1e11 ? targetTs * 1000 : targetTs;
+    } else if (typeof targetTs === "string" && targetTs.trim()) {
+        const asNum = Number(targetTs);
+        if (Number.isFinite(asNum) && asNum > 0) {
+            targetMs = asNum < 1e11 ? asNum * 1000 : asNum;
+        } else {
+            targetMs = new Date(targetTs).getTime();
+        }
+    }
+
+    const isLiveFallback = rawStatus === "live" || rawStatus === "live now";
+
+    if (!Number.isFinite(targetMs) || targetMs <= 0) {
+        return {
+            isLive: isLiveFallback,
+            isCompleted: false,
+            hasTarget: false,
+            remainingMs: 0,
+            label: isLiveFallback ? "LIVE" : "Soon",
+            statusText: isLiveFallback ? "LIVE" : "Upcoming",
+        };
+    }
+
+    const diffMs = targetMs - nowMs;
+    if (diffMs <= 0 || isLiveFallback) {
+        return { isLive: true, isCompleted: false, hasTarget: true, remainingMs: 0, label: "LIVE", statusText: "LIVE" };
+    }
+
+    const totalSec = Math.ceil(diffMs / 1000);
+    const hours = Math.floor(totalSec / 3600);
+    const mins = Math.floor((totalSec % 3600) / 60);
+    const secs = totalSec % 60;
+    const mm = String(mins).padStart(2, "0");
+    const ss = String(secs).padStart(2, "0");
+
+    return {
+        isLive: false,
+        isCompleted: false,
+        hasTarget: true,
+        remainingMs: diffMs,
+        label: hours >= 1 ? `${hours}h ${mm}m` : `${mm}m ${ss}s`,
+        statusText: "Upcoming",
+    };
+}
+
+function formatMatchCountdown(targetTs?: number | string | null, nowMs: number = Date.now()): string {
+    return getFollowMatchCountdownState(targetTs, nowMs).label;
+}
+
 // Look for a saved vote under the per-user key first, then the old shared key and the guest key
 // (used before the profile finished loading), so votes saved earlier are not lost.
 function readSavedVote(itemId: string, voteKey: string): string | null {
@@ -1102,9 +1192,11 @@ export default function EngagementCard({
     onShowLikers,
 }: EngagementCardProps) {
     const { userProfile } = useUserProfile();
-    const currentUserId = userProfile?.actualUserId || userProfile?.email || "fan_guest";
-    const currentUserName = userProfile?.username || userProfile?.name || "Fan";
-    const currentUserAvatar = userProfile?.avatarUrl || userProfile?.avatar || "";
+    const { user: authUser, authReady } = useAuth();
+    const resolvedViewer = resolveEngagementViewer(userProfile, authUser, authReady);
+    const currentUserId = resolvedViewer.userId || "fan_guest";
+    const currentUserName = resolvedViewer.userName || "Fan";
+    const currentUserAvatar = resolvedViewer.userAvatar || "";
 
     // ── Local State & Storage Keys (PER USER, so several accounts in one browser don't share state) ──
     const voteKey = `sf_vote_${item.id}_${currentUserId}`;
@@ -1134,6 +1226,46 @@ export default function EngagementCard({
     // when this browser last cast a vote (0 = not in this session); limits the optimistic +1
     const votedAtRef = useRef(0);
 
+    // Express open-text input state (no multiple-choice options)
+    const [expressInput, setExpressInput] = useState<string>(() => {
+        const stored = readSavedVote(item.id, voteKey);
+        if (stored) return stored;
+        return item.userVote ? String(item.userVote) : "";
+    });
+    const [expressResponses, setExpressResponses] = useState<any[]>([]);
+    const [showExpressResponses, setShowExpressResponses] = useState(false);
+    const [loadingExpressResponses, setLoadingExpressResponses] = useState(false);
+
+    // Follow & Remind Me state (persisted per user + synced from API)
+    const followKey = `sf_follow_${item.id}_${currentUserId}`;
+    const remindKey = `sf_remind_${item.id}_${currentUserId}`;
+    const followLockRef = useRef(0);
+    const [isFollowing, setIsFollowing] = useState<boolean>(() => {
+        if ((item as any).userFollowing) return true;
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(followKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [isReminded, setIsReminded] = useState<boolean>(() => {
+        if ((item as any).userReminded) return true;
+        if (typeof window !== "undefined") {
+            try { return localStorage.getItem(remindKey) === "true"; } catch { return false; }
+        }
+        return false;
+    });
+    const [followCount, setFollowCount] = useState<number>(() => Number((item as any).followData?.followCount ?? 0));
+    const [remindCount, setRemindCount] = useState<number>(() => Number((item as any).followData?.remindCount ?? 0));
+    const [isTogglingFollow, setIsTogglingFollow] = useState<"follow" | "remind" | null>(null);
+    const [followNowMs, setFollowNowMs] = useState<number>(() => Date.now());
+
+    useEffect(() => {
+        if (item.type !== "follow") return;
+        setFollowNowMs(Date.now());
+        const interval = setInterval(() => setFollowNowMs(Date.now()), 1000);
+        return () => clearInterval(interval);
+    }, [item.type]);
+
     // Likes state
     const [likes, setLikes] = useState<number>(Number(item.likes) || 0);
     const likeLockRef = useRef(0); // timestamp of last local toggle
@@ -1160,6 +1292,20 @@ export default function EngagementCard({
 
     // Comments count state
     const [showComments, setShowComments] = useState(false);
+
+    // Only one comment thread open at a time: opening this one tells every other card to close.
+    useEffect(() => {
+        const onOtherOpened = (e: Event) => {
+            if ((e as CustomEvent<string>).detail !== item.id) setShowComments(false);
+        };
+        window.addEventListener(COMMENTS_OPENED_EVENT, onOtherOpened);
+        return () => window.removeEventListener(COMMENTS_OPENED_EVENT, onOtherOpened);
+    }, [item.id]);
+    const toggleComments = () => {
+        const next = !showComments;
+        setShowComments(next);
+        if (next) window.dispatchEvent(new CustomEvent(COMMENTS_OPENED_EVENT, { detail: item.id }));
+    };
     const [commentsCount, setCommentsCount] = useState<number>(() => {
         return Number(item.commentsCount ?? item.memeData?.commentsCount ?? 0);
     });
@@ -1189,8 +1335,9 @@ export default function EngagementCard({
         (["settled", "resolved"].includes(String(anyItem.status || "").toLowerCase()) || winningOptionId !== "");
     const isWinnerOption = (opt: any) =>
         isResolved && (opt?.isWinner === true || (winningOptionId !== "" && String(opt?.id) === winningOptionId));
-    // Voting closes when the countdown ends or the outcome is resolved; the vote route also rejects votes after expiry.
-    const isTimerExpired = runningTimer === "Expired" || isResolved;
+    // Voting closes when the countdown ends or the outcome is resolved; Follow & Match Result cards do not expire.
+    const isNoTimerType = item.type === "follow" || item.type === "match_result" || item.type === "match_summary" || item.type === "fan_of_the_match" || item.type === "player_match_summary" || item.type === "user_summary";
+    const isTimerExpired = !isNoTimerType && (runningTimer === "Expired" || isResolved);
     const timerLabel = isResolved ? "Resolved" : runningTimer === "Expired" ? "Expired" : `${runningTimer} remaining`;
     // Resolved posts show the result bars even to users who did not vote.
     // While editing, the options are shown again so the user can pick a different one.
@@ -1217,6 +1364,7 @@ export default function EngagementCard({
         const stored = readSavedVote(item.id, voteKey);
         if (stored) {
             setSelectedOptionId(stored);
+            setExpressInput(stored);
             setUserVoted(true);
             // move it onto the current per-user key
             try { localStorage.setItem(voteKey, stored); } catch { /* ignore */ }
@@ -1229,6 +1377,24 @@ export default function EngagementCard({
         if (item.totalEngaged !== undefined) setTotalEngaged(Number(item.totalEngaged) || 0);
         if (item.commentsCount !== undefined) setCommentsCount(Number(item.commentsCount) || 0);
     }, [item.totalEngaged, item.commentsCount]);
+
+    useEffect(() => {
+        if (item.type !== "follow") return;
+        const locked = Date.now() - followLockRef.current < 10000;
+        const fd = (item as any).followData;
+        if (!locked) {
+            let savedFollow = false;
+            let savedRemind = false;
+            try {
+                savedFollow = localStorage.getItem(followKey) === "true";
+                savedRemind = localStorage.getItem(remindKey) === "true";
+            } catch { /* ignore */ }
+            setIsFollowing(Boolean((item as any).userFollowing) || savedFollow);
+            setIsReminded(Boolean((item as any).userReminded) || savedRemind);
+            if (fd?.followCount !== undefined) setFollowCount(Number(fd.followCount) || 0);
+            if (fd?.remindCount !== undefined) setRemindCount(Number(fd.remindCount) || 0);
+        }
+    }, [item.id, item.type, (item as any).userFollowing, (item as any).userReminded, (item as any).followData?.followCount, (item as any).followData?.remindCount, followKey, remindKey]);
 
     useEffect(() => {
         // ignore a list refresh right after the user toggled, so it can't flash a stale value
@@ -1252,53 +1418,16 @@ export default function EngagementCard({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [item.likes, item.userLiked, item.shares, isLiked]);
 
-    // Live Sync: Poll like state and comments count every 3s so multi-user updates reflect live
-    useEffect(() => {
-        if (!item.id) return;
-        let cancelled = false;
-        const syncSocial = async () => {
-            if (Date.now() - likeLockRef.current < 15000) return;
-            try {
-                const res = await axios.get(`/api/engagements/${encodeURIComponent(item.id)}/like`, {
-                    params: { userId: currentUserId, matchId: item.matchId, _t: Date.now() },
-                    timeout: 6000,
-                });
-                if (cancelled) return;
-                if (typeof res.data?.likes === "number") {
-                    setLikes(prev => (isLiked && res.data.likes === 0 ? Math.max(prev, 1) : res.data.likes));
-                }
-                if (typeof res.data?.liked === "boolean") {
-                    if (res.data.liked) {
-                        setIsLiked(true);
-                        try { localStorage.setItem(likeKey, "true"); } catch {}
-                    }
-                }
-            } catch {}
-            try {
-                const cRes = await axios.get(`/api/engagements/${encodeURIComponent(item.id)}/comments`, {
-                    params: { countOnly: "1", matchId: item.matchId, _t: Date.now() },
-                    timeout: 6000,
-                });
-                if (cancelled) return;
-                if (typeof cRes.data?.commentsCount === "number") setCommentsCount(cRes.data.commentsCount);
-            } catch {}
-        };
-
-        const interval = setInterval(() => {
-            if (!cancelled && !document.hidden) syncSocial();
-        }, 3000);
-
-        return () => {
-            cancelled = true;
-            clearInterval(interval);
-        };
-    }, [item.id, currentUserId, item.matchId, likeKey, isLiked]);
+    // NOTE: per-card polling of likes / comment count was removed (it fired 2 requests per card
+    // every 3s). The parent's list poll supplies item.likes / item.commentsCount / item.userLiked,
+    // which the effects above sync into local state.
 
     // Server vote state wins once it arrives (localStorage stays as the optimistic fallback).
     useEffect(() => {
         if (pendingVote) return;
         if (item.userVoted && item.userVote) {
             setSelectedOptionId(String(item.userVote));
+            setExpressInput(String(item.userVote));
             setUserVoted(true);
             try { localStorage.setItem(voteKey, String(item.userVote)); } catch { }
         }
@@ -1386,6 +1515,16 @@ export default function EngagementCard({
                 return { label: "POLL", icon: "📊", badgeBg: "bg-blue-500/20 text-blue-400 border border-blue-500/40", accent: "#60a5fa" };
             case "express":
                 return { label: "EXPRESS", icon: "⚡", badgeBg: "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40", accent: "#22d3ee" };
+            case "follow":
+                return { label: "FOLLOW MATCH", icon: "🔔", badgeBg: "bg-purple-500/20 text-purple-300 border border-purple-500/40", accent: "#a855f7" };
+            case "match_result":
+            case "match_summary":
+                return { label: "MATCH SNAPSHOT", icon: "🏆", badgeBg: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40", accent: "#10b981" };
+            case "fan_of_the_match":
+                return { label: "FAN OF THE MATCH", icon: "🏆", badgeBg: "bg-amber-500/20 text-amber-300 border border-amber-500/40", accent: "#f59e0b" };
+            case "player_match_summary":
+            case "user_summary":
+                return { label: "YOUR SERIES PROGRESS", icon: "⭐", badgeBg: "bg-sky-500/20 text-sky-300 border border-sky-500/40", accent: "#38bdf8" };
             case "question":
                 return { label: "QUESTION", icon: "❓", badgeBg: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40", accent: "#22c55e" };
             case "quiz":
@@ -1425,6 +1564,7 @@ export default function EngagementCard({
                 `/api/engagements/${encodeURIComponent(item.id)}/vote`,
                 {
                     selectedOptionId: optionId,
+                    ...(item.type === "express" ? { responseText: optionId } : {}),
                     userId: currentUserId,
                     userName: currentUserName,
                     userAvatar: currentUserAvatar,
@@ -1498,10 +1638,16 @@ export default function EngagementCard({
                 <button
                     type="button"
                     disabled={isVoting}
-                    onClick={() => { setVoteError(null); setIsEditingVote(true); }}
+                    onClick={() => {
+                        setVoteError(null);
+                        if (item.type === "express") {
+                            setExpressInput(selectedOptionId ? String(selectedOptionId) : "");
+                        }
+                        setIsEditingVote(true);
+                    }}
                     className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-white/60 hover:text-white transition-colors disabled:opacity-50"
                 >
-                    <Pencil size={10} /> Edit vote
+                    <Pencil size={10} /> {item.type === "express" ? "Edit response" : "Edit vote"}
                 </button>
             )}
             {isEditingVote && (
@@ -1630,6 +1776,313 @@ export default function EngagementCard({
         }
     };
 
+    // ── Toggle Follow / Remind Me on Upcoming Match Card ──
+    const handleFollowAction = async (action: "follow" | "remind") => {
+        if (isTogglingFollow) return;
+        const prevFollow = isFollowing;
+        const prevRemind = isReminded;
+        const prevFollowCount = followCount;
+        const prevRemindCount = remindCount;
+
+        const nextActive = action === "follow" ? !prevFollow : !prevRemind;
+        followLockRef.current = Date.now();
+        setIsTogglingFollow(action);
+        setVoteError(null);
+
+        if (action === "follow") {
+            setIsFollowing(nextActive);
+            setFollowCount((c) => Math.max(0, c + (nextActive ? 1 : -1)));
+            try { localStorage.setItem(followKey, String(nextActive)); } catch { }
+        } else {
+            setIsReminded(nextActive);
+            setRemindCount((c) => Math.max(0, c + (nextActive ? 1 : -1)));
+            try { localStorage.setItem(remindKey, String(nextActive)); } catch { }
+        }
+
+        try {
+            const res = await axios.post(
+                `/api/engagements/${encodeURIComponent(item.id)}/vote`,
+                {
+                    actionType: action,
+                    active: nextActive,
+                    selectedOptionId: action,
+                    optionId: action,
+                    userId: currentUserId,
+                    userName: currentUserName,
+                    userAvatar: currentUserAvatar,
+                    matchId: item.matchId,
+                    momentId: item.momentId || item.loopId,
+                    loopId: item.loopId || item.momentId,
+                    seriesId: (item as any).seriesId,
+                },
+                { timeout: 10000 }
+            );
+            const data = res.data || {};
+            if (typeof data.isFollowing === "boolean") setIsFollowing(data.isFollowing);
+            if (typeof data.isReminded === "boolean") setIsReminded(data.isReminded);
+            if (data.followCount !== undefined) setFollowCount(Number(data.followCount) || 0);
+            if (data.remindCount !== undefined) setRemindCount(Number(data.remindCount) || 0);
+            if (data.totalEngaged !== undefined) setTotalEngaged(Number(data.totalEngaged) || 0);
+            onInteraction?.({
+                actionType: action,
+                isFollowing: typeof data.isFollowing === "boolean" ? data.isFollowing : undefined,
+                isReminded: typeof data.isReminded === "boolean" ? data.isReminded : undefined,
+                followCount: data.followCount,
+                remindCount: data.remindCount,
+                totalEngaged: data.totalEngaged,
+            });
+        } catch (err: any) {
+            followLockRef.current = 0;
+            setIsFollowing(prevFollow);
+            setIsReminded(prevRemind);
+            setFollowCount(prevFollowCount);
+            setRemindCount(prevRemindCount);
+            try {
+                localStorage.setItem(followKey, String(prevFollow));
+                localStorage.setItem(remindKey, String(prevRemind));
+            } catch { }
+            setVoteError(err?.response?.data?.error || "Could not update preference. Please try again.");
+        } finally {
+            setIsTogglingFollow(null);
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // HELPER: Team Flag Media (supports URL, emoji, or team lookup)
+    // ─────────────────────────────────────────────────────────────
+    const renderFlagVisual = (flag?: string, nameOrCode?: string) => {
+        const raw = String(flag || "").trim();
+        if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("/") || raw.startsWith("data:")) {
+            return <img src={raw} alt={nameOrCode || "Flag"} className="w-full h-full object-cover" />;
+        }
+        if (raw) {
+            return <span className="text-xl leading-none">{raw}</span>;
+        }
+        const key = String(nameOrCode || "").trim().toLowerCase();
+        const isoMap: Record<string, string> = {
+            india: "in", ind: "in", "new zealand": "nz", nz: "nz",
+            australia: "au", aus: "au", england: "gb-eng", eng: "gb-eng",
+            pakistan: "pk", pak: "pk", "south africa": "za", sa: "za",
+            "sri lanka": "lk", sl: "lk", bangladesh: "bd", ban: "bd",
+            afghanistan: "af", afg: "af", ireland: "ie", ire: "ie",
+            zimbabwe: "zw", zim: "zw", usa: "us", netherlands: "nl", ned: "nl",
+        };
+        const iso = isoMap[key];
+        if (iso) {
+            return <img src={`https://flagcdn.com/w80/${iso}.png`} alt={nameOrCode || "Flag"} className="w-full h-full object-cover" />;
+        }
+        return <span className="text-[10px] font-black text-white/80">{String(nameOrCode || "🏏").slice(0, 3).toUpperCase()}</span>;
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // RENDER: Upcoming Match Follow / Remind Me Card
+    // ─────────────────────────────────────────────────────────────
+    const renderFollow = () => {
+        const fd = (item as any).followData || {};
+        const team1Code = fd.team1Code || "T1";
+        const team2Code = fd.team2Code || "T2";
+        const team1Flag = fd.team1Flag || "";
+        const team2Flag = fd.team2Flag || "";
+        const matchLabel = fd.matchLabel || "T20 INTERNATIONAL";
+        const matchTimeLabel = fd.matchTimeLabel || "Upcoming";
+        const headline = fd.team1Code && fd.team2Code ? `${team1Code} vs ${team2Code}` : item.title;
+        const countdown = getFollowMatchCountdownState(
+            fd.matchStartTime || fd.matchStartMs || fd.targetStartMs || (item as any).matchStartMs || (item as any).matchStartTime,
+            followNowMs,
+            fd.statusLabel || (item as any).matchStatus || item.status
+        );
+
+        return (
+            <div className="rounded-xl border border-white/15 bg-gradient-to-b from-[#161026] via-[#110d1f] to-[#0b0914] overflow-hidden shadow-lg mt-1">
+                {/* Top Upcoming / Live countdown strip (status shown in ONLY ONE place) */}
+                <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-black/25">
+                    <div className="relative flex items-center">
+                        {countdown.isCompleted ? (
+                            <>
+                                <span className="text-[11px] font-bold text-gray-300 tracking-wide pb-0.5">
+                                    Completed
+                                </span>
+                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gray-500" />
+                            </>
+                        ) : countdown.isLive ? (
+                            <>
+                                <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-rose-400 pb-0.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
+                                    LIVE
+                                </span>
+                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-rose-500 to-pink-500 shadow-[0_0_8px_rgba(244,63,94,0.85)]" />
+                            </>
+                        ) : (
+                            <>
+                                <span className="text-[11px] font-bold text-white tracking-wide pb-0.5">
+                                    {countdown.statusText}
+                                </span>
+                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#a855f7] shadow-[0_0_8px_rgba(168,85,247,0.85)]" />
+                            </>
+                        )}
+                    </div>
+                    {/* Right side: show reverse timer only when upcoming; when live or completed, show chevron without duplicating status text */}
+                    {countdown.isCompleted ? (
+                        <ChevronRight size={13} className="text-white/40" />
+                    ) : countdown.isLive ? (
+                        <ChevronRight size={13} className="text-white/60" />
+                    ) : (
+                        <span className="text-xs font-semibold text-white/80 flex items-center gap-1 tabular-nums">
+                            <span>{countdown.label}</span>
+                            <ChevronRight size={13} className="text-white/60" />
+                        </span>
+                    )}
+                </div>
+
+                {/* Match Showcase */}
+                <div className="px-3 py-3 space-y-3 bg-[radial-gradient(ellipse_at_top,rgba(139,92,246,0.18),transparent_70%)]">
+                    <div className="flex items-center justify-between gap-2 px-1">
+                        <div className="w-11 h-8 rounded-md bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0 shadow-sm">
+                            {renderFlagVisual(team1Flag, fd.team1Name || team1Code)}
+                        </div>
+
+                        <div className="text-center min-w-0 flex-1">
+                            <div className="text-sm sm:text-base font-extrabold text-white tracking-tight truncate">
+                                {headline}
+                            </div>
+                            <div className="text-[9px] sm:text-[10px] font-semibold uppercase tracking-widest text-white/70 truncate">
+                                {matchLabel}
+                            </div>
+                            <div className="text-[10px] sm:text-[11px] font-medium text-white/80 mt-0.5 truncate">
+                                {matchTimeLabel}
+                            </div>
+                        </div>
+
+                        <div className="w-11 h-8 rounded-md bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0 shadow-sm">
+                            {renderFlagVisual(team2Flag, fd.team2Name || team2Code)}
+                        </div>
+                    </div>
+
+                    {item.title && headline !== item.title && (
+                        <p className="text-[11px] text-white/75 text-center leading-snug px-1">
+                            {item.title}
+                        </p>
+                    )}
+
+                    {/* Action Buttons (user can select follow or remind until match completes; counts stored in DB but not rendered on button) */}
+                    <div className="grid grid-cols-2 gap-2.5">
+                        <button
+                            type="button"
+                            disabled={countdown.isCompleted || isTogglingFollow === "follow"}
+                            onClick={() => handleFollowAction("follow")}
+                            className={`h-9 rounded-xl px-2.5 text-xs font-bold inline-flex items-center justify-center transition-all disabled:opacity-60 ${
+                                isFollowing
+                                    ? "bg-[#7c3aed]/25 border border-[#8b5cf6] text-white shadow-[0_0_12px_rgba(139,92,246,0.45)]"
+                                    : "bg-white/[0.04] border border-white/20 text-white/85 hover:border-purple-400/60 hover:bg-purple-500/10"
+                            }`}
+                        >
+                            <span>{isFollowing ? "Following" : "Follow"}</span>
+                        </button>
+
+                        <button
+                            type="button"
+                            disabled={countdown.isCompleted || isTogglingFollow === "remind"}
+                            onClick={() => handleFollowAction("remind")}
+                            className={`h-9 rounded-xl px-2.5 text-xs font-bold inline-flex items-center justify-center transition-all disabled:opacity-60 ${
+                                isReminded
+                                    ? "bg-[#7c3aed]/25 border border-[#8b5cf6] text-white shadow-[0_0_12px_rgba(139,92,246,0.45)]"
+                                    : "bg-white/[0.04] border border-white/20 text-white/85 hover:border-purple-400/60 hover:bg-purple-500/10"
+                            }`}
+                        >
+                            <span>{isReminded ? "Reminded" : "Remind Me"}</span>
+                        </button>
+                    </div>
+
+                    {voteError && (
+                        <p className="text-[10px] text-rose-400 font-semibold text-center">{voteError}</p>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // RENDER: Match Snapshot Summary (Pure in-app fan metrics)
+    // ─────────────────────────────────────────────────────────────
+    const renderMatchResult = () => {
+        const mr: any = (item as any).matchResultData || (item as any).resultData || item || {};
+        const matchTitle = mr.matchTitle || (item as any).matchTitle || (item as any).title || "Match Summary";
+        const totalActions = Number(mr.totalActions ?? (item as any).totalActions ?? (item as any).totalActionsCount ?? 4) || 4;
+        const totalMoments = Number(mr.totalMoments ?? (item as any).totalMoments ?? 1) || 1;
+        const totalParticipants = Number(mr.totalParticipants ?? (item as any).totalParticipants ?? (item as any).totalFansCount ?? 1) || 1;
+
+        return (
+            <div className="w-full shrink-0 rounded-2xl overflow-hidden my-3 border border-emerald-500/40 shadow-2xl" style={{ background: "linear-gradient(180deg, #091312 0%, #050b0a 100%)", minHeight: "180px" }}>
+                <div className="p-4 space-y-3.5">
+                    {/* Header in Emerald */}
+                    <div className="flex items-center justify-between">
+                        <div className="text-xs font-black tracking-wider uppercase text-emerald-400 flex items-center gap-1.5">
+                            <span>🏆</span>
+                            <span>MATCH SNAPSHOT</span>
+                        </div>
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            FINAL RESULT
+                        </span>
+                    </div>
+
+                    {/* Match Identity Section */}
+                    <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-600 to-teal-800 border-2 border-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.55)] flex items-center justify-center text-2xl shrink-0">
+                            ⚡
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                            <div className="text-base font-bold text-emerald-300 truncate leading-tight">
+                                {matchTitle}
+                            </div>
+                            <div className="flex items-center gap-1.5 text-xs text-slate-300 mt-0.5 truncate">
+                                <span className="text-emerald-400 font-semibold">⚡ Roar Pulse Activity</span>
+                                <span className="text-slate-500">•</span>
+                                <span className="text-slate-300">All Room Fans</span>
+                            </div>
+                            <div className="text-xs text-slate-400 font-normal mt-0.5 truncate">
+                                Overall in-app fan engagement & actions summary
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 3 Stat Boxes inside dark rounded container */}
+                    <div className="grid grid-cols-3 divide-x divide-white/10 rounded-xl bg-[#0b1715] border border-emerald-500/20 py-2.5 px-1 shadow-inner text-center">
+                        <div>
+                            <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
+                                {totalActions}
+                            </div>
+                            <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
+                                Total Actions
+                            </div>
+                        </div>
+                        <div>
+                            <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
+                                {totalMoments}
+                            </div>
+                            <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
+                                Total Moments
+                            </div>
+                        </div>
+                        <div>
+                            <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
+                                {totalParticipants}
+                            </div>
+                            <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
+                                Total Participants
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Footer text */}
+                    <div className="text-center text-xs font-semibold text-emerald-400/90 tracking-wide pt-0.5">
+                        🏆 Overall App Activity Across All Room Fans
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     // ─────────────────────────────────────────────────────────────
     // RENDER: Prediction Body
     // ─────────────────────────────────────────────────────────────
@@ -1715,7 +2168,170 @@ export default function EngagementCard({
     };
 
     // ─────────────────────────────────────────────────────────────
-    // RENDER: Poll / Debate / Express Body
+    // RENDER: Express Open-Text Input Body (No Options)
+    // ─────────────────────────────────────────────────────────────
+    const loadExpressResponses = async (forceRefresh = false) => {
+        if (loadingExpressResponses) return;
+        if (!forceRefresh && expressResponses.length > 0) return;
+        setLoadingExpressResponses(true);
+        try {
+            const res = await axios.get(
+                `/api/engagements/${encodeURIComponent(item.id)}/voters`,
+                {
+                    params: { matchId: item.matchId || "" },
+                    timeout: 6000,
+                }
+            );
+            if (Array.isArray(res.data?.voters)) {
+                setExpressResponses(res.data.voters);
+            }
+        } catch {
+            // silent fallback
+        } finally {
+            setLoadingExpressResponses(false);
+        }
+    };
+
+    const renderExpress = () => {
+        const anyExpress = item as any;
+        const placeholder =
+            String(
+                anyExpress.inputPlaceholder ||
+                anyExpress.expressData?.placeholder ||
+                "Write your thoughts..."
+            ).trim() || "Write your thoughts...";
+
+        const baseResponses = Number(
+            liveVoteData?.totalResponses ??
+            liveVoteData?.totalVotes ??
+            anyExpress.totalResponses ??
+            anyExpress.expressData?.totalResponses ??
+            item.totalVotes ??
+            0
+        );
+        const totalResponses = needsLocalBump
+            ? baseResponses + 1
+            : userVoted && baseResponses === 0
+              ? 1
+              : baseResponses;
+
+        const submitExpress = () => {
+            const clean = expressInput.trim();
+            if (!clean || isVoting || isTimerExpired) return;
+            handleVote(clean);
+            if (showExpressResponses) {
+                setExpressResponses((prev) => {
+                    const filtered = prev.filter((r) => String(r.userId) !== String(currentUserId));
+                    return [
+                        {
+                            userId: currentUserId,
+                            userName: currentUserName,
+                            userAvatar: currentUserAvatar,
+                            selectedOptionId: clean,
+                            votedAt: Date.now(),
+                        },
+                        ...filtered,
+                    ];
+                });
+            }
+        };
+
+        return (
+            <div className="flex flex-col gap-1.5 mt-1">
+                {!showResults ? (
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-end gap-1.5">
+                            <textarea
+                                rows={2}
+                                maxLength={280}
+                                value={expressInput}
+                                disabled={isVoting || isTimerExpired}
+                                onChange={(e) => setExpressInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault();
+                                        submitExpress();
+                                    }
+                                }}
+                                placeholder={isTimerExpired ? "Time expired" : placeholder}
+                                className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-white/5 focus:bg-white/10 border border-white/15 focus:border-cyan-400/60 outline-none text-xs text-white placeholder:text-white/40 resize-none transition-all disabled:opacity-50"
+                            />
+                            <button
+                                type="button"
+                                disabled={isVoting || isTimerExpired || !expressInput.trim()}
+                                onClick={submitExpress}
+                                className="shrink-0 h-9 px-3 rounded-lg bg-cyan-500 hover:bg-cyan-400 disabled:bg-white/10 disabled:text-white/30 text-black text-xs font-extrabold inline-flex items-center gap-1 transition-all cursor-pointer disabled:cursor-not-allowed"
+                            >
+                                <Send size={12} />
+                                <span>{isEditingVote ? "Save" : "Send"}</span>
+                            </button>
+                        </div>
+                        {baseResponses > 0 && (
+                            <div className="text-[10px] text-white/40 text-right">
+                                {baseResponses} {baseResponses === 1 ? "response" : "responses"} so far
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="rounded-lg p-2.5 bg-cyan-500/10 border border-cyan-400/30">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-cyan-300">
+                                <CheckCircle2 size={11} className="shrink-0" />
+                                {userVoted ? "Your take" : "Responses"}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const next = !showExpressResponses;
+                                    setShowExpressResponses(next);
+                                    if (next) loadExpressResponses(true);
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-white/60 hover:text-cyan-300 transition-colors"
+                            >
+                                <Users size={11} />
+                                <span>
+                                    {totalResponses} {totalResponses === 1 ? "response" : "responses"}
+                                </span>
+                                {showExpressResponses ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                            </button>
+                        </div>
+                        {selectedOptionId && (
+                            <p className="text-xs text-white break-words leading-relaxed">
+                                &ldquo;{selectedOptionId}&rdquo;
+                            </p>
+                        )}
+                        {showExpressResponses && (
+                            <div className="mt-2 pt-2 border-t border-white/10 flex flex-col gap-1.5 max-h-36 overflow-y-auto">
+                                {loadingExpressResponses && expressResponses.length === 0 ? (
+                                    <span className="text-[10px] text-white/40">Loading fan takes...</span>
+                                ) : expressResponses.length === 0 ? (
+                                    <span className="text-[10px] text-white/40">No responses loaded yet.</span>
+                                ) : (
+                                    expressResponses.slice(0, 12).map((resp: any, idx: number) => (
+                                        <div
+                                            key={`${resp.userId || idx}_${resp.votedAt || idx}`}
+                                            className="px-2 py-1 rounded bg-white/5 border border-white/10 text-[11px]"
+                                        >
+                                            <span className="font-bold text-cyan-300 mr-1.5">
+                                                {resp.userName || "Fan"}:
+                                            </span>
+                                            <span className="text-white/90 break-words">
+                                                {resp.responseText || resp.selectedOptionId}
+                                            </span>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
+                {renderVoteExtras()}
+            </div>
+        );
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // RENDER: Poll / Debate Body
     // ─────────────────────────────────────────────────────────────
     const renderPoll = () => {
         const rawOptions =
@@ -1989,65 +2605,30 @@ export default function EngagementCard({
         );
     };
 
-    const cardRef = useRef<HTMLDivElement | null>(null);
-    const impressionTrackedKeyRef = useRef<string>("");
-
-    useEffect(() => {
-        if (!item?.id || !currentUserId || currentUserId === "fan_guest") return;
-        const sessionKey = `sf_eng_imp_${item.id}_${currentUserId}`;
-        if (impressionTrackedKeyRef.current === sessionKey) return;
-        try {
-            if (typeof window !== "undefined" && window.sessionStorage.getItem(sessionKey)) {
-                impressionTrackedKeyRef.current = sessionKey;
-                return;
-            }
-        } catch { /* ignore */ }
-
-        const el = cardRef.current;
-        if (!el || typeof IntersectionObserver === "undefined") return;
-
-        let cancelled = false;
-        const sendImpression = () => {
-            if (cancelled || impressionTrackedKeyRef.current === sessionKey) return;
-            impressionTrackedKeyRef.current = sessionKey;
-            try {
-                if (typeof window !== "undefined") window.sessionStorage.setItem(sessionKey, "1");
-            } catch { /* ignore */ }
-            axios.post(
-                `/api/engagements/${encodeURIComponent(item.id)}/impression`,
-                {
-                    userId: currentUserId,
-                    userName: currentUserName,
-                    userAvatar: currentUserAvatar,
-                    matchId: item.matchId,
-                    momentId: item.momentId || item.loopId,
-                    seriesId: (item as any).seriesId,
-                },
-                { timeout: 6000 }
-            ).catch(() => { /* non-fatal */ });
-        };
-
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.35)) {
-                    sendImpression();
-                    observer.disconnect();
-                }
-            },
-            { threshold: [0.35] }
-        );
-
-        observer.observe(el);
-        return () => {
-            cancelled = true;
-            observer.disconnect();
-        };
-    }, [item?.id, item?.matchId, item?.momentId, item?.loopId, currentUserId, currentUserName, currentUserAvatar]);
+    const { ref: cardRef } = useEngagementImpression({
+        engagementId: item?.id,
+        matchId: item?.matchId,
+        momentId: item?.momentId || item?.loopId,
+        seriesId: (item as any)?.seriesId,
+        userId: resolvedViewer.userId,
+        userName: resolvedViewer.userName,
+        userAvatar: resolvedViewer.userAvatar,
+        enabled: Boolean(item?.id && resolvedViewer.userId),
+    });
 
     // ─────────────────────────────────────────────────────────────
     // VARIANT: "post" (Matches regular room discussion posts seamlessly)
     // ─────────────────────────────────────────────────────────────
     if (variant === "post") {
+        // Match Result (Match Snapshot) is a rich summary card, not a chat post
+        if (item.type === "match_result" || item.type === "match_summary") {
+            return (
+                <div ref={cardRef} className={`w-full my-2.5 ${className}`}>
+                    {renderMatchResult()}
+                </div>
+            );
+        }
+
         return (
             <motion.div
                 ref={cardRef}
@@ -2082,18 +2663,22 @@ export default function EngagementCard({
                         </span>
 
                         {/* Running Timer */}
-                        <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 flex items-center gap-1 ml-auto">
-                            <Clock size={10} className="text-amber-400" />
-                            <span>{timerLabel}</span>
-                        </span>
+                        {!isNoTimerType && (
+                            <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 flex items-center gap-1 ml-auto">
+                                <Clock size={10} className="text-amber-400" />
+                                <span>{timerLabel}</span>
+                            </span>
+                        )}
                     </div>
                 </div>
 
                 {/* ── Post Content / Title ── */}
-                <p className="leading-snug text-white font-medium my-1" style={{ fontSize: 10 }}>
-                    {item.title}
-                </p>
-                {item.subtitle && item.subtitle !== item.title && (
+                {item.type !== "follow" && item.type !== "match_result" && (
+                    <p className="leading-snug text-white font-medium my-1" style={{ fontSize: 10 }}>
+                        {item.title}
+                    </p>
+                )}
+                {item.type !== "match_result" && item.subtitle && item.subtitle !== item.title && (
                     <p className="text-[10px] text-white/60 mb-2 leading-relaxed">
                         {item.subtitle}
                     </p>
@@ -2102,7 +2687,10 @@ export default function EngagementCard({
                 {/* ── Interactive Options ── */}
                 <div className="my-1.5">
                     {item.type === "prediction" && renderPrediction()}
-                    {(item.type === "debate" || item.type === "poll" || item.type === "express") && renderPoll()}
+                    {(item.type === "debate" || item.type === "poll") && renderPoll()}
+                    {item.type === "express" && renderExpress()}
+                    {item.type === "follow" && renderFollow()}
+                    {(item.type === "match_result" || item.type === "match_summary") && renderMatchResult()}
                     {(item.type === "quiz" || item.type === "question") && renderQuiz()}
                     {item.type === "fan_battle" && renderFanBattle()}
                     {item.type === "meme" && renderMeme()}
@@ -2137,7 +2725,7 @@ export default function EngagementCard({
                     {/* Comments Toggle Button */}
                     <button
                         type="button"
-                        onClick={() => setShowComments(prev => !prev)}
+                        onClick={toggleComments}
                         className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${showComments ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
                             }`}
                         title="View comments"
@@ -2233,10 +2821,12 @@ export default function EngagementCard({
                     <span className={`text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${theme.badgeBg}`}>
                         {theme.icon} {theme.label}
                     </span>
-                    <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 flex items-center gap-1">
-                        <Clock size={10} className="text-amber-400" />
-                        <span>{timerLabel}</span>
-                    </span>
+                    {!isNoTimerType && (
+                        <span className="text-[9px] font-mono font-bold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/20 flex items-center gap-1">
+                            <Clock size={10} className="text-amber-400" />
+                            <span>{timerLabel}</span>
+                        </span>
+                    )}
                 </div>
                 {item.sport && (
                     <span className="text-[10px] text-white/40 uppercase tracking-wider font-semibold">
@@ -2246,16 +2836,21 @@ export default function EngagementCard({
             </div>
 
             {/* ── TITLE ── */}
-            <h3 className="text-sm font-bold text-white mt-1.5 leading-snug">
-                {item.title}
-            </h3>
-            {item.subtitle && item.subtitle !== item.title && (
+            {item.type !== "follow" && item.type !== "match_result" && (
+                <h3 className="text-sm font-bold text-white mt-1.5 leading-snug">
+                    {item.title}
+                </h3>
+            )}
+            {item.type !== "match_result" && item.subtitle && item.subtitle !== item.title && (
                 <p className="text-xs text-white/60 mt-0.5 line-clamp-2">{item.subtitle}</p>
             )}
 
             {/* ── INTERACTIVE BODY ── */}
             {item.type === "prediction" && renderPrediction()}
-            {(item.type === "debate" || item.type === "poll" || item.type === "express") && renderPoll()}
+            {(item.type === "debate" || item.type === "poll") && renderPoll()}
+            {item.type === "express" && renderExpress()}
+            {item.type === "follow" && renderFollow()}
+            {(item.type === "match_result" || item.type === "match_summary") && renderMatchResult()}
             {(item.type === "quiz" || item.type === "question") && renderQuiz()}
             {item.type === "fan_battle" && renderFanBattle()}
             {item.type === "meme" && renderMeme()}
@@ -2278,7 +2873,7 @@ export default function EngagementCard({
                     {/* Comments Button */}
                     <button
                         type="button"
-                        onClick={() => setShowComments(prev => !prev)}
+                        onClick={toggleComments}
                         className={`flex items-center gap-1 transition-colors ${showComments ? "text-[#e91e8c] font-bold" : "hover:text-white"
                             }`}
                         title="View comments"

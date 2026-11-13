@@ -259,6 +259,8 @@ export default function EngagementCommentsThread({
     const effectiveUserIdRef = useRef(effectiveUserId);
     useEffect(() => { effectiveUserIdRef.current = effectiveUserId; }, [effectiveUserId]);
     const lastLikeActionRef = useRef<Record<string, number>>({});
+    const optimisticLikesRef = useRef<Record<string, number>>({});
+    const instanceIdRef = useRef(`thread_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
 
     const isCommentLiked = useCallback((c: ThreadComment): boolean => {
         const cleanId = String(c.id).replace(/^COMMENT#/, "").trim();
@@ -383,12 +385,20 @@ export default function EngagementCommentsThread({
                         likedCommentIdsRef.current.has(cleanCid) ||
                         serverHasMyLike;
 
-                    const hasPendingLocalLike = isLocallyLiked && !serverHasMyLike;
+                    const justToggled = Date.now() - (lastLikeActionRef.current[cleanCid] || 0) < 4000;
                     const baseLikes = Number(node.likes || 0);
-                    const finalLikes = Math.max(
-                        baseLikes + (hasPendingLocalLike ? 1 : 0),
-                        isLocallyLiked ? 1 : 0
-                    );
+
+                    let finalLikes: number;
+                    if (justToggled && optimisticLikesRef.current[cleanCid] !== undefined) {
+                        // User recently toggled this specific comment: hold the exact user-actioned count, never double-increment
+                        finalLikes = optimisticLikesRef.current[cleanCid];
+                    } else if (isLocallyLiked) {
+                        // Confirmed liked: server count already reflects it; guarantee at least 1, never add +1 on top
+                        finalLikes = Math.max(baseLikes, 1);
+                    } else {
+                        finalLikes = baseLikes;
+                    }
+
                     const finalLikedBy = (isLocallyLiked || serverHasMyLike) && !(node.likedBy || []).includes(effectiveUserIdRef.current)
                         ? [...(node.likedBy || []), effectiveUserIdRef.current]
                         : node.likedBy;
@@ -432,7 +442,11 @@ export default function EngagementCommentsThread({
             }
         }, 2000);
 
-        const handleExternalLikeUpdate = () => {
+            const handleExternalLikeUpdate = (e: any) => {
+                if (e?.detail?.sourceId === instanceIdRef.current) {
+                    // Ignore self-dispatched events — we already handled our own like optimistically and synced with server!
+                    return;
+                }
             if (!cancelled) {
                 loadComments(true);
             }
@@ -450,22 +464,15 @@ export default function EngagementCommentsThread({
         };
     }, [loadComments]);
 
-    // Track peer comment impressions as separated Social Response records once per session
+    // Track peer comment impressions as separated Social Response records per open thread view
     const trackedCommentImpressionsRef = useRef<Set<string>>(new Set());
+    useEffect(() => {
+        trackedCommentImpressionsRef.current = new Set();
+    }, [engagementId, effectiveUserId]);
+
     useEffect(() => {
         if (!engagementId || !comments.length) return;
         if (!effectiveUserId || effectiveUserId === "guest_fan" || effectiveUserId === "fan_guest") return;
-
-        const storageSeenKey = `sf_sr_imp_${engagementId}_${effectiveUserId}`;
-        if (trackedCommentImpressionsRef.current.size === 0 && typeof window !== "undefined") {
-            try {
-                const raw = window.sessionStorage.getItem(storageSeenKey);
-                if (raw) {
-                    const parsed = JSON.parse(raw);
-                    if (Array.isArray(parsed)) parsed.forEach((cid) => trackedCommentImpressionsRef.current.add(String(cid)));
-                }
-            } catch { /* ignore */ }
-        }
 
         const peerCommentIds: string[] = [];
         const collectPeerIds = (nodes: ThreadComment[]) => {
@@ -489,11 +496,6 @@ export default function EngagementCommentsThread({
 
         if (peerCommentIds.length === 0) return;
         peerCommentIds.forEach((cid) => trackedCommentImpressionsRef.current.add(cid));
-        try {
-            if (typeof window !== "undefined") {
-                window.sessionStorage.setItem(storageSeenKey, JSON.stringify(Array.from(trackedCommentImpressionsRef.current)));
-            }
-        } catch { /* ignore */ }
 
         axios.post(
             `/api/engagements/${encodeURIComponent(engagementId)}/comments/impression`,
@@ -655,12 +657,14 @@ export default function EngagementCommentsThread({
         });
 
         // 2. Optimistically update node in state
+        let targetNewLikes = 0;
         const flip = (c: ThreadComment): ThreadComment => {
             const currentLikedBy = c.likedBy || [];
             const newLikedBy = nextLiked
                 ? Array.from(new Set([...currentLikedBy, effectiveUserId, "me"]))
                 : currentLikedBy.filter(u => !myIdCandidates.has(u) && !myIdCandidates.has(String(u).toLowerCase()));
             const newLikesCount = Math.max(0, c.likes + (nextLiked ? 1 : -1));
+            targetNewLikes = newLikesCount;
             return {
                 ...c,
                 likes: newLikesCount,
@@ -668,6 +672,7 @@ export default function EngagementCommentsThread({
             };
         };
         setComments(prev => updateNode(prev, cleanCommentId, flip));
+        optimisticLikesRef.current[cleanCommentId] = targetNewLikes;
 
         // 3. Send to backend & sync confirmed server response
         try {
@@ -693,17 +698,20 @@ export default function EngagementCommentsThread({
                         : (typeof res.data.likes === "number" ? res.data.likes : null));
                 const sLikedBy = Array.isArray(res.data.likedBy) ? res.data.likedBy : null;
                 if (sLikes !== null) {
+                    const confirmedLikes = nextLiked && sLikes === 0 ? 1 : sLikes;
+                    optimisticLikesRef.current[cleanCommentId] = confirmedLikes;
                     setComments(prev => updateNode(prev, cleanCommentId, c => ({
                         ...c,
-                        likes: nextLiked && sLikes === 0 ? 1 : sLikes,
+                        likes: confirmedLikes,
                         ...(sLikedBy ? { likedBy: sLikedBy } : {}),
                     })));
                 }
             }
-            // Trigger quick background refresh so all clients get the synced state
-            setTimeout(() => { loadComments(true); }, 300);
+            // Dispatch event for other open threads with our sourceId so this component ignores it
             if (typeof window !== "undefined") {
-                window.dispatchEvent(new CustomEvent("sf:comment_like_updated", { detail: { commentId: cleanCommentId, liked: nextLiked } }));
+                window.dispatchEvent(new CustomEvent("sf:comment_like_updated", {
+                    detail: { sourceId: instanceIdRef.current, commentId: cleanCommentId, liked: nextLiked }
+                }));
             }
         } catch (err) {
             console.warn("[toggleLike] Server sync notice:", err);

@@ -83,7 +83,9 @@ export default function LiveTicker({ matchIdFilter, roomNameFilter }: { matchIdF
   useEffect(() => {
     fetchTickerData();
     if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(fetchTickerData, 15000); // Poll every 15s
+    // Ticker polling disabled (feature not in use) to save billed API calls.
+    // Re-enable by uncommenting:
+    // intervalRef.current = setInterval(() => { if (!document.hidden) fetchTickerData(); }, 30000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);

@@ -339,4 +339,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     session: { strategy: "jwt" },
+    // Amplify sits behind a proxy; without this every auth() call fails with UntrustedHost (slow + billed)
+    trustHost: true,
 });
