@@ -4587,15 +4587,14 @@ function InlineRecognitionCard({
             className="my-3 rounded-2xl overflow-hidden shadow-xl"
             style={{
                 background: "linear-gradient(135deg, rgba(22, 27, 34, 0.95) 0%, rgba(13, 17, 23, 0.98) 100%)",
-                border: `1.5px solid ${themeColor}60`,
-                boxShadow: `0 8px 32px -8px ${themeColor}35`,
+                border: "1px solid rgba(255,255,255,0.08)",
             }}
         >
             <div
                 className="px-3.5 py-2 flex items-center justify-between"
                 style={{
                     background: `linear-gradient(90deg, ${themeColor}25 0%, rgba(255,255,255,0.02) 100%)`,
-                    borderBottom: `1px solid ${themeColor}30`,
+                    borderBottom: "none",
                 }}
             >
                 <div className="flex items-center gap-2">
@@ -4969,15 +4968,14 @@ function InlineOutcomeRevealCard({
             className="my-3 rounded-2xl overflow-hidden shadow-xl"
             style={{
                 background: "linear-gradient(135deg, rgba(16, 24, 39, 0.95) 0%, rgba(10, 15, 26, 0.98) 100%)",
-                border: "1.5px solid rgba(16, 185, 129, 0.5)",
-                boxShadow: "0 8px 32px -8px rgba(16, 185, 129, 0.25)",
+                border: "1px solid rgba(255,255,255,0.08)",
             }}
         >
             <div
                 className="px-3.5 py-2 flex items-center justify-between"
                 style={{
                     background: "linear-gradient(90deg, rgba(16, 185, 129, 0.25) 0%, rgba(255, 255, 255, 0.02) 100%)",
-                    borderBottom: "1px solid rgba(16, 185, 129, 0.3)",
+                    borderBottom: "none",
                 }}
             >
                 <div className="flex items-center gap-2">
@@ -5192,8 +5190,7 @@ function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
             className="rounded-2xl overflow-hidden my-2 border shadow-lg"
             style={{
                 background: "linear-gradient(145deg, rgba(16, 22, 38, 0.96) 0%, rgba(10, 14, 24, 0.98) 100%)",
-                borderColor: "rgba(56, 189, 248, 0.4)",
-                boxShadow: "0 10px 30px -10px rgba(56, 189, 248, 0.2)",
+                borderColor: "rgba(255,255,255,0.08)",
             }}
         >
             {/* Top Banner */}
@@ -5201,7 +5198,7 @@ function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
                 className="px-3.5 py-2 flex items-center justify-between gap-2"
                 style={{
                     background: "linear-gradient(90deg, rgba(16, 185, 129, 0.2) 0%, rgba(168, 85, 247, 0.16) 100%)",
-                    borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
+                    borderBottom: "none",
                 }}
             >
                 <div className="flex items-center gap-2 min-w-0">

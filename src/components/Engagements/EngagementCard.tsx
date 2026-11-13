@@ -1879,14 +1879,12 @@ export default function EngagementCard({
                                     <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                                     LIVE
                                 </span>
-                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-rose-500 to-pink-500 shadow-[0_0_8px_rgba(244,63,94,0.85)]" />
                             </>
                         ) : (
                             <>
                                 <span className="text-[11px] font-bold text-white tracking-wide pb-0.5">
                                     {countdown.statusText}
                                 </span>
-                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#a855f7] shadow-[0_0_8px_rgba(168,85,247,0.85)]" />
                             </>
                         )}
                     </div>

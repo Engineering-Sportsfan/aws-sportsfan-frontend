@@ -309,7 +309,7 @@ export function ContributionHistoryOverlay({ open, onClose, loading, activities,
                     {it.title}
                   </div>
                   <div style={{ display: "flex", gap: 10, marginTop: 4, fontSize: 12 }}>
-                    {it.points > 0 && <span style={{ color: "#22d3ee", fontWeight: 700 }}>+{it.points} pts</span>}
+                    {it.points > 0 && <span style={{ color: "#22d3ee", fontWeight: 700 }}>+{it.points} SXPs</span>}
                     <span style={{ color: "rgba(255,255,255,0.45)" }}>{timeAgo(it.createdAt)}</span>
                   </div>
                 </div>
