@@ -3547,7 +3547,7 @@ const SOUND_FILES: Record<"join" | "comment" | "post", string> = {
     post: "/sounds/post.mp3",
 };
 
-// ── Engagement filter tabs (Prediction / Debate / Question / Express / Poll / Follow) ──
+// ── Engagement filter tabs (Prediction / Debate / Question / Express / Poll) ──
 const ENGAGEMENT_TABS = [
     { id: "all", label: "All", color: "#ffffff" },
     { id: "prediction", label: "Prediction", color: "#fbbf24" },
@@ -3555,8 +3555,6 @@ const ENGAGEMENT_TABS = [
     { id: "question", label: "Question", color: "#22c55e" },
     { id: "express", label: "Express", color: "#22d3ee" },
     { id: "poll", label: "Poll", color: "#818cf8" },
-    { id: "follow", label: "Follow", color: "#a855f7" },
-    { id: "match_result", label: "Result", color: "#38bdf8" },
 ] as const;
 
 type EngagementFilter = typeof ENGAGEMENT_TABS[number]["id"];
@@ -3571,8 +3569,6 @@ const engagementTabOf = (type?: string): Exclude<EngagementFilter, "all"> | null
         case "quiz": return "question";
         case "express": return "express";
         case "poll": return "poll";
-        case "follow": return "follow";
-        case "match_result": return "match_result";
         default: return null;
     }
 };
@@ -5455,125 +5451,91 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
 
     const mr = summary.matchResultData || summary.resultData || summary;
     const team1Name = mr.team1Name || mr.team1 || mr.team1Code || summary.team1Name || summary.team1 || "India";
-    const team1Score = mr.team1Score || mr.score1 || summary.team1Score || "198/5 (20)";
-    const team1Flag = mr.team1Flag || mr.flag1 || summary.team1Flag || "https://flagcdn.com/w80/in.png";
-
+    const team1Score = mr.team1Score || mr.score1 || summary.team1Score || "198/5(20)";
     const team2Name = mr.team2Name || mr.team2 || mr.team2Code || summary.team2Name || summary.team2 || "New Zealand";
-    const team2Score = mr.team2Score || mr.score2 || summary.team2Score || "187/8 (20)";
-    const team2Flag = mr.team2Flag || mr.flag2 || summary.team2Flag || "https://flagcdn.com/w80/nz.png";
+    const team2Score = mr.team2Score || mr.score2 || summary.team2Score || "187/8(20)";
+    const matchTitle = summary.matchTitle || mr.matchTitle || `${team1Name} vs ${team2Name}`;
+    const resultSummary = mr.resultSummary || summary.resultSummary || `${team1Name} won the match!`;
 
-    const playerOfTheMatch = mr.playerName || mr.playerOfTheMatch || mr.topPerformerName || summary.playerOfTheMatch || summary.playerName || "Virat Kohli";
-    const playerStats = mr.playerStats || mr.playerOfTheMatchStats || mr.topPerformerStats || summary.playerStats || "65 (39) • 2 Fours • 6 Sixes";
-    const playerPhoto = mr.playerImageUrl || mr.playerOfTheMatchPhoto || mr.topPerformerPhoto || summary.playerImageUrl || summary.playerPhoto || "";
-    const resultSummary = mr.resultSummary || summary.resultSummary || "";
-
-    const renderFlag = (flag?: string, name?: string) => {
-        const raw = String(flag || "").trim();
-        if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("/") || raw.startsWith("data:")) {
-            return <img src={raw} alt={name || "Flag"} className="w-full h-full object-cover" />;
-        }
-        if (raw) return <span className="text-xl leading-none">{raw}</span>;
-        return <span className="text-[10px] font-black text-white/80">{String(name || "T").slice(0, 3).toUpperCase()}</span>;
-    };
+    const totalActions = Number(summary.totalActions ?? summary.totalInteractions ?? mr.totalActions ?? mr.totalActionsCount ?? 62) || 62;
+    const predictionsCount = String(summary.predictionsRatio || mr.predictionsRatio || "8/10");
+    const sxp = Number(summary.totalSxp ?? summary.sxpAwarded ?? mr.sxpAwarded ?? 320) || 320;
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 12, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.25 }}
-            className="rounded-2xl overflow-hidden my-2.5 border border-white/10 shadow-2xl p-4 space-y-3.5"
+            className="rounded-2xl overflow-hidden my-2 border border-emerald-500/30 shadow-2xl"
             style={{
-                background: "linear-gradient(180deg, #0b101b 0%, #060912 100%)",
+                background: "linear-gradient(180deg, #091312 0%, #050b0a 100%)",
             }}
         >
-            {/* Header in Emerald */}
-            <div className="flex items-center justify-between">
-                <div className="text-xs font-black tracking-wider uppercase text-emerald-400 flex items-center gap-1.5">
-                    <span>🏆</span>
-                    <span>MATCH SNAPSHOT</span>
-                </div>
-                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                    FINAL RESULT
-                </span>
-            </div>
-
-            {/* Scoreboard Row */}
-            <div className="grid grid-cols-2 gap-3 items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
-                {/* Team 1 */}
-                <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-10 h-7 rounded-md bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
-                        {renderFlag(team1Flag, team1Name)}
+            <div className="p-4 space-y-3.5">
+                {/* Header Title in Emerald */}
+                <div className="flex items-center justify-between">
+                    <div className="text-xs font-black tracking-wider uppercase text-emerald-400 flex items-center gap-1.5">
+                        <span>🏆</span>
+                        <span>MATCH SUMMARY</span>
                     </div>
-                    <div className="min-w-0">
-                        <div className="text-xs font-semibold text-white/90 truncate">{team1Name}</div>
-                        <div className="text-sm sm:text-base font-black text-white tabular-nums truncate">{team1Score}</div>
-                    </div>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        FINAL
+                    </span>
                 </div>
 
-                {/* Team 2 */}
-                <div className="flex items-center gap-2.5 min-w-0 justify-end text-right">
-                    <div className="min-w-0">
-                        <div className="text-xs font-semibold text-white/90 truncate">{team2Name}</div>
-                        <div className="text-sm sm:text-base font-black text-white tabular-nums truncate">{team2Score}</div>
+                {/* Match Identity Section matching Aarav reference card */}
+                <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-600 to-teal-800 border-2 border-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.55)] flex items-center justify-center text-2xl shrink-0">
+                        🏏
                     </div>
-                    <div className="w-10 h-7 rounded-md bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
-                        {renderFlag(team2Flag, team2Name)}
-                    </div>
-                </div>
-            </div>
 
-            {resultSummary && (
-                <div className="text-center text-xs font-bold text-emerald-400 py-1.5 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                    {resultSummary}
-                </div>
-            )}
-
-            {/* Top Performer Section */}
-            {playerOfTheMatch && (
-                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#0e1628] border border-white/5">
-                    {playerPhoto ? (
-                        <img
-                            src={playerPhoto}
-                            alt={playerOfTheMatch}
-                            className="w-13 h-13 rounded-xl object-cover border border-white/10 shrink-0 bg-sky-950/40"
-                        />
-                    ) : (
-                        <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-sky-500/30 to-blue-600/30 border border-white/10 flex items-center justify-center text-sm font-black text-white shrink-0">
-                            {playerOfTheMatch.slice(0, 2).toUpperCase()}
-                        </div>
-                    )}
                     <div className="min-w-0 flex-1">
-                        <div className="text-xs font-semibold text-sky-400">
-                            {mr.performerLabel || summary.topPerformerLabel || "Top Performer"}
+                        <div className="text-base font-bold text-emerald-300 truncate leading-tight">
+                            {matchTitle}
                         </div>
-                        <div className="text-sm font-bold text-white truncate leading-tight mt-0.5">
-                            {playerOfTheMatch}
+                        <div className="flex items-center gap-1.5 text-xs text-slate-200 mt-0.5 truncate">
+                            <span className="font-semibold text-white/90">{team1Score}</span>
+                            <span className="text-slate-400">•</span>
+                            <span className="font-semibold text-white/90">{team2Score}</span>
                         </div>
-                        <div className="text-xs text-slate-300 font-medium truncate mt-0.5">
-                            {playerStats}
+                        <div className="text-xs text-slate-400 font-normal mt-0.5 truncate">
+                            {resultSummary}
                         </div>
                     </div>
                 </div>
-            )}
 
-            {/* 3 Stat Boxes matching user shared UI */}
-            <div className="grid grid-cols-3 divide-x divide-white/10 rounded-xl bg-[#0e1628] border border-white/5 py-2.5 px-1 shadow-inner text-center">
-                <div>
-                    <div className="text-xs sm:text-sm font-black text-white truncate">{team1Score}</div>
-                    <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">{team1Name}</div>
+                {/* 3 Stat Boxes inside dark rounded container */}
+                <div className="grid grid-cols-3 divide-x divide-white/10 rounded-xl bg-[#0b1715] border border-emerald-500/20 py-2.5 px-1 shadow-inner text-center">
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
+                            {totalActions}
+                        </div>
+                        <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
+                            Total Actions
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
+                            {predictionsCount}
+                        </div>
+                        <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
+                            Predictions
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
+                            {sxp}
+                        </div>
+                        <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
+                            Total SXP
+                        </div>
+                    </div>
                 </div>
-                <div>
-                    <div className="text-xs sm:text-sm font-black text-emerald-300">FINAL</div>
-                    <div className="text-[10px] text-emerald-400/80 font-medium mt-0.5">Match Status</div>
-                </div>
-                <div>
-                    <div className="text-xs sm:text-sm font-black text-white truncate">{team2Score}</div>
-                    <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">{team2Name}</div>
-                </div>
-            </div>
 
-            <div className="text-center text-xs font-semibold text-emerald-400/80 tracking-wide pt-0.5">
-                🏆 Official Match Summary & Top Performer
+                {/* Footer text */}
+                <div className="text-center text-xs font-semibold text-emerald-400/90 tracking-wide pt-0.5">
+                    🏆 All Room Fans Activity & Engagement Snapshot
+                </div>
             </div>
         </motion.div>
     );
@@ -5952,21 +5914,26 @@ export default function OpenRoomDiscussionRoom({
                     prevOutcomeCountRef.current = reveals.length;
                 }
                 const summaryObj = res.data.userMatchSummary || null;
+                const snapshotObj = res.data.matchSnapshotSummary || null;
+                const fanObj = res.data.fanOfTheMatchSummary || null;
                 setUserMatchSummary(summaryObj);
-                setMatchSnapshotSummary(res.data.matchSnapshotSummary || null);
-                setFanOfTheMatchSummary(res.data.fanOfTheMatchSummary || null);
-                if (summaryObj && prevSummaryMatchRef.current !== summaryObj.id) {
-                    const isFirstInSession = prevSummaryMatchRef.current !== null || prevOutcomeCountRef.current > 0;
-                    prevSummaryMatchRef.current = summaryObj.id;
-                    if (isFirstInSession) {
-                        onToast("📊 Your Match Player Summary is now in the chat!");
-                        if (isAtBottomRef.current) {
-                            setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 100);
-                        } else {
-                            setShowNewPill(true);
-                        }
-                    }
-                } else if (!summaryObj) {
+                setMatchSnapshotSummary(snapshotObj);
+                setFanOfTheMatchSummary(fanObj);
+
+                const hasAnySummary = Boolean(summaryObj || snapshotObj || fanObj);
+                const summaryKey = summaryObj?.id || snapshotObj?.id || fanObj?.id || "summary";
+                if (hasAnySummary && prevSummaryMatchRef.current !== summaryKey) {
+                    prevSummaryMatchRef.current = summaryKey;
+                    onToast("📊 Match summary & player progress updated!");
+                    setTimeout(() => {
+                        const el = listRef.current;
+                        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+                    }, 120);
+                    setTimeout(() => {
+                        const el = listRef.current;
+                        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+                    }, 450);
+                } else if (!hasAnySummary) {
                     prevSummaryMatchRef.current = null;
                 }
             }
@@ -6093,7 +6060,7 @@ export default function OpenRoomDiscussionRoom({
     // ── NEW: per-tab counts for the engagement filter tabs ──
     const engagementTabCounts = React.useMemo(() => {
         const counts: Record<EngagementFilter, number> = {
-            all: 0, prediction: 0, debate: 0, question: 0, express: 0, poll: 0, follow: 0, match_result: 0,
+            all: 0, prediction: 0, debate: 0, question: 0, express: 0, poll: 0,
         };
         const nowMs = Date.now();
         matchEngagements.forEach(e => {
@@ -6103,8 +6070,15 @@ export default function OpenRoomDiscussionRoom({
             counts[tab]++;
             counts.all++;
         });
+
+        // Add match completion summaries to "All" tab count
+        const completionCardsCount = (matchSnapshotSummary ? 1 : 0) + (fanOfTheMatchSummary ? 1 : 0) + (userMatchSummary ? 1 : 0);
+        if (completionCardsCount > 0) {
+            counts.all += completionCardsCount;
+        }
+
         return counts;
-    }, [matchEngagements]);
+    }, [matchEngagements, matchSnapshotSummary, fanOfTheMatchSummary, userMatchSummary]);
 
 
     const handleEngagementInteraction = useCallback((engId: string, updatedData?: any) => {
@@ -6868,10 +6842,17 @@ export default function OpenRoomDiscussionRoom({
         }
     }, [matchEngagements, engagementsLoaded, scrollToBottom, onToast]);
 
-    // ── NEW: when the engagement tab changes, jump to the latest item of the new view ──
+    // ── NEW: when the engagement tab changes, jump to the view ──
     useEffect(() => {
         if (!feedReady) return;
-        const t = setTimeout(() => scrollToBottom(false), 60);
+        const t = setTimeout(() => {
+            if (engagementFilter === "match_result") {
+                const el = listRef.current;
+                if (el) el.scrollTo({ top: 0, behavior: "smooth" });
+            } else {
+                scrollToBottom(false);
+            }
+        }, 60);
         return () => clearTimeout(t);
     }, [engagementFilter, feedReady, scrollToBottom]);
 
@@ -7426,8 +7407,10 @@ export default function OpenRoomDiscussionRoom({
             ...outcomeItems.map((o) => o.sortKey || 0)
         );
 
+        const showCompletionSummaries = engagementFilter === "all";
+
         const snapshotItems: FeedItem[] =
-            matchSnapshotSummary
+            matchSnapshotSummary && showCompletionSummaries
                 ? [
                       {
                           kind: "match_snapshot_summary" as const,
@@ -7438,7 +7421,7 @@ export default function OpenRoomDiscussionRoom({
                 : [];
 
         const fanOfTheMatchItems: FeedItem[] =
-            fanOfTheMatchSummary
+            fanOfTheMatchSummary && showCompletionSummaries
                 ? [
                       {
                           kind: "fan_of_the_match" as const,
@@ -7449,7 +7432,7 @@ export default function OpenRoomDiscussionRoom({
                 : [];
 
         const summaryItems: FeedItem[] =
-            userMatchSummary
+            userMatchSummary && showCompletionSummaries
                 ? [
                       {
                           kind: "player_match_summary" as const,
@@ -7710,7 +7693,7 @@ export default function OpenRoomDiscussionRoom({
 
             {/* ── MESSAGES LIST ── */}
             <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
-                <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0 pb-6">
+                <div ref={listRef} className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-1 flex flex-col gap-0 min-h-0 pb-32">
                     {feedReady && engHasMore && matchEngagements.length > 0 && (
                         <div style={{ display: "flex", justifyContent: "center", padding: "10px 0" }}>
                             <button
@@ -7815,7 +7798,7 @@ export default function OpenRoomDiscussionRoom({
                         }
 
                         if (item.kind === "engagement") {
-                            if (item.data.type === "match_result") {
+                            if (item.data.type === "match_result" || item.data.type === "result" || Boolean((item.data as any).matchResultData)) {
                                 return (
                                     <InlineMatchSnapshotCard
                                         key={`eng-snapshot-${item.data.id}`}
