@@ -7403,9 +7403,12 @@ export default function OpenRoomDiscussionRoom({
         );
 
         const showCompletionSummaries = engagementFilter === "all";
+        const hasEngSnapshot = matchEngagements.some(e => e.type === "match_result" || e.type === "match_summary" || Boolean((e as any).matchResultData));
+        const hasEngFotm = matchEngagements.some(e => e.type === "fan_of_the_match");
+        const hasEngUserSummary = matchEngagements.some(e => e.type === "player_match_summary" || e.type === "user_summary");
 
         const snapshotItems: FeedItem[] =
-            matchSnapshotSummary && showCompletionSummaries
+            matchSnapshotSummary && showCompletionSummaries && !hasEngSnapshot
                 ? [
                       {
                           kind: "match_snapshot_summary" as const,
@@ -7416,7 +7419,7 @@ export default function OpenRoomDiscussionRoom({
                 : [];
 
         const fanOfTheMatchItems: FeedItem[] =
-            fanOfTheMatchSummary && showCompletionSummaries
+            fanOfTheMatchSummary && showCompletionSummaries && !hasEngFotm
                 ? [
                       {
                           kind: "fan_of_the_match" as const,
@@ -7427,7 +7430,7 @@ export default function OpenRoomDiscussionRoom({
                 : [];
 
         const summaryItems: FeedItem[] =
-            userMatchSummary && showCompletionSummaries
+            userMatchSummary && showCompletionSummaries && !hasEngUserSummary
                 ? [
                       {
                           kind: "player_match_summary" as const,
@@ -7793,10 +7796,39 @@ export default function OpenRoomDiscussionRoom({
                         }
 
                         if (item.kind === "engagement") {
-                            if (item.data.type === "match_result" || item.data.type === "result" || Boolean((item.data as any).matchResultData)) {
+                            if (
+                                item.data.type === "match_result" ||
+                                item.data.type === "match_summary" ||
+                                item.data.type === "result" ||
+                                Boolean((item.data as any).matchResultData)
+                            ) {
                                 return (
                                     <InlineMatchSnapshotCard
                                         key={`eng-snapshot-${item.data.id}`}
+                                        summary={{
+                                            ...item.data,
+                                            ...(item.data.matchResultData || {}),
+                                        }}
+                                    />
+                                );
+                            }
+
+                            if (item.data.type === "fan_of_the_match") {
+                                return (
+                                    <InlineFanOfTheMatchCard
+                                        key={`eng-fotm-${item.data.id}`}
+                                        summary={item.data}
+                                    />
+                                );
+                            }
+
+                            if (item.data.type === "player_match_summary" || item.data.type === "user_summary") {
+                                const target = (item.data as any).targetUserId || (item.data as any).userId || (item.data as any).targetEmail;
+                                const matchesMe = !target || currentUserIdCandidates.some(c => String(target).toLowerCase().includes(c));
+                                if (!matchesMe) return null;
+                                return (
+                                    <InlinePlayerMatchSummaryCard
+                                        key={`eng-player-${item.data.id}`}
                                         summary={item.data}
                                     />
                                 );
