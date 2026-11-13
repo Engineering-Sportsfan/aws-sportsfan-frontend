@@ -4580,7 +4580,7 @@ function InlineRecognitionCard({
             initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="my-3 rounded-2xl overflow-hidden shadow-xl"
+            className="w-full shrink-0 my-3 rounded-2xl overflow-hidden shadow-xl"
             style={{
                 background: "linear-gradient(135deg, rgba(22, 27, 34, 0.95) 0%, rgba(13, 17, 23, 0.98) 100%)",
                 border: "1px solid rgba(255,255,255,0.08)",
@@ -4961,7 +4961,7 @@ function InlineOutcomeRevealCard({
             initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="my-3 rounded-2xl overflow-hidden shadow-xl"
+            className="w-full shrink-0 my-3 rounded-2xl overflow-hidden shadow-xl"
             style={{
                 background: "linear-gradient(135deg, rgba(16, 24, 39, 0.95) 0%, rgba(10, 15, 26, 0.98) 100%)",
                 border: "1px solid rgba(255,255,255,0.08)",
@@ -5182,13 +5182,11 @@ function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
     const initial = userName.trim().slice(0, 1).toUpperCase() || "A";
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 12, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.25 }}
-            className="rounded-2xl overflow-hidden my-2 border border-white/10 shadow-2xl"
+        <div
+            className="w-full shrink-0 rounded-2xl overflow-hidden my-3 border border-white/10 shadow-2xl"
             style={{
                 background: "linear-gradient(180deg, #090e1a 0%, #060913 100%)",
+                minHeight: "180px",
             }}
         >
             <div className="p-4 space-y-3.5">
@@ -5338,7 +5336,7 @@ function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
                     </div>
                 )}
             </div>
-        </motion.div>
+        </div>
     );
 }
 
@@ -5358,13 +5356,11 @@ function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
     const leaderboardBadge = summary.leaderboardBadge || "🏆 Ranked #1 on Match Leaderboard";
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 12, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.25 }}
-            className="rounded-2xl overflow-hidden my-2 border border-amber-500/30 shadow-2xl"
+        <div
+            className="w-full shrink-0 rounded-2xl overflow-hidden my-3 border border-amber-500/40 shadow-2xl"
             style={{
                 background: "linear-gradient(180deg, #130f07 0%, #0a0703 100%)",
+                minHeight: "180px",
             }}
         >
             <div className="p-4 space-y-3.5">
@@ -5442,7 +5438,7 @@ function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
                     {badgeText}
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 }
 
@@ -5457,13 +5453,11 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
     const totalParticipants = Number(summary.totalParticipants ?? summary.totalFansCount ?? summary.participantsCount ?? mr.totalParticipants ?? 27) || 27;
 
     return (
-        <motion.div
-            initial={{ opacity: 0, y: 12, scale: 0.985 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.25 }}
-            className="rounded-2xl overflow-hidden my-2 border border-emerald-500/30 shadow-2xl"
+        <div
+            className="w-full shrink-0 rounded-2xl overflow-hidden my-3 border border-emerald-500/40 shadow-2xl"
             style={{
                 background: "linear-gradient(180deg, #091312 0%, #050b0a 100%)",
+                minHeight: "180px",
             }}
         >
             <div className="p-4 space-y-3.5">
@@ -5471,10 +5465,10 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                 <div className="flex items-center justify-between">
                     <div className="text-xs font-black tracking-wider uppercase text-emerald-400 flex items-center gap-1.5">
                         <span>🏆</span>
-                        <span>MATCH SUMMARY</span>
+                        <span>MATCH SNAPSHOT</span>
                     </div>
                     <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        ROOM SNAPSHOT
+                        FINAL RESULT
                     </span>
                 </div>
 
@@ -5532,7 +5526,7 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                     🏆 Overall App Activity Across All Room Fans
                 </div>
             </div>
-        </motion.div>
+        </div>
     );
 }
 
@@ -6810,8 +6804,14 @@ export default function OpenRoomDiscussionRoom({
             scrollToBottom(false);
             setTimeout(() => { initialScrollDoneRef.current = true; }, 150);
         }, 50);
-        return () => clearTimeout(t1);
-    }, [feedReady, scrollToBottom]);
+        const t2 = setTimeout(() => {
+            scrollToBottom(false);
+        }, 300);
+        const t3 = setTimeout(() => {
+            scrollToBottom(false);
+        }, 700);
+        return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    }, [feedReady, matchEngagements.length, scrollToBottom]);
 
     // new posts: follow only if user is at bottom, else show pill
     useEffect(() => {
@@ -7343,7 +7343,46 @@ export default function OpenRoomDiscussionRoom({
             matchesEngagementFilter(eng.type, engagementFilter)
         );
 
-        const engagementItems: FeedItem[] = filteredEngagements.map(e => {
+        // Deduplicate summary engagements so only the freshest match summary/fotm/player summary is kept
+        const currentMatchClean = (roomMatchId || "").replace(/^MATCH#/, "").trim().toLowerCase();
+        const seenSummaryKeys = new Set<string>();
+        const dedupedEngagements = [...filteredEngagements]
+            .sort((a, b) => {
+                if (currentMatchClean) {
+                    const aMatches = String(a.matchId || "").replace(/^MATCH#/, "").trim().toLowerCase() === currentMatchClean;
+                    const bMatches = String(b.matchId || "").replace(/^MATCH#/, "").trim().toLowerCase() === currentMatchClean;
+                    if (aMatches && !bMatches) return -1;
+                    if (!aMatches && bMatches) return 1;
+                }
+                return getTimestamp(b.createdAt || b.updatedAt || 0) - getTimestamp(a.createdAt || a.updatedAt || 0);
+            })
+            .filter(e => {
+                const isSummary = ["match_result", "match_summary", "fan_of_the_match", "player_match_summary", "user_summary"].includes(e.type);
+                if (!isSummary) return true;
+                const groupKey = (e.type === "match_result" || e.type === "match_summary") ? "match_summary" : e.type;
+                if (seenSummaryKeys.has(groupKey)) return false;
+                seenSummaryKeys.add(groupKey);
+                return true;
+            });
+
+        // Determine base timestamp for end-of-match conclusion cards so they pin cleanly at the bottom of the feed
+        const baseCompletionTime = Math.max(
+            Date.now() - 3000,
+            ...postItems.map((p) => p.sortKey || 0),
+            ...dedupedEngagements
+                .filter(e => !["match_result", "match_summary", "fan_of_the_match", "player_match_summary", "user_summary"].includes(e.type))
+                .map(e => getTimestamp(e.createdAt || 0))
+        );
+
+        const engagementItems: FeedItem[] = dedupedEngagements.map(e => {
+            const isSummary = ["match_result", "match_summary", "fan_of_the_match", "player_match_summary", "user_summary"].includes(e.type);
+            if (isSummary) {
+                let offset = 10;
+                if (e.type === "match_result" || e.type === "match_summary") offset = 10;
+                else if (e.type === "fan_of_the_match") offset = 20;
+                else offset = 30;
+                return { kind: "engagement" as const, data: e, sortKey: baseCompletionTime + offset };
+            }
             const rawTime = (e.isScheduled || (e as any).scheduledStartTime)
                 ? ((e as any).scheduledStartTime || e.startTime || (e as any).start_time || e.postingTime || e.createdAt || (e as any).created_at)
                 : (e.createdAt || (e as any).created_at || (e as any).timestamp || e.startTime || (e as any).start_time || e.postingTime || e.updatedAt || (e as any).updated_at);
@@ -7393,19 +7432,10 @@ export default function OpenRoomDiscussionRoom({
                 sortKey: getTimestamp(rev.createdAt || Date.now()),
             }));
 
-        // Position match summaries at the bottom of the feed (newest items) as the conclusion of the match
-        const baseCompletionTime = Math.max(
-            Date.now() - 3000,
-            ...postItems.map((p) => p.sortKey || 0),
-            ...engagementItems.map((e) => e.sortKey || 0),
-            ...recognitionItems.map((r) => r.sortKey || 0),
-            ...outcomeItems.map((o) => o.sortKey || 0)
-        );
-
         const showCompletionSummaries = engagementFilter === "all";
-        const hasEngSnapshot = matchEngagements.some(e => e.type === "match_result" || e.type === "match_summary" || Boolean((e as any).matchResultData));
-        const hasEngFotm = matchEngagements.some(e => e.type === "fan_of_the_match");
-        const hasEngUserSummary = matchEngagements.some(e => e.type === "player_match_summary" || e.type === "user_summary");
+        const hasEngSnapshot = dedupedEngagements.some(e => e.type === "match_result" || e.type === "match_summary" || (e.matchResultData && Object.keys(e.matchResultData).length > 0));
+        const hasEngFotm = dedupedEngagements.some(e => e.type === "fan_of_the_match");
+        const hasEngUserSummary = dedupedEngagements.some(e => e.type === "player_match_summary" || e.type === "user_summary");
 
         const snapshotItems: FeedItem[] =
             matchSnapshotSummary && showCompletionSummaries && !hasEngSnapshot
@@ -7413,7 +7443,7 @@ export default function OpenRoomDiscussionRoom({
                       {
                           kind: "match_snapshot_summary" as const,
                           data: matchSnapshotSummary,
-                          sortKey: baseCompletionTime + 1,
+                          sortKey: baseCompletionTime + 11,
                       },
                   ]
                 : [];
@@ -7424,7 +7454,7 @@ export default function OpenRoomDiscussionRoom({
                       {
                           kind: "fan_of_the_match" as const,
                           data: fanOfTheMatchSummary,
-                          sortKey: baseCompletionTime + 2,
+                          sortKey: baseCompletionTime + 21,
                       },
                   ]
                 : [];
@@ -7435,7 +7465,7 @@ export default function OpenRoomDiscussionRoom({
                       {
                           kind: "player_match_summary" as const,
                           data: userMatchSummary,
-                          sortKey: baseCompletionTime + 3,
+                          sortKey: baseCompletionTime + 31,
                       },
                   ]
                 : [];
@@ -7800,7 +7830,7 @@ export default function OpenRoomDiscussionRoom({
                                 item.data.type === "match_result" ||
                                 item.data.type === "match_summary" ||
                                 item.data.type === "result" ||
-                                Boolean((item.data as any).matchResultData)
+                                (item.data.matchResultData && typeof item.data.matchResultData === "object" && Object.keys(item.data.matchResultData).length > 0)
                             ) {
                                 return (
                                     <InlineMatchSnapshotCard
@@ -7824,7 +7854,13 @@ export default function OpenRoomDiscussionRoom({
 
                             if (item.data.type === "player_match_summary" || item.data.type === "user_summary") {
                                 const target = (item.data as any).targetUserId || (item.data as any).userId || (item.data as any).targetEmail;
-                                const matchesMe = !target || currentUserIdCandidates.some(c => String(target).toLowerCase().includes(c));
+                                const candList = Array.from(currentUserIdCandidates);
+                                const cleanTarget = String(target || "").toLowerCase().replace(/[@.]/g, "_");
+                                const matchesMe = !target || candList.length === 0 || candList.some(c => {
+                                    if (!c) return false;
+                                    const cleanC = String(c).toLowerCase().replace(/[@.]/g, "_");
+                                    return cleanTarget.includes(cleanC) || cleanC.includes(cleanTarget);
+                                });
                                 if (!matchesMe) return null;
                                 return (
                                     <InlinePlayerMatchSummaryCard
