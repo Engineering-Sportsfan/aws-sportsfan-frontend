@@ -5175,8 +5175,9 @@ function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
         summary.predictionsRatio ||
         (summary.predictionsCount ? `${summary.predictionsWon || 0}/${summary.predictionsCount}` : "8/10")
     );
-    const sxp = Number(summary.sxpAwarded ?? totals.sxpAwarded ?? 320);
-    const userName = summary.userName || "Aarav";
+    const sxp = Number(summary.sxpAwarded || totals.sxpAwarded || 320);
+    const rawName = summary.userName || summary.name || summary.userEmail || "Aarav";
+    const userName = rawName.includes("@") ? rawName.split("@")[0] : rawName;
     const userAvatar = summary.userAvatar || "";
     const countryFlag = summary.countryFlag || "🇮🇳";
     const persona = summary.persona || "Analytical Fan";
@@ -5350,11 +5351,15 @@ function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
 
     const userName = summary.userName || summary.winnerName || summary.name || "Champion Fan";
     const userAvatar = summary.userAvatar || summary.winnerAvatar || summary.avatar || "";
-    const interactions = Number(summary.interactionsCount ?? summary.totalActions ?? summary.actionsCount ?? 24);
+    const interactions = Number(summary.interactionsCount ?? summary.totalActions ?? summary.actionsCount ?? 24) || 24;
     const predictionsRatio = String(summary.predictionsRatio || "9/10");
-    const sxp = Number(summary.sxpAwarded ?? summary.totalScore ?? 450);
+    const sxp = Number(summary.sxpAwarded ?? summary.totalScore ?? 450) || 450;
     const initial = userName.trim().slice(0, 1).toUpperCase() || "F";
     const badgeText = summary.badgeText || "🏆 Fan of the Match Award · Highest Match Score";
+    const countryFlag = summary.countryFlag || "🇮🇳";
+    const persona = summary.persona || "Superfan MVP";
+    const favorites = summary.favoritesLabel || "Bumrah • SKY | MI";
+    const leaderboardBadge = summary.leaderboardBadge || "🏆 Ranked #1 on Match Leaderboard";
 
     return (
         <motion.div
@@ -5400,11 +5405,11 @@ function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
                             {userName}
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-slate-200 mt-0.5">
-                            <span className="text-sm">🇮🇳</span>
-                            <span className="font-medium text-amber-200/90">Superfan MVP</span>
+                            <span className="text-sm">{countryFlag}</span>
+                            <span className="font-medium text-amber-200/90">{persona}</span>
                         </div>
-                        <div className="text-xs text-amber-400/80 font-normal mt-0.5">
-                            🏆 Ranked #1 on Match Leaderboard
+                            <div className="text-xs text-amber-400/80 font-normal mt-0.5 truncate">
+                                {favorites ? `${favorites} • ` : ""}{leaderboardBadge}
                         </div>
                     </div>
                 </div>
@@ -5448,17 +5453,18 @@ function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
 function InlineMatchSnapshotCard({ summary }: { summary: any }) {
     if (!summary) return null;
 
-    const team1Name = summary.team1Name || summary.team1 || "India";
+    const team1Name = summary.team1Name || summary.team1 || summary.team1Code || "India";
     const team1Score = summary.team1Score || summary.score1 || "198/5 (20)";
-    const team1Flag = summary.team1Flag || summary.flag1 || "🇮🇳";
+    const team1Flag = summary.team1Flag || summary.flag1 || "https://flagcdn.com/w80/in.png";
 
-    const team2Name = summary.team2Name || summary.team2 || "New Zealand";
+    const team2Name = summary.team2Name || summary.team2 || summary.team2Code || "New Zealand";
     const team2Score = summary.team2Score || summary.score2 || "187/8 (20)";
-    const team2Flag = summary.team2Flag || summary.flag2 || "🇳🇿";
+    const team2Flag = summary.team2Flag || summary.flag2 || "https://flagcdn.com/w80/nz.png";
 
-    const playerOfTheMatch = summary.playerOfTheMatch || summary.topPerformerName || summary.playerName || "Suryakumar Yadav";
+    const playerOfTheMatch = summary.playerOfTheMatch || summary.topPerformerName || summary.playerName || "Virat Kohli";
     const playerStats = summary.playerOfTheMatchStats || summary.topPerformerStats || summary.playerStats || "65 (39) • 2 Fours • 6 Sixes";
     const playerPhoto = summary.playerOfTheMatchPhoto || summary.topPerformerPhoto || summary.playerImageUrl || "";
+    const resultSummary = summary.resultSummary || "";
 
     const renderFlag = (flag?: string, name?: string) => {
         const raw = String(flag || "").trim();
@@ -5481,7 +5487,7 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
         >
             {/* Header */}
             <div className="text-sm font-bold text-white tracking-wide">
-                Match Snapshot
+                {summary.snapshotHeading || "Match Snapshot"}
             </div>
 
             {/* Scoreboard Row */}
@@ -5509,6 +5515,12 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                 </div>
             </div>
 
+            {resultSummary && (
+                <div className="text-[11px] font-semibold text-emerald-400 pt-1.5 border-t border-white/5">
+                    {resultSummary}
+                </div>
+            )}
+
             {/* Top Performer Section */}
             {playerOfTheMatch && (
                 <div className="flex items-center gap-3 p-3 rounded-xl bg-[#0e1628] border border-white/5">
@@ -5525,7 +5537,7 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                     )}
                     <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-sky-400">
-                            Top Performer
+                            {summary.topPerformerLabel || "Top Performer"}
                         </div>
                         <div className="text-sm font-bold text-white truncate leading-tight mt-0.5">
                             {playerOfTheMatch}
@@ -5834,22 +5846,28 @@ export default function OpenRoomDiscussionRoom({
         }
     }, []);
 
+    const isRealMatchId = (v?: any): boolean => {
+        if (!v) return false;
+        const s = String(v).replace(/^MATCH#/, "").trim().toLowerCase();
+        return Boolean(s && s !== "none" && s !== "undefined" && s !== "null" && s !== "all");
+    };
+
     // ── Fetch live Visual Recognitions & Outcome Reveals for Match ──
     const prevOutcomeCountRef = React.useRef(0);
     const fetchCelebrations = useCallback(async () => {
         if (!roomId) return;
 
         // Resolve matchId — from state, from loaded engagements, or by asking the room details API
-        let mId = roomMatchId;
+        let mId = isRealMatchId(roomMatchId) ? roomMatchId : null;
         if (!mId && matchEngagementsRef.current.length > 0) {
-            const foundFromEng = matchEngagementsRef.current.find(e => e.matchId)?.matchId;
+            const foundFromEng = matchEngagementsRef.current.find(e => isRealMatchId(e.matchId))?.matchId;
             if (foundFromEng) {
                 mId = String(foundFromEng).replace(/^MATCH#/, "").trim();
                 setRoomMatchId(mId);
             }
         }
         if (!mId && matchEngagements.length > 0) {
-            const foundFromEng = matchEngagements.find(e => e.matchId)?.matchId;
+            const foundFromEng = matchEngagements.find(e => isRealMatchId(e.matchId))?.matchId;
             if (foundFromEng) {
                 mId = String(foundFromEng).replace(/^MATCH#/, "").trim();
                 setRoomMatchId(mId);
@@ -5860,14 +5878,14 @@ export default function OpenRoomDiscussionRoom({
                 const roomRes = await axios.get(`/api/roar/rooms/${roomId}`, { timeout: REQUEST_TIMEOUT_MS });
                 const rData = roomRes.data?.room || roomRes.data;
                 const foundMatchId = rData?.matchId || rData?.liveMatchId || rData?.match_id;
-                if (foundMatchId) {
+                    if (isRealMatchId(foundMatchId)) {
                     mId = String(foundMatchId).replace(/^MATCH#/, "").trim();
                     setRoomMatchId(mId);
                 }
             } catch { /* ignore */ }
         }
 
-        const cleanMatchId = mId ? String(mId).replace(/^MATCH#/, "").trim() : "";
+            const cleanMatchId = isRealMatchId(mId) ? String(mId).replace(/^MATCH#/, "").trim() : "";
         const effUserId = currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId || "";
         const effUsername = userUsername || userProfile?.username || userProfile?.name || "";
         const effEmail = (userProfile as any)?.email || "";
@@ -5884,7 +5902,7 @@ export default function OpenRoomDiscussionRoom({
             const url = `/api/roar/celebrations?${qParams.toString()}`;
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
             if (res.data?.success) {
-                if (res.data?.matchId && !roomMatchId) {
+                    if (isRealMatchId(res.data?.matchId) && !isRealMatchId(roomMatchId)) {
                     setRoomMatchId(String(res.data.matchId).replace(/^MATCH#/, "").trim());
                 }
                 if (Array.isArray(res.data.recognitions)) {
@@ -5934,13 +5952,13 @@ export default function OpenRoomDiscussionRoom({
     const fetchEngagements = useCallback(async () => {
         if (!roomId) { setEngagementsLoaded(true); return; }
         try {
-            let mId = roomMatchId;
+            let mId = isRealMatchId(roomMatchId) ? roomMatchId : null;
             if (!mId) {
                 try {
                     const roomRes = await axios.get(`/api/roar/rooms/${roomId}`, { timeout: REQUEST_TIMEOUT_MS });
                     const rData = roomRes.data?.room || roomRes.data;
                     const foundMatchId = rData?.matchId || rData?.liveMatchId || rData?.match_id;
-                    if (foundMatchId) {
+                        if (isRealMatchId(foundMatchId)) {
                         mId = String(foundMatchId).replace(/^MATCH#/, "");
                         setRoomMatchId(mId);
                     }
