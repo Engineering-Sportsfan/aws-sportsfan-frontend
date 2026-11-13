@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { getMomentEngagements } from "./momentEngagements";
 
 export type TabKey = "all" | "predictions" | "reactions" | "debates" | "polls" | "takes" | "trivia";
 type Kind = Exclude<TabKey, "all">;
@@ -9,15 +10,15 @@ type Kind = Exclude<TabKey, "all">;
 const TABS: { key: TabKey; label: string }[] = [
   { key: "all", label: "All" },
   { key: "predictions", label: "Predictions" },
-  { key: "reactions", label: "Reactions" },
   { key: "debates", label: "Debates" },
   { key: "polls", label: "Polls" },
   { key: "takes", label: "Takes" },
   { key: "trivia", label: "Trivia" },
+  { key: "reactions", label: "Reactions" },
 ];
 
 const LIMIT = 5; // each category tab shows only the latest 5
-const ALL_TAB_KINDS: Kind[] = ["predictions", "debates", "reactions", "polls", "takes", "trivia"];
+const ALL_TAB_KINDS: Kind[] = ["predictions", "debates", "polls", "takes", "trivia", "reactions"];
 
 const KIND_STYLE: Record<Kind, { bg: string; icon: string }> = {
   predictions: { bg: "linear-gradient(135deg,#be123c,#e11d48)", icon: "🏆" },
@@ -97,8 +98,9 @@ function titleFor(a: any, kind: Kind): string {
     debates: "Joined a debate",
     polls: "Voted in a poll",
     takes: "Shared a take",
-    trivia: "Answered a trivia question",
+    trivia: "Participated in trivia",
   };
+  if (kind === "trivia") return fallback.trivia;
   return text || fallback[kind as Exclude<Kind, "reactions">];
 }
 
@@ -164,7 +166,7 @@ async function loadMyReactions(userId: string): Promise<HistoryItem[]> {
     const d = res.data;
     const list: any[] = d?.engagements || d?.data || (Array.isArray(d) ? d : []);
     return list
-      .filter((e) => e?.userLiked === true)
+      .filter((e) => e?.userLiked === true && (!!e?.loopId || !!e?.momentId))
       .map((e) => {
         const title = engagementText(e);
         return {
@@ -186,6 +188,19 @@ export function ContributionHistoryOverlay({ open, onClose, loading, activities,
   useEffect(() => {
     if (open) setTab(initialTab ?? "all");
   }, [open, initialTab]);
+  // Ids of real match-moment engagements: the source of truth for "is this a match-moment post".
+  const [momentIds, setMomentIds] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    // Shared 5-min cache with the Profile tiles: usually no network request here at all.
+    getMomentEngagements(12000)
+      .then((list) => {
+        if (!cancelled) setMomentIds(new Set(list.map((e) => String(e?.id ?? "")).filter(Boolean)));
+      })
+      .catch(() => { if (!cancelled) setMomentIds(null); });
+    return () => { cancelled = true; };
+  }, [open]);
   const [reactionItems, setReactionItems] = useState<HistoryItem[]>([]);
   const [reactionsLoading, setReactionsLoading] = useState(false);
 
@@ -202,11 +217,14 @@ export function ContributionHistoryOverlay({ open, onClose, loading, activities,
   }, [open, userId]);
 
   const items = useMemo<HistoryItem[]>(() => {
-    const out: HistoryItem[] = [...reactionItems];
+    const out: HistoryItem[] = reactionItems.filter((r) => !momentIds || (!!r.engagementId && momentIds.has(r.engagementId)));
     for (const a of activities || []) {
       const kind = classify(a);
       // Reactions come from loadMyReactions, not the activity log.
       if (!kind || kind === "reactions") continue;
+      // Keep only items whose engagement is a known match-moment engagement (drops ROAR room posts).
+      const engId = String(a?.metadata?.engagementId || a?.engagementId || a?.metadata?.contentId || a?.metadata?.momentId || a?.momentId || "");
+      if (momentIds && !momentIds.has(engId)) continue;
       out.push({
         id: String(a.id ?? `${typeOf(a)}-${a.createdAt}`),
         kind,
@@ -218,7 +236,7 @@ export function ContributionHistoryOverlay({ open, onClose, loading, activities,
       });
     }
     return out.sort((x, y) => y.createdAt - x.createdAt);
-  }, [activities, reactionItems]);
+  }, [activities, reactionItems, momentIds]);
 
   if (!open) return null;
 
@@ -227,7 +245,6 @@ export function ContributionHistoryOverlay({ open, onClose, loading, activities,
   const visible =
     tab === "all"
       ? ALL_TAB_KINDS.map((k) => items.find((i) => i.kind === k)).filter((i): i is HistoryItem => !!i)
-          .sort((a, b) => b.createdAt - a.createdAt)
       : items.filter((i) => i.kind === tab).slice(0, LIMIT);
 
   return (
