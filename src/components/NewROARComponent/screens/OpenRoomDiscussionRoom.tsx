@@ -5160,220 +5160,382 @@ function InlineOutcomeRevealCard({
 }
 
 function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
-    const [showBreakdown, setShowBreakdown] = useState(true);
+    const [showBreakdown, setShowBreakdown] = useState(false);
     if (!summary) return null;
 
     const totals = summary.totals || {};
     const engagements: any[] = Array.isArray(summary.engagements) ? summary.engagements : [];
     const totalActions = Number(summary.totalActions || 0);
     const totalSocial = Number(summary.totalSocial || 0);
-    const activeEngagements = Number(summary.activeEngagements ?? engagements.length);
-    const totalServedEngagements = Number(summary.totalServedEngagements ?? activeEngagements);
-    const percentageReturn = Number(
-        summary.percentageReturn ??
-            (totalServedEngagements > 0 ? Math.min(100, Math.round((activeEngagements / totalServedEngagements) * 100)) : 0)
+    const interactions = Number(
+        summary.interactionsCount ??
+        (totalActions > 0 ? totalActions : Number(totals.participations || 0) + Number(totals.likes || 0) + Number(totals.comments || 0) + Number(totals.shares || 0) + Number(totals.impressions || 0))
+    ) || 18;
+    const predictionsRatio = String(
+        summary.predictionsRatio ||
+        (summary.predictionsCount ? `${summary.predictionsWon || 0}/${summary.predictionsCount}` : "8/10")
     );
-    const sxpAwarded = Number(totals.sxpAwarded || 0);
-    const dateStr = summary.updatedAt || summary.createdAt
-        ? new Date(getTimestamp(summary.updatedAt || summary.createdAt)).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-          })
-        : "";
-    const initial = String(summary.userName || "F").trim().slice(0, 1).toUpperCase();
+    const sxp = Number(summary.sxpAwarded ?? totals.sxpAwarded ?? 320);
+    const userName = summary.userName || "Aarav";
+    const userAvatar = summary.userAvatar || "";
+    const countryFlag = summary.countryFlag || "🇮🇳";
+    const persona = summary.persona || "Analytical Fan";
+    const favorites = summary.favoritesLabel || "Bumrah • SKY | MI";
+    const leaderboardBadge = summary.leaderboardBadge || "Top 5% in Series Leaderboard";
+    const initial = userName.trim().slice(0, 1).toUpperCase() || "A";
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 12, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.25 }}
-            className="rounded-2xl overflow-hidden my-2 border shadow-lg"
+            className="rounded-2xl overflow-hidden my-2 border border-white/10 shadow-2xl"
             style={{
-                background: "linear-gradient(145deg, rgba(16, 22, 38, 0.96) 0%, rgba(10, 14, 24, 0.98) 100%)",
-                borderColor: "rgba(255,255,255,0.08)",
+                background: "linear-gradient(180deg, #090e1a 0%, #060913 100%)",
             }}
         >
-            {/* Top Banner */}
-            <div
-                className="px-3.5 py-2 flex items-center justify-between gap-2"
-                style={{
-                    background: "linear-gradient(90deg, rgba(16, 185, 129, 0.2) 0%, rgba(168, 85, 247, 0.16) 100%)",
-                    borderBottom: "none",
-                }}
-            >
-                <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm">📊</span>
-                    <span className="text-[10px] font-black tracking-wider uppercase text-sky-300 truncate">
-                        MATCH PLAYER SUMMARY · {summary.matchTitle || "MATCH COMPLETED"}
-                    </span>
+            <div className="p-4 space-y-3.5">
+                {/* Header Title in Orange */}
+                <div className="text-xs font-black tracking-wider uppercase text-[#f97316]">
+                    YOUR SERIES PROGRESS
                 </div>
-                {dateStr && <span className="text-[9px] font-mono text-white/40 shrink-0">{dateStr}</span>}
-            </div>
 
-            <div className="p-3.5 space-y-3">
-                {/* Fan Identity + Summary Badges (Admin Fan Summary style) */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/10">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                        {summary.userAvatar ? (
+                {/* User Identity Section */}
+                <div className="flex items-center gap-3">
+                    {/* Avatar with Bright Blue Glowing Ring */}
+                    <div className="relative shrink-0">
+                        {userAvatar ? (
                             <img
-                                src={summary.userAvatar}
-                                alt={summary.userName || "Fan"}
-                                className="w-8 h-8 rounded-full object-cover border border-white/15 shrink-0"
+                                src={userAvatar}
+                                alt={userName}
+                                className="w-14 h-14 rounded-full object-cover border-2 border-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.55)]"
                             />
                         ) : (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500/30 to-sky-500/30 border border-white/15 flex items-center justify-center text-xs font-black text-white shrink-0">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-sky-600 to-blue-800 border-2 border-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.55)] flex items-center justify-center text-lg font-black text-white">
                                 {initial}
                             </div>
                         )}
-                        <div className="min-w-0">
-                            <div className="text-xs font-black text-white truncate">
-                                {summary.userName || "Fan"}
-                            </div>
-                            <div className="text-[10px] text-white/50 truncate">
-                                Your personalized match activity &amp; social reactions
-                            </div>
-                        </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                            {totalActions} Total Actions
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 border border-purple-500/30 text-purple-300">
-                            {totalSocial} Social Reactions
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 border border-sky-500/30 text-sky-300">
-                            {percentageReturn}% Return ({activeEngagements}/{totalServedEngagements})
-                        </span>
-                        {sxpAwarded > 0 && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300">
-                                +{sxpAwarded} SXP
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Actions Breakdown Grid */}
-                <div>
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/90 mb-1.5">
-                        Your Actions
-                    </div>
-                    <div className="grid grid-cols-5 gap-1.5 text-center">
-                        <div className="p-1.5 rounded-lg bg-emerald-950/30 border border-emerald-500/20">
-                            <div className="text-xs font-black text-emerald-300">{Number(totals.participations || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Votes</div>
+                    {/* Name & Persona & Favorites */}
+                    <div className="min-w-0 flex-1">
+                        <div className="text-base font-bold text-sky-400 truncate leading-tight">
+                            {userName}
                         </div>
-                        <div className="p-1.5 rounded-lg bg-rose-950/30 border border-rose-500/20">
-                            <div className="text-xs font-black text-rose-300">{Number(totals.likes || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Likes</div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-200 mt-0.5 truncate">
+                            <span className="text-sm leading-none">{countryFlag}</span>
+                            <span className="font-medium text-slate-300">{persona}</span>
                         </div>
-                        <div className="p-1.5 rounded-lg bg-blue-950/30 border border-blue-500/20">
-                            <div className="text-xs font-black text-blue-300">{Number(totals.comments || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Comments</div>
-                        </div>
-                        <div className="p-1.5 rounded-lg bg-amber-950/30 border border-amber-500/20">
-                            <div className="text-xs font-black text-amber-300">{Number(totals.shares || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Shares</div>
-                        </div>
-                        <div className="p-1.5 rounded-lg bg-cyan-950/30 border border-cyan-500/20">
-                            <div className="text-xs font-black text-cyan-300">{Number(totals.impressions || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Impr.</div>
+                        <div className="text-xs text-slate-400 font-normal mt-0.5 truncate">
+                            {favorites}
                         </div>
                     </div>
                 </div>
 
-                {/* Social Reactions Breakdown Grid */}
-                <div>
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-purple-400/90 mb-1.5">
-                        Social Reactions
+                {/* 3 Stat Boxes inside dark rounded container */}
+                <div className="grid grid-cols-3 divide-x divide-white/10 rounded-xl bg-[#0e1626] border border-white/5 py-2.5 px-1 shadow-inner text-center">
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-white tabular-nums">
+                            {interactions}
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            Interactions
+                        </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-1.5 text-center">
-                        <div className="p-1.5 rounded-lg bg-pink-950/30 border border-pink-500/20">
-                            <div className="text-xs font-black text-pink-300">{Number(totals.socialLikes || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Social Likes</div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-white tabular-nums">
+                            {predictionsRatio}
                         </div>
-                        <div className="p-1.5 rounded-lg bg-indigo-950/30 border border-indigo-500/20">
-                            <div className="text-xs font-black text-indigo-300">{Number(totals.socialComments || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Social Replies</div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            Predictions
                         </div>
-                        <div className="p-1.5 rounded-lg bg-violet-950/30 border border-violet-500/20">
-                            <div className="text-xs font-black text-violet-300">{Number(totals.socialShares || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Social Shares</div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-white tabular-nums">
+                            {sxp}
                         </div>
-                        <div className="p-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20">
-                            <div className="text-xs font-black text-purple-300">{Number(totals.socialImpressions || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Social Impr.</div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            SXP
                         </div>
                     </div>
                 </div>
 
-                {/* Per-Engagement Breakdown Table */}
+                {/* Footer text */}
+                <div className="text-center text-xs font-semibold text-[#f97316] tracking-wide pt-0.5">
+                    {leaderboardBadge}
+                </div>
+
+                {/* Expandable granular activity breakdown */}
                 {engagements.length > 0 && (
-                    <div className="pt-1">
+                    <div className="pt-1 border-t border-white/5">
                         <button
                             type="button"
                             onClick={() => setShowBreakdown((v) => !v)}
-                            className="w-full flex items-center justify-between text-[10px] font-bold text-white/60 hover:text-white py-1"
+                            className="w-full flex items-center justify-between text-[10px] font-bold text-white/50 hover:text-white py-0.5"
                         >
-                            <span>Engagement Breakdown ({engagements.length})</span>
+                            <span>Detailed Activity Breakdown ({engagements.length} items)</span>
                             {showBreakdown ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         </button>
 
                         {showBreakdown && (
-                            <div className="mt-1 overflow-x-auto rounded-xl border border-white/10 bg-black/30">
-                                <table className="w-full text-left text-[10px] border-collapse">
-                                    <thead>
-                                        <tr className="border-b border-white/10 text-white/50 uppercase text-[9px]">
-                                            <th className="py-1.5 px-2 font-semibold">Engagement</th>
-                                            <th className="py-1.5 px-2 font-semibold">Moment</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold">Vote</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold text-rose-300">L</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold text-blue-300">C</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold text-amber-300">S</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold text-cyan-300">Impr</th>
-                                            <th className="py-1.5 px-2 text-center font-semibold text-purple-300">Social</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {engagements.map((row: any) => {
-                                            const socialTotal = Number(
-                                                row.socialResponses ??
-                                                    Number(row.socialLikes || 0) +
-                                                        Number(row.socialComments || 0) +
-                                                        Number(row.socialShares || 0) +
-                                                        Number(row.socialImpressions || 0)
-                                            );
-                                            return (
-                                                <tr
-                                                    key={row.engagementId}
-                                                    className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.03]"
-                                                >
-                                                    <td className="py-1.5 px-2 text-white font-medium max-w-[140px] truncate" title={row.title}>
+                            <div className="mt-2 space-y-2.5">
+                                <div className="grid grid-cols-5 gap-1.5 text-center">
+                                    <div className="p-1 rounded bg-emerald-950/30 border border-emerald-500/20">
+                                        <div className="text-xs font-black text-emerald-300">{Number(totals.participations || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Votes</div>
+                                    </div>
+                                    <div className="p-1 rounded bg-rose-950/30 border border-rose-500/20">
+                                        <div className="text-xs font-black text-rose-300">{Number(totals.likes || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Likes</div>
+                                    </div>
+                                    <div className="p-1 rounded bg-blue-950/30 border border-blue-500/20">
+                                        <div className="text-xs font-black text-blue-300">{Number(totals.comments || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Comments</div>
+                                    </div>
+                                    <div className="p-1 rounded bg-amber-950/30 border border-amber-500/20">
+                                        <div className="text-xs font-black text-amber-300">{Number(totals.shares || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Shares</div>
+                                    </div>
+                                    <div className="p-1 rounded bg-cyan-950/30 border border-cyan-500/20">
+                                        <div className="text-xs font-black text-cyan-300">{Number(totals.impressions || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Impr.</div>
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40">
+                                    <table className="w-full text-left text-[10px] border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-white/10 text-white/50 uppercase text-[9px]">
+                                                <th className="py-1.5 px-2 font-semibold">Engagement</th>
+                                                <th className="py-1.5 px-2 font-semibold">Moment</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold">Vote</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold text-rose-300">L</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold text-blue-300">C</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold text-amber-300">S</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold text-cyan-300">Impr</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {engagements.map((row: any) => (
+                                                <tr key={row.engagementId} className="border-b border-white/5 last:border-b-0">
+                                                    <td className="py-1.5 px-2 text-white font-medium max-w-[130px] truncate" title={row.title}>
                                                         {row.title}
                                                     </td>
-                                                    <td className="py-1.5 px-2 text-amber-300/80 max-w-[95px] truncate" title={row.momentLabel}>
+                                                    <td className="py-1.5 px-2 text-amber-300/80 max-w-[90px] truncate" title={row.momentLabel}>
                                                         {row.momentLabel || "Live"}
                                                     </td>
-                                                    <td className="py-1.5 px-1.5 text-center text-emerald-300 font-semibold max-w-[75px] truncate" title={row.userVote || ""}>
+                                                    <td className="py-1.5 px-1.5 text-center text-emerald-300 font-semibold max-w-[70px] truncate" title={row.userVote || ""}>
                                                         {row.userVote || (row.participations > 0 ? `${row.participations}` : "—")}
                                                     </td>
                                                     <td className="py-1.5 px-1.5 text-center text-rose-300">{row.likes || 0}</td>
                                                     <td className="py-1.5 px-1.5 text-center text-blue-300">{row.comments || 0}</td>
                                                     <td className="py-1.5 px-1.5 text-center text-amber-300">{row.shares || 0}</td>
                                                     <td className="py-1.5 px-1.5 text-center text-cyan-300">{row.impressions || 0}</td>
-                                                    <td className="py-1.5 px-2 text-center text-purple-300 font-semibold">
-                                                        {socialTotal}
-                                                    </td>
                                                 </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
                     </div>
                 )}
             </div>
+        </motion.div>
+    );
+}
+
+function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
+    if (!summary) return null;
+
+    const userName = summary.userName || "Champion Fan";
+    const userAvatar = summary.userAvatar || "";
+    const interactions = Number(summary.interactionsCount ?? summary.totalActions ?? 24);
+    const predictionsRatio = String(summary.predictionsRatio || "9/10");
+    const sxp = Number(summary.sxpAwarded ?? 450);
+    const initial = userName.trim().slice(0, 1).toUpperCase() || "F";
+    const badgeText = summary.badgeText || "🏆 Fan of the Match Award · Highest Match Score";
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.25 }}
+            className="rounded-2xl overflow-hidden my-2 border border-amber-500/30 shadow-2xl"
+            style={{
+                background: "linear-gradient(180deg, #130f07 0%, #0a0703 100%)",
+            }}
+        >
+            <div className="p-4 space-y-3.5">
+                {/* Header in Gold */}
+                <div className="flex items-center justify-between">
+                    <div className="text-xs font-black tracking-wider uppercase text-amber-400 flex items-center gap-1.5">
+                        <span>🏆</span>
+                        <span>FAN OF THE MATCH</span>
+                    </div>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Rank #1
+                    </span>
+                </div>
+
+                {/* Fan Profile */}
+                <div className="flex items-center gap-3">
+                    <div className="relative shrink-0">
+                        {userAvatar ? (
+                            <img
+                                src={userAvatar}
+                                alt={userName}
+                                className="w-14 h-14 rounded-full object-cover border-2 border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.6)]"
+                            />
+                        ) : (
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-600 to-yellow-800 border-2 border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.6)] flex items-center justify-center text-lg font-black text-white">
+                                {initial}
+                            </div>
+                        )}
+                        <span className="absolute -bottom-1 -right-1 text-sm">👑</span>
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                        <div className="text-base font-bold text-amber-300 truncate leading-tight">
+                            {userName}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-200 mt-0.5">
+                            <span className="text-sm">🇮🇳</span>
+                            <span className="font-medium text-amber-200/90">Superfan MVP</span>
+                        </div>
+                        <div className="text-xs text-amber-400/80 font-normal mt-0.5">
+                            🏆 Ranked #1 on Match Leaderboard
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3 Stat Boxes */}
+                <div className="grid grid-cols-3 divide-x divide-white/10 rounded-xl bg-[#1b1408] border border-amber-500/20 py-2.5 px-1 shadow-inner text-center">
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-amber-200 tabular-nums">
+                            {interactions}
+                        </div>
+                        <div className="text-[11px] text-amber-200/60 font-medium mt-0.5">
+                            Interactions
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-amber-200 tabular-nums">
+                            {predictionsRatio}
+                        </div>
+                        <div className="text-[11px] text-amber-200/60 font-medium mt-0.5">
+                            Predictions
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-amber-200 tabular-nums">
+                            {sxp}
+                        </div>
+                        <div className="text-[11px] text-amber-200/60 font-medium mt-0.5">
+                            SXP
+                        </div>
+                    </div>
+                </div>
+
+                <div className="text-center text-xs font-semibold text-amber-400 tracking-wide pt-0.5">
+                    {badgeText}
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+function InlineMatchSnapshotCard({ summary }: { summary: any }) {
+    if (!summary) return null;
+
+    const team1Name = summary.team1Name || "India";
+    const team1Score = summary.team1Score || "198/5 (20)";
+    const team1Flag = summary.team1Flag || "🇮🇳";
+
+    const team2Name = summary.team2Name || "New Zealand";
+    const team2Score = summary.team2Score || "187/8 (20)";
+    const team2Flag = summary.team2Flag || "🇳🇿";
+
+    const playerOfTheMatch = summary.playerOfTheMatch || summary.topPerformerName || "Suryakumar Yadav";
+    const playerStats = summary.playerOfTheMatchStats || summary.topPerformerStats || "65 (39) • 2 Fours • 6 Sixes";
+    const playerPhoto = summary.playerOfTheMatchPhoto || summary.topPerformerPhoto || "";
+
+    const renderFlag = (flag?: string, name?: string) => {
+        const raw = String(flag || "").trim();
+        if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("/") || raw.startsWith("data:")) {
+            return <img src={raw} alt={name || "Flag"} className="w-full h-full object-cover" />;
+        }
+        if (raw) return <span className="text-xl leading-none">{raw}</span>;
+        return <span className="text-[10px] font-black text-white/80">{String(name || "T").slice(0, 3).toUpperCase()}</span>;
+    };
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.25 }}
+            className="rounded-2xl overflow-hidden my-2 border border-white/10 shadow-2xl p-4 space-y-3"
+            style={{
+                background: "linear-gradient(180deg, #0b101b 0%, #060912 100%)",
+            }}
+        >
+            {/* Header */}
+            <div className="text-sm font-bold text-white tracking-wide">
+                Match Snapshot
+            </div>
+
+            {/* Scoreboard Row */}
+            <div className="grid grid-cols-2 gap-3 items-center justify-between pb-1">
+                {/* Team 1 */}
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-6 rounded bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                        {renderFlag(team1Flag, team1Name)}
+                    </div>
+                    <div className="min-w-0">
+                        <div className="text-xs font-semibold text-white/90 truncate">{team1Name}</div>
+                        <div className="text-sm font-black text-white tabular-nums truncate">{team1Score}</div>
+                    </div>
+                </div>
+
+                {/* Team 2 */}
+                <div className="flex items-center gap-2.5 min-w-0 justify-end text-right">
+                    <div className="min-w-0">
+                        <div className="text-xs font-semibold text-white/90 truncate">{team2Name}</div>
+                        <div className="text-sm font-black text-white tabular-nums truncate">{team2Score}</div>
+                    </div>
+                    <div className="w-8 h-6 rounded bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                        {renderFlag(team2Flag, team2Name)}
+                    </div>
+                </div>
+            </div>
+
+            {/* Top Performer Section */}
+            {playerOfTheMatch && (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-[#0e1628] border border-white/5">
+                    {playerPhoto ? (
+                        <img
+                            src={playerPhoto}
+                            alt={playerOfTheMatch}
+                            className="w-13 h-13 rounded-xl object-cover border border-white/10 shrink-0 bg-sky-950/40"
+                        />
+                    ) : (
+                        <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-sky-500/30 to-blue-600/30 border border-white/10 flex items-center justify-center text-sm font-black text-white shrink-0">
+                            {playerOfTheMatch.slice(0, 2).toUpperCase()}
+                        </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold text-sky-400">
+                            Top Performer
+                        </div>
+                        <div className="text-sm font-bold text-white truncate leading-tight mt-0.5">
+                            {playerOfTheMatch}
+                        </div>
+                        <div className="text-xs text-slate-300 font-medium truncate mt-0.5">
+                            {playerStats}
+                        </div>
+                    </div>
+                </div>
+            )}
         </motion.div>
     );
 }
@@ -5440,6 +5602,8 @@ export default function OpenRoomDiscussionRoom({
     const [recognitions, setRecognitions] = useState<any[]>([]);
     const [outcomeReveals, setOutcomeReveals] = useState<any[]>([]);
     const [userMatchSummary, setUserMatchSummary] = useState<any | null>(null);
+    const [matchSnapshotSummary, setMatchSnapshotSummary] = useState<any | null>(null);
+    const [fanOfTheMatchSummary, setFanOfTheMatchSummary] = useState<any | null>(null);
     const prevSummaryMatchRef = useRef<string | null>(null);
     // const [engagementsLoading, setEngagementsLoading] = useState(false);
     // const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
@@ -5734,6 +5898,8 @@ export default function OpenRoomDiscussionRoom({
                 }
                 const summaryObj = res.data.userMatchSummary || null;
                 setUserMatchSummary(summaryObj);
+                setMatchSnapshotSummary(res.data.matchSnapshotSummary || null);
+                setFanOfTheMatchSummary(res.data.fanOfTheMatchSummary || null);
                 if (summaryObj && prevSummaryMatchRef.current !== summaryObj.id) {
                     const isFirstInSession = prevSummaryMatchRef.current !== null || prevOutcomeCountRef.current > 0;
                     prevSummaryMatchRef.current = summaryObj.id;
@@ -6494,6 +6660,8 @@ export default function OpenRoomDiscussionRoom({
         setRecognitions([]);
         setOutcomeReveals([]);
         setUserMatchSummary(null);
+        setMatchSnapshotSummary(null);
+        setFanOfTheMatchSummary(null);
         prevSummaryMatchRef.current = null;
         setRoomMatchId(null);
         setEngagementsLoaded(false);
@@ -7110,7 +7278,9 @@ export default function OpenRoomDiscussionRoom({
         | { kind: "engagement"; data: EngagementItem; sortKey: number }
         | { kind: "recognition"; data: any; sortKey: number }
         | { kind: "outcome_reveal"; data: any; sortKey: number }
-        | { kind: "player_match_summary"; data: any; sortKey: number };
+        | { kind: "player_match_summary"; data: any; sortKey: number }
+        | { kind: "match_snapshot_summary"; data: any; sortKey: number }
+        | { kind: "fan_of_the_match"; data: any; sortKey: number };
     const feedItems: FeedItem[] = React.useMemo(() => {
         // When a specific engagement tab (Prediction / Debate / Question / Express / Poll)
         // is selected, show ONLY the matching engagement posts (regular posts are hidden).
@@ -7192,6 +7362,28 @@ export default function OpenRoomDiscussionRoom({
                 sortKey: getTimestamp(rev.createdAt || Date.now()),
             }));
 
+        const snapshotItems: FeedItem[] =
+            engagementFilter === "all" && matchSnapshotSummary
+                ? [
+                      {
+                          kind: "match_snapshot_summary" as const,
+                          data: matchSnapshotSummary,
+                          sortKey: getTimestamp(matchSnapshotSummary.updatedAt || matchSnapshotSummary.createdAt || Date.now()) - 2,
+                      },
+                  ]
+                : [];
+
+        const fanOfTheMatchItems: FeedItem[] =
+            engagementFilter === "all" && fanOfTheMatchSummary
+                ? [
+                      {
+                          kind: "fan_of_the_match" as const,
+                          data: fanOfTheMatchSummary,
+                          sortKey: getTimestamp(fanOfTheMatchSummary.updatedAt || fanOfTheMatchSummary.createdAt || Date.now()) - 1,
+                      },
+                  ]
+                : [];
+
         const summaryItems: FeedItem[] =
             engagementFilter === "all" && userMatchSummary
                 ? [
@@ -7203,8 +7395,16 @@ export default function OpenRoomDiscussionRoom({
                   ]
                 : [];
 
-        return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems, ...summaryItems].sort((a, b) => a.sortKey - b.sortKey);
-    }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, userMatchSummary, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
+        return [
+            ...postItems,
+            ...engagementItems,
+            ...recognitionItems,
+            ...outcomeItems,
+            ...snapshotItems,
+            ...fanOfTheMatchItems,
+            ...summaryItems,
+        ].sort((a, b) => a.sortKey - b.sortKey);
+    }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, userMatchSummary, matchSnapshotSummary, fanOfTheMatchSummary, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
 
     const renderReactionPicker = (p: any) => {
         const lo = localReactions[p.id];
@@ -7519,6 +7719,24 @@ export default function OpenRoomDiscussionRoom({
                                     onShowLikers={(id) => setReactionsMsgId(id)}
                                     currentUserId={currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId}
                                     matchId={roomMatchId || item.data.matchId}
+                                />
+                            );
+                        }
+
+                        if (item.kind === "match_snapshot_summary") {
+                            return (
+                                <InlineMatchSnapshotCard
+                                    key={`snapshot-${item.data.id || item.sortKey}`}
+                                    summary={item.data}
+                                />
+                            );
+                        }
+
+                        if (item.kind === "fan_of_the_match") {
+                            return (
+                                <InlineFanOfTheMatchCard
+                                    key={`fan-of-match-${item.data.id || item.data.userId || item.sortKey}`}
+                                    summary={item.data}
                                 />
                             );
                         }

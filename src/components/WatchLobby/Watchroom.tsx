@@ -3610,7 +3610,9 @@ function LiveCameraFeed({
                 </div>
             </div>
 
-            <style jsx>{`
+            <style
+                dangerouslySetInnerHTML={{
+                    __html: `
                 @keyframes scanLine {
                     0% { transform: translateY(0); }
                     50% { transform: translateY(160px); }
@@ -3619,7 +3621,9 @@ function LiveCameraFeed({
                 .animate-scan-line {
                     animation: scanLine 4s linear infinite;
                 }
-            `}</style>
+            `,
+                }}
+            />
         </div>
     );
 }

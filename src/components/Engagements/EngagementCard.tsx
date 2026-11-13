@@ -1091,18 +1091,33 @@ export function useRunningCountdown(
 
 export interface FollowMatchCountdownState {
     isLive: boolean;
+    isCompleted: boolean;
     hasTarget: boolean;
     remainingMs: number;
     label: string;
     statusText: string;
 }
 
-/** Compute live reverse-countdown state for a Follow engagement card; flips to LIVE at 0. */
+/** Compute live reverse-countdown state for a Follow engagement card; flips to LIVE at 0, or Completed when match completed. */
 export function getFollowMatchCountdownState(
     targetTs?: number | string | null,
     nowMs: number = Date.now(),
     explicitStatusLabel?: string
 ): FollowMatchCountdownState {
+    const rawStatus = String(explicitStatusLabel || "").trim().toLowerCase();
+    const isCompleted = rawStatus === "completed" || rawStatus === "match ended" || rawStatus === "settled";
+
+    if (isCompleted) {
+        return {
+            isLive: false,
+            isCompleted: true,
+            hasTarget: false,
+            remainingMs: 0,
+            label: "Completed",
+            statusText: "Completed",
+        };
+    }
+
     let targetMs = NaN;
     if (typeof targetTs === "number") {
         targetMs = targetTs > 0 && targetTs < 1e11 ? targetTs * 1000 : targetTs;
@@ -1115,20 +1130,22 @@ export function getFollowMatchCountdownState(
         }
     }
 
+    const isLiveFallback = rawStatus === "live" || rawStatus === "live now";
+
     if (!Number.isFinite(targetMs) || targetMs <= 0) {
-        const isLiveFallback = String(explicitStatusLabel || "").trim().toLowerCase() === "live";
         return {
             isLive: isLiveFallback,
+            isCompleted: false,
             hasTarget: false,
             remainingMs: 0,
             label: isLiveFallback ? "LIVE" : "Soon",
-            statusText: isLiveFallback ? "LIVE" : String(explicitStatusLabel || "Upcoming").trim() || "Upcoming",
+            statusText: isLiveFallback ? "LIVE" : "Upcoming",
         };
     }
 
     const diffMs = targetMs - nowMs;
-    if (diffMs <= 0) {
-        return { isLive: true, hasTarget: true, remainingMs: 0, label: "LIVE", statusText: "LIVE" };
+    if (diffMs <= 0 || isLiveFallback) {
+        return { isLive: true, isCompleted: false, hasTarget: true, remainingMs: 0, label: "LIVE", statusText: "LIVE" };
     }
 
     const totalSec = Math.ceil(diffMs / 1000);
@@ -1140,9 +1157,10 @@ export function getFollowMatchCountdownState(
 
     return {
         isLive: false,
+        isCompleted: false,
         hasTarget: true,
         remainingMs: diffMs,
-        label: hours >= 1 ? `${hours}h ${mm}m ${ss}s` : `${mm}m ${ss}s`,
+        label: hours >= 1 ? `${hours}h ${mm}m` : `${mm}m ${ss}s`,
         statusText: "Upcoming",
     };
 }
@@ -1865,37 +1883,45 @@ export default function EngagementCard({
         const countdown = getFollowMatchCountdownState(
             fd.matchStartTime || fd.matchStartMs || fd.targetStartMs || (item as any).matchStartMs || (item as any).matchStartTime,
             followNowMs,
-            fd.statusLabel
+            fd.statusLabel || (item as any).matchStatus || item.status
         );
 
         return (
             <div className="rounded-xl border border-white/15 bg-gradient-to-b from-[#161026] via-[#110d1f] to-[#0b0914] overflow-hidden shadow-lg mt-1">
-                {/* Top Upcoming / Live countdown strip */}
+                {/* Top Upcoming / Live countdown strip (status shown in ONLY ONE place) */}
                 <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 bg-black/25">
                     <div className="relative flex items-center">
-                        {countdown.isLive ? (
+                        {countdown.isCompleted ? (
+                            <>
+                                <span className="text-[11px] font-bold text-gray-300 tracking-wide pb-0.5">
+                                    Completed
+                                </span>
+                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gray-500" />
+                            </>
+                        ) : countdown.isLive ? (
                             <>
                                 <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wider text-rose-400 pb-0.5">
                                     <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                                     LIVE
                                 </span>
+                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-rose-500 to-pink-500 shadow-[0_0_8px_rgba(244,63,94,0.85)]" />
                             </>
                         ) : (
                             <>
                                 <span className="text-[11px] font-bold text-white tracking-wide pb-0.5">
                                     {countdown.statusText}
                                 </span>
+                                <span className="absolute -bottom-[9px] left-0 right-0 h-[2px] rounded-full bg-gradient-to-r from-[#8b5cf6] to-[#a855f7] shadow-[0_0_8px_rgba(168,85,247,0.85)]" />
                             </>
                         )}
                     </div>
-                    {countdown.isLive ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-black uppercase tracking-wider text-emerald-400">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                            <span>Live Now</span>
-                        </span>
+                    {/* Right side: show reverse timer only when upcoming; when live or completed, show chevron without duplicating status text */}
+                    {countdown.isCompleted ? (
+                        <ChevronRight size={13} className="text-white/40" />
+                    ) : countdown.isLive ? (
+                        <ChevronRight size={13} className="text-white/60" />
                     ) : (
-                        <span className="text-[11px] font-semibold text-white/85 flex items-center gap-1 tabular-nums">
-                            {countdown.hasTarget && <Clock size={11} className="text-purple-300/80" />}
+                        <span className="text-xs font-semibold text-white/80 flex items-center gap-1 tabular-nums">
                             <span>{countdown.label}</span>
                             <ChevronRight size={13} className="text-white/60" />
                         </span>
@@ -1932,43 +1958,32 @@ export default function EngagementCard({
                         </p>
                     )}
 
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2">
+                    {/* Action Buttons (user can select follow or remind until match completes; counts stored in DB but not rendered on button) */}
+                    <div className="grid grid-cols-2 gap-2.5">
                         <button
                             type="button"
-                            disabled={isTogglingFollow === "follow"}
+                            disabled={countdown.isCompleted || isTogglingFollow === "follow"}
                             onClick={() => handleFollowAction("follow")}
-                            className={`h-8 rounded-lg px-2.5 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 ${
+                            className={`h-9 rounded-xl px-2.5 text-xs font-bold inline-flex items-center justify-center transition-all disabled:opacity-60 ${
                                 isFollowing
-                                    ? "bg-[#7c3aed]/20 border border-[#8b5cf6] text-white shadow-[0_0_12px_rgba(139,92,246,0.45)]"
+                                    ? "bg-[#7c3aed]/25 border border-[#8b5cf6] text-white shadow-[0_0_12px_rgba(139,92,246,0.45)]"
                                     : "bg-white/[0.04] border border-white/20 text-white/85 hover:border-purple-400/60 hover:bg-purple-500/10"
                             }`}
                         >
                             <span>{isFollowing ? "Following" : "Follow"}</span>
-                            {followCount > 0 && (
-                                <span className="text-[10px] font-semibold text-purple-200/80 tabular-nums">
-                                    ({followCount})
-                                </span>
-                            )}
                         </button>
 
                         <button
                             type="button"
-                            disabled={isTogglingFollow === "remind"}
+                            disabled={countdown.isCompleted || isTogglingFollow === "remind"}
                             onClick={() => handleFollowAction("remind")}
-                            className={`h-8 rounded-lg px-2.5 text-xs font-bold inline-flex items-center justify-center gap-1.5 transition-all disabled:opacity-60 ${
+                            className={`h-9 rounded-xl px-2.5 text-xs font-bold inline-flex items-center justify-center transition-all disabled:opacity-60 ${
                                 isReminded
-                                    ? "bg-[#7c3aed]/20 border border-[#8b5cf6] text-white shadow-[0_0_12px_rgba(139,92,246,0.45)]"
+                                    ? "bg-[#7c3aed]/25 border border-[#8b5cf6] text-white shadow-[0_0_12px_rgba(139,92,246,0.45)]"
                                     : "bg-white/[0.04] border border-white/20 text-white/85 hover:border-purple-400/60 hover:bg-purple-500/10"
                             }`}
                         >
-                            {isReminded ? <Check size={12} className="text-purple-300" /> : <Bell size={12} className="text-white/70" />}
                             <span>{isReminded ? "Reminded" : "Remind Me"}</span>
-                            {remindCount > 0 && (
-                                <span className="text-[10px] font-semibold text-purple-200/80 tabular-nums">
-                                    ({remindCount})
-                                </span>
-                            )}
                         </button>
                     </div>
 
@@ -2007,32 +2022,30 @@ export default function EngagementCard({
                         <div className="text-sm font-bold text-white tracking-tight">
                             {mr.snapshotHeading || "Match Snapshot"}
                         </div>
-                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                        <div className="grid grid-cols-2 gap-3 items-center justify-between">
                             <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-10 h-7 rounded-sm bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                                <div className="w-11 h-8 rounded-md bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
                                     {renderFlagVisual(mr.team1Flag, mr.team1Name || mr.team1Code)}
                                 </div>
                                 <div className="min-w-0">
-                                    <div className="text-[11px] font-medium text-white/75 truncate">
+                                    <div className="text-xs font-semibold text-white/90 truncate">
                                         {team1Label}
                                     </div>
-                                    <div className="text-sm font-extrabold text-white tabular-nums truncate">
+                                    <div className="text-sm sm:text-base font-extrabold text-white tabular-nums truncate">
                                         {mr.team1Score || "-"}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="h-8 w-px bg-white/15" />
-
                             <div className="flex items-center gap-2.5 min-w-0">
-                                <div className="w-10 h-7 rounded-sm bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                                <div className="w-11 h-8 rounded-md bg-white/[0.06] border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
                                     {renderFlagVisual(mr.team2Flag, mr.team2Name || mr.team2Code)}
                                 </div>
                                 <div className="min-w-0">
-                                    <div className="text-[11px] font-medium text-white/75 truncate">
+                                    <div className="text-xs font-semibold text-white/90 truncate">
                                         {team2Label}
                                     </div>
-                                    <div className="text-sm font-extrabold text-white tabular-nums truncate">
+                                    <div className="text-sm sm:text-base font-extrabold text-white tabular-nums truncate">
                                         {mr.team2Score || "-"}
                                     </div>
                                 </div>
@@ -2060,14 +2073,14 @@ export default function EngagementCard({
                             )}
                         </div>
                         <div className="min-w-0 flex-1">
-                            <div className="text-[11px] font-semibold text-[#60a5fa]">
+                            <div className="text-xs font-bold text-[#38bdf8]">
                                 {mr.performerLabel || "Top Performer"}
                             </div>
-                            <div className="text-base font-extrabold text-white leading-tight truncate">
+                            <div className="text-sm sm:text-base font-extrabold text-white leading-tight truncate mt-0.5">
                                 {mr.playerName}
                             </div>
                             {mr.playerStats && (
-                                <div className="text-xs text-white/80 font-medium mt-0.5 truncate">
+                                <div className="text-xs text-white/80 font-normal mt-1 truncate">
                                     {mr.playerStats}
                                 </div>
                             )}
