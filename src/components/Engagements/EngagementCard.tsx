@@ -152,6 +152,7 @@
 //     });
 //     // Comments count state
 //     const [showComments, setShowComments] = useState(false);
+
 //     const [commentsCount, setCommentsCount] = useState<number>(() => {
 //         return Number(item.commentsCount ?? item.memeData?.commentsCount ?? 0);
 //     });
@@ -1031,6 +1032,8 @@ import { useAuth } from "@/context/AuthContext";
 import { resolveEngagementViewer, useEngagementImpression } from "@/src/hooks/useEngagementImpression";
 import EngagementCommentsThread from "./EngagementCommentsThread";
 
+const COMMENTS_OPENED_EVENT = "engagement-comments-opened";
+
 export interface EngagementCardProps {
     item: EngagementItem;
     onInteraction?: (data?: any) => void;
@@ -1271,6 +1274,20 @@ export default function EngagementCard({
 
     // Comments count state
     const [showComments, setShowComments] = useState(false);
+
+    // Only one comment thread open at a time: opening this one tells every other card to close.
+    useEffect(() => {
+        const onOtherOpened = (e: Event) => {
+            if ((e as CustomEvent<string>).detail !== item.id) setShowComments(false);
+        };
+        window.addEventListener(COMMENTS_OPENED_EVENT, onOtherOpened);
+        return () => window.removeEventListener(COMMENTS_OPENED_EVENT, onOtherOpened);
+    }, [item.id]);
+    const toggleComments = () => {
+        const next = !showComments;
+        setShowComments(next);
+        if (next) window.dispatchEvent(new CustomEvent(COMMENTS_OPENED_EVENT, { detail: item.id }));
+    };
     const [commentsCount, setCommentsCount] = useState<number>(() => {
         return Number(item.commentsCount ?? item.memeData?.commentsCount ?? 0);
     });
@@ -2696,7 +2713,7 @@ export default function EngagementCard({
                     {/* Comments Toggle Button */}
                     <button
                         type="button"
-                        onClick={() => setShowComments(prev => !prev)}
+                        onClick={toggleComments}
                         className={`flex items-center gap-1.5 text-[11px] font-medium transition-colors ${showComments ? "text-[#e91e8c]" : "text-[#9494ad] hover:text-white"
                             }`}
                         title="View comments"
@@ -2844,7 +2861,7 @@ export default function EngagementCard({
                     {/* Comments Button */}
                     <button
                         type="button"
-                        onClick={() => setShowComments(prev => !prev)}
+                        onClick={toggleComments}
                         className={`flex items-center gap-1 transition-colors ${showComments ? "text-[#e91e8c] font-bold" : "hover:text-white"
                             }`}
                         title="View comments"
