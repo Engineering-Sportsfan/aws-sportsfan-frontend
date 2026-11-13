@@ -5453,18 +5453,19 @@ function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
 function InlineMatchSnapshotCard({ summary }: { summary: any }) {
     if (!summary) return null;
 
-    const team1Name = summary.team1Name || summary.team1 || summary.team1Code || "India";
-    const team1Score = summary.team1Score || summary.score1 || "198/5 (20)";
-    const team1Flag = summary.team1Flag || summary.flag1 || "https://flagcdn.com/w80/in.png";
+    const mr = summary.matchResultData || summary.resultData || summary;
+    const team1Name = mr.team1Name || mr.team1 || mr.team1Code || summary.team1Name || summary.team1 || "India";
+    const team1Score = mr.team1Score || mr.score1 || summary.team1Score || "198/5 (20)";
+    const team1Flag = mr.team1Flag || mr.flag1 || summary.team1Flag || "https://flagcdn.com/w80/in.png";
 
-    const team2Name = summary.team2Name || summary.team2 || summary.team2Code || "New Zealand";
-    const team2Score = summary.team2Score || summary.score2 || "187/8 (20)";
-    const team2Flag = summary.team2Flag || summary.flag2 || "https://flagcdn.com/w80/nz.png";
+    const team2Name = mr.team2Name || mr.team2 || mr.team2Code || summary.team2Name || summary.team2 || "New Zealand";
+    const team2Score = mr.team2Score || mr.score2 || summary.team2Score || "187/8 (20)";
+    const team2Flag = mr.team2Flag || mr.flag2 || summary.team2Flag || "https://flagcdn.com/w80/nz.png";
 
-    const playerOfTheMatch = summary.playerOfTheMatch || summary.topPerformerName || summary.playerName || "Virat Kohli";
-    const playerStats = summary.playerOfTheMatchStats || summary.topPerformerStats || summary.playerStats || "65 (39) • 2 Fours • 6 Sixes";
-    const playerPhoto = summary.playerOfTheMatchPhoto || summary.topPerformerPhoto || summary.playerImageUrl || "";
-    const resultSummary = summary.resultSummary || "";
+    const playerOfTheMatch = mr.playerName || mr.playerOfTheMatch || mr.topPerformerName || summary.playerOfTheMatch || summary.playerName || "Virat Kohli";
+    const playerStats = mr.playerStats || mr.playerOfTheMatchStats || mr.topPerformerStats || summary.playerStats || "65 (39) • 2 Fours • 6 Sixes";
+    const playerPhoto = mr.playerImageUrl || mr.playerOfTheMatchPhoto || mr.topPerformerPhoto || summary.playerImageUrl || summary.playerPhoto || "";
+    const resultSummary = mr.resultSummary || summary.resultSummary || "";
 
     const renderFlag = (flag?: string, name?: string) => {
         const raw = String(flag || "").trim();
@@ -5480,26 +5481,32 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
             initial={{ opacity: 0, y: 12, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.25 }}
-            className="rounded-2xl overflow-hidden my-2 border border-white/10 shadow-2xl p-4 space-y-3"
+            className="rounded-2xl overflow-hidden my-2.5 border border-white/10 shadow-2xl p-4 space-y-3.5"
             style={{
                 background: "linear-gradient(180deg, #0b101b 0%, #060912 100%)",
             }}
         >
-            {/* Header */}
-            <div className="text-sm font-bold text-white tracking-wide">
-                {summary.snapshotHeading || "Match Snapshot"}
+            {/* Header in Emerald */}
+            <div className="flex items-center justify-between">
+                <div className="text-xs font-black tracking-wider uppercase text-emerald-400 flex items-center gap-1.5">
+                    <span>🏆</span>
+                    <span>MATCH SNAPSHOT</span>
+                </div>
+                <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                    FINAL RESULT
+                </span>
             </div>
 
             {/* Scoreboard Row */}
-            <div className="grid grid-cols-2 gap-3 items-center justify-between pb-1">
+            <div className="grid grid-cols-2 gap-3 items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5">
                 {/* Team 1 */}
                 <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-6 rounded bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                    <div className="w-10 h-7 rounded-md bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
                         {renderFlag(team1Flag, team1Name)}
                     </div>
                     <div className="min-w-0">
                         <div className="text-xs font-semibold text-white/90 truncate">{team1Name}</div>
-                        <div className="text-sm font-black text-white tabular-nums truncate">{team1Score}</div>
+                        <div className="text-sm sm:text-base font-black text-white tabular-nums truncate">{team1Score}</div>
                     </div>
                 </div>
 
@@ -5507,16 +5514,16 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                 <div className="flex items-center gap-2.5 min-w-0 justify-end text-right">
                     <div className="min-w-0">
                         <div className="text-xs font-semibold text-white/90 truncate">{team2Name}</div>
-                        <div className="text-sm font-black text-white tabular-nums truncate">{team2Score}</div>
+                        <div className="text-sm sm:text-base font-black text-white tabular-nums truncate">{team2Score}</div>
                     </div>
-                    <div className="w-8 h-6 rounded bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
+                    <div className="w-10 h-7 rounded-md bg-white/5 border border-white/10 overflow-hidden flex items-center justify-center shrink-0">
                         {renderFlag(team2Flag, team2Name)}
                     </div>
                 </div>
             </div>
 
             {resultSummary && (
-                <div className="text-[11px] font-semibold text-emerald-400 pt-1.5 border-t border-white/5">
+                <div className="text-center text-xs font-bold text-emerald-400 py-1.5 px-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
                     {resultSummary}
                 </div>
             )}
@@ -5537,7 +5544,7 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                     )}
                     <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-sky-400">
-                            {summary.topPerformerLabel || "Top Performer"}
+                            {mr.performerLabel || summary.topPerformerLabel || "Top Performer"}
                         </div>
                         <div className="text-sm font-bold text-white truncate leading-tight mt-0.5">
                             {playerOfTheMatch}
@@ -5548,6 +5555,26 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                     </div>
                 </div>
             )}
+
+            {/* 3 Stat Boxes matching user shared UI */}
+            <div className="grid grid-cols-3 divide-x divide-white/10 rounded-xl bg-[#0e1628] border border-white/5 py-2.5 px-1 shadow-inner text-center">
+                <div>
+                    <div className="text-xs sm:text-sm font-black text-white truncate">{team1Score}</div>
+                    <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">{team1Name}</div>
+                </div>
+                <div>
+                    <div className="text-xs sm:text-sm font-black text-emerald-300">FINAL</div>
+                    <div className="text-[10px] text-emerald-400/80 font-medium mt-0.5">Match Status</div>
+                </div>
+                <div>
+                    <div className="text-xs sm:text-sm font-black text-white truncate">{team2Score}</div>
+                    <div className="text-[10px] text-slate-400 font-medium mt-0.5 truncate">{team2Name}</div>
+                </div>
+            </div>
+
+            <div className="text-center text-xs font-semibold text-emerald-400/80 tracking-wide pt-0.5">
+                🏆 Official Match Summary & Top Performer
+            </div>
         </motion.div>
     );
 }
@@ -7788,6 +7815,14 @@ export default function OpenRoomDiscussionRoom({
                         }
 
                         if (item.kind === "engagement") {
+                            if (item.data.type === "match_result") {
+                                return (
+                                    <InlineMatchSnapshotCard
+                                        key={`eng-snapshot-${item.data.id}`}
+                                        summary={item.data}
+                                    />
+                                );
+                            }
                             return (
                                 <div
                                     key={`eng-${item.data.id}`}

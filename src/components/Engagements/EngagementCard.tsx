@@ -2631,6 +2631,15 @@ export default function EngagementCard({
     // VARIANT: "post" (Matches regular room discussion posts seamlessly)
     // ─────────────────────────────────────────────────────────────
     if (variant === "post") {
+        // Match Result (Match Snapshot & Top Performer) is a rich summary card, not a chat post
+        if (item.type === "match_result") {
+            return (
+                <div ref={cardRef} className={`w-full my-2.5 ${className}`}>
+                    {renderMatchResult()}
+                </div>
+            );
+        }
+
         return (
             <motion.div
                 ref={cardRef}
