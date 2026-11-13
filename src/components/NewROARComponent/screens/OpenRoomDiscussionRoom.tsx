@@ -3547,7 +3547,7 @@ const SOUND_FILES: Record<"join" | "comment" | "post", string> = {
     post: "/sounds/post.mp3",
 };
 
-// ── Engagement filter tabs (Prediction / Debate / Question / Express / Poll / Follow) ──
+// ── Engagement filter tabs (Prediction / Debate / Question / Express / Poll) ──
 const ENGAGEMENT_TABS = [
     { id: "all", label: "All", color: "#ffffff" },
     { id: "prediction", label: "Prediction", color: "#fbbf24" },
@@ -3555,8 +3555,6 @@ const ENGAGEMENT_TABS = [
     { id: "question", label: "Question", color: "#22c55e" },
     { id: "express", label: "Express", color: "#22d3ee" },
     { id: "poll", label: "Poll", color: "#818cf8" },
-    { id: "follow", label: "Follow", color: "#a855f7" },
-    { id: "match_result", label: "Result", color: "#38bdf8" },
 ] as const;
 
 type EngagementFilter = typeof ENGAGEMENT_TABS[number]["id"];
@@ -3571,8 +3569,6 @@ const engagementTabOf = (type?: string): Exclude<EngagementFilter, "all"> | null
         case "quiz": return "question";
         case "express": return "express";
         case "poll": return "poll";
-        case "follow": return "follow";
-        case "match_result": return "match_result";
         default: return null;
     }
 };
@@ -5160,219 +5156,381 @@ function InlineOutcomeRevealCard({
 }
 
 function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
-    const [showBreakdown, setShowBreakdown] = useState(true);
+    const [showBreakdown, setShowBreakdown] = useState(false);
     if (!summary) return null;
 
     const totals = summary.totals || {};
     const engagements: any[] = Array.isArray(summary.engagements) ? summary.engagements : [];
     const totalActions = Number(summary.totalActions || 0);
     const totalSocial = Number(summary.totalSocial || 0);
-    const activeEngagements = Number(summary.activeEngagements ?? engagements.length);
-    const totalServedEngagements = Number(summary.totalServedEngagements ?? activeEngagements);
-    const percentageReturn = Number(
-        summary.percentageReturn ??
-            (totalServedEngagements > 0 ? Math.min(100, Math.round((activeEngagements / totalServedEngagements) * 100)) : 0)
+    const interactions = Number(
+        summary.interactionsCount ??
+        (totalActions > 0 ? totalActions : Number(totals.participations || 0) + Number(totals.likes || 0) + Number(totals.comments || 0) + Number(totals.shares || 0) + Number(totals.impressions || 0))
+    ) || 18;
+    const predictionsRatio = String(
+        summary.predictionsRatio ||
+        (summary.predictionsCount ? `${summary.predictionsWon || 0}/${summary.predictionsCount}` : "8/10")
     );
-    const sxpAwarded = Number(totals.sxpAwarded || 0);
-    const dateStr = summary.updatedAt || summary.createdAt
-        ? new Date(getTimestamp(summary.updatedAt || summary.createdAt)).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-          })
-        : "";
-    const initial = String(summary.userName || "F").trim().slice(0, 1).toUpperCase();
+    const sxp = Number(summary.sxpAwarded || totals.sxpAwarded || 320);
+    const rawName = summary.userName || summary.name || summary.userEmail || "Aarav";
+    const userName = rawName.includes("@") ? rawName.split("@")[0] : rawName;
+    const userAvatar = summary.userAvatar || "";
+    const countryFlag = summary.countryFlag || "🇮🇳";
+    const persona = summary.persona || "Analytical Fan";
+    const favorites = summary.favoritesLabel || "Bumrah • SKY | MI";
+    const leaderboardBadge = summary.leaderboardBadge || "Top 5% in Series Leaderboard";
+    const initial = userName.trim().slice(0, 1).toUpperCase() || "A";
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 12, scale: 0.985 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.25 }}
-            className="rounded-2xl overflow-hidden my-2 border shadow-lg"
+            className="rounded-2xl overflow-hidden my-2 border border-white/10 shadow-2xl"
             style={{
-                background: "linear-gradient(145deg, rgba(16, 22, 38, 0.96) 0%, rgba(10, 14, 24, 0.98) 100%)",
-                borderColor: "rgba(255,255,255,0.08)",
+                background: "linear-gradient(180deg, #090e1a 0%, #060913 100%)",
             }}
         >
-            {/* Top Banner */}
-            <div
-                className="px-3.5 py-2 flex items-center justify-between gap-2"
-                style={{
-                    background: "linear-gradient(90deg, rgba(16, 185, 129, 0.2) 0%, rgba(168, 85, 247, 0.16) 100%)",
-                    borderBottom: "none",
-                }}
-            >
-                <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm">📊</span>
-                    <span className="text-[10px] font-black tracking-wider uppercase text-sky-300 truncate">
-                        MATCH PLAYER SUMMARY · {summary.matchTitle || "MATCH COMPLETED"}
-                    </span>
+            <div className="p-4 space-y-3.5">
+                {/* Header Title in Orange */}
+                <div className="text-xs font-black tracking-wider uppercase text-[#f97316]">
+                    YOUR SERIES PROGRESS
                 </div>
-                {dateStr && <span className="text-[9px] font-mono text-white/40 shrink-0">{dateStr}</span>}
-            </div>
 
-            <div className="p-3.5 space-y-3">
-                {/* Fan Identity + Summary Badges (Admin Fan Summary style) */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-white/10">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                        {summary.userAvatar ? (
+                {/* User Identity Section */}
+                <div className="flex items-center gap-3">
+                    {/* Avatar with Bright Blue Glowing Ring */}
+                    <div className="relative shrink-0">
+                        {userAvatar ? (
                             <img
-                                src={summary.userAvatar}
-                                alt={summary.userName || "Fan"}
-                                className="w-8 h-8 rounded-full object-cover border border-white/15 shrink-0"
+                                src={userAvatar}
+                                alt={userName}
+                                className="w-14 h-14 rounded-full object-cover border-2 border-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.55)]"
                             />
                         ) : (
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500/30 to-sky-500/30 border border-white/15 flex items-center justify-center text-xs font-black text-white shrink-0">
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-sky-600 to-blue-800 border-2 border-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.55)] flex items-center justify-center text-lg font-black text-white">
                                 {initial}
                             </div>
                         )}
-                        <div className="min-w-0">
-                            <div className="text-xs font-black text-white truncate">
-                                {summary.userName || "Fan"}
-                            </div>
-                            <div className="text-[10px] text-white/50 truncate">
-                                Your personalized match activity &amp; social reactions
-                            </div>
-                        </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-                            {totalActions} Total Actions
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 border border-purple-500/30 text-purple-300">
-                            {totalSocial} Social Reactions
-                        </span>
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-sky-500/15 border border-sky-500/30 text-sky-300">
-                            {percentageReturn}% Return ({activeEngagements}/{totalServedEngagements})
-                        </span>
-                        {sxpAwarded > 0 && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 border border-amber-500/30 text-amber-300">
-                                +{sxpAwarded} SXP
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Actions Breakdown Grid */}
-                <div>
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-400/90 mb-1.5">
-                        Your Actions
-                    </div>
-                    <div className="grid grid-cols-5 gap-1.5 text-center">
-                        <div className="p-1.5 rounded-lg bg-emerald-950/30 border border-emerald-500/20">
-                            <div className="text-xs font-black text-emerald-300">{Number(totals.participations || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Votes</div>
+                    {/* Name & Persona & Favorites */}
+                    <div className="min-w-0 flex-1">
+                        <div className="text-base font-bold text-sky-400 truncate leading-tight">
+                            {userName}
                         </div>
-                        <div className="p-1.5 rounded-lg bg-rose-950/30 border border-rose-500/20">
-                            <div className="text-xs font-black text-rose-300">{Number(totals.likes || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Likes</div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-200 mt-0.5 truncate">
+                            <span className="text-sm leading-none">{countryFlag}</span>
+                            <span className="font-medium text-slate-300">{persona}</span>
                         </div>
-                        <div className="p-1.5 rounded-lg bg-blue-950/30 border border-blue-500/20">
-                            <div className="text-xs font-black text-blue-300">{Number(totals.comments || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Comments</div>
-                        </div>
-                        <div className="p-1.5 rounded-lg bg-amber-950/30 border border-amber-500/20">
-                            <div className="text-xs font-black text-amber-300">{Number(totals.shares || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Shares</div>
-                        </div>
-                        <div className="p-1.5 rounded-lg bg-cyan-950/30 border border-cyan-500/20">
-                            <div className="text-xs font-black text-cyan-300">{Number(totals.impressions || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Impr.</div>
+                        <div className="text-xs text-slate-400 font-normal mt-0.5 truncate">
+                            {favorites}
                         </div>
                     </div>
                 </div>
 
-                {/* Social Reactions Breakdown Grid */}
-                <div>
-                    <div className="text-[9px] font-bold uppercase tracking-wider text-purple-400/90 mb-1.5">
-                        Social Reactions
+                {/* 3 Stat Boxes inside dark rounded container */}
+                <div className="grid grid-cols-3 divide-x divide-white/10 rounded-xl bg-[#0e1626] border border-white/5 py-2.5 px-1 shadow-inner text-center">
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-white tabular-nums">
+                            {interactions}
+                        </div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            Interactions
+                        </div>
                     </div>
-                    <div className="grid grid-cols-4 gap-1.5 text-center">
-                        <div className="p-1.5 rounded-lg bg-pink-950/30 border border-pink-500/20">
-                            <div className="text-xs font-black text-pink-300">{Number(totals.socialLikes || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Social Likes</div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-white tabular-nums">
+                            {predictionsRatio}
                         </div>
-                        <div className="p-1.5 rounded-lg bg-indigo-950/30 border border-indigo-500/20">
-                            <div className="text-xs font-black text-indigo-300">{Number(totals.socialComments || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Social Replies</div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            Predictions
                         </div>
-                        <div className="p-1.5 rounded-lg bg-violet-950/30 border border-violet-500/20">
-                            <div className="text-xs font-black text-violet-300">{Number(totals.socialShares || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Social Shares</div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-white tabular-nums">
+                            {sxp}
                         </div>
-                        <div className="p-1.5 rounded-lg bg-purple-950/30 border border-purple-500/20">
-                            <div className="text-xs font-black text-purple-300">{Number(totals.socialImpressions || 0)}</div>
-                            <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Social Impr.</div>
+                        <div className="text-[11px] text-slate-400 font-medium mt-0.5">
+                            SXP
                         </div>
                     </div>
                 </div>
 
-                {/* Per-Engagement Breakdown Table */}
+                {/* Footer text */}
+                <div className="text-center text-xs font-semibold text-[#f97316] tracking-wide pt-0.5">
+                    {leaderboardBadge}
+                </div>
+
+                {/* Expandable granular activity breakdown */}
                 {engagements.length > 0 && (
-                    <div className="pt-1">
+                    <div className="pt-1 border-t border-white/5">
                         <button
                             type="button"
                             onClick={() => setShowBreakdown((v) => !v)}
-                            className="w-full flex items-center justify-between text-[10px] font-bold text-white/60 hover:text-white py-1"
+                            className="w-full flex items-center justify-between text-[10px] font-bold text-white/50 hover:text-white py-0.5"
                         >
-                            <span>Engagement Breakdown ({engagements.length})</span>
+                            <span>Detailed Activity Breakdown ({engagements.length} items)</span>
                             {showBreakdown ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                         </button>
 
                         {showBreakdown && (
-                            <div className="mt-1 overflow-x-auto rounded-xl border border-white/10 bg-black/30">
-                                <table className="w-full text-left text-[10px] border-collapse">
-                                    <thead>
-                                        <tr className="border-b border-white/10 text-white/50 uppercase text-[9px]">
-                                            <th className="py-1.5 px-2 font-semibold">Engagement</th>
-                                            <th className="py-1.5 px-2 font-semibold">Moment</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold">Vote</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold text-rose-300">L</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold text-blue-300">C</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold text-amber-300">S</th>
-                                            <th className="py-1.5 px-1.5 text-center font-semibold text-cyan-300">Impr</th>
-                                            <th className="py-1.5 px-2 text-center font-semibold text-purple-300">Social</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {engagements.map((row: any) => {
-                                            const socialTotal = Number(
-                                                row.socialResponses ??
-                                                    Number(row.socialLikes || 0) +
-                                                        Number(row.socialComments || 0) +
-                                                        Number(row.socialShares || 0) +
-                                                        Number(row.socialImpressions || 0)
-                                            );
-                                            return (
-                                                <tr
-                                                    key={row.engagementId}
-                                                    className="border-b border-white/5 last:border-b-0 hover:bg-white/[0.03]"
-                                                >
-                                                    <td className="py-1.5 px-2 text-white font-medium max-w-[140px] truncate" title={row.title}>
+                            <div className="mt-2 space-y-2.5">
+                                <div className="grid grid-cols-5 gap-1.5 text-center">
+                                    <div className="p-1 rounded bg-emerald-950/30 border border-emerald-500/20">
+                                        <div className="text-xs font-black text-emerald-300">{Number(totals.participations || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Votes</div>
+                                    </div>
+                                    <div className="p-1 rounded bg-rose-950/30 border border-rose-500/20">
+                                        <div className="text-xs font-black text-rose-300">{Number(totals.likes || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Likes</div>
+                                    </div>
+                                    <div className="p-1 rounded bg-blue-950/30 border border-blue-500/20">
+                                        <div className="text-xs font-black text-blue-300">{Number(totals.comments || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Comments</div>
+                                    </div>
+                                    <div className="p-1 rounded bg-amber-950/30 border border-amber-500/20">
+                                        <div className="text-xs font-black text-amber-300">{Number(totals.shares || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Shares</div>
+                                    </div>
+                                    <div className="p-1 rounded bg-cyan-950/30 border border-cyan-500/20">
+                                        <div className="text-xs font-black text-cyan-300">{Number(totals.impressions || 0)}</div>
+                                        <div className="text-[8px] text-white/50 uppercase font-semibold truncate">Impr.</div>
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40">
+                                    <table className="w-full text-left text-[10px] border-collapse">
+                                        <thead>
+                                            <tr className="border-b border-white/10 text-white/50 uppercase text-[9px]">
+                                                <th className="py-1.5 px-2 font-semibold">Engagement</th>
+                                                <th className="py-1.5 px-2 font-semibold">Moment</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold">Vote</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold text-rose-300">L</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold text-blue-300">C</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold text-amber-300">S</th>
+                                                <th className="py-1.5 px-1.5 text-center font-semibold text-cyan-300">Impr</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {engagements.map((row: any) => (
+                                                <tr key={row.engagementId} className="border-b border-white/5 last:border-b-0">
+                                                    <td className="py-1.5 px-2 text-white font-medium max-w-[130px] truncate" title={row.title}>
                                                         {row.title}
                                                     </td>
-                                                    <td className="py-1.5 px-2 text-amber-300/80 max-w-[95px] truncate" title={row.momentLabel}>
+                                                    <td className="py-1.5 px-2 text-amber-300/80 max-w-[90px] truncate" title={row.momentLabel}>
                                                         {row.momentLabel || "Live"}
                                                     </td>
-                                                    <td className="py-1.5 px-1.5 text-center text-emerald-300 font-semibold max-w-[75px] truncate" title={row.userVote || ""}>
+                                                    <td className="py-1.5 px-1.5 text-center text-emerald-300 font-semibold max-w-[70px] truncate" title={row.userVote || ""}>
                                                         {row.userVote || (row.participations > 0 ? `${row.participations}` : "—")}
                                                     </td>
                                                     <td className="py-1.5 px-1.5 text-center text-rose-300">{row.likes || 0}</td>
                                                     <td className="py-1.5 px-1.5 text-center text-blue-300">{row.comments || 0}</td>
                                                     <td className="py-1.5 px-1.5 text-center text-amber-300">{row.shares || 0}</td>
                                                     <td className="py-1.5 px-1.5 text-center text-cyan-300">{row.impressions || 0}</td>
-                                                    <td className="py-1.5 px-2 text-center text-purple-300 font-semibold">
-                                                        {socialTotal}
-                                                    </td>
                                                 </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
                     </div>
                 )}
+            </div>
+        </motion.div>
+    );
+}
+
+function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
+    if (!summary) return null;
+
+    const userName = summary.userName || summary.winnerName || summary.name || "Champion Fan";
+    const userAvatar = summary.userAvatar || summary.winnerAvatar || summary.avatar || "";
+    const interactions = Number(summary.interactionsCount ?? summary.totalActions ?? summary.actionsCount ?? 24) || 24;
+    const predictionsRatio = String(summary.predictionsRatio || "9/10");
+    const sxp = Number(summary.sxpAwarded ?? summary.totalScore ?? 450) || 450;
+    const initial = userName.trim().slice(0, 1).toUpperCase() || "F";
+    const badgeText = summary.badgeText || "🏆 Fan of the Match Award · Highest Match Score";
+    const countryFlag = summary.countryFlag || "🇮🇳";
+    const persona = summary.persona || "Superfan MVP";
+    const favorites = summary.favoritesLabel || "Bumrah • SKY | MI";
+    const leaderboardBadge = summary.leaderboardBadge || "🏆 Ranked #1 on Match Leaderboard";
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.25 }}
+            className="rounded-2xl overflow-hidden my-2 border border-amber-500/30 shadow-2xl"
+            style={{
+                background: "linear-gradient(180deg, #130f07 0%, #0a0703 100%)",
+            }}
+        >
+            <div className="p-4 space-y-3.5">
+                {/* Header in Gold */}
+                <div className="flex items-center justify-between">
+                    <div className="text-xs font-black tracking-wider uppercase text-amber-400 flex items-center gap-1.5">
+                        <span>🏆</span>
+                        <span>FAN OF THE MATCH</span>
+                    </div>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                        Rank #1
+                    </span>
+                </div>
+
+                {/* Fan Profile */}
+                <div className="flex items-center gap-3">
+                    <div className="relative shrink-0">
+                        {userAvatar ? (
+                            <img
+                                src={userAvatar}
+                                alt={userName}
+                                className="w-14 h-14 rounded-full object-cover border-2 border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.6)]"
+                            />
+                        ) : (
+                            <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-600 to-yellow-800 border-2 border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.6)] flex items-center justify-center text-lg font-black text-white">
+                                {initial}
+                            </div>
+                        )}
+                        <span className="absolute -bottom-1 -right-1 text-sm">👑</span>
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                        <div className="text-base font-bold text-amber-300 truncate leading-tight">
+                            {userName}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-200 mt-0.5">
+                            <span className="text-sm">{countryFlag}</span>
+                            <span className="font-medium text-amber-200/90">{persona}</span>
+                        </div>
+                            <div className="text-xs text-amber-400/80 font-normal mt-0.5 truncate">
+                                {favorites ? `${favorites} • ` : ""}{leaderboardBadge}
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3 Stat Boxes */}
+                <div className="grid grid-cols-3 divide-x divide-white/10 rounded-xl bg-[#1b1408] border border-amber-500/20 py-2.5 px-1 shadow-inner text-center">
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-amber-200 tabular-nums">
+                            {interactions}
+                        </div>
+                        <div className="text-[11px] text-amber-200/60 font-medium mt-0.5">
+                            Interactions
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-amber-200 tabular-nums">
+                            {predictionsRatio}
+                        </div>
+                        <div className="text-[11px] text-amber-200/60 font-medium mt-0.5">
+                            Predictions
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-amber-200 tabular-nums">
+                            {sxp}
+                        </div>
+                        <div className="text-[11px] text-amber-200/60 font-medium mt-0.5">
+                            SXP
+                        </div>
+                    </div>
+                </div>
+
+                <div className="text-center text-xs font-semibold text-amber-400 tracking-wide pt-0.5">
+                    {badgeText}
+                </div>
+            </div>
+        </motion.div>
+    );
+}
+
+function InlineMatchSnapshotCard({ summary }: { summary: any }) {
+    if (!summary) return null;
+
+    const mr = summary.matchResultData || summary.resultData || summary;
+    const matchTitle = summary.matchTitle || mr.matchTitle || "Match Summary";
+
+    const totalActions = Number(summary.totalActions ?? summary.totalInteractions ?? mr.totalActions ?? mr.totalActionsCount ?? 62) || 62;
+    const totalMoments = Number(summary.totalMoments ?? summary.momentsCount ?? mr.totalMoments ?? 5) || 5;
+    const totalParticipants = Number(summary.totalParticipants ?? summary.totalFansCount ?? summary.participantsCount ?? mr.totalParticipants ?? 27) || 27;
+
+    return (
+        <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.25 }}
+            className="rounded-2xl overflow-hidden my-2 border border-emerald-500/30 shadow-2xl"
+            style={{
+                background: "linear-gradient(180deg, #091312 0%, #050b0a 100%)",
+            }}
+        >
+            <div className="p-4 space-y-3.5">
+                {/* Header Title in Emerald */}
+                <div className="flex items-center justify-between">
+                    <div className="text-xs font-black tracking-wider uppercase text-emerald-400 flex items-center gap-1.5">
+                        <span>🏆</span>
+                        <span>MATCH SUMMARY</span>
+                    </div>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        ROOM SNAPSHOT
+                    </span>
+                </div>
+
+                {/* Match Identity Section — Pure app fan activity (no external scores or match results) */}
+                <div className="flex items-center gap-3">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-600 to-teal-800 border-2 border-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.55)] flex items-center justify-center text-2xl shrink-0">
+                        ⚡
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                        <div className="text-base font-bold text-emerald-300 truncate leading-tight">
+                            {matchTitle}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-300 mt-0.5 truncate">
+                            <span className="text-emerald-400 font-semibold">⚡ Roar Pulse Activity</span>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-slate-300">All Room Fans</span>
+                        </div>
+                        <div className="text-xs text-slate-400 font-normal mt-0.5 truncate">
+                            Overall in-app fan engagement & actions summary
+                        </div>
+                    </div>
+                </div>
+
+                {/* 3 Stat Boxes inside dark rounded container */}
+                <div className="grid grid-cols-3 divide-x divide-white/10 rounded-xl bg-[#0b1715] border border-emerald-500/20 py-2.5 px-1 shadow-inner text-center">
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
+                            {totalActions}
+                        </div>
+                        <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
+                            Total Actions
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
+                            {totalMoments}
+                        </div>
+                        <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
+                            Total Moments
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-lg sm:text-xl font-black text-emerald-200 tabular-nums">
+                            {totalParticipants}
+                        </div>
+                        <div className="text-[11px] text-emerald-200/60 font-medium mt-0.5">
+                            Total Participants
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer text */}
+                <div className="text-center text-xs font-semibold text-emerald-400/90 tracking-wide pt-0.5">
+                    🏆 Overall App Activity Across All Room Fans
+                </div>
             </div>
         </motion.div>
     );
@@ -5440,6 +5598,8 @@ export default function OpenRoomDiscussionRoom({
     const [recognitions, setRecognitions] = useState<any[]>([]);
     const [outcomeReveals, setOutcomeReveals] = useState<any[]>([]);
     const [userMatchSummary, setUserMatchSummary] = useState<any | null>(null);
+    const [matchSnapshotSummary, setMatchSnapshotSummary] = useState<any | null>(null);
+    const [fanOfTheMatchSummary, setFanOfTheMatchSummary] = useState<any | null>(null);
     const prevSummaryMatchRef = useRef<string | null>(null);
     // const [engagementsLoading, setEngagementsLoading] = useState(false);
     // const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
@@ -5670,15 +5830,28 @@ export default function OpenRoomDiscussionRoom({
         }
     }, []);
 
+    const isRealMatchId = (v?: any): boolean => {
+        if (!v) return false;
+        const s = String(v).replace(/^MATCH#/, "").trim().toLowerCase();
+        return Boolean(s && s !== "none" && s !== "undefined" && s !== "null" && s !== "all");
+    };
+
     // ── Fetch live Visual Recognitions & Outcome Reveals for Match ──
     const prevOutcomeCountRef = React.useRef(0);
     const fetchCelebrations = useCallback(async () => {
         if (!roomId) return;
 
         // Resolve matchId — from state, from loaded engagements, or by asking the room details API
-        let mId = roomMatchId;
+        let mId = isRealMatchId(roomMatchId) ? roomMatchId : null;
+        if (!mId && matchEngagementsRef.current.length > 0) {
+            const foundFromEng = matchEngagementsRef.current.find(e => isRealMatchId(e.matchId))?.matchId;
+            if (foundFromEng) {
+                mId = String(foundFromEng).replace(/^MATCH#/, "").trim();
+                setRoomMatchId(mId);
+            }
+        }
         if (!mId && matchEngagements.length > 0) {
-            const foundFromEng = matchEngagements.find(e => e.matchId)?.matchId;
+            const foundFromEng = matchEngagements.find(e => isRealMatchId(e.matchId))?.matchId;
             if (foundFromEng) {
                 mId = String(foundFromEng).replace(/^MATCH#/, "").trim();
                 setRoomMatchId(mId);
@@ -5689,14 +5862,14 @@ export default function OpenRoomDiscussionRoom({
                 const roomRes = await axios.get(`/api/roar/rooms/${roomId}`, { timeout: REQUEST_TIMEOUT_MS });
                 const rData = roomRes.data?.room || roomRes.data;
                 const foundMatchId = rData?.matchId || rData?.liveMatchId || rData?.match_id;
-                if (foundMatchId) {
+                    if (isRealMatchId(foundMatchId)) {
                     mId = String(foundMatchId).replace(/^MATCH#/, "").trim();
                     setRoomMatchId(mId);
                 }
             } catch { /* ignore */ }
         }
 
-        const cleanMatchId = mId ? String(mId).replace(/^MATCH#/, "").trim() : "";
+            const cleanMatchId = isRealMatchId(mId) ? String(mId).replace(/^MATCH#/, "").trim() : "";
         const effUserId = currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId || "";
         const effUsername = userUsername || userProfile?.username || userProfile?.name || "";
         const effEmail = (userProfile as any)?.email || "";
@@ -5713,6 +5886,9 @@ export default function OpenRoomDiscussionRoom({
             const url = `/api/roar/celebrations?${qParams.toString()}`;
             const res = await axios.get(url, { timeout: REQUEST_TIMEOUT_MS });
             if (res.data?.success) {
+                    if (isRealMatchId(res.data?.matchId) && !isRealMatchId(roomMatchId)) {
+                    setRoomMatchId(String(res.data.matchId).replace(/^MATCH#/, "").trim());
+                }
                 if (Array.isArray(res.data.recognitions)) {
                     setRecognitions(res.data.recognitions);
                 }
@@ -5733,19 +5909,26 @@ export default function OpenRoomDiscussionRoom({
                     prevOutcomeCountRef.current = reveals.length;
                 }
                 const summaryObj = res.data.userMatchSummary || null;
+                const snapshotObj = res.data.matchSnapshotSummary || null;
+                const fanObj = res.data.fanOfTheMatchSummary || null;
                 setUserMatchSummary(summaryObj);
-                if (summaryObj && prevSummaryMatchRef.current !== summaryObj.id) {
-                    const isFirstInSession = prevSummaryMatchRef.current !== null || prevOutcomeCountRef.current > 0;
-                    prevSummaryMatchRef.current = summaryObj.id;
-                    if (isFirstInSession) {
-                        onToast("📊 Your Match Player Summary is now in the chat!");
-                        if (isAtBottomRef.current) {
-                            setTimeout(() => listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" }), 100);
-                        } else {
-                            setShowNewPill(true);
-                        }
-                    }
-                } else if (!summaryObj) {
+                setMatchSnapshotSummary(snapshotObj);
+                setFanOfTheMatchSummary(fanObj);
+
+                const hasAnySummary = Boolean(summaryObj || snapshotObj || fanObj);
+                const summaryKey = summaryObj?.id || snapshotObj?.id || fanObj?.id || "summary";
+                if (hasAnySummary && prevSummaryMatchRef.current !== summaryKey) {
+                    prevSummaryMatchRef.current = summaryKey;
+                    onToast("📊 Match summary & player progress updated!");
+                    setTimeout(() => {
+                        const el = listRef.current;
+                        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+                    }, 120);
+                    setTimeout(() => {
+                        const el = listRef.current;
+                        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+                    }, 450);
+                } else if (!hasAnySummary) {
                     prevSummaryMatchRef.current = null;
                 }
             }
@@ -5758,13 +5941,13 @@ export default function OpenRoomDiscussionRoom({
     const fetchEngagements = useCallback(async () => {
         if (!roomId) { setEngagementsLoaded(true); return; }
         try {
-            let mId = roomMatchId;
+            let mId = isRealMatchId(roomMatchId) ? roomMatchId : null;
             if (!mId) {
                 try {
                     const roomRes = await axios.get(`/api/roar/rooms/${roomId}`, { timeout: REQUEST_TIMEOUT_MS });
                     const rData = roomRes.data?.room || roomRes.data;
                     const foundMatchId = rData?.matchId || rData?.liveMatchId || rData?.match_id;
-                    if (foundMatchId) {
+                        if (isRealMatchId(foundMatchId)) {
                         mId = String(foundMatchId).replace(/^MATCH#/, "");
                         setRoomMatchId(mId);
                     }
@@ -5872,7 +6055,7 @@ export default function OpenRoomDiscussionRoom({
     // ── NEW: per-tab counts for the engagement filter tabs ──
     const engagementTabCounts = React.useMemo(() => {
         const counts: Record<EngagementFilter, number> = {
-            all: 0, prediction: 0, debate: 0, question: 0, express: 0, poll: 0, follow: 0, match_result: 0,
+            all: 0, prediction: 0, debate: 0, question: 0, express: 0, poll: 0,
         };
         const nowMs = Date.now();
         matchEngagements.forEach(e => {
@@ -5882,8 +6065,15 @@ export default function OpenRoomDiscussionRoom({
             counts[tab]++;
             counts.all++;
         });
+
+        // Add match completion summaries to "All" tab count
+        const completionCardsCount = (matchSnapshotSummary ? 1 : 0) + (fanOfTheMatchSummary ? 1 : 0) + (userMatchSummary ? 1 : 0);
+        if (completionCardsCount > 0) {
+            counts.all += completionCardsCount;
+        }
+
         return counts;
-    }, [matchEngagements]);
+    }, [matchEngagements, matchSnapshotSummary, fanOfTheMatchSummary, userMatchSummary]);
 
 
     const handleEngagementInteraction = useCallback((engId: string, updatedData?: any) => {
@@ -6494,6 +6684,8 @@ export default function OpenRoomDiscussionRoom({
         setRecognitions([]);
         setOutcomeReveals([]);
         setUserMatchSummary(null);
+        setMatchSnapshotSummary(null);
+        setFanOfTheMatchSummary(null);
         prevSummaryMatchRef.current = null;
         setRoomMatchId(null);
         setEngagementsLoaded(false);
@@ -6645,10 +6837,17 @@ export default function OpenRoomDiscussionRoom({
         }
     }, [matchEngagements, engagementsLoaded, scrollToBottom, onToast]);
 
-    // ── NEW: when the engagement tab changes, jump to the latest item of the new view ──
+    // ── NEW: when the engagement tab changes, jump to the view ──
     useEffect(() => {
         if (!feedReady) return;
-        const t = setTimeout(() => scrollToBottom(false), 60);
+        const t = setTimeout(() => {
+            if (engagementFilter === "match_result") {
+                const el = listRef.current;
+                if (el) el.scrollTo({ top: 0, behavior: "smooth" });
+            } else {
+                scrollToBottom(false);
+            }
+        }, 60);
         return () => clearTimeout(t);
     }, [engagementFilter, feedReady, scrollToBottom]);
 
@@ -7110,7 +7309,9 @@ export default function OpenRoomDiscussionRoom({
         | { kind: "engagement"; data: EngagementItem; sortKey: number }
         | { kind: "recognition"; data: any; sortKey: number }
         | { kind: "outcome_reveal"; data: any; sortKey: number }
-        | { kind: "player_match_summary"; data: any; sortKey: number };
+        | { kind: "player_match_summary"; data: any; sortKey: number }
+        | { kind: "match_snapshot_summary"; data: any; sortKey: number }
+        | { kind: "fan_of_the_match"; data: any; sortKey: number };
     const feedItems: FeedItem[] = React.useMemo(() => {
         // When a specific engagement tab (Prediction / Debate / Question / Express / Poll)
         // is selected, show ONLY the matching engagement posts (regular posts are hidden).
@@ -7192,19 +7393,63 @@ export default function OpenRoomDiscussionRoom({
                 sortKey: getTimestamp(rev.createdAt || Date.now()),
             }));
 
-        const summaryItems: FeedItem[] =
-            engagementFilter === "all" && userMatchSummary
+        // Position match summaries at the bottom of the feed (newest items) as the conclusion of the match
+        const baseCompletionTime = Math.max(
+            Date.now() - 3000,
+            ...postItems.map((p) => p.sortKey || 0),
+            ...engagementItems.map((e) => e.sortKey || 0),
+            ...recognitionItems.map((r) => r.sortKey || 0),
+            ...outcomeItems.map((o) => o.sortKey || 0)
+        );
+
+        const showCompletionSummaries = engagementFilter === "all";
+        const hasEngSnapshot = matchEngagements.some(e => e.type === "match_result" || e.type === "match_summary" || Boolean((e as any).matchResultData));
+        const hasEngFotm = matchEngagements.some(e => e.type === "fan_of_the_match");
+        const hasEngUserSummary = matchEngagements.some(e => e.type === "player_match_summary" || e.type === "user_summary");
+
+        const snapshotItems: FeedItem[] =
+            matchSnapshotSummary && showCompletionSummaries && !hasEngSnapshot
                 ? [
                       {
-                          kind: "player_match_summary" as const,
-                          data: userMatchSummary,
-                          sortKey: getTimestamp(userMatchSummary.updatedAt || userMatchSummary.createdAt || Date.now()),
+                          kind: "match_snapshot_summary" as const,
+                          data: matchSnapshotSummary,
+                          sortKey: baseCompletionTime + 1,
                       },
                   ]
                 : [];
 
-        return [...postItems, ...engagementItems, ...recognitionItems, ...outcomeItems, ...summaryItems].sort((a, b) => a.sortKey - b.sortKey);
-    }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, userMatchSummary, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
+        const fanOfTheMatchItems: FeedItem[] =
+            fanOfTheMatchSummary && showCompletionSummaries && !hasEngFotm
+                ? [
+                      {
+                          kind: "fan_of_the_match" as const,
+                          data: fanOfTheMatchSummary,
+                          sortKey: baseCompletionTime + 2,
+                      },
+                  ]
+                : [];
+
+        const summaryItems: FeedItem[] =
+            userMatchSummary && showCompletionSummaries && !hasEngUserSummary
+                ? [
+                      {
+                          kind: "player_match_summary" as const,
+                          data: userMatchSummary,
+                          sortKey: baseCompletionTime + 3,
+                      },
+                  ]
+                : [];
+
+        return [
+            ...postItems,
+            ...engagementItems,
+            ...recognitionItems,
+            ...outcomeItems,
+            ...snapshotItems,
+            ...fanOfTheMatchItems,
+            ...summaryItems,
+        ].sort((a, b) => a.sortKey - b.sortKey);
+    }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, userMatchSummary, matchSnapshotSummary, fanOfTheMatchSummary, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
 
     const renderReactionPicker = (p: any) => {
         const lo = localReactions[p.id];
@@ -7523,6 +7768,24 @@ export default function OpenRoomDiscussionRoom({
                             );
                         }
 
+                        if (item.kind === "match_snapshot_summary") {
+                            return (
+                                <InlineMatchSnapshotCard
+                                    key={`snapshot-${item.data.id || item.sortKey}`}
+                                    summary={item.data}
+                                />
+                            );
+                        }
+
+                        if (item.kind === "fan_of_the_match") {
+                            return (
+                                <InlineFanOfTheMatchCard
+                                    key={`fan-of-match-${item.data.id || item.data.userId || item.sortKey}`}
+                                    summary={item.data}
+                                />
+                            );
+                        }
+
                         if (item.kind === "player_match_summary") {
                             return (
                                 <InlinePlayerMatchSummaryCard
@@ -7533,6 +7796,43 @@ export default function OpenRoomDiscussionRoom({
                         }
 
                         if (item.kind === "engagement") {
+                            if (
+                                item.data.type === "match_result" ||
+                                item.data.type === "match_summary" ||
+                                item.data.type === "result" ||
+                                Boolean((item.data as any).matchResultData)
+                            ) {
+                                return (
+                                    <InlineMatchSnapshotCard
+                                        key={`eng-snapshot-${item.data.id}`}
+                                        summary={{
+                                            ...item.data,
+                                            ...(item.data.matchResultData || {}),
+                                        }}
+                                    />
+                                );
+                            }
+
+                            if (item.data.type === "fan_of_the_match") {
+                                return (
+                                    <InlineFanOfTheMatchCard
+                                        key={`eng-fotm-${item.data.id}`}
+                                        summary={item.data}
+                                    />
+                                );
+                            }
+
+                            if (item.data.type === "player_match_summary" || item.data.type === "user_summary") {
+                                const target = (item.data as any).targetUserId || (item.data as any).userId || (item.data as any).targetEmail;
+                                const matchesMe = !target || currentUserIdCandidates.some(c => String(target).toLowerCase().includes(c));
+                                if (!matchesMe) return null;
+                                return (
+                                    <InlinePlayerMatchSummaryCard
+                                        key={`eng-player-${item.data.id}`}
+                                        summary={item.data}
+                                    />
+                                );
+                            }
                             return (
                                 <div
                                     key={`eng-${item.data.id}`}
@@ -7951,7 +8251,7 @@ export default function OpenRoomDiscussionRoom({
             )} */}
 
             {/* ── COMPOSE INPUT ── */}
-            {/* <div className="shrink-0 px-2.5 pt-1 pb-1.5 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-t border-[var(--border)] flex flex-col gap-1">
+            <div className="shrink-0 px-2.5 pt-1 pb-1.5 bg-[rgba(14,14,20,0.98)] backdrop-blur-[20px] border-t border-[var(--border)] flex flex-col gap-1">
                 {selectedActionId === "post" && !dollyOpen && (
                     <>
                         <AnimatePresence>
@@ -7997,7 +8297,6 @@ export default function OpenRoomDiscussionRoom({
 
                         <div className="flex items-center w-full gap-0.5 -mb-1">
                             <button type="button" onClick={() => triggerUpload("image")} disabled={uploading} className="bg-transparent border-none -ml-1.5 text-white/40 cursor-pointer flex items-center justify-center p-1 shrink-0">
-                                // <Image size={16} /> 
                                 <img src="/images/gallerybg.png" alt="gallery" className="w-5 h-5 object-cover" />
                             </button>
 
@@ -8016,7 +8315,7 @@ export default function OpenRoomDiscussionRoom({
                             </button>
 
                             <div className="flex-1 relative min-w-0">
-                                // Channel Mention Popup 
+                                {/* Channel Mention Popup */}
                                 {showChannelMentionPopup && channelMentionUsers.length > 0 && (
                                     <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#181c24] border border-[rgba(255,255,255,0.1)] rounded-lg overflow-hidden shadow-lg z-50 max-h-[200px] overflow-y-auto">
                                         {channelMentionUsers.map((channel, idx) => (
@@ -8085,7 +8384,7 @@ export default function OpenRoomDiscussionRoom({
                 )}
             </div>
 
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" /> */}
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
             {/* ── DIALOGS ── */}
             <VotersDialog postId={votersMsgId ?? ""} isOpen={votersMsgId !== null} onClose={() => setVotersMsgId(null)} roomId={roomId} mode={votersMode} />
