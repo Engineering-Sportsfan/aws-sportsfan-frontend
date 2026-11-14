@@ -206,7 +206,12 @@ export default function MatchMomentRoom({ roomId, roomName, onBack }: Props) {
   );
 
   // ── Derived ──
-  const activeIds = useMemo(() => getActiveMatchSet(demoNow ?? new Date()), [demoNow]);
+  // Picking Dec 13 (D05) or later in the auction rail swaps tab 2 to the 3rd match (IND v SL ODI);
+  // tab 3 is left as it was.
+  const activeIds = useMemo(() => {
+    const base = getActiveMatchSet(demoNow ?? new Date());
+    return selectedDay >= 5 ? ["IND-SL-2026-ODI1", ...base.filter((id) => id !== "IND-SL-2026-ODI1").slice(1)] : base;
+  }, [demoNow, selectedDay]);
   const activeMatches = useMemo(() => activeIds.map((id) => matchInfoFor(id)), [activeIds]);
 
   // Each match tab shows ONE match: tab 2 = 1st match of the set, tab 3 = 2nd match of the set.
