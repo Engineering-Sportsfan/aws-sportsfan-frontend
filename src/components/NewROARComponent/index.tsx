@@ -24,6 +24,7 @@ import RoomsHome from "./screens/RoomsHome";
 // import HomeFeed from "./screens/HomeFeed";             // SF360 Infinity Room = posts feed
 import DiscussionRoom from "./screens/DiscussionRoom";
 import MatchMomentRoom from "./screens/MatchMomentRoom";
+import MatchFeedRoom, { MATCH_FEED_ROOM_ID } from "./screens/MatchFeedRoom";
 import { MATCH_MOMENT_ROOM_ID } from "./screens/matchMomentRoomUtils";
 import Notifications from "./screens/Notifications";
 import Leaderboard from "./screens/Leaderboard";
@@ -831,6 +832,15 @@ const openRecapForRoom = useCallback(async (room: Room) => {
                   <style dangerouslySetInnerHTML={{ __html: `#global-header-desktop,#global-header-tablet,#global-header-mobile{display:none!important}` }} />
                   {selectedRoom?.roomId === MATCH_MOMENT_ROOM_ID ? (
                   <MatchMomentRoom
+                    roomId={selectedRoom.roomId}
+                    roomName={selectedRoom?.name}
+                    onBack={() => {
+                      if (window.history.state?.roarRoom) window.history.back();
+                      else closeRoom();
+                    }}
+                  />
+                  ) : selectedRoom?.roomId === MATCH_FEED_ROOM_ID ? (
+                  <MatchFeedRoom
                     roomId={selectedRoom.roomId}
                     roomName={selectedRoom?.name}
                     onBack={() => {
