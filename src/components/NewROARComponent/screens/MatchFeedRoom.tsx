@@ -13,7 +13,7 @@ import { MATCH_INFO, cardTime, formatIST, hasAuctionId, cleanMatchId, matchInfoF
 
 // Set NEXT_PUBLIC_MATCH_FEED_ROOM_ID per environment (dev / release / prod). Falls back to the dev room.
 export const MATCH_FEED_ROOM_ID =
-  process.env.NEXT_PUBLIC_MATCH_FEED_ROOM_ID || "room_1794668464892_9yuf213";
+  process.env.NEXT_PUBLIC_MATCH_FEED_ROOM_ID || "room_1794673347552_s4myci4";
 
 interface Props {
   roomId: string;
