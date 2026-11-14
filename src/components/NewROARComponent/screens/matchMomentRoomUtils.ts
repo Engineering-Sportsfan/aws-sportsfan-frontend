@@ -1,6 +1,6 @@
 // Pure helpers for MatchMomentRoom (no React). Kept separate so the rules are easy to test/change.
 
-export const MATCH_MOMENT_ROOM_ID = "room_1794564790526_juxls71";
+export const MATCH_MOMENT_ROOM_ID = "room_1794626290343_05dr3md";
 
 export type RoomTab = "auction" | "live" | "matches";
 
