@@ -10,8 +10,8 @@ const nextConfig = {
   },
   skipTrailingSlashRedirect: true,
   experimental: {
-    // Cap proxied backend calls at 15s so a hung upstream can't bill 25s+ of Amplify compute
-    proxyTimeout: 15000,
+    // Increased timeout for local development compilation (18s+ Turbopack compile times)
+    proxyTimeout: 60000,
   },
   async rewrites() {
     const apiTarget =
