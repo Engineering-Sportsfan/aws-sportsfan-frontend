@@ -5644,21 +5644,8 @@ export default function OpenRoomDiscussionRoom({
             }
         });
 
-        if (roomMatchId) {
-            const cleanRoomMid = String(roomMatchId).replace(/^MATCH#/i, "").trim();
-            if (cleanRoomMid && !seen.has(cleanRoomMid)) {
-                seen.add(cleanRoomMid);
-                tabs.push({
-                    id: cleanRoomMid,
-                    label: "LIVE MATCH DAY - 10 DEC",
-                    sublabel: "LIVE",
-                    isLive: true,
-                });
-            }
-        }
-
         return tabs;
-    }, [followedMatches, roomMatchId]);
+    }, [followedMatches]);
 
     const handleToggleEventTab = (eventId: string) => {
         setSelectedEventId(prev => (prev === eventId ? null : eventId));
@@ -6142,7 +6129,32 @@ export default function OpenRoomDiscussionRoom({
                 return { ...eng, ...clean };
             })
         );
-    }, []);
+
+        // Immediate dynamic sync for Follow Match toggle
+        if (updatedData?.actionType === "follow") {
+            const targetEng = matchEngagements.find(e => e.id === engId);
+            const targetMid = String(targetEng?.matchId || roomMatchId || "").replace(/^MATCH#/i, "").trim();
+            if (targetMid) {
+                if (updatedData.isFollowing) {
+                    setFollowedMatches(prev => {
+                        if (prev.some(m => String(m.matchId).replace(/^MATCH#/i, "").trim() === targetMid)) return prev;
+                        return [
+                            ...prev,
+                            {
+                                matchId: targetMid,
+                                matchTitle: targetEng?.title || (targetEng as any)?.matchTitle || `Match ${targetMid}`,
+                                status: "live",
+                                isFollowing: true,
+                            },
+                        ];
+                    });
+                } else {
+                    setFollowedMatches(prev => prev.filter(m => String(m.matchId).replace(/^MATCH#/i, "").trim() !== targetMid));
+                    setSelectedEventId(prev => (prev === targetMid ? null : prev));
+                }
+            }
+        }
+    }, [matchEngagements, roomMatchId]);
 
     // ── Load universal channels on mount ──
     useEffect(() => {
