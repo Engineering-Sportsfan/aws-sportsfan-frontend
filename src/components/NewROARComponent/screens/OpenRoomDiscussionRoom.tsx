@@ -3535,6 +3535,7 @@ import { RADIAL_OPTS } from "../constants";
 import VotersDialog from "../components/VotersDialog";
 import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
 import EngagementCard from "@/components/Engagements/EngagementCard";
+import TonightScheduleWidget from "../components/TonightScheduleWidget";
 import type { EngagementItem } from "@/types/engagements";
 
 const REQUEST_TIMEOUT_MS = 12000;
@@ -5601,6 +5602,55 @@ export default function OpenRoomDiscussionRoom({
     const [engagementsLoading, setEngagementsLoading] = useState(false);
     const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
     const [engagementsLoaded, setEngagementsLoaded] = useState(false);
+
+    // ── TOP EVENT SWITCHER: Auction Journey & Followed Matches Filter ──
+    const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+    const [followedMatches, setFollowedMatches] = useState<any[]>([]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const fetchFollowed = async () => {
+            try {
+                const uid = currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId;
+                const res = await axios.get("/api/user/followed-matches", {
+                    params: uid ? { userId: uid } : {},
+                    timeout: REQUEST_TIMEOUT_MS,
+                });
+                if (!cancelled && res.data?.success && Array.isArray(res.data.followedMatches)) {
+                    setFollowedMatches(res.data.followedMatches);
+                }
+            } catch { /* ignore */ }
+        };
+        fetchFollowed();
+        return () => { cancelled = true; };
+    }, [currentUserId, userProfile]);
+
+    const eventTabs = React.useMemo(() => {
+        const tabs: { id: string; label: string; sublabel?: string; isLive?: boolean }[] = [
+            { id: "AUCTION", label: "AUCTION JOURNEY - 9–23 DEC" },
+        ];
+
+        const seen = new Set<string>(["AUCTION"]);
+
+        followedMatches.forEach(fm => {
+            const mid = String(fm.matchId || "").replace(/^MATCH#/i, "").trim();
+            if (mid && !seen.has(mid)) {
+                seen.add(mid);
+                tabs.push({
+                    id: mid,
+                    label: fm.matchTitle || `${fm.teamA || "Team 1"} vs ${fm.teamB || "Team 2"}`,
+                    sublabel: fm.date || "10 DEC",
+                    isLive: fm.status === "live",
+                });
+            }
+        });
+
+        return tabs;
+    }, [followedMatches]);
+
+    const handleToggleEventTab = (eventId: string) => {
+        setSelectedEventId(prev => (prev === eventId ? null : eventId));
+    };
     const [showNewPill, setShowNewPill] = useState(false);
     const isAtBottomRef = useRef(true);
     const seenEngIdsRef = useRef<Set<string> | null>(null);
@@ -6080,7 +6130,32 @@ export default function OpenRoomDiscussionRoom({
                 return { ...eng, ...clean };
             })
         );
-    }, []);
+
+        // Immediate dynamic sync for Follow Match toggle
+        if (updatedData?.actionType === "follow") {
+            const targetEng = matchEngagements.find(e => e.id === engId);
+            const targetMid = String(targetEng?.matchId || roomMatchId || "").replace(/^MATCH#/i, "").trim();
+            if (targetMid) {
+                if (updatedData.isFollowing) {
+                    setFollowedMatches(prev => {
+                        if (prev.some(m => String(m.matchId).replace(/^MATCH#/i, "").trim() === targetMid)) return prev;
+                        return [
+                            ...prev,
+                            {
+                                matchId: targetMid,
+                                matchTitle: targetEng?.title || (targetEng as any)?.matchTitle || `Match ${targetMid}`,
+                                status: "live",
+                                isFollowing: true,
+                            },
+                        ];
+                    });
+                } else {
+                    setFollowedMatches(prev => prev.filter(m => String(m.matchId).replace(/^MATCH#/i, "").trim() !== targetMid));
+                    setSelectedEventId(prev => (prev === targetMid ? null : prev));
+                }
+            }
+        }
+    }, [matchEngagements, roomMatchId]);
 
     // ── Load universal channels on mount ──
     useEffect(() => {
@@ -7024,6 +7099,9 @@ export default function OpenRoomDiscussionRoom({
             if (postChannelId) {
                 payload.channelId = postChannelId;
             }
+            if (selectedEventId) {
+                payload.matchId = selectedEventId;
+            }
 
             try {
                 if (phog) {
@@ -7147,6 +7225,9 @@ export default function OpenRoomDiscussionRoom({
             if (quickReactChannelId) {
                 payload.channelId = quickReactChannelId;
             }
+            if (selectedEventId) {
+                payload.matchId = selectedEventId;
+            }
 
             const res = await axios.post(`/api/roar/rooms/${roomId}/messages`, payload, { timeout: REQUEST_TIMEOUT_MS });
             if (res.data?.success) {
@@ -7235,7 +7316,11 @@ export default function OpenRoomDiscussionRoom({
 
         if (roomId && post.id) {
             try {
-                const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/share`, {}, { timeout: 8000 });
+                const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/share`, {
+                    userId: currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId || userProfile?.email || "guest_fan",
+                    userName: userProfile?.userName || (userProfile as any)?.name || "Sports Fan",
+                    userEmail: userProfile?.userEmail || (userProfile as any)?.email || "",
+                }, { timeout: 8000 });
                 if (res.data?.success && typeof res.data.shareCount === "number") {
                     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shareCount: res.data.shareCount } : p));
                 }
@@ -7470,7 +7555,7 @@ export default function OpenRoomDiscussionRoom({
                   ]
                 : [];
 
-        return [
+        const allCombined = [
             ...postItems,
             ...engagementItems,
             ...recognitionItems,
@@ -7479,7 +7564,35 @@ export default function OpenRoomDiscussionRoom({
             ...fanOfTheMatchItems,
             ...summaryItems,
         ].sort((a, b) => a.sortKey - b.sortKey);
-    }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, userMatchSummary, matchSnapshotSummary, fanOfTheMatchSummary, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates]);
+
+        if (!selectedEventId) {
+            return allCombined;
+        }
+
+        const cleanFilter = selectedEventId.replace(/^MATCH#/i, "").trim().toLowerCase();
+
+        return allCombined.filter((item) => {
+            if (cleanFilter === "auction") {
+                const text = String(item.data?.text || item.data?.title || item.data?.question || "").toLowerCase();
+                const mId = String(item.data?.matchId || "").toLowerCase();
+                const type = String(item.data?.type || "").toLowerCase();
+                return mId === "auction" || type === "auction" || text.includes("auction");
+            }
+
+            const itemMatchId = String(
+                item.data?.matchId ||
+                item.data?.match_id ||
+                (item.kind === "match_snapshot_summary" || item.kind === "fan_of_the_match" || item.kind === "player_match_summary" ? roomMatchId : "") ||
+                ""
+            ).replace(/^MATCH#/i, "").trim().toLowerCase();
+
+            if (item.kind === "post") {
+                return itemMatchId === cleanFilter || (!itemMatchId && cleanFilter === (roomMatchId || "").replace(/^MATCH#/i, "").toLowerCase());
+            }
+
+            return itemMatchId === cleanFilter;
+        });
+    }, [filteredPosts, matchEngagements, recognitions, outcomeReveals, userMatchSummary, matchSnapshotSummary, fanOfTheMatchSummary, engagementFilter, userUsername, userProfile?.username, currentUserIdCandidates, selectedEventId, roomMatchId]);
 
     const renderReactionPicker = (p: any) => {
         const lo = localReactions[p.id];
@@ -7555,6 +7668,10 @@ export default function OpenRoomDiscussionRoom({
         if (uploading) {
             return "Uploading media...";
         }
+        if (selectedEventId) {
+            const activeTab = eventTabs.find(t => t.id === selectedEventId);
+            return `Message to ${activeTab?.label || selectedEventId}...`;
+        }
         if (selectedChannelId && selectedChannelId !== "all") {
             return `Message to #${currentChannelName}...`;
         }
@@ -7603,6 +7720,47 @@ export default function OpenRoomDiscussionRoom({
                             <Share2 size={12} />
                         </button>
                     </div>
+                </div>
+            </div>
+
+            {/* ── TOP EVENT SWITCHER BAR (Auction Journey + Followed Matches) ── */}
+            <div className="shrink-0 px-2 py-1.5 bg-[#0b0b12] border-b border-white/[0.08] overflow-x-auto" style={{ scrollbarWidth: "none" }}>
+                <div className="flex items-center gap-1.5">
+                    {eventTabs.map((tab) => {
+                        const isActive = selectedEventId === tab.id;
+                        return (
+                            <button
+                                key={tab.id}
+                                type="button"
+                                onClick={() => handleToggleEventTab(tab.id)}
+                                className={`h-8 px-3 rounded-lg text-[10px] font-black tracking-wide uppercase transition-all duration-200 flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer select-none ${
+                                    isActive
+                                        ? "bg-gradient-to-r from-[#2a0e28] to-[#1c0c20] border-2 border-[#e91e8c] text-white shadow-[0_0_14px_rgba(233,30,140,0.45)] ring-1 ring-[#e91e8c]/50"
+                                        : "bg-white/[0.04] border border-white/15 text-white/70 hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
+                                }`}
+                            >
+                                {tab.isLive && (
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                                )}
+                                <span>{tab.label}</span>
+                                {tab.sublabel && !tab.isLive && (
+                                    <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-white/10 text-white/60">
+                                        {tab.sublabel}
+                                    </span>
+                                )}
+                            </button>
+                        );
+                    })}
+                    {selectedEventId && (
+                        <button
+                            type="button"
+                            onClick={() => setSelectedEventId(null)}
+                            className="h-8 px-2 rounded-lg text-[10px] font-bold text-white/50 hover:text-white/80 bg-white/5 hover:bg-white/10 transition-colors shrink-0 flex items-center gap-1"
+                            title="Clear event filter and show all"
+                        >
+                            <span>✕ Clear</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -8418,6 +8576,15 @@ export default function OpenRoomDiscussionRoom({
                         </div>
                     </>
                 )}
+            </div>
+
+            {/* ── TONIGHT SCHEDULE & FAN SCORECARD WIDGET (FIXED BELOW COMMENT BOX) ── */}
+            <div className="shrink-0 z-10">
+                <TonightScheduleWidget
+                    roomId={roomId}
+                    matchId={roomMatchId || undefined}
+                    userId={currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId}
+                />
             </div>
 
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
