@@ -7315,7 +7315,11 @@ export default function OpenRoomDiscussionRoom({
 
         if (roomId && post.id) {
             try {
-                const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/share`, {}, { timeout: 8000 });
+                const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/share`, {
+                    userId: currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId || userProfile?.email || "guest_fan",
+                    userName: userProfile?.userName || (userProfile as any)?.name || "Sports Fan",
+                    userEmail: userProfile?.userEmail || (userProfile as any)?.email || "",
+                }, { timeout: 8000 });
                 if (res.data?.success && typeof res.data.shareCount === "number") {
                     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shareCount: res.data.shareCount } : p));
                 }
