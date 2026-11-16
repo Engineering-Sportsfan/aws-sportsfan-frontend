@@ -143,7 +143,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Sparkles, Home } from "lucide-react";
+import { Sparkles, Home, Trophy } from "lucide-react";
 
 type NavItem = {
   name: string;
@@ -206,11 +206,18 @@ export default function BottomNav() {
       logoActive: "/images/watchalongactive.png",
       url: "/MainModules/WatchAlong"
     },
-     {
-      name: "FlipGURU",
-      logoInactive: "/images/dollyavatar.png",
-      logoActive: "/images/dollyavatar.png",
-      url: "/MainModules/flipGuru"
+    //  {
+    //   name: "FlipGURU",
+    //   logoInactive: "/images/dollyavatar.png",
+    //   logoActive: "/images/dollyavatar.png",
+    //   url: "/MainModules/flipGuru"
+    // },
+    {
+      name: "Scorecard",
+      logoInactive: <Trophy className="w-5 h-5 text-gray-400" strokeWidth={1.8} />,
+      logoActive: <Trophy className="w-5 h-5 text-orange-500 drop-shadow-[0_0_6px_rgba(249,115,22,0.7)]" strokeWidth={2.2} fill="currentColor" />,
+      // Opens Profile and scrolls to the My Fan Score Card section.
+      url: "/MainModules/Profile?section=scorecard"
     },
     {
       name: "ASKFlip",
@@ -246,7 +253,7 @@ export default function BottomNav() {
   return (
     <div className="fixed bottom-0 left-0 w-full bg-black border-t border-pink-500/30 py-2 flex justify-around z-40 overflow-x-hidden">
       {bottomNavData.map((item, i) => {
-        const isActive = item.url ? pathname.startsWith(item.url) : false;
+        const isActive = item.url ? pathname.startsWith(item.url.split("?")[0]) : false;
 
         // Determine which logo to show
         const getLogo = () => {

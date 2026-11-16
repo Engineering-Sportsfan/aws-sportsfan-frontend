@@ -3535,6 +3535,7 @@ import { RADIAL_OPTS } from "../constants";
 import VotersDialog from "../components/VotersDialog";
 import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
 import EngagementCard from "@/components/Engagements/EngagementCard";
+import TonightScheduleWidget from "../components/TonightScheduleWidget";
 import type { EngagementItem } from "@/types/engagements";
 
 const REQUEST_TIMEOUT_MS = 12000;
@@ -7315,7 +7316,11 @@ export default function OpenRoomDiscussionRoom({
 
         if (roomId && post.id) {
             try {
-                const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/share`, {}, { timeout: 8000 });
+                const res = await axios.post(`/api/roar/rooms/${roomId}/messages/${post.id}/share`, {
+                    userId: currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId || userProfile?.email || "guest_fan",
+                    userName: userProfile?.userName || (userProfile as any)?.name || "Sports Fan",
+                    userEmail: userProfile?.userEmail || (userProfile as any)?.email || "",
+                }, { timeout: 8000 });
                 if (res.data?.success && typeof res.data.shareCount === "number") {
                     setPosts(prev => prev.map(p => p.id === post.id ? { ...p, shareCount: res.data.shareCount } : p));
                 }
@@ -8571,6 +8576,15 @@ export default function OpenRoomDiscussionRoom({
                         </div>
                     </>
                 )}
+            </div>
+
+            {/* ── TONIGHT SCHEDULE & FAN SCORECARD WIDGET (FIXED BELOW COMMENT BOX) ── */}
+            <div className="shrink-0 z-10">
+                <TonightScheduleWidget
+                    roomId={roomId}
+                    matchId={roomMatchId || undefined}
+                    userId={currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId}
+                />
             </div>
 
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
