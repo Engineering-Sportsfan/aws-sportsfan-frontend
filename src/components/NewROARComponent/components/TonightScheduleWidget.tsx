@@ -270,97 +270,99 @@ export default function TonightScheduleWidget({
           </button>
         </div>
 
-        {/* Horizontal scroll cards row */}
-        <div
-          className="flex items-stretch gap-2 overflow-x-auto pb-1 mb-2.5"
-          style={{
-            scrollbarWidth: "none",
-            msOverflowStyle: "none",
-          }}
-        >
+        {/* 4 Cards Row: Responsive 4-column grid fitting all screens without scroll */}
+        <div className="grid grid-cols-4 gap-1.5 sm:gap-2 w-full mb-2.5">
           {/* Card 1: Weekly Quiz */}
           <div
             onClick={() => showToast("Weekly Quiz opens at 8 PM! Get ready to test your knowledge.")}
-            className="flex-1 min-w-[118px] max-w-[145px] rounded-[13px] p-2 flex flex-col items-center text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+            className="min-w-0 rounded-[10px] sm:rounded-[13px] px-1 py-1.5 sm:p-2 flex flex-col items-center justify-between text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
             style={{
               background: "linear-gradient(180deg, #37144d 0%, #170924 100%)",
               border: "1.5px solid #a855f7",
-              boxShadow: "0 0 10px rgba(168, 85, 247, 0.3)",
+              boxShadow: "0 0 8px rgba(168, 85, 247, 0.3)",
             }}
           >
-            <div className="w-7 h-7 rounded-full flex items-center justify-center mb-1">
-              <HelpCircle size={22} className="text-[#d8b4fe]" />
+            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center mb-0.5">
+              <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5 text-[#d8b4fe]" />
             </div>
-            <div className="font-bold text-[11px] text-white leading-tight">Weekly Quiz</div>
-            <div className="text-[9.5px] font-medium text-[#d8b4fe] mt-0.5 flex items-center justify-center gap-0.5">
-              <span>Play & Win</span>
-              <ChevronRight size={9} />
+            <div className="font-bold text-[9.5px] sm:text-[11px] text-white leading-tight w-full truncate">
+              Weekly Quiz
+            </div>
+            <div className="text-[8px] sm:text-[9.5px] font-medium text-[#d8b4fe] mt-0.5 flex items-center justify-center gap-0.5 w-full">
+              <span className="truncate">Play & Win</span>
+              <ChevronRight className="w-2.5 h-2.5 shrink-0" />
             </div>
           </div>
 
           {/* Card 2: Notty at Ten */}
           <div
             onClick={() => showToast("Notty at Ten goes LIVE tonight at 10 PM!")}
-            className="flex-1 min-w-[124px] max-w-[155px] rounded-[13px] p-2 flex flex-col items-center text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+            className="min-w-0 rounded-[10px] sm:rounded-[13px] px-1 py-1.5 sm:p-2 flex flex-col items-center justify-between text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
             style={{
               background: "linear-gradient(180deg, #4f1030 0%, #1e0613 100%)",
               border: "1.5px solid #ec4899",
-              boxShadow: "0 0 10px rgba(236, 72, 153, 0.3)",
+              boxShadow: "0 0 8px rgba(236, 72, 153, 0.3)",
             }}
           >
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <Mic size={17} className="text-[#f472b6]" />
+            <div className="flex items-center justify-center gap-1 mb-0.5">
+              <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#f472b6] shrink-0" />
               <img
                 src="/images/notty-host.png"
                 alt="Notty Host"
-                className="w-6 h-6 rounded-full object-cover border border-pink-400/50 shadow"
+                className="w-4 h-4 sm:w-5 sm:h-5 rounded-full object-cover border border-pink-400/50 shadow shrink-0"
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = "none";
                 }}
               />
             </div>
-            <div className="font-bold text-[11px] text-white leading-tight">Notty at Ten</div>
-            <div className="text-[9.5px] font-medium text-[#fbcfe8] mt-0.5 flex items-center justify-center gap-0.5">
-              <span>Tonight, 10 PM</span>
-              <ChevronRight size={9} />
+            <div className="font-bold text-[9.5px] sm:text-[11px] text-white leading-tight w-full truncate">
+              Notty at Ten
+            </div>
+            <div className="text-[8px] sm:text-[9.5px] font-medium text-[#fbcfe8] mt-0.5 flex items-center justify-center gap-0.5 w-full">
+              <span className="truncate">Tonight, 10 PM</span>
+              <ChevronRight className="w-2.5 h-2.5 shrink-0" />
             </div>
           </div>
 
           {/* Card 3: Leaderboards */}
           <div
             onClick={() => showToast("Opening Leaderboards...")}
-            className="flex-1 min-w-[118px] max-w-[145px] rounded-[13px] p-2 flex flex-col items-center text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+            className="min-w-0 rounded-[10px] sm:rounded-[13px] px-1 py-1.5 sm:p-2 flex flex-col items-center justify-between text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
             style={{
               background: "linear-gradient(180deg, #0f3050 0%, #071526 100%)",
               border: "1.5px solid #0284c7",
-              boxShadow: "0 0 10px rgba(2, 132, 199, 0.3)",
+              boxShadow: "0 0 8px rgba(2, 132, 199, 0.3)",
             }}
           >
-            <div className="w-7 h-7 rounded-full flex items-center justify-center mb-1">
-              <Trophy size={20} className="text-[#fbbf24]" />
+            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center mb-0.5">
+              <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-[#fbbf24]" />
             </div>
-            <div className="font-bold text-[11px] text-white leading-tight">Leaderboards</div>
-            <div className="text-[9px] font-medium text-[#bae6fd] mt-0.5 whitespace-nowrap">
-              Match • Series • App
+            <div className="font-bold text-[9.5px] sm:text-[11px] text-white leading-tight w-full truncate">
+              Leaderboards
+            </div>
+            <div className="text-[7.5px] sm:text-[9px] font-medium text-[#bae6fd] mt-0.5 w-full truncate">
+              Match • Series
             </div>
           </div>
 
           {/* Card 4: Rewards & Win */}
           <div
             onClick={() => showToast("Rewards & Contests: 1200 SXP Prize Pool Active!")}
-            className="flex-1 min-w-[120px] max-w-[145px] rounded-[13px] p-2 flex flex-col items-center text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
+            className="min-w-0 rounded-[10px] sm:rounded-[13px] px-1 py-1.5 sm:p-2 flex flex-col items-center justify-between text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
             style={{
               background: "linear-gradient(180deg, #4a310c 0%, #1e1303 100%)",
               border: "1.5px solid #f59e0b",
-              boxShadow: "0 0 10px rgba(245, 158, 11, 0.3)",
+              boxShadow: "0 0 8px rgba(245, 158, 11, 0.3)",
             }}
           >
-            <div className="w-7 h-7 rounded-full flex items-center justify-center mb-1">
-              <Gift size={20} className="text-[#fbbf24]" />
+            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center mb-0.5">
+              <Gift className="w-4 h-4 sm:w-5 sm:h-5 text-[#fbbf24]" />
             </div>
-            <div className="font-bold text-[11px] text-white leading-tight">Rewards & Win</div>
-            <div className="text-[9px] font-medium text-[#fde68a] mt-0.5 whitespace-nowrap">
-              Winners • New Contests
+            <div className="font-bold text-[9.5px] sm:text-[11px] text-white leading-tight w-full truncate">
+              Rewards & Win
+            </div>
+            <div className="text-[7.5px] sm:text-[9px] font-medium text-[#fde68a] mt-0.5 w-full truncate">
+              Winners • Contests
             </div>
           </div>
         </div>
