@@ -3535,6 +3535,7 @@ import { RADIAL_OPTS } from "../constants";
 import VotersDialog from "../components/VotersDialog";
 import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
 import EngagementCard from "@/components/Engagements/EngagementCard";
+import TonightScheduleWidget from "../components/TonightScheduleWidget";
 import type { EngagementItem } from "@/types/engagements";
 
 const REQUEST_TIMEOUT_MS = 12000;
@@ -8575,6 +8576,15 @@ export default function OpenRoomDiscussionRoom({
                         </div>
                     </>
                 )}
+            </div>
+
+            {/* ── TONIGHT SCHEDULE & FAN SCORECARD WIDGET (FIXED BELOW COMMENT BOX) ── */}
+            <div className="shrink-0 z-10">
+                <TonightScheduleWidget
+                    roomId={roomId}
+                    matchId={roomMatchId || undefined}
+                    userId={currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId}
+                />
             </div>
 
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />

@@ -9,6 +9,7 @@ import axios from "axios";
 import { ChevronLeft } from "lucide-react";
 import { useUserProfile } from "@/context/UserProfileContext";
 import EngagementCard from "@/components/Engagements/EngagementCard";
+import TonightScheduleWidget from "../components/TonightScheduleWidget";
 import { MATCH_INFO, cardTime, formatIST, hasAuctionId, cleanMatchId, matchInfoFor } from "./matchMomentRoomUtils";
 
 // Set NEXT_PUBLIC_MATCH_FEED_ROOM_ID per environment (dev / release / prod). Falls back to the dev room.
@@ -187,6 +188,11 @@ export default function MatchFeedRoom({ roomId, roomName, onBack }: Props) {
             ))
           )}
         </div>
+      </div>
+
+      {/* Fixed bottom Tonight Schedule & Fan Scorecard UI */}
+      <div style={{ flexShrink: 0, zIndex: 10 }}>
+        <TonightScheduleWidget roomId={roomId} userId={userId} />
       </div>
     </div>
   );
