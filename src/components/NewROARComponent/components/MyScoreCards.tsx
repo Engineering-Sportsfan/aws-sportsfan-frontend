@@ -142,13 +142,21 @@ export function MyScoreCards({
   }, []);
 
   // Shared 5-min cache with the Profile tiles / Contribution History: normally no new request.
+  // A failed/timed-out request used to become [] and hide this section until a refresh, so retry with backoff.
+  const [listFailed, setListFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     getMomentEngagements()
-      .then((l) => { if (!cancelled) setList(l); })
-      .catch(() => { if (!cancelled) setList([]); });
-    return () => { cancelled = true; };
-  }, []);
+      .then((l) => { if (!cancelled) { setList(l); setListFailed(false); } })
+      .catch(() => {
+        if (cancelled) return;
+        if (attempt < 3) timer = setTimeout(() => setAttempt((n) => n + 1), 1500 * (attempt + 1));
+        else setListFailed(true);
+      });
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [attempt]);
 
   const scores = useMemo<Score[]>(() => {
     if (!list) return [];
@@ -203,7 +211,27 @@ export function MyScoreCards({
     return Array.from(acc.values()).sort((x, y) => y.last - x.last);
   }, [activities, list, matches]);
 
-  if (loading || !list || !matches) return null;
+  if (listFailed) {
+    return (
+      <div style={{ padding: "22px 14px 8px" }}>
+        <button
+          type="button"
+          onClick={() => { setListFailed(false); setAttempt(0); }}
+          style={{ background: "none", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 12, color: "#3ea6ff", fontSize: 13, fontWeight: 600, padding: "10px 14px", cursor: "pointer", width: "100%" }}
+        >
+          Couldn&apos;t load My Fan Score Card. Tap to retry
+        </button>
+      </div>
+    );
+  }
+  // Still loading: keep a placeholder so the section doesn't pop in/out.
+  if (loading || !list || !matches) {
+    return (
+      <div style={{ padding: "22px 14px 8px" }}>
+        <div style={{ height: 120, borderRadius: 16, background: "rgba(255,255,255,0.06)" }} />
+      </div>
+    );
+  }
   if (scores.length === 0) return null;
 
   const shown = showAll ? scores : scores.slice(0, SHOW_FIRST);
@@ -214,7 +242,7 @@ export function MyScoreCards({
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 700, color: "#fff" }}>
           <span style={{ color: "#ff9f1c", fontSize: 16 }}>🏆</span>
-          My Score Card
+          My Fan Score Card
         </span>
         {scores.length > SHOW_FIRST && (
           <button
