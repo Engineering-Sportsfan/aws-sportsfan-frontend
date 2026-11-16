@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
-import { Target, MessageSquare, Swords, Flame } from "lucide-react";
+import { Target, MessageSquare, Swords, Flame, Share2, History } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { handleGoBack } from "@/utils/backButton";
 import { getMomentEngagements, type MomentEngagement } from "@/src/components/NewROARComponent/components/momentEngagements";
@@ -61,6 +61,8 @@ export default function FanScorecardPage() {
   const [engagements, setEngagements] = useState<MomentEngagement[] | null>(null);
   const [match, setMatch] = useState<any>(null);
   const [showAllBoard, setShowAllBoard] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [kpis, setKpis] = useState<any>(null);
   const [board, setBoard] = useState<Row[]>([]);
   const [rankInfo, setRankInfo] = useState<{ rank: number | null; total: number | null }>({ rank: null, total: null });
@@ -165,6 +167,19 @@ const fanScore: number | null = kpis?.kpis
   const myRank = rankInfo.rank ?? (myRowIdx >= 0 ? myRowIdx + 1 : null);
   const topPct = myRank && rankInfo.total ? Math.max(1, Math.ceil((myRank / rankInfo.total) * 100)) : null;
   const fmtFans = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n));
+
+  const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore}` : ""} for ${title}${topPct != null ? ` – Top ${topPct}%` : ""} on SportsFan360!`;
+  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+  const nativeShare = async () => {
+    try {
+      if (navigator.share) { await navigator.share({ title: "My Match Scorecard", text: shareText, url: shareUrl }); return; }
+      await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* user cancelled */ }
+  };
+  const openShare = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
+  const enc = encodeURIComponent(`${shareText} ${shareUrl}`);
 
   return (
     <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub}>
@@ -308,6 +323,69 @@ const fanScore: number | null = kpis?.kpis
           </div>
         )}
       </div>
+
+      {/* Share / history buttons */}
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 10 }}>
+        <button type="button" onClick={() => setShareOpen(true)}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 6px", borderRadius: 14, border: "none", cursor: "pointer", color: "#fff", fontWeight: 700, fontSize: 13, lineHeight: 1.2, textAlign: "center", minWidth: 0, background: "linear-gradient(90deg,#ff6b35,#c026d3,#7c3aed)" }}>
+          <Share2 size={16} style={{ flexShrink: 0 }} /> Share Scorecard
+        </button>
+        <button type="button" onClick={() => router.push("/MainModules/ROAR")}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px 6px", borderRadius: 14, cursor: "pointer", color: "#fff", fontWeight: 700, fontSize: 13, lineHeight: 1.2, textAlign: "center", minWidth: 0, background: "rgba(30,10,50,0.9)", border: "1.5px solid #c026d3" }}>
+          <History size={16} style={{ flexShrink: 0 }} /> View Full Match History
+        </button>
+      </div>
+
+      {shareOpen && (
+        <div onClick={() => setShareOpen(false)}
+          style={{ position: "fixed", inset: 0, zIndex: 1000, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}
+            style={{ position: "relative", width: "100%", maxWidth: 360, maxHeight: "90vh", overflowY: "auto", borderRadius: 24, padding: 16, background: "linear-gradient(160deg,#1a0b33,#0b0716)", border: "1.5px solid #c026d3", boxShadow: "0 0 24px rgba(192,38,211,0.5)" }}>
+            <button type="button" onClick={() => setShareOpen(false)} aria-label="Close"
+              style={{ position: "absolute", top: 8, right: 12, background: "none", border: "none", color: "#fff", fontSize: 22, cursor: "pointer" }}>×</button>
+            <div style={{ textAlign: "center", fontSize: 12, fontWeight: 800, letterSpacing: 1, color: "#ff6b35" }}>SPORTSFAN 360</div>
+            <div style={{ textAlign: "center", fontSize: 20, fontWeight: 800, marginTop: 2 }}>My Match Scorecard</div>
+            <div style={{ textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.8)", margin: "8px 0 12px" }}>
+              {title}{match?.format ? ` · ${match.format}` : ""}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr)", gap: 8 }}>
+              <div style={{ ...card, textAlign: "center", padding: 10 }}>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>Fan Score</div>
+                <div style={{ fontSize: 40, fontWeight: 900, lineHeight: 1.1 }}>{fanScore ?? "–"}</div>
+              </div>
+              <div style={{ ...card, textAlign: "center", padding: 10, display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                {topPct != null ? (
+                  <>
+                    <div style={{ fontSize: 20, fontWeight: 900 }}>Top {topPct}%</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>#{myRank} / {fmtFans(rankInfo.total!)}</div>
+                  </>
+                ) : <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Not ranked yet</div>}
+              </div>
+            </div>
+            {badges.length > 0 && (
+              <div style={{ display: "flex", justifyContent: "space-around", margin: "14px 0 4px" }}>
+                {badges.map((b) => (
+                  <div key={b.id} style={{ textAlign: "center", minWidth: 0 }}>
+                    <div style={{ width: 52, height: 58, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, border: `2px solid ${b.color}`, boxShadow: `0 0 10px ${b.color}`, clipPath: "polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)", background: "rgba(0,0,0,0.4)" }}>{b.icon}</div>
+                    <div style={{ fontSize: 11, fontWeight: 700, marginTop: 4 }}>{b.label}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "14px 0", padding: "10px 12px", borderRadius: 14, border: "1.5px solid #c026d3", background: "rgba(0,0,0,0.3)" }}>
+              <span style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>Share on</span>
+              <button type="button" aria-label="Share on WhatsApp" onClick={() => openShare(`https://wa.me/?text=${enc}`)}
+                style={{ width: 36, height: 36, borderRadius: 10, border: "none", cursor: "pointer", background: "#25d366", color: "#fff", fontWeight: 800 }}>W</button>
+              <button type="button" aria-label="Share on Instagram" onClick={nativeShare}
+                style={{ width: 36, height: 36, borderRadius: 10, border: "none", cursor: "pointer", background: "linear-gradient(135deg,#f58529,#dd2a7b,#8134af)", color: "#fff", fontWeight: 800 }}>IG</button>
+              <button type="button" aria-label="Share on X" onClick={() => openShare(`https://twitter.com/intent/tweet?text=${enc}`)}
+                style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid rgba(255,255,255,0.3)", cursor: "pointer", background: "#000", color: "#fff", fontWeight: 800 }}>X</button>
+              <button type="button" aria-label="More" onClick={nativeShare}
+                style={{ width: 28, background: "none", border: "none", color: "#fff", fontSize: 20, cursor: "pointer" }}>⋯</button>
+            </div>
+          </div>
+        </div>
+      )}
     </Shell>
   );
 }
