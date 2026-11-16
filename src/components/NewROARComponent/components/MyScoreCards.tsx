@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { getMomentEngagements, type MomentEngagement } from "./momentEngagements";
 
-const SHOW_FIRST = 3;
-
 interface MatchInfo {
   id: string;
   team1?: string;
@@ -234,7 +232,7 @@ export function MyScoreCards({
   }
   if (scores.length === 0) return null;
 
-  const shown = showAll ? scores : scores.slice(0, SHOW_FIRST);
+  const shown = scores; // collapsed: swipeable row of every match; expanded: vertical list
   const initial = (username || "F").trim().charAt(0).toUpperCase();
 
   return (
@@ -244,7 +242,7 @@ export function MyScoreCards({
           <span style={{ color: "#ff9f1c", fontSize: 16 }}>🏆</span>
           My Fan Score Card
         </span>
-        {scores.length > SHOW_FIRST && (
+        {scores.length > 1 && (
           <button
             type="button"
             onClick={() => setShowAll((v) => !v)}
@@ -255,9 +253,23 @@ export function MyScoreCards({
         )}
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div
+        className="hide-scrollbar"
+        style={
+          showAll
+            ? { display: "flex", flexDirection: "column", gap: 12 }
+            : {
+                display: "flex", flexDirection: "row", gap: 12, overflowX: "auto",
+                scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch",
+                scrollbarWidth: "none", msOverflowStyle: "none", paddingBottom: 4, touchAction: "pan-x pan-y",
+              }
+        }
+      >
         {shown.map((s) => (
-          <div key={s.matchId}>
+          <div
+            key={s.matchId}
+            style={showAll ? undefined : { flex: "0 0 86%", maxWidth: 360, minWidth: 0, scrollSnapAlign: "start" }}
+          >
             {/* Tournament / series and format sit above the card, outside it. */}
             <div style={{ margin: "0 2px 6px" }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: "#fff" }}>{s.title}</div>

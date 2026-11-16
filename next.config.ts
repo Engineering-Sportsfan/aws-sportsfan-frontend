@@ -262,6 +262,10 @@ const nextConfig = {
           destination: `${apiTarget}/api/user-points/:path*`,
         },
         {
+          source: "/api/user/match-kpis",
+          destination: `${apiTarget}/api/user/match-kpis`,
+        },
+        {
           source: "/api/user-activity",
           destination: `${apiTarget}/api/user-activity`,
         },

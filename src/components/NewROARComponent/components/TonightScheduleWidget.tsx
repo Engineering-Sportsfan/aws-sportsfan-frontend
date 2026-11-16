@@ -15,6 +15,7 @@ import {
   Users,
 } from "lucide-react";
 import axios from "axios";
+import { useRouter } from "next/navigation";
 
 interface TonightScheduleWidgetProps {
   roomId?: string;
@@ -26,11 +27,12 @@ interface TonightScheduleWidgetProps {
 
 export default function TonightScheduleWidget({
   roomId,
-  matchId = "ind-vs-nz-2026-t20-m1",
+  matchId,
   userId,
   onViewScorecard,
   onScheduleClick,
 }: TonightScheduleWidgetProps) {
+  const router = useRouter();
   const [showScorecardModal, setShowScorecardModal] = useState(false);
   const [activeTab, setActiveTab] = useState<"recap" | "kpis" | "leaderboard">("kpis");
   const [kpiData, setKpiData] = useState<any>(null);
@@ -63,12 +65,13 @@ export default function TonightScheduleWidget({
     fetchKpis();
   }, [showScorecardModal, matchId, userId]);
 
+  // Both the whole banner and the "View Scorecard" pill open the Fan Scorecard page for this match.
   const handleOpenScorecard = () => {
     if (onViewScorecard) {
       onViewScorecard();
-    } else {
-      setShowScorecardModal(true);
+      return;
     }
+    router.push(`/MainModules/FanScorecard/${encodeURIComponent(matchId || "latest")}`);
   };
 
   // Radar chart SVG points calculation (5-axis pentagon)

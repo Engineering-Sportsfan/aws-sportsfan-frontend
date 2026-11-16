@@ -6349,7 +6349,9 @@ export default function Profile({
             {!isOtherProfile && (
               <button
                 type="button"
-                onClick={() => router.push(`/MainModules/FanScorecard/${encodeURIComponent(latestScorecardMatchId || "latest")}`)}
+                onClick={() =>
+                  document.getElementById("my-score-cards")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                }
                 style={{
                   width: "100%", marginTop: 12, display: "flex", alignItems: "center", gap: 14,
                   padding: "14px 16px", borderRadius: 16, cursor: "pointer", textAlign: "left",
