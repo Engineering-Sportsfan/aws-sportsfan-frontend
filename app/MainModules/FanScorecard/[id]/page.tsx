@@ -339,45 +339,7 @@ export default function FanScorecardPage() {
   return (
     <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub}>
       {/* Followed Matches Filter Tabs */}
-      {eventTabs.length > 0 && (
-        <div style={{ ...card, padding: "10px 12px" }}>
 
-          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
-            {eventTabs.map((tab) => {
-              const isSelected = tab.id === matchId;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => {
-                    if (tab.id !== "AUCTION") {
-                      router.push(`/MainModules/FanScorecard/${encodeURIComponent(tab.id)}`);
-                    } else if (matchesList.length > 0) {
-                      const firstMid = String(matchesList[0]?.match_id ?? matchesList[0]?.id ?? "");
-                      if (firstMid) router.push(`/MainModules/FanScorecard/${encodeURIComponent(firstMid)}`);
-                    }
-                  }}
-                  className={`h-8 px-3 rounded-lg text-[10px] font-black tracking-wide uppercase transition-all duration-200 flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer select-none ${
-                    isSelected
-                      ? "bg-gradient-to-r from-[#2a0e28] to-[#1c0c20] border-2 border-[#e91e8c] text-white shadow-[0_0_14px_rgba(233,30,140,0.45)] ring-1 ring-[#e91e8c]/50"
-                      : "bg-white/[0.04] border border-white/15 text-white/70 hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
-                  }`}
-                >
-                  {tab.isLive && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
-                  )}
-                  <span>{tab.label}</span>
-                  {tab.sublabel && !tab.isLive && (
-                    <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-white/10 text-white/60">
-                      {tab.sublabel}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {!stats ? (
         <div style={{ textAlign: "center", padding: 40 }}>
