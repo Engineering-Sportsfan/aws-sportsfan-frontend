@@ -195,66 +195,7 @@ export default function FanScorecardPage() {
     };
   }, [activities, engagements, matchId]);
 
-  const title = match?.team1 && match?.team2
-    ? `${match.team1} vs ${match.team2}`
-    : (() => {
-        const e: any = engagements?.find((x: any) => String(x.matchId) === matchId);
-        return e?.followData?.team1Name ? `${e.followData.team1Name} vs ${e.followData.team2Name}` : "Match";
-      })();
-  const sub = [match?.tournament, match?.format, match?.venue].filter(Boolean).join(" · ");
-
-  if (!stats) {
-    return (
-      <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub}>
-        <div style={{ textAlign: "center", padding: 40 }}>
-          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-[#e91e8c] animate-spin" style={{ margin: "0 auto" }} />
-        </div>
-      </Shell>
-    );
-  }
-
-  const accuracy = stats.predictionsTotal ? Math.round((stats.predictionsCorrect / stats.predictionsTotal) * 100) : 0;
-  const overallKpi = Number(kpis?.overallScore);
-  const fanScore: number | null = Number.isFinite(overallKpi)
-    ? Math.round(overallKpi)
-    : kpis?.kpis
-    ? (() => {
-        const active = IMPACT_ROWS.filter((r) => {
-          const metric = String(kpis.kpis[r.key]?.metric || "").toLowerCase();
-          return !metric.startsWith("no ");
-        });
-        const targets = active.length > 0 ? active : IMPACT_ROWS;
-        return Math.round(targets.reduce((sum, r) => sum + (Number(kpis.kpis[r.key]?.score) || 0), 0) / targets.length);
-      })()
-    : null;
-  const overall = fanScore ?? Number(kpis?.overallScore);
-  const impact = Number.isFinite(overall) ? (overall >= 70 ? "High" : overall >= 40 ? "Medium" : "Low") : (stats.sxp >= 50 ? "High" : stats.sxp >= 20 ? "Medium" : "Low");
-  const badges = (() => {
-    const list = [...badgesForMatch(stats)];
-    const existingIds = new Set(list.map((b) => b.id));
-
-    const triviaCorrect = Number(kpis?.kpis?.knowledge?.correct || 0);
-    const triviaAttempted = Number(kpis?.kpis?.knowledge?.attempted || 0);
-    if (!existingIds.has("trivia_scholar") && (triviaCorrect >= 2 || (triviaAttempted >= 2 && triviaCorrect / triviaAttempted >= 0.5))) {
-      list.push({ id: "trivia_scholar", label: "Cricket Scholar", color: "#facc15", icon: "🧠" });
-    }
-
-    const predCorrect = Number(kpis?.kpis?.prediction?.correct || 0);
-    if (!existingIds.has("sharp") && predCorrect >= 2) {
-      list.push({ id: "sharp", label: "Sharp Predictor", color: "#22c55e", icon: "🎯" });
-    }
-
-    const debatesVoted = Number(kpis?.kpis?.community?.debatesVoted || 0);
-    if (!existingIds.has("debate") && debatesVoted >= 2) {
-      list.push({ id: "debate", label: "Debate Star", color: "#a855f7", icon: "💬" });
-    }
-
-    if (!existingIds.has("fan_champ") && Number(kpis?.overallScore) >= 75) {
-      list.push({ id: "fan_champ", label: "Super Fan", color: "#ff6b35", icon: "⭐" });
-    }
-
-    return list;
-  })();
+  const matchSxp = Number(stats?.sxp ?? 0);
 
   const leaderboard: Row[] = useMemo(() => {
     // Deduplicate by canonical user key to guarantee one single consistent row per user
@@ -288,35 +229,17 @@ export default function FanScorecardPage() {
     // Ensure current user is in the leaderboard with consistent points
     const meRow = userMap.get("__me__");
     if (!meRow) {
-      if (stats.sxp > 0 || userMap.size === 0) {
-        userMap.set("__me__", { name: myName, sxp: stats.sxp, avatar: myAvatar, isMe: true });
+      if (matchSxp > 0 || userMap.size === 0) {
+        userMap.set("__me__", { name: myName, sxp: matchSxp, avatar: myAvatar, isMe: true });
       }
     } else {
-      if (stats.sxp > meRow.sxp) {
-        meRow.sxp = stats.sxp;
+      if (matchSxp > meRow.sxp) {
+        meRow.sxp = matchSxp;
       }
     }
 
     return Array.from(userMap.values()).sort((a, b) => b.sxp - a.sxp);
-  }, [board, mine, myName, myAvatar, stats.sxp]);
-  const myLeaderboardIdx = leaderboard.findIndex((r) => r.isMe);
-  // Match Rank uses the exact same rank as the leaderboard below
-  const myRank = (myLeaderboardIdx >= 0 ? myLeaderboardIdx + 1 : null) ?? rankInfo.rank ?? null;
-  const totalFans = Math.max(rankInfo.total || 0, leaderboard.length, myRank || 0);
-  const fmtFans = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n));
-
-  const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore}` : ""} for ${title}${myRank != null ? ` – Ranked #${myRank} of ${fmtFans(totalFans)} fans` : ""} on SportsFan360!`;
-  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
-  const nativeShare = async () => {
-    try {
-      if (navigator.share) { await navigator.share({ title: "My Match Scorecard", text: shareText, url: shareUrl }); return; }
-      await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch { /* user cancelled */ }
-  };
-  const openShare = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
-  const enc = encodeURIComponent(`${shareText} ${shareUrl}`);
+  }, [board, mine, myName, myAvatar, matchSxp]);
 
   const eventTabs = useMemo(() => {
     const tabs: { id: string; label: string; sublabel?: string; isLive?: boolean }[] = [
@@ -337,6 +260,81 @@ export default function FanScorecardPage() {
     });
     return tabs;
   }, [followedMatches]);
+
+  const title = match?.team1 && match?.team2
+    ? `${match.team1} vs ${match.team2}`
+    : (() => {
+        const e: any = engagements?.find((x: any) => String(x.matchId) === matchId);
+        return e?.followData?.team1Name ? `${e.followData.team1Name} vs ${e.followData.team2Name}` : "Match";
+      })();
+  const sub = [match?.tournament, match?.format, match?.venue].filter(Boolean).join(" · ");
+
+  const accuracy = stats?.predictionsTotal ? Math.round((stats.predictionsCorrect / stats.predictionsTotal) * 100) : 0;
+  const overallKpi = Number(kpis?.overallScore);
+  const fanScore: number | null = Number.isFinite(overallKpi)
+    ? Math.round(overallKpi)
+    : kpis?.kpis
+    ? (() => {
+        const active = IMPACT_ROWS.filter((r) => {
+          const metric = String(kpis.kpis[r.key]?.metric || "").toLowerCase();
+          return !metric.startsWith("no ");
+        });
+        const targets = active.length > 0 ? active : IMPACT_ROWS;
+        return Math.round(targets.reduce((sum, r) => sum + (Number(kpis.kpis[r.key]?.score) || 0), 0) / targets.length);
+      })()
+    : null;
+  const overall = fanScore ?? Number(kpis?.overallScore);
+  const impact = Number.isFinite(overall)
+    ? (overall >= 70 ? "High" : overall >= 40 ? "Medium" : "Low")
+    : (matchSxp >= 50 ? "High" : matchSxp >= 20 ? "Medium" : "Low");
+
+  const badges = stats
+    ? (() => {
+        const list = [...badgesForMatch(stats)];
+        const existingIds = new Set(list.map((b) => b.id));
+
+        const triviaCorrect = Number(kpis?.kpis?.knowledge?.correct || 0);
+        const triviaAttempted = Number(kpis?.kpis?.knowledge?.attempted || 0);
+        if (!existingIds.has("trivia_scholar") && (triviaCorrect >= 2 || (triviaAttempted >= 2 && triviaCorrect / triviaAttempted >= 0.5))) {
+          list.push({ id: "trivia_scholar", label: "Cricket Scholar", color: "#facc15", icon: "🧠" });
+        }
+
+        const predCorrect = Number(kpis?.kpis?.prediction?.correct || 0);
+        if (!existingIds.has("sharp") && predCorrect >= 2) {
+          list.push({ id: "sharp", label: "Sharp Predictor", color: "#22c55e", icon: "🎯" });
+        }
+
+        const debatesVoted = Number(kpis?.kpis?.community?.debatesVoted || 0);
+        if (!existingIds.has("debate") && debatesVoted >= 2) {
+          list.push({ id: "debate", label: "Debate Star", color: "#a855f7", icon: "💬" });
+        }
+
+        if (!existingIds.has("fan_champ") && Number(kpis?.overallScore) >= 75) {
+          list.push({ id: "fan_champ", label: "Super Fan", color: "#ff6b35", icon: "⭐" });
+        }
+
+        return list;
+      })()
+    : [];
+
+  const myLeaderboardIdx = leaderboard.findIndex((r) => r.isMe);
+  // Match Rank uses the exact same rank as the leaderboard below
+  const myRank = (myLeaderboardIdx >= 0 ? myLeaderboardIdx + 1 : null) ?? rankInfo.rank ?? null;
+  const totalFans = Math.max(rankInfo.total || 0, leaderboard.length, myRank || 0);
+  const fmtFans = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n));
+
+  const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore}` : ""} for ${title}${myRank != null ? ` – Ranked #${myRank} of ${fmtFans(totalFans)} fans` : ""} on SportsFan360!`;
+  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+  const nativeShare = async () => {
+    try {
+      if (navigator.share) { await navigator.share({ title: "My Match Scorecard", text: shareText, url: shareUrl }); return; }
+      await navigator.clipboard.writeText(`${shareText} ${shareUrl}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* user cancelled */ }
+  };
+  const openShare = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
+  const enc = encodeURIComponent(`${shareText} ${shareUrl}`);
 
   return (
     <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub}>
@@ -387,6 +385,13 @@ export default function FanScorecardPage() {
           </div>
         </div>
       )}
+
+      {!stats ? (
+        <div style={{ textAlign: "center", padding: 40 }}>
+          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-[#e91e8c] animate-spin" style={{ margin: "0 auto" }} />
+        </div>
+      ) : (
+        <>
 
       {/* Multi-Match Switcher */}
       {matchesList.length > 1 && (
@@ -656,6 +661,8 @@ export default function FanScorecardPage() {
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </Shell>
   );
