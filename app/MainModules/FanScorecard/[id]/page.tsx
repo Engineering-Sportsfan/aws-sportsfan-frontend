@@ -341,14 +341,7 @@ export default function FanScorecardPage() {
       {/* Followed Matches Filter Tabs */}
       {eventTabs.length > 0 && (
         <div style={{ ...card, padding: "10px 12px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Followed Match Filters
-            </span>
-            <span style={{ fontSize: 11, color: "#ec4899", fontWeight: 700 }}>
-              {followedMatches.length} followed
-            </span>
-          </div>
+
           <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
             {eventTabs.map((tab) => {
               const isSelected = tab.id === matchId;
