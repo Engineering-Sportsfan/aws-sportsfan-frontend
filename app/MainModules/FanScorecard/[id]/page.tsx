@@ -71,12 +71,19 @@ export default function FanScorecardPage() {
   const [resolvedId, setResolvedId] = useState<string | null>(null);
   const matchId = rawId === "latest" ? (resolvedId ?? "") : rawId;
   useEffect(() => {
-    if (rawId !== "latest" || !activities || !engagements) return;
-    const id = latestMatchId(buildMatchStats(activities, engagements)) ?? "";
-    setResolvedId(id);
-    // Swap /latest for the real match id in the address bar (same page, no reload).
-    if (id) router.replace(`/MainModules/FanScorecard/${encodeURIComponent(id)}`);
-  }, [rawId, activities, engagements, router]);
+    if (rawId !== "latest") return;
+    let id: string | null = null;
+    if (activities && engagements) {
+      id = latestMatchId(buildMatchStats(activities, engagements));
+    }
+    if (!id && matchesList.length > 0) {
+      id = String(matchesList[0]?.match_id ?? matchesList[0]?.id ?? "");
+    }
+    if (id) {
+      setResolvedId(id);
+      router.replace(`/MainModules/FanScorecard/${encodeURIComponent(id)}`);
+    }
+  }, [rawId, activities, engagements, matchesList, router]);
 
   useEffect(() => {
     if (matchesList.length > 0 && matchId) {
@@ -108,7 +115,7 @@ export default function FanScorecardPage() {
     // GET /api/user-points?matchId= returns { totalUsers, userRank, userMatchPoints, leaderboard[{ userId, userName, userHandle, avatarUrl, matchPoints, rank }] }.
     // The backend rejects an empty matchId (400), so wait until "latest" has been resolved.
     if (matchId) {
-      axios.get("/api/user/match-kpis", { params: { matchId, userId: profileId } })
+      axios.get("/api/user/match-kpis", { params: { matchId, userId: profileId, recompute: "true" } })
         .then((r) => { if (!off && r.data?.success) setKpis(r.data); })
         .catch(() => {});
       const norm = (v: unknown) => String(v ?? "").replace(/^USER#/, "").toLowerCase();
@@ -203,14 +210,13 @@ export default function FanScorecardPage() {
     if (!rows.some((r) => r.isMe) && (stats.sxp > 0 || rows.length === 0)) rows.push({ name: myName, sxp: stats.sxp, avatar: myAvatar, isMe: true });
     return rows.sort((a, b) => b.sxp - a.sxp);
   })();
-  const myRowIdx = board.findIndex((r) => r.isMe);
-  // userRank is null when the user is outside the ranking; if they appear in the top rows use that position.
-  const myRank = rankInfo.rank ?? (myRowIdx >= 0 ? myRowIdx + 1 : null);
-  const totalFans = Math.max(rankInfo.total || 0, board.length, myRank || 0);
-  const topPct = myRank && totalFans > 0 ? Math.max(1, Math.ceil((myRank / totalFans) * 100)) : null;
+  const myLeaderboardIdx = leaderboard.findIndex((r) => r.isMe);
+  // Match Rank uses the exact same rank as the leaderboard below
+  const myRank = (myLeaderboardIdx >= 0 ? myLeaderboardIdx + 1 : null) ?? rankInfo.rank ?? null;
+  const totalFans = Math.max(rankInfo.total || 0, leaderboard.length, myRank || 0);
   const fmtFans = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n));
 
-  const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore}` : ""} for ${title}${topPct != null ? ` – Top ${topPct}%` : ""} on SportsFan360!`;
+  const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore}` : ""} for ${title}${myRank != null ? ` – Ranked #${myRank} of ${fmtFans(totalFans)} fans` : ""} on SportsFan360!`;
   const shareUrl = typeof window !== "undefined" ? window.location.href : "";
   const nativeShare = async () => {
     try {
@@ -288,10 +294,10 @@ export default function FanScorecardPage() {
         </div>
         <div style={{ textAlign: "center", minWidth: 0, borderLeft: "1px solid rgba(255,255,255,0.12)", borderRight: "1px solid rgba(255,255,255,0.12)", padding: "0 4px" }}>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>Match Rank</div>
-          {topPct != null ? (
+          {myRank != null ? (
             <>
               <div style={{ fontSize: 20, lineHeight: 1.1, marginTop: 2 }}>🏆</div>
-              <div style={{ fontSize: "clamp(16px, 5vw, 22px)", fontWeight: 900, color: "#f5a623", whiteSpace: "nowrap" }}>Top {topPct}%</div>
+              <div style={{ fontSize: "clamp(20px, 6vw, 26px)", fontWeight: 900, color: "#f5a623", whiteSpace: "nowrap" }}>#{myRank}</div>
               <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>of {fmtFans(totalFans)} fans</div>
             </>
           ) : (
@@ -316,23 +322,29 @@ export default function FanScorecardPage() {
             l: "Trivia", ic: "know",
           },
           {
-            v: kpis?.kpis?.prediction
-              ? `${kpis.kpis.prediction.correct ?? 0}/${kpis.kpis.prediction.resolved ?? kpis.kpis.prediction.attempted ?? 0}`
-              : `${stats.predictionsCorrect}/${stats.predictionsTotal}`,
+            v: (() => {
+              const pCorrect = kpis?.kpis?.prediction?.correct ?? kpis?.kpis?.prediction?.won ?? stats.predictionsCorrect ?? 0;
+              const pTotal = kpis?.kpis?.prediction?.attempted ?? kpis?.kpis?.prediction?.resolved ?? stats.predictionsTotal ?? 0;
+              return `${pCorrect}/${pTotal}`;
+            })(),
             l: "Prediction", ic: "pred",
           },
           {
-            v: kpis?.kpis?.participation ? String(kpis.kpis.participation.cardsEngaged ?? 0) : String(stats.interactions),
+            v: kpis?.kpis?.participation?.cardsEngaged != null && kpis.kpis.participation.cardsEngaged > 0
+              ? String(kpis.kpis.participation.cardsEngaged)
+              : String(stats.interactions),
             l: "Interact", ic: "inter",
           },
           {
-            v: kpis?.kpis?.community ? String((kpis.kpis.community.debatesVoted ?? 0) + (kpis.kpis.community.pollsVoted ?? 0)) : String(stats.debates),
+            v: kpis?.kpis?.community
+              ? String((kpis.kpis.community.debatesVoted ?? 0) + (kpis.kpis.community.pollsVoted ?? 0))
+              : String(stats.debates),
             l: "Debates", ic: "deb",
           },
           {
-            v: kpis?.kpis?.insight
-              ? String((Number(kpis.kpis.insight.peerLikesReceived) || 0) + (Number(kpis.kpis.insight.peerRepliesReceived) || 0))
-              : String(stats.reactions),
+            v: kpis?.kpis?.insight?.recognitionsCount != null
+              ? String(kpis.kpis.insight.recognitionsCount)
+              : String(kpis?.recognitionsCount ?? stats.reactions),
             l: "Recognised", ic: "react",
           },
         ].map((t) => {
@@ -456,10 +468,10 @@ export default function FanScorecardPage() {
                 <div style={{ fontSize: 40, fontWeight: 900, lineHeight: 1.1 }}>{fanScore ?? "–"}</div>
               </div>
               <div style={{ ...card, textAlign: "center", padding: 10, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                {topPct != null ? (
+                {myRank != null ? (
                   <>
-                    <div style={{ fontSize: 20, fontWeight: 900 }}>Top {topPct}%</div>
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>#{myRank} / {fmtFans(totalFans)}</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "#f5a623" }}>#{myRank}</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>of {fmtFans(totalFans)} fans</div>
                   </>
                 ) : <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Not ranked yet</div>}
               </div>
@@ -520,10 +532,10 @@ function Shell({ children, onBack, title, sub }: { children: React.ReactNode; on
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>Match Summary</div>
           </div>
         </div>
-        <div style={{ ...card, textAlign: "center" }}>
+        {/* <div style={{ ...card, textAlign: "center" }}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>{title}</div>
           {sub && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>{sub}</div>}
-        </div>
+        </div> */}
         {children}
       </div>
     </div>

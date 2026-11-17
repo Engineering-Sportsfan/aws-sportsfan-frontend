@@ -5341,20 +5341,28 @@ function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
     );
 }
 
+function formatCardTime(ts?: any): string {
+    if (!ts) return "";
+    const d = new Date(typeof ts === "number" ? ts : String(ts));
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
 function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
     if (!summary) return null;
 
     const userName = summary.userName || summary.winnerName || summary.name || "Champion Fan";
     const userAvatar = summary.userAvatar || summary.winnerAvatar || summary.avatar || "";
-    const interactions = Number(summary.interactionsCount ?? summary.totalActions ?? summary.actionsCount ?? 24) || 24;
-    const predictionsRatio = String(summary.predictionsRatio || "9/10");
-    const sxp = Number(summary.sxpAwarded ?? summary.totalScore ?? 450) || 450;
+    const interactions = Number(summary.interactionsCount ?? summary.totalActions ?? summary.actionsCount ?? 0);
+    const predictionsRatio = String(summary.predictionsRatio || "0/0");
+    const sxp = Number(summary.sxpAwarded ?? summary.totalScore ?? 0);
     const initial = userName.trim().slice(0, 1).toUpperCase() || "F";
     const badgeText = summary.badgeText || "🏆 Fan of the Match Award · Highest Match Score";
     const countryFlag = summary.countryFlag || "🇮🇳";
     const persona = summary.persona || "Superfan MVP";
-    const favorites = summary.favoritesLabel || "Bumrah • SKY | MI";
+    const favorites = summary.favoritesLabel || "";
     const leaderboardBadge = summary.leaderboardBadge || "🏆 Ranked #1 on Match Leaderboard";
+    const cardTime = formatCardTime(summary.createdAt || summary.created_at || summary.timestamp);
 
     return (
         <div
@@ -5371,9 +5379,16 @@ function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
                         <span>🏆</span>
                         <span>FAN OF THE MATCH</span>
                     </div>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                        Rank #1
-                    </span>
+                    <div className="flex items-center gap-2">
+                        {cardTime && (
+                            <span className="text-[10px] font-medium text-amber-200/50">
+                                {cardTime}
+                            </span>
+                        )}
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            Rank #1
+                        </span>
+                    </div>
                 </div>
 
                 {/* Fan Profile */}
@@ -5401,8 +5416,8 @@ function InlineFanOfTheMatchCard({ summary }: { summary: any }) {
                             <span className="text-sm">{countryFlag}</span>
                             <span className="font-medium text-amber-200/90">{persona}</span>
                         </div>
-                            <div className="text-xs text-amber-400/80 font-normal mt-0.5 truncate">
-                                {favorites ? `${favorites} • ` : ""}{leaderboardBadge}
+                        <div className="text-xs text-amber-400/80 font-normal mt-0.5 truncate">
+                            {favorites ? `${favorites} • ` : ""}{leaderboardBadge}
                         </div>
                     </div>
                 </div>
@@ -5449,9 +5464,10 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
     const mr = summary.matchResultData || summary.resultData || summary;
     const matchTitle = summary.matchTitle || mr.matchTitle || "Match Summary";
 
-    const totalActions = Number(summary.totalActions ?? summary.totalInteractions ?? mr.totalActions ?? mr.totalActionsCount ?? 62) || 62;
-    const totalMoments = Number(summary.totalMoments ?? summary.momentsCount ?? mr.totalMoments ?? 5) || 5;
-    const totalParticipants = Number(summary.totalParticipants ?? summary.totalFansCount ?? summary.participantsCount ?? mr.totalParticipants ?? 27) || 27;
+    const totalActions = Number(summary.totalActions ?? summary.totalInteractions ?? mr.totalActions ?? mr.totalActionsCount ?? 0);
+    const totalMoments = Number(summary.totalMoments ?? summary.momentsCount ?? mr.totalMoments ?? 0);
+    const totalParticipants = Number(summary.totalParticipants ?? summary.totalFansCount ?? summary.participantsCount ?? mr.totalParticipants ?? 0);
+    const cardTime = formatCardTime(summary.createdAt || summary.created_at || summary.timestamp);
 
     return (
         <div
@@ -5468,9 +5484,16 @@ function InlineMatchSnapshotCard({ summary }: { summary: any }) {
                         <span>🏆</span>
                         <span>MATCH SNAPSHOT</span>
                     </div>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                        FINAL RESULT
-                    </span>
+                    <div className="flex items-center gap-2">
+                        {cardTime && (
+                            <span className="text-[10px] font-medium text-emerald-200/50">
+                                {cardTime}
+                            </span>
+                        )}
+                        <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            FINAL RESULT
+                        </span>
+                    </div>
                 </div>
 
                 {/* Match Identity Section — Pure app fan activity (no external scores or match results) */}
@@ -7428,46 +7451,24 @@ export default function OpenRoomDiscussionRoom({
             matchesEngagementFilter(eng.type, engagementFilter)
         );
 
-        // Deduplicate summary engagements so only the freshest match summary/fotm/player summary is kept
-        const currentMatchClean = (roomMatchId || "").replace(/^MATCH#/, "").trim().toLowerCase();
+        // Deduplicate summary engagements per match so each completed match displays its own cards separately
         const seenSummaryKeys = new Set<string>();
         const dedupedEngagements = [...filteredEngagements]
             .sort((a, b) => {
-                if (currentMatchClean) {
-                    const aMatches = String(a.matchId || "").replace(/^MATCH#/, "").trim().toLowerCase() === currentMatchClean;
-                    const bMatches = String(b.matchId || "").replace(/^MATCH#/, "").trim().toLowerCase() === currentMatchClean;
-                    if (aMatches && !bMatches) return -1;
-                    if (!aMatches && bMatches) return 1;
-                }
                 return getTimestamp(b.createdAt || b.updatedAt || 0) - getTimestamp(a.createdAt || a.updatedAt || 0);
             })
             .filter(e => {
                 const isSummary = ["match_result", "match_summary", "fan_of_the_match", "player_match_summary", "user_summary"].includes(e.type);
                 if (!isSummary) return true;
-                const groupKey = (e.type === "match_result" || e.type === "match_summary") ? "match_summary" : e.type;
+                const matchKey = String(e.matchId || roomMatchId || "default").replace(/^MATCH#/i, "").trim().toLowerCase();
+                const typeKey = (e.type === "match_result" || e.type === "match_summary") ? "match_summary" : e.type;
+                const groupKey = `${matchKey}_${typeKey}`;
                 if (seenSummaryKeys.has(groupKey)) return false;
                 seenSummaryKeys.add(groupKey);
                 return true;
             });
 
-        // Determine base timestamp for end-of-match conclusion cards so they pin cleanly at the bottom of the feed
-        const baseCompletionTime = Math.max(
-            Date.now() - 3000,
-            ...postItems.map((p) => p.sortKey || 0),
-            ...dedupedEngagements
-                .filter(e => !["match_result", "match_summary", "fan_of_the_match", "player_match_summary", "user_summary"].includes(e.type))
-                .map(e => getTimestamp(e.createdAt || 0))
-        );
-
         const engagementItems: FeedItem[] = dedupedEngagements.map(e => {
-            const isSummary = ["match_result", "match_summary", "fan_of_the_match", "player_match_summary", "user_summary"].includes(e.type);
-            if (isSummary) {
-                let offset = 10;
-                if (e.type === "match_result" || e.type === "match_summary") offset = 10;
-                else if (e.type === "fan_of_the_match") offset = 20;
-                else offset = 30;
-                return { kind: "engagement" as const, data: e, sortKey: baseCompletionTime + offset };
-            }
             const rawTime = (e.isScheduled || (e as any).scheduledStartTime)
                 ? ((e as any).scheduledStartTime || e.startTime || (e as any).start_time || e.postingTime || e.createdAt || (e as any).created_at)
                 : (e.createdAt || (e as any).created_at || (e as any).timestamp || e.startTime || (e as any).start_time || e.postingTime || e.updatedAt || (e as any).updated_at);
@@ -7528,7 +7529,7 @@ export default function OpenRoomDiscussionRoom({
                       {
                           kind: "match_snapshot_summary" as const,
                           data: matchSnapshotSummary,
-                          sortKey: baseCompletionTime + 11,
+                          sortKey: getTimestamp(matchSnapshotSummary.createdAt || Date.now()),
                       },
                   ]
                 : [];
@@ -7539,7 +7540,7 @@ export default function OpenRoomDiscussionRoom({
                       {
                           kind: "fan_of_the_match" as const,
                           data: fanOfTheMatchSummary,
-                          sortKey: baseCompletionTime + 21,
+                          sortKey: getTimestamp(fanOfTheMatchSummary.createdAt || Date.now()) + 1,
                       },
                   ]
                 : [];
@@ -7550,7 +7551,7 @@ export default function OpenRoomDiscussionRoom({
                       {
                           kind: "player_match_summary" as const,
                           data: userMatchSummary,
-                          sortKey: baseCompletionTime + 31,
+                          sortKey: getTimestamp(userMatchSummary.createdAt || Date.now()) + 2,
                       },
                   ]
                 : [];
