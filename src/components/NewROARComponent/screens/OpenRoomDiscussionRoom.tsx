@@ -3536,6 +3536,7 @@ import VotersDialog from "../components/VotersDialog";
 import DollyPanel, { type DollyHistorySession } from "../components/DollyPanel";
 import EngagementCard from "@/components/Engagements/EngagementCard";
 import TonightScheduleWidget from "../components/TonightScheduleWidget";
+import { resolveSharedMatchId } from "../components/matchScorecard";
 import type { EngagementItem } from "@/types/engagements";
 
 const REQUEST_TIMEOUT_MS = 12000;
@@ -5628,6 +5629,9 @@ export default function OpenRoomDiscussionRoom({
     const [matchEngagements, setMatchEngagements] = useState<EngagementItem[]>([]);
     const [engagementsLoading, setEngagementsLoading] = useState(false);
     const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
+    // Same match the Profile scorecard button opens (latest served match-moment engagement).
+    const [sharedMatchId, setSharedMatchId] = useState<string>("");
+    useEffect(() => { resolveSharedMatchId().then(setSharedMatchId).catch(() => {}); }, []);
     const [engagementsLoaded, setEngagementsLoaded] = useState(false);
 
     // ── TOP EVENT SWITCHER: Auction Journey & Followed Matches Filter ──
@@ -8721,7 +8725,7 @@ export default function OpenRoomDiscussionRoom({
             <div className="shrink-0 z-10">
                 <TonightScheduleWidget
                     roomId={roomId}
-                    matchId={roomMatchId || undefined}
+                    matchId={sharedMatchId || roomMatchId || undefined}
                     userId={currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId}
                 />
             </div>

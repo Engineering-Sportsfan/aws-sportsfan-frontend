@@ -7,7 +7,7 @@ import { Target, MessageSquare, Swords, Flame, Share2, History, HelpCircle, Trop
 import { useAuth } from "@/context/AuthContext";
 import { handleGoBack } from "@/utils/backButton";
 import { getMomentEngagements, type MomentEngagement } from "@/src/components/NewROARComponent/components/momentEngagements";
-import { buildMatchStats, badgesForMatch, latestMatchId, type Category } from "@/src/components/NewROARComponent/components/matchScorecard";
+import { buildMatchStats, badgesForMatch, latestMatchId, resolveSharedMatchId, type Category } from "@/src/components/NewROARComponent/components/matchScorecard";
 
 interface Row { name: string; sxp: number; avatar?: string; isMe?: boolean }
 
@@ -100,6 +100,11 @@ export default function FanScorecardPage() {
     return [];
   });
   const matchId = rawId === "latest" ? (resolvedId ?? "") : rawId;
+  // "latest" -> real id. Own latest match when activity has loaded; otherwise (no activity, slow or failed
+  // requests) the most recent finished match from /api/matches, so the URL always ends up with a match id.
+  const [fallbackId, setFallbackId] = useState<string | null>(null);
+  const [waited, setWaited] = useState(false);
+  const [sharedId, setSharedId] = useState<string | null>(null);
   useEffect(() => {
     if (rawId !== "latest") return;
     let id: string | null = null;
@@ -348,61 +353,6 @@ export default function FanScorecardPage() {
       ) : (
         <>
 
-      {/* Multi-Match Switcher */}
-      {matchesList.length > 1 && (
-        <div style={{ ...card, padding: "10px 12px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.5 }}>
-              Select Match Scorecard
-            </span>
-            <span style={{ fontSize: 11, color: "#ec4899", fontWeight: 600 }}>
-              {matchesList.length} matches
-            </span>
-          </div>
-          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
-            {matchesList.map((m) => {
-              const mId = String(m?.match_id ?? m?.id ?? "");
-              const isSelected = mId === matchId;
-              const name = m?.team1 && m?.team2 ? `${m.team1} vs ${m.team2}` : (m?.title || m?.name || "Match");
-              const isLive = String(m?.status || "").toLowerCase() === "live";
-
-              return (
-                <button
-                  key={mId}
-                  type="button"
-                  onClick={() => router.push(`/MainModules/FanScorecard/${encodeURIComponent(mId)}`)}
-                  style={{
-                    padding: "6px 12px",
-                    borderRadius: 12,
-                    fontSize: 12,
-                    fontWeight: isSelected ? 800 : 600,
-                    whiteSpace: "nowrap",
-                    cursor: "pointer",
-                    border: isSelected ? "1.5px solid #ff7a2f" : "1px solid rgba(255,255,255,0.15)",
-                    background: isSelected
-                      ? "linear-gradient(135deg, rgba(255,106,53,0.35), rgba(236,72,153,0.25))"
-                      : "rgba(255,255,255,0.05)",
-                    color: isSelected ? "#fff" : "rgba(255,255,255,0.75)",
-                    boxShadow: isSelected ? "0 0 10px rgba(255,122,47,0.35)" : "none",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    flexShrink: 0,
-                    transition: "all 0.2s ease",
-                  }}
-                >
-                  {isLive && (
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block", boxShadow: "0 0 6px #22c55e" }} />
-                  )}
-                  <span>{name}</span>
-                  {m?.format && <span style={{ fontSize: 10, opacity: 0.6 }}>· {m.format}</span>}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* Fan score */}
       <div style={{ ...card, padding: "14px 8px", border: "1.5px solid #ff7a2f", boxShadow: "0 0 16px rgba(255,90,60,0.4)", display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1.1fr) minmax(0,0.9fr)", alignItems: "center", gap: 6 }}>
         <div style={{ textAlign: "center", minWidth: 0 }}>
@@ -522,12 +472,10 @@ export default function FanScorecardPage() {
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <span style={{ fontWeight: 800, minWidth: 0 }}>Match Leaderboard{showAllBoard ? "" : " (Top 3)"}</span>
-          {leaderboard.length > 3 && (
-            <button type="button" onClick={() => setShowAllBoard((v) => !v)}
-              style={{ background: "none", border: "none", color: "#a78bfa", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, whiteSpace: "nowrap", flexShrink: 0 }}>
-              {showAllBoard ? "Show less" : "View All ›"}
-            </button>
-          )}
+          <button type="button" onClick={() => router.push(`/MainModules/FanScorecard/${encodeURIComponent(matchId || rawId)}/leaderboard`)}
+            style={{ background: "none", border: "none", color: "#a78bfa", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, whiteSpace: "nowrap", flexShrink: 0 }}>
+            View Full Leaderboard ›
+          </button>
         </div>
         {showAllBoard ? (
           <div style={{ display: "flex", flexDirection: "column" }}>
