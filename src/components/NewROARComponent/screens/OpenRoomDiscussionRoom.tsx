@@ -5628,19 +5628,45 @@ export default function OpenRoomDiscussionRoom({
 
     // ── TOP EVENT SWITCHER: Auction Journey & Followed Matches Filter ──
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-    const [followedMatches, setFollowedMatches] = useState<any[]>([]);
+    const [followedMatches, setFollowedMatches] = useState<any[]>(() => {
+        if (typeof window !== "undefined") {
+            try {
+                const uid = currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId;
+                const cached = localStorage.getItem(`followed_matches_${uid || "guest"}`);
+                if (cached) {
+                    const parsed = JSON.parse(cached);
+                    if (Array.isArray(parsed)) return parsed;
+                }
+            } catch {}
+        }
+        return [];
+    });
 
     useEffect(() => {
         let cancelled = false;
+        const uid = currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId;
+        if (!uid) return;
+
+        // Instant local cache restoration
+        try {
+            const cached = localStorage.getItem(`followed_matches_${uid}`);
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) setFollowedMatches(parsed);
+            }
+        } catch {}
+
         const fetchFollowed = async () => {
             try {
-                const uid = currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId;
                 const res = await axios.get("/api/user/followed-matches", {
                     params: uid ? { userId: uid } : {},
                     timeout: REQUEST_TIMEOUT_MS,
                 });
                 if (!cancelled && res.data?.success && Array.isArray(res.data.followedMatches)) {
                     setFollowedMatches(res.data.followedMatches);
+                    try {
+                        localStorage.setItem(`followed_matches_${uid}`, JSON.stringify(res.data.followedMatches));
+                    } catch {}
                 }
             } catch { /* ignore */ }
         };
@@ -6159,22 +6185,51 @@ export default function OpenRoomDiscussionRoom({
             const targetEng = matchEngagements.find(e => e.id === engId);
             const targetMid = String(targetEng?.matchId || roomMatchId || "").replace(/^MATCH#/i, "").trim();
             if (targetMid) {
+                const uid = currentUserId || userProfile?.actualUserId || (userProfile as any)?.userId;
+                const matchTitle = targetEng?.title || (targetEng as any)?.followData?.team1Name ? `${(targetEng as any).followData?.team1Name} vs ${(targetEng as any).followData?.team2Name}` : `Match ${targetMid}`;
                 if (updatedData.isFollowing) {
                     setFollowedMatches(prev => {
                         if (prev.some(m => String(m.matchId).replace(/^MATCH#/i, "").trim() === targetMid)) return prev;
-                        return [
+                        const nextList = [
                             ...prev,
                             {
                                 matchId: targetMid,
-                                matchTitle: targetEng?.title || (targetEng as any)?.matchTitle || `Match ${targetMid}`,
+                                matchTitle,
                                 status: "live",
                                 isFollowing: true,
                             },
                         ];
+                        if (uid) {
+                            try { localStorage.setItem(`followed_matches_${uid}`, JSON.stringify(nextList)); } catch {}
+                        }
+                        return nextList;
                     });
+                    if (uid) {
+                        axios.post("/api/user/followed-matches", {
+                            userId: uid,
+                            matchId: targetMid,
+                            matchTitle,
+                            action: "follow",
+                            status: "live",
+                        }).catch(() => {});
+                    }
                 } else {
-                    setFollowedMatches(prev => prev.filter(m => String(m.matchId).replace(/^MATCH#/i, "").trim() !== targetMid));
+                    setFollowedMatches(prev => {
+                        const nextList = prev.filter(m => String(m.matchId).replace(/^MATCH#/i, "").trim() !== targetMid);
+                        if (uid) {
+                            try { localStorage.setItem(`followed_matches_${uid}`, JSON.stringify(nextList)); } catch {}
+                        }
+                        return nextList;
+                    });
                     setSelectedEventId(prev => (prev === targetMid ? null : prev));
+                    if (uid) {
+                        axios.post("/api/user/followed-matches", {
+                            userId: uid,
+                            matchId: targetMid,
+                            matchTitle,
+                            action: "unfollow",
+                        }).catch(() => {});
+                    }
                 }
             }
         }

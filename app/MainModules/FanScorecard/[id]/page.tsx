@@ -57,6 +57,24 @@ export default function FanScorecardPage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const myName = profileUser?.username || profileUser?.displayName || (user as any)?.username || (user as any)?.displayName || user?.email?.split("@")[0] || "You";
   const myAvatar = profileUser?.avatarUrl || profileUser?.avatar || (user as any)?.avatarUrl || (user as any)?.avatar || null;
+  const profileId = user?.actualUserId || user?.userId?.replace(/[@.]/g, "_") || user?.email?.replace(/[@.]/g, "_") || userId;
+
+  const norm = (v: unknown) => String(v ?? "").replace(/^USER#/, "").toLowerCase().trim();
+  const mine = useMemo(() => {
+    return new Set(
+      [
+        user?.actualUserId,
+        user?.userId,
+        user?.email,
+        user?.email?.replace(/[@.]/g, "_"),
+        user?.username,
+        profileId,
+        myName,
+      ]
+        .filter(Boolean)
+        .map(norm)
+    );
+  }, [user, profileId, myName]);
 
   const [activities, setActivities] = useState<any[] | null>(null);
   const [engagements, setEngagements] = useState<MomentEngagement[] | null>(null);
@@ -69,6 +87,18 @@ export default function FanScorecardPage() {
   const [board, setBoard] = useState<Row[]>([]);
   const [rankInfo, setRankInfo] = useState<{ rank: number | null; total: number | null }>({ rank: null, total: null });
   const [resolvedId, setResolvedId] = useState<string | null>(null);
+  const [followedMatches, setFollowedMatches] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem(`followed_matches_${userId || "guest"}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const matchId = rawId === "latest" ? (resolvedId ?? "") : rawId;
   useEffect(() => {
     if (rawId !== "latest") return;
@@ -100,6 +130,23 @@ export default function FanScorecardPage() {
       .then((r) => { if (!off && r.data?.success) setProfileUser(r.data.user); })
       .catch(() => {})
       .finally(() => { if (!off) setProfileLoading(false); });
+    // Fetch followed matches with instant localStorage fallback
+    try {
+      const cached = localStorage.getItem(`followed_matches_${userId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0 && !off) setFollowedMatches(parsed);
+      }
+    } catch {}
+    axios.get("/api/user/followed-matches", { params: { userId } })
+      .then((r) => {
+        if (!off && r.data?.success && Array.isArray(r.data.followedMatches)) {
+          setFollowedMatches(r.data.followedMatches);
+          try { localStorage.setItem(`followed_matches_${userId}`, JSON.stringify(r.data.followedMatches)); } catch {}
+        }
+      })
+      .catch(() => {});
+
     axios.get(`/api/user-activity?userId=${encodeURIComponent(userId)}&limit=200`)
       .then((r) => { if (!off) setActivities(r.data?.activities || []); })
       .catch(() => { if (!off) setActivities([]); });
@@ -118,8 +165,6 @@ export default function FanScorecardPage() {
       axios.get("/api/user/match-kpis", { params: { matchId, userId: profileId, recompute: "true" } })
         .then((r) => { if (!off && r.data?.success) setKpis(r.data); })
         .catch(() => {});
-      const norm = (v: unknown) => String(v ?? "").replace(/^USER#/, "").toLowerCase();
-      const mine = new Set([user?.actualUserId, user?.userId, user?.email, user?.email?.replace(/[@.]/g, "_"), profileId].filter(Boolean).map(norm));
       axios.get("/api/user-points", { params: { limit: 100, matchId, userId: profileId || userId } }).then((r) => {
         const apiRank = Number(r.data?.userRank) || null;
         const total = Number(r.data?.totalUsers) || null;
@@ -144,7 +189,8 @@ export default function FanScorecardPage() {
     const all = buildMatchStats(activities, engagements);
     // No activity in this match: show the full scorecard with zeros instead of an empty message.
     return all.get(matchId) ?? {
-      matchId, interactions: 0, predictionsTotal: 0, predictionsCorrect: 0, debates: 0, reactions: 0, sxp: 0, last: 0,
+      matchId, interactions: 0, predictionsTotal: 0, predictionsCorrect: 0, debates: 0, reactions: 0,
+      triviaTotal: 0, triviaCorrect: 0, sxp: 0, last: 0,
       sxpByCategory: { predictions: 0, debates: 0, community: 0, athlete: 0 },
     };
   }, [activities, engagements, matchId]);
@@ -172,9 +218,14 @@ export default function FanScorecardPage() {
   const fanScore: number | null = Number.isFinite(overallKpi)
     ? Math.round(overallKpi)
     : kpis?.kpis
-    ? Math.round(
-        IMPACT_ROWS.reduce((sum, r) => sum + (Number(kpis.kpis[r.key]?.score) || 0), 0) / IMPACT_ROWS.length
-      )
+    ? (() => {
+        const active = IMPACT_ROWS.filter((r) => {
+          const metric = String(kpis.kpis[r.key]?.metric || "").toLowerCase();
+          return !metric.startsWith("no ");
+        });
+        const targets = active.length > 0 ? active : IMPACT_ROWS;
+        return Math.round(targets.reduce((sum, r) => sum + (Number(kpis.kpis[r.key]?.score) || 0), 0) / targets.length);
+      })()
     : null;
   const overall = fanScore ?? Number(kpis?.overallScore);
   const impact = Number.isFinite(overall) ? (overall >= 70 ? "High" : overall >= 40 ? "Medium" : "Low") : (stats.sxp >= 50 ? "High" : stats.sxp >= 20 ? "Medium" : "Low");
@@ -205,11 +256,49 @@ export default function FanScorecardPage() {
     return list;
   })();
 
-  const leaderboard: Row[] = (() => {
-    const rows = board.map((r) => (r.isMe ? { ...r, name: myName, avatar: myAvatar || r.avatar } : r));
-    if (!rows.some((r) => r.isMe) && (stats.sxp > 0 || rows.length === 0)) rows.push({ name: myName, sxp: stats.sxp, avatar: myAvatar, isMe: true });
-    return rows.sort((a, b) => b.sxp - a.sxp);
-  })();
+  const leaderboard: Row[] = useMemo(() => {
+    // Deduplicate by canonical user key to guarantee one single consistent row per user
+    const userMap = new Map<string, Row>();
+
+    for (const r of board) {
+      const isMe = Boolean(r.isMe || mine.has(norm(r.name)) || (myName && norm(r.name) === norm(myName)));
+      const key = isMe ? "__me__" : norm(r.name);
+      const existing = userMap.get(key);
+
+      if (!existing) {
+        userMap.set(key, {
+          name: isMe ? myName : r.name,
+          sxp: r.sxp,
+          avatar: isMe ? (myAvatar || r.avatar) : r.avatar,
+          isMe,
+        });
+      } else {
+        // One point of consistency: keep highest match SXP
+        if (r.sxp > existing.sxp) {
+          existing.sxp = r.sxp;
+        }
+        if (isMe) {
+          existing.isMe = true;
+          existing.name = myName;
+          if (myAvatar) existing.avatar = myAvatar;
+        }
+      }
+    }
+
+    // Ensure current user is in the leaderboard with consistent points
+    const meRow = userMap.get("__me__");
+    if (!meRow) {
+      if (stats.sxp > 0 || userMap.size === 0) {
+        userMap.set("__me__", { name: myName, sxp: stats.sxp, avatar: myAvatar, isMe: true });
+      }
+    } else {
+      if (stats.sxp > meRow.sxp) {
+        meRow.sxp = stats.sxp;
+      }
+    }
+
+    return Array.from(userMap.values()).sort((a, b) => b.sxp - a.sxp);
+  }, [board, mine, myName, myAvatar, stats.sxp]);
   const myLeaderboardIdx = leaderboard.findIndex((r) => r.isMe);
   // Match Rank uses the exact same rank as the leaderboard below
   const myRank = (myLeaderboardIdx >= 0 ? myLeaderboardIdx + 1 : null) ?? rankInfo.rank ?? null;
@@ -229,8 +318,76 @@ export default function FanScorecardPage() {
   const openShare = (url: string) => window.open(url, "_blank", "noopener,noreferrer");
   const enc = encodeURIComponent(`${shareText} ${shareUrl}`);
 
+  const eventTabs = useMemo(() => {
+    const tabs: { id: string; label: string; sublabel?: string; isLive?: boolean }[] = [
+      { id: "AUCTION", label: "AUCTION JOURNEY - 9–23 DEC" },
+    ];
+    const seen = new Set<string>(["AUCTION"]);
+    followedMatches.forEach((fm) => {
+      const mid = String(fm.matchId || "").replace(/^MATCH#/i, "").trim();
+      if (mid && !seen.has(mid)) {
+        seen.add(mid);
+        tabs.push({
+          id: mid,
+          label: fm.matchTitle || (fm.teamA && fm.teamB ? `${fm.teamA} vs ${fm.teamB}` : `Match ${mid}`),
+          sublabel: fm.date || "10 DEC",
+          isLive: fm.status === "live",
+        });
+      }
+    });
+    return tabs;
+  }, [followedMatches]);
+
   return (
     <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub}>
+      {/* Followed Matches Filter Tabs */}
+      {eventTabs.length > 0 && (
+        <div style={{ ...card, padding: "10px 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              Followed Match Filters
+            </span>
+            <span style={{ fontSize: 11, color: "#ec4899", fontWeight: 700 }}>
+              {followedMatches.length} followed
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
+            {eventTabs.map((tab) => {
+              const isSelected = tab.id === matchId;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    if (tab.id !== "AUCTION") {
+                      router.push(`/MainModules/FanScorecard/${encodeURIComponent(tab.id)}`);
+                    } else if (matchesList.length > 0) {
+                      const firstMid = String(matchesList[0]?.match_id ?? matchesList[0]?.id ?? "");
+                      if (firstMid) router.push(`/MainModules/FanScorecard/${encodeURIComponent(firstMid)}`);
+                    }
+                  }}
+                  className={`h-8 px-3 rounded-lg text-[10px] font-black tracking-wide uppercase transition-all duration-200 flex items-center gap-1.5 shrink-0 whitespace-nowrap cursor-pointer select-none ${
+                    isSelected
+                      ? "bg-gradient-to-r from-[#2a0e28] to-[#1c0c20] border-2 border-[#e91e8c] text-white shadow-[0_0_14px_rgba(233,30,140,0.45)] ring-1 ring-[#e91e8c]/50"
+                      : "bg-white/[0.04] border border-white/15 text-white/70 hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
+                  }`}
+                >
+                  {tab.isLive && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                  )}
+                  <span>{tab.label}</span>
+                  {tab.sublabel && !tab.isLive && (
+                    <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-white/10 text-white/60">
+                      {tab.sublabel}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Multi-Match Switcher */}
       {matchesList.length > 1 && (
         <div style={{ ...card, padding: "10px 12px" }}>
@@ -318,7 +475,7 @@ export default function FanScorecardPage() {
           {
             v: kpis?.kpis?.knowledge
               ? `${kpis.kpis.knowledge.correct ?? 0}/${kpis.kpis.knowledge.attempted ?? 0}`
-              : "0/0",
+              : `${stats.triviaCorrect ?? 0}/${stats.triviaTotal ?? 0}`,
             l: "Trivia", ic: "know",
           },
           {
@@ -330,14 +487,14 @@ export default function FanScorecardPage() {
             l: "Prediction", ic: "pred",
           },
           {
-            v: kpis?.kpis?.participation?.cardsEngaged != null && kpis.kpis.participation.cardsEngaged > 0
+            v: kpis?.kpis?.participation?.cardsEngaged != null
               ? String(kpis.kpis.participation.cardsEngaged)
               : String(stats.interactions),
             l: "Interact", ic: "inter",
           },
           {
-            v: kpis?.kpis?.community
-              ? String((kpis.kpis.community.debatesVoted ?? 0) + (kpis.kpis.community.pollsVoted ?? 0))
+            v: kpis?.kpis?.community?.debatesVoted != null
+              ? String(kpis.kpis.community.debatesVoted)
               : String(stats.debates),
             l: "Debates", ic: "deb",
           },
