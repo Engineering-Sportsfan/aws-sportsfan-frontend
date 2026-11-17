@@ -293,12 +293,10 @@ const fanScore: number | null = kpis?.kpis
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <span style={{ fontWeight: 800, minWidth: 0 }}>Match Leaderboard{showAllBoard ? "" : " (Top 3)"}</span>
-          {leaderboard.length > 3 && (
-            <button type="button" onClick={() => setShowAllBoard((v) => !v)}
-              style={{ background: "none", border: "none", color: "#a78bfa", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, whiteSpace: "nowrap", flexShrink: 0 }}>
-              {showAllBoard ? "Show less" : "View All ›"}
-            </button>
-          )}
+          <button type="button" onClick={() => router.push(`/MainModules/FanScorecard/${encodeURIComponent(matchId || rawId)}/leaderboard`)}
+            style={{ background: "none", border: "none", color: "#a78bfa", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, whiteSpace: "nowrap", flexShrink: 0 }}>
+            View Full Leaderboard ›
+          </button>
         </div>
         {showAllBoard ? (
           <div style={{ display: "flex", flexDirection: "column" }}>
