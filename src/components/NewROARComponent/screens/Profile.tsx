@@ -3297,7 +3297,6 @@ import { LevelOverlay } from "../components/LevelOverlay";
 import { EngagementStatTiles } from "../components/EngagementStatTiles";
 import { MyScoreCards } from "../components/MyScoreCards";
 import { getMomentEngagements } from "../components/momentEngagements";
-import { buildMatchStats, latestMatchId } from "../components/matchScorecard";
 import { ContributionHistoryOverlay, type TabKey } from "../components/ContributionHistoryOverlay";
 import { useLeaderboard } from "@/context/LeaderboardContext";
 import { engagementService } from "@/services/engagement.service";
@@ -4072,11 +4071,6 @@ export default function Profile({
   const [globalTier, setGlobalTier] = useState<any>(null);
   const [globalTierProgress, setGlobalTierProgress] = useState(0);
   const [levelOpen, setLevelOpen] = useState(false);
-  const [scorecardEngagements, setScorecardEngagements] = useState<any[]>([]);
-  useEffect(() => {
-    if (isOtherProfile) return;
-    getMomentEngagements().then(setScorecardEngagements).catch(() => {});
-  }, [isOtherProfile]);
   // Bottom-nav "Scorecard" opens /MainModules/Profile?section=scorecard: scroll to My Fan Score Card once it renders.
   const scrollToScorecard = searchParams.get("section") === "scorecard";
   useEffect(() => {
@@ -4091,10 +4085,6 @@ export default function Profile({
     }, 200);
     return () => clearInterval(t);
   }, [scrollToScorecard, isOtherProfile]);
-  const latestScorecardMatchId = useMemo(
-    () => latestMatchId(buildMatchStats(fetchedActivities || [], scorecardEngagements)),
-    [fetchedActivities, scorecardEngagements]
-  );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyTab, setHistoryTab] = useState<TabKey>("all");
   const [featureBadges, setFeatureBadges] = useState<any[]>([]);
@@ -6345,35 +6335,6 @@ export default function Profile({
               </div>
             </div>
 
-            {/* ── My Fan Scorecard button ── */}
-            {!isOtherProfile && (
-              <button
-                type="button"
-                onClick={() =>
-                  document.getElementById("my-score-cards")?.scrollIntoView({ behavior: "smooth", block: "start" })
-                }
-                style={{
-                  width: "100%", marginTop: 12, display: "flex", alignItems: "center", gap: 14,
-                  padding: "14px 16px", borderRadius: 16, cursor: "pointer", textAlign: "left",
-                  background: "linear-gradient(90deg, rgba(40,10,60,0.95), rgba(20,8,40,0.95))",
-                  border: "1.5px solid transparent",
-                  backgroundClip: "padding-box",
-                  boxShadow: "0 0 0 1.5px #ff7a2f, 0 0 14px rgba(255,90,60,0.55), 0 0 22px rgba(233,30,140,0.4)",
-                  color: "#fff",
-                }}
-              >
-                <svg width="30" height="30" viewBox="0 0 24 24" fill="#f5a623" aria-hidden="true" style={{ flexShrink: 0, filter: "drop-shadow(0 0 4px rgba(245,166,35,0.6))" }}>
-                  <path d="M6 3h12v2h3v3a4 4 0 0 1-4 4h-.3A5.01 5.01 0 0 1 13 14.9V17h3v2H8v-2h3v-2.1A5.01 5.01 0 0 1 7.3 12H7a4 4 0 0 1-4-4V5h3V3zm-1 4v1a2 2 0 0 0 1.2 1.8A8 8 0 0 1 6 8V7H5zm14 0h-1v1c0 .6-.1 1.2-.2 1.8A2 2 0 0 0 19 8V7z" />
-                </svg>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 16, fontWeight: 800 }}>My Fan Scorecard</div>
-                  <div style={{ fontSize: 13, color: "rgba(255,255,255,0.8)" }}>Match history, rankings &amp; recap</div>
-                </div>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <polyline points="9 6 15 12 9 18" />
-                </svg>
-              </button>
-            )}
 
             <LevelOverlay
               open={levelOpen}

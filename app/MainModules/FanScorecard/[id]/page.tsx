@@ -7,7 +7,7 @@ import { Target, MessageSquare, Swords, Flame, Share2, History, HelpCircle, Trop
 import { useAuth } from "@/context/AuthContext";
 import { handleGoBack } from "@/utils/backButton";
 import { getMomentEngagements, type MomentEngagement } from "@/src/components/NewROARComponent/components/momentEngagements";
-import { buildMatchStats, badgesForMatch, latestMatchId, type Category } from "@/src/components/NewROARComponent/components/matchScorecard";
+import { buildMatchStats, badgesForMatch, latestMatchId, resolveSharedMatchId, type Category } from "@/src/components/NewROARComponent/components/matchScorecard";
 
 interface Row { name: string; sxp: number; avatar?: string; isMe?: boolean }
 
@@ -70,13 +70,50 @@ export default function FanScorecardPage() {
   const [rankInfo, setRankInfo] = useState<{ rank: number | null; total: number | null }>({ rank: null, total: null });
   const [resolvedId, setResolvedId] = useState<string | null>(null);
   const matchId = rawId === "latest" ? (resolvedId ?? "") : rawId;
+  // "latest" -> real id. Own latest match when activity has loaded; otherwise (no activity, slow or failed
+  // requests) the most recent finished match from /api/matches, so the URL always ends up with a match id.
+  const [fallbackId, setFallbackId] = useState<string | null>(null);
+  const [waited, setWaited] = useState(false);
+  const [sharedId, setSharedId] = useState<string | null>(null);
   useEffect(() => {
-    if (rawId !== "latest" || !activities || !engagements) return;
-    const id = latestMatchId(buildMatchStats(activities, engagements)) ?? "";
+    if (rawId !== "latest") return;
+    resolveSharedMatchId().then(setSharedId).catch(() => setSharedId(""));
+  }, [rawId]);
+  useEffect(() => {
+    if (rawId !== "latest") return;
+    let off = false;
+    axios.get("/api/matches").then((r) => {
+      const d = r.data;
+      const rows: any[] = d?.data || d?.matches || (Array.isArray(d) ? d : []);
+      const date = (m: any) => String(m?.date ?? m?.start_date ?? "");
+      const done = rows.filter((m) => String(m?.status).toLowerCase() === "completed").sort((a, b) => date(b).localeCompare(date(a)));
+      const pick = done[0] ?? [...rows].sort((a, b) => date(b).localeCompare(date(a)))[0];
+      if (!off) setFallbackId(String(pick?.match_id ?? pick?.id ?? ""));
+    }).catch(() => { if (!off) setFallbackId(""); });
+    const t = setTimeout(() => setWaited(true), 4000);
+    return () => { off = true; clearTimeout(t); };
+  }, [rawId]);
+  useEffect(() => {
+    if (rawId !== "latest") return;
+    if (sharedId === null) return; // same match the room shows: wait for it first
+    const ready = !!activities && !!engagements;
+    if (!sharedId && !ready && !waited) return;
+    const own = ready ? (latestMatchId(buildMatchStats(activities!, engagements!)) ?? "") : "";
+    // Next best: the newest match among the match-moment engagements (this is where the room gets its match id too).
+    let engId = "";
+    let best = -1;
+    for (const e of (engagements || []) as any[]) {
+      const mid = String(e?.matchId ?? "").replace(/^MATCH#/, "").trim();
+      if (!mid) continue;
+      const t = Number(e?.createdAt ?? e?.updatedAt ?? 0) || 0;
+      if (t > best) { best = t; engId = mid; }
+    }
+    const id = sharedId || own || engId || fallbackId;
+    if (id == null) return; // fallback still loading
     setResolvedId(id);
     // Swap /latest for the real match id in the address bar (same page, no reload).
     if (id) router.replace(`/MainModules/FanScorecard/${encodeURIComponent(id)}`);
-  }, [rawId, activities, engagements, router]);
+  }, [rawId, activities, engagements, fallbackId, waited, sharedId, router]);
 
   useEffect(() => {
     if (matchesList.length > 0 && matchId) {

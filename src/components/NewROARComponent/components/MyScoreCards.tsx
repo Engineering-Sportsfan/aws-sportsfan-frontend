@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
+import { useRouter } from "next/navigation";
 import { getMomentEngagements, type MomentEngagement } from "./momentEngagements";
 
 interface MatchInfo {
@@ -130,6 +131,7 @@ export function MyScoreCards({
   /** Favourite player name; the row is hidden when empty. */
   favPlayer?: string;
 }) {
+  const router = useRouter();
   const [list, setList] = useState<MomentEngagement[] | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [matches, setMatches] = useState<Map<string, MatchInfo> | null>(null);
@@ -222,15 +224,42 @@ export function MyScoreCards({
       </div>
     );
   }
-  // Still loading: keep a placeholder so the section doesn't pop in/out.
+  const Title = (
+    <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 15, fontWeight: 700, color: "#fff" }}>
+      <span style={{ color: "#ff9f1c", fontSize: 16 }}>🏆</span>
+      My Fan Score Card
+    </span>
+  );
+  // Still loading: skeleton cards (never hide the section while data is on its way).
   if (loading || !list || !matches) {
     return (
       <div style={{ padding: "22px 14px 8px" }}>
-        <div style={{ height: 120, borderRadius: 16, background: "rgba(255,255,255,0.06)" }} />
+        <div style={{ marginBottom: 12 }}>{Title}</div>
+        <div style={{ display: "flex", gap: 12, overflow: "hidden" }}>
+          {[0, 1].map((i) => (
+            <div key={i} className="animate-pulse" style={{ flex: "0 0 86%", maxWidth: 360, borderRadius: 16, background: "rgba(255,255,255,0.06)", padding: 14 }}>
+              <div style={{ height: 14, width: "55%", borderRadius: 6, background: "rgba(255,255,255,0.08)", marginBottom: 12 }} />
+              <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+                <div style={{ width: 52, height: 52, borderRadius: "50%", background: "rgba(255,255,255,0.1)" }} />
+                <div style={{ height: 14, width: "40%", borderRadius: 6, background: "rgba(255,255,255,0.1)" }} />
+              </div>
+              <div style={{ height: 56, borderRadius: 12, background: "rgba(255,255,255,0.08)" }} />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
-  if (scores.length === 0) return null;
+  if (scores.length === 0) {
+    return (
+      <div style={{ padding: "22px 14px 8px" }}>
+        <div style={{ marginBottom: 12 }}>{Title}</div>
+        <div style={{ borderRadius: 16, border: "1px solid rgba(255,255,255,0.08)", background: "rgba(18,18,26,0.7)", padding: 18, textAlign: "center", fontSize: 13, color: "rgba(255,255,255,0.65)" }}>
+          No match activity yet. Join a match to build your Fan Score Card.
+        </div>
+      </div>
+    );
+  }
 
   const shown = scores; // collapsed: swipeable row of every match; expanded: vertical list
   const initial = (username || "F").trim().charAt(0).toUpperCase();
@@ -280,9 +309,13 @@ export function MyScoreCards({
               )}
             </div>
           <div
+            role="link"
+            tabIndex={0}
+            onClick={() => router.push(`/MainModules/FanScorecard/${encodeURIComponent(s.matchId)}`)}
+            onKeyDown={(e) => { if (e.key === "Enter") router.push(`/MainModules/FanScorecard/${encodeURIComponent(s.matchId)}`); }}
             style={{
               background: "rgba(18,18,26,0.7)", border: "1px solid rgba(255,255,255,0.08)",
-              borderRadius: 16, padding: 14,
+              borderRadius: 16, padding: 14, cursor: "pointer",
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>

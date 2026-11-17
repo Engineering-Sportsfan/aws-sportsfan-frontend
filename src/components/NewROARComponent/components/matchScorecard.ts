@@ -1,4 +1,4 @@
-import type { MomentEngagement } from "./momentEngagements";
+import { getMomentEngagements, type MomentEngagement } from "./momentEngagements";
 
 const CREATION_TYPES = new Set([
   "ROAR_POST", "ROAR_DEBATE", "ROAR_PREDICTION", "ROAR_HOT_TAKE", "ROAR_MEMORY", "ROAR_RAW_REACTIONS", "ROAR_QUIZ",
@@ -104,4 +104,36 @@ export function badgesForMatch(s: MatchStats): EarnedBadge[] {
   if (s.debates >= 3) out.push({ id: "debate", label: "Debate Star", color: "#a855f7", icon: "💬" });
   if (s.interactions >= 10 || s.reactions >= 3) out.push({ id: "community", label: "Community Builder", color: "#22d3ee", icon: "👥" });
   return out;
+}
+
+// ── Shared "current match": every Fan Scorecard button opens this same match ──
+const cleanMatchId = (v: unknown) => String(v ?? "").replace(/^MATCH#/, "").trim();
+const isRealId = (s: string) => !!s && !["none", "undefined", "null", "all"].includes(s.toLowerCase());
+
+/** Demo/seed matches that must never be picked as the current match. */
+const EXCLUDED_MATCH_IDS = new Set(["IND-SL-2026-ODI1", "INDAW-ENGAW-2026-ODI2", "AUS-NZ-2026-TEST1-D3"]);
+
+/**
+ * The match whose match-moment engagement was created most recently. Only engagement creation counts, not
+ * match or match-moment creation. The excluded demo matches are skipped, and so are engagements still
+ * scheduled for the future (not served yet).
+ */
+export async function resolveSharedMatchId(): Promise<string> {
+  try {
+    const list = (await getMomentEngagements()) as any[];
+    const now = Date.now();
+    let best = -1;
+    let id = "";
+    for (const e of list) {
+      const mid = cleanMatchId(e?.matchId);
+      if (!isRealId(mid) || EXCLUDED_MATCH_IDS.has(mid)) continue;
+      const sched = Number(e?.scheduledStartTime ?? e?.startTime ?? 0) || 0;
+      if ((e?.status === "scheduled" || e?.isScheduled === true) && sched > now) continue;
+      const t = Number(e?.createdAt ?? e?.postingTime ?? 0) || 0;
+      if (t > best) { best = t; id = mid; }
+    }
+    return id;
+  } catch {
+    return "";
+  }
 }
