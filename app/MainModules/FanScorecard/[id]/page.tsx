@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
-import { Target, MessageSquare, Swords, Flame, Share2, History } from "lucide-react";
+import { Target, MessageSquare, Swords, Flame, Share2, History, HelpCircle, Trophy } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { handleGoBack } from "@/utils/backButton";
 import { getMomentEngagements, type MomentEngagement } from "@/src/components/NewROARComponent/components/momentEngagements";
@@ -12,10 +12,11 @@ import { buildMatchStats, badgesForMatch, latestMatchId, type Category } from "@
 interface Row { name: string; sxp: number; avatar?: string; isMe?: boolean }
 
 const TAB_STYLE: Record<string, { Icon: typeof Target; color: string; bg: string; border: string }> = {
-  pred: { Icon: Target, color: "#f43f8e", bg: "linear-gradient(135deg, rgba(244,63,142,0.18), rgba(18,18,26,0.85))", border: "rgba(244,63,142,0.35)" },
-  inter: { Icon: MessageSquare, color: "#22d3ee", bg: "linear-gradient(135deg, rgba(34,211,238,0.14), rgba(18,18,26,0.85))", border: "rgba(34,211,238,0.3)" },
+  know: { Icon: HelpCircle, color: "#facc15", bg: "linear-gradient(135deg, rgba(250,204,21,0.18), rgba(18,18,26,0.85))", border: "rgba(250,204,21,0.35)" },
+  pred: { Icon: Target, color: "#22c55e", bg: "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(18,18,26,0.85))", border: "rgba(34,197,94,0.35)" },
+  inter: { Icon: MessageSquare, color: "#38bdf8", bg: "linear-gradient(135deg, rgba(56,189,248,0.14), rgba(18,18,26,0.85))", border: "rgba(56,189,248,0.3)" },
   deb: { Icon: Swords, color: "#c084fc", bg: "linear-gradient(135deg, rgba(168,85,247,0.22), rgba(18,18,26,0.85))", border: "rgba(168,85,247,0.4)" },
-  react: { Icon: Flame, color: "#fb923c", bg: "linear-gradient(135deg, rgba(251,146,60,0.16), rgba(18,18,26,0.85))", border: "rgba(251,146,60,0.32)" },
+  react: { Icon: Flame, color: "#ec4899", bg: "linear-gradient(135deg, rgba(236,72,153,0.16), rgba(18,18,26,0.85))", border: "rgba(236,72,153,0.32)" },
 };
 
 const IMPACT_ROWS = [
@@ -60,6 +61,7 @@ export default function FanScorecardPage() {
   const [activities, setActivities] = useState<any[] | null>(null);
   const [engagements, setEngagements] = useState<MomentEngagement[] | null>(null);
   const [match, setMatch] = useState<any>(null);
+  const [matchesList, setMatchesList] = useState<any[]>([]);
   const [showAllBoard, setShowAllBoard] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -77,6 +79,12 @@ export default function FanScorecardPage() {
   }, [rawId, activities, engagements, router]);
 
   useEffect(() => {
+    if (matchesList.length > 0 && matchId) {
+      setMatch(matchesList.find((m) => String(m?.match_id ?? m?.id) === matchId) || null);
+    }
+  }, [matchesList, matchId]);
+
+  useEffect(() => {
     if (!userId) return;
     let off = false;
     // Same source the Profile page uses for the username and profile image.
@@ -92,7 +100,10 @@ export default function FanScorecardPage() {
     axios.get("/api/matches").then((r) => {
       const d = r.data;
       const rows: any[] = d?.data || d?.matches || (Array.isArray(d) ? d : []);
-      if (!off) setMatch(rows.find((m) => String(m?.match_id ?? m?.id) === matchId) || null);
+      if (!off) {
+        setMatchesList(rows);
+        setMatch(rows.find((m) => String(m?.match_id ?? m?.id) === matchId) || null);
+      }
     }).catch(() => {});
     // GET /api/user-points?matchId= returns { totalUsers, userRank, userMatchPoints, leaderboard[{ userId, userName, userHandle, avatarUrl, matchPoints, rank }] }.
     // The backend rejects an empty matchId (400), so wait until "latest" has been resolved.
@@ -150,12 +161,42 @@ export default function FanScorecardPage() {
   }
 
   const accuracy = stats.predictionsTotal ? Math.round((stats.predictionsCorrect / stats.predictionsTotal) * 100) : 0;
-const fanScore: number | null = kpis?.kpis
-    ? IMPACT_ROWS.reduce((sum, r) => sum + (Number(kpis.kpis[r.key]?.score) || 0), 0) // knowledge + prediction + participation + community + insight
+  const overallKpi = Number(kpis?.overallScore);
+  const fanScore: number | null = Number.isFinite(overallKpi)
+    ? Math.round(overallKpi)
+    : kpis?.kpis
+    ? Math.round(
+        IMPACT_ROWS.reduce((sum, r) => sum + (Number(kpis.kpis[r.key]?.score) || 0), 0) / IMPACT_ROWS.length
+      )
     : null;
-  const overall = Number(kpis?.overallScore);
-  const impact = Number.isFinite(overall) ? (overall >= 60 ? "High" : overall >= 30 ? "Medium" : "Low") : (stats.sxp >= 50 ? "High" : stats.sxp >= 20 ? "Medium" : "Low");
-  const badges = badgesForMatch(stats);
+  const overall = fanScore ?? Number(kpis?.overallScore);
+  const impact = Number.isFinite(overall) ? (overall >= 70 ? "High" : overall >= 40 ? "Medium" : "Low") : (stats.sxp >= 50 ? "High" : stats.sxp >= 20 ? "Medium" : "Low");
+  const badges = (() => {
+    const list = [...badgesForMatch(stats)];
+    const existingIds = new Set(list.map((b) => b.id));
+
+    const triviaCorrect = Number(kpis?.kpis?.knowledge?.correct || 0);
+    const triviaAttempted = Number(kpis?.kpis?.knowledge?.attempted || 0);
+    if (!existingIds.has("trivia_scholar") && (triviaCorrect >= 2 || (triviaAttempted >= 2 && triviaCorrect / triviaAttempted >= 0.5))) {
+      list.push({ id: "trivia_scholar", label: "Cricket Scholar", color: "#facc15", icon: "🧠" });
+    }
+
+    const predCorrect = Number(kpis?.kpis?.prediction?.correct || 0);
+    if (!existingIds.has("sharp") && predCorrect >= 2) {
+      list.push({ id: "sharp", label: "Sharp Predictor", color: "#22c55e", icon: "🎯" });
+    }
+
+    const debatesVoted = Number(kpis?.kpis?.community?.debatesVoted || 0);
+    if (!existingIds.has("debate") && debatesVoted >= 2) {
+      list.push({ id: "debate", label: "Debate Star", color: "#a855f7", icon: "💬" });
+    }
+
+    if (!existingIds.has("fan_champ") && Number(kpis?.overallScore) >= 75) {
+      list.push({ id: "fan_champ", label: "Super Fan", color: "#ff6b35", icon: "⭐" });
+    }
+
+    return list;
+  })();
 
   const leaderboard: Row[] = (() => {
     const rows = board.map((r) => (r.isMe ? { ...r, name: myName, avatar: myAvatar || r.avatar } : r));
@@ -183,6 +224,61 @@ const fanScore: number | null = kpis?.kpis
 
   return (
     <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub}>
+      {/* Multi-Match Switcher */}
+      {matchesList.length > 1 && (
+        <div style={{ ...card, padding: "10px 12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.7)", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              Select Match Scorecard
+            </span>
+            <span style={{ fontSize: 11, color: "#ec4899", fontWeight: 600 }}>
+              {matchesList.length} matches
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4, scrollbarWidth: "none" }}>
+            {matchesList.map((m) => {
+              const mId = String(m?.match_id ?? m?.id ?? "");
+              const isSelected = mId === matchId;
+              const name = m?.team1 && m?.team2 ? `${m.team1} vs ${m.team2}` : (m?.title || m?.name || "Match");
+              const isLive = String(m?.status || "").toLowerCase() === "live";
+
+              return (
+                <button
+                  key={mId}
+                  type="button"
+                  onClick={() => router.push(`/MainModules/FanScorecard/${encodeURIComponent(mId)}`)}
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: 12,
+                    fontSize: 12,
+                    fontWeight: isSelected ? 800 : 600,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                    border: isSelected ? "1.5px solid #ff7a2f" : "1px solid rgba(255,255,255,0.15)",
+                    background: isSelected
+                      ? "linear-gradient(135deg, rgba(255,106,53,0.35), rgba(236,72,153,0.25))"
+                      : "rgba(255,255,255,0.05)",
+                    color: isSelected ? "#fff" : "rgba(255,255,255,0.75)",
+                    boxShadow: isSelected ? "0 0 10px rgba(255,122,47,0.35)" : "none",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    flexShrink: 0,
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  {isLive && (
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e", display: "inline-block", boxShadow: "0 0 6px #22c55e" }} />
+                  )}
+                  <span>{name}</span>
+                  {m?.format && <span style={{ fontSize: 10, opacity: 0.6 }}>· {m.format}</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Fan score */}
       <div style={{ ...card, padding: "14px 8px", border: "1.5px solid #ff7a2f", boxShadow: "0 0 16px rgba(255,90,60,0.4)", display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1.1fr) minmax(0,0.9fr)", alignItems: "center", gap: 6 }}>
         <div style={{ textAlign: "center", minWidth: 0 }}>
@@ -210,39 +306,44 @@ const fanScore: number | null = kpis?.kpis
       </div>
 
       {/* Top stat tabs: from the match-kpis API (falls back to local activity counts until it loads) */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: 6 }}>
         {[
+          {
+            v: kpis?.kpis?.knowledge
+              ? `${kpis.kpis.knowledge.correct ?? 0}/${kpis.kpis.knowledge.attempted ?? 0}`
+              : "0/0",
+            l: "Trivia", ic: "know",
+          },
           {
             v: kpis?.kpis?.prediction
               ? `${kpis.kpis.prediction.correct ?? 0}/${kpis.kpis.prediction.resolved ?? kpis.kpis.prediction.attempted ?? 0}`
               : `${stats.predictionsCorrect}/${stats.predictionsTotal}`,
-            l: "Predictions Correct", ic: "pred",
+            l: "Prediction", ic: "pred",
           },
           {
-            // Interactions = participation data
             v: kpis?.kpis?.participation ? String(kpis.kpis.participation.cardsEngaged ?? 0) : String(stats.interactions),
-            l: "Interactions", ic: "inter",
+            l: "Interact", ic: "inter",
           },
           {
-            v: kpis?.kpis?.community ? String(kpis.kpis.community.debatesVoted ?? 0) : String(stats.debates),
+            v: kpis?.kpis?.community ? String((kpis.kpis.community.debatesVoted ?? 0) + (kpis.kpis.community.pollsVoted ?? 0)) : String(stats.debates),
             l: "Debates", ic: "deb",
           },
           {
             v: kpis?.kpis?.insight
               ? String((Number(kpis.kpis.insight.peerLikesReceived) || 0) + (Number(kpis.kpis.insight.peerRepliesReceived) || 0))
               : String(stats.reactions),
-            l: "Recognised Reactions", ic: "react",
+            l: "Recognised", ic: "react",
           },
         ].map((t) => {
-          const sty = TAB_STYLE[t.ic];
+          const sty = TAB_STYLE[t.ic] || TAB_STYLE.inter;
           const Icon = sty.Icon;
           return (
-            <div key={t.l} style={{ ...card, padding: "8px 4px", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: sty.bg, border: `1px solid ${sty.border}` }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-                <Icon size={20} color={sty.color} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-                <span style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{t.v}</span>
+            <div key={t.l} style={{ ...card, padding: "8px 2px", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: sty.bg, border: `1px solid ${sty.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
+                <Icon size={16} color={sty.color} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 15, fontWeight: 800, lineHeight: 1 }}>{t.v}</span>
               </div>
-              <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.15, textAlign: "center", wordBreak: "break-word" }}>{t.l}</div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.7)", lineHeight: 1.1, textAlign: "center", wordBreak: "break-word" }}>{t.l}</div>
             </div>
           );
         })}
