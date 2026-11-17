@@ -112,8 +112,8 @@ export default function FanScorecardPage() {
         .then((r) => { if (!off && r.data?.success) setKpis(r.data); })
         .catch(() => {});
       const norm = (v: unknown) => String(v ?? "").replace(/^USER#/, "").toLowerCase();
-      const mine = new Set([user?.actualUserId, user?.userId, user?.email, user?.email?.replace(/[@.]/g, "_")].filter(Boolean).map(norm));
-      axios.get("/api/user-points", { params: { limit: 100, matchId, userId } }).then((r) => {
+      const mine = new Set([user?.actualUserId, user?.userId, user?.email, user?.email?.replace(/[@.]/g, "_"), profileId].filter(Boolean).map(norm));
+      axios.get("/api/user-points", { params: { limit: 100, matchId, userId: profileId || userId } }).then((r) => {
         const apiRank = Number(r.data?.userRank) || null;
         const total = Number(r.data?.totalUsers) || null;
         if (!off) setRankInfo({ rank: apiRank, total });
@@ -206,7 +206,8 @@ export default function FanScorecardPage() {
   const myRowIdx = board.findIndex((r) => r.isMe);
   // userRank is null when the user is outside the ranking; if they appear in the top rows use that position.
   const myRank = rankInfo.rank ?? (myRowIdx >= 0 ? myRowIdx + 1 : null);
-  const topPct = myRank && rankInfo.total ? Math.max(1, Math.ceil((myRank / rankInfo.total) * 100)) : null;
+  const totalFans = Math.max(rankInfo.total || 0, board.length, myRank || 0);
+  const topPct = myRank && totalFans > 0 ? Math.max(1, Math.ceil((myRank / totalFans) * 100)) : null;
   const fmtFans = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n));
 
   const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore}` : ""} for ${title}${topPct != null ? ` – Top ${topPct}%` : ""} on SportsFan360!`;
@@ -291,7 +292,7 @@ export default function FanScorecardPage() {
             <>
               <div style={{ fontSize: 20, lineHeight: 1.1, marginTop: 2 }}>🏆</div>
               <div style={{ fontSize: "clamp(16px, 5vw, 22px)", fontWeight: 900, color: "#f5a623", whiteSpace: "nowrap" }}>Top {topPct}%</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>of {fmtFans(rankInfo.total!)} fans</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>of {fmtFans(totalFans)} fans</div>
             </>
           ) : (
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 8 }}>Not ranked yet</div>
@@ -458,7 +459,7 @@ export default function FanScorecardPage() {
                 {topPct != null ? (
                   <>
                     <div style={{ fontSize: 20, fontWeight: 900 }}>Top {topPct}%</div>
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>#{myRank} / {fmtFans(rankInfo.total!)}</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>#{myRank} / {fmtFans(totalFans)}</div>
                   </>
                 ) : <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Not ranked yet</div>}
               </div>
