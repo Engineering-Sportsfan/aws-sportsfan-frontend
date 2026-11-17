@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import { resolveSharedMatchId } from "./matchScorecard";
 
 interface TonightScheduleWidgetProps {
   roomId?: string;
@@ -77,14 +78,14 @@ export default function TonightScheduleWidget({
   // Radar chart SVG points calculation (5-axis pentagon)
   const renderPentagonChart = () => {
     const kpis = kpiData?.kpis || {
-      knowledge: { score: 90 },
-      prediction: { score: 80 },
-      participation: { score: 88 },
-      community: { score: 82 },
-      insight: { score: 84 },
+      knowledge: { score: 0 },
+      prediction: { score: 0 },
+      participation: { score: 0 },
+      community: { score: 0 },
+      insight: { score: 0 },
     };
 
-    const overall = kpiData?.overallScore ?? 86;
+    const overall = kpiData?.overallScore ?? 0;
 
     // Angles for 5 vertices: Top, Top-Right, Bottom-Right, Bottom-Left, Top-Left
     // -90deg is Top (Knowledge), -18deg (Prediction), 54deg (Participation), 126deg (Community), 198deg (Insight)
@@ -94,17 +95,18 @@ export default function TonightScheduleWidget({
     const cy = 100;
 
     const scores = [
-      kpis.knowledge?.score ?? 90,
-      kpis.prediction?.score ?? 80,
-      kpis.participation?.score ?? 88,
-      kpis.community?.score ?? 82,
-      kpis.insight?.score ?? 84,
+      Number(kpis.knowledge?.score) || 0,
+      Number(kpis.prediction?.score) || 0,
+      Number(kpis.participation?.score) || 0,
+      Number(kpis.community?.score) || 0,
+      Number(kpis.insight?.score) || 0,
     ];
 
     const polyPoints = angles
       .map((deg, i) => {
         const rad = (deg * Math.PI) / 180;
-        const r = ((scores[i] || 75) / 100) * maxR;
+        const val = Math.max(0, Math.min(100, scores[i]));
+        const r = (val / 100) * maxR;
         return `${cx + r * Math.cos(rad)},${cy + r * Math.sin(rad)}`;
       })
       .join(" ");
@@ -172,7 +174,8 @@ export default function TonightScheduleWidget({
           {/* Data point dots */}
           {angles.map((deg, i) => {
             const rad = (deg * Math.PI) / 180;
-            const r = ((scores[i] || 75) / 100) * maxR;
+            const val = Math.max(0, Math.min(100, scores[i]));
+            const r = (val / 100) * maxR;
             return (
               <circle
                 key={i}
@@ -245,7 +248,7 @@ export default function TonightScheduleWidget({
           borderTop: "1px solid rgba(255, 255, 255, 0.08)",
         }}
       >
-        {/* Header row: "For you tonight" + "View schedule >" */}
+        {/* Header row: "For you" + "View schedule >" */}
         <div className="flex items-center justify-between mb-2 px-0.5">
           <div className="flex items-center gap-1.5">
             <div
@@ -257,7 +260,7 @@ export default function TonightScheduleWidget({
             >
               <Calendar size={12} className="text-white" />
             </div>
-            <span className="font-bold text-[13.5px] text-white tracking-tight">For you tonight</span>
+            <span className="font-bold text-[13.5px] text-white tracking-tight">For you</span>
           </div>
 
           <button
@@ -329,7 +332,11 @@ export default function TonightScheduleWidget({
 
           {/* Card 3: Leaderboards */}
           <div
-            onClick={() => showToast("Opening Leaderboards...")}
+            onClick={async () => {
+              const id = matchId || (await resolveSharedMatchId());
+              if (!id) { showToast("No match available yet"); return; }
+              router.push(`/MainModules/FanScorecard/${encodeURIComponent(id)}/leaderboard`);
+            }}
             className="min-w-0 rounded-[10px] sm:rounded-[13px] px-1 py-1.5 sm:p-2 flex flex-col items-center justify-between text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
             style={{
               background: "linear-gradient(180deg, #0f3050 0%, #071526 100%)",
@@ -403,7 +410,9 @@ export default function TonightScheduleWidget({
                   My Fan Scorecard
                 </span>
                 <span className="text-[10px] text-gray-400 font-normal leading-tight truncate">
-                  Last match recap ready • Top 5%
+                  {kpiData?.overallScore != null && kpiData.overallScore > 0
+                    ? `Match Score ${kpiData.overallScore} · Recap ready`
+                    : "Match recap & Fan KPIs"}
                 </span>
               </div>
             </div>

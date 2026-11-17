@@ -3,19 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import axios from "axios";
-import { Target, MessageSquare, Swords, Flame, Share2, History } from "lucide-react";
+import { Target, MessageSquare, Swords, Flame, Share2, History, HelpCircle, Trophy } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { handleGoBack } from "@/utils/backButton";
 import { getMomentEngagements, type MomentEngagement } from "@/src/components/NewROARComponent/components/momentEngagements";
-import { buildMatchStats, badgesForMatch, latestMatchId, type Category } from "@/src/components/NewROARComponent/components/matchScorecard";
+import { buildMatchStats, badgesForMatch, latestMatchId, resolveSharedMatchId, type Category } from "@/src/components/NewROARComponent/components/matchScorecard";
 
 interface Row { name: string; sxp: number; avatar?: string; isMe?: boolean }
 
 const TAB_STYLE: Record<string, { Icon: typeof Target; color: string; bg: string; border: string }> = {
-  pred: { Icon: Target, color: "#f43f8e", bg: "linear-gradient(135deg, rgba(244,63,142,0.18), rgba(18,18,26,0.85))", border: "rgba(244,63,142,0.35)" },
-  inter: { Icon: MessageSquare, color: "#22d3ee", bg: "linear-gradient(135deg, rgba(34,211,238,0.14), rgba(18,18,26,0.85))", border: "rgba(34,211,238,0.3)" },
+  know: { Icon: HelpCircle, color: "#facc15", bg: "linear-gradient(135deg, rgba(250,204,21,0.18), rgba(18,18,26,0.85))", border: "rgba(250,204,21,0.35)" },
+  pred: { Icon: Target, color: "#22c55e", bg: "linear-gradient(135deg, rgba(34,197,94,0.18), rgba(18,18,26,0.85))", border: "rgba(34,197,94,0.35)" },
+  inter: { Icon: MessageSquare, color: "#38bdf8", bg: "linear-gradient(135deg, rgba(56,189,248,0.14), rgba(18,18,26,0.85))", border: "rgba(56,189,248,0.3)" },
   deb: { Icon: Swords, color: "#c084fc", bg: "linear-gradient(135deg, rgba(168,85,247,0.22), rgba(18,18,26,0.85))", border: "rgba(168,85,247,0.4)" },
-  react: { Icon: Flame, color: "#fb923c", bg: "linear-gradient(135deg, rgba(251,146,60,0.16), rgba(18,18,26,0.85))", border: "rgba(251,146,60,0.32)" },
+  react: { Icon: Flame, color: "#ec4899", bg: "linear-gradient(135deg, rgba(236,72,153,0.16), rgba(18,18,26,0.85))", border: "rgba(236,72,153,0.32)" },
 };
 
 const IMPACT_ROWS = [
@@ -56,10 +57,29 @@ export default function FanScorecardPage() {
   const [profileLoading, setProfileLoading] = useState(true);
   const myName = profileUser?.username || profileUser?.displayName || (user as any)?.username || (user as any)?.displayName || user?.email?.split("@")[0] || "You";
   const myAvatar = profileUser?.avatarUrl || profileUser?.avatar || (user as any)?.avatarUrl || (user as any)?.avatar || null;
+  const profileId = user?.actualUserId || user?.userId?.replace(/[@.]/g, "_") || user?.email?.replace(/[@.]/g, "_") || userId;
+
+  const norm = (v: unknown) => String(v ?? "").replace(/^USER#/, "").toLowerCase().trim();
+  const mine = useMemo(() => {
+    return new Set(
+      [
+        user?.actualUserId,
+        user?.userId,
+        user?.email,
+        user?.email?.replace(/[@.]/g, "_"),
+        user?.username,
+        profileId,
+        myName,
+      ]
+        .filter(Boolean)
+        .map(norm)
+    );
+  }, [user, profileId, myName]);
 
   const [activities, setActivities] = useState<any[] | null>(null);
   const [engagements, setEngagements] = useState<MomentEngagement[] | null>(null);
   const [match, setMatch] = useState<any>(null);
+  const [matchesList, setMatchesList] = useState<any[]>([]);
   const [showAllBoard, setShowAllBoard] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -67,14 +87,44 @@ export default function FanScorecardPage() {
   const [board, setBoard] = useState<Row[]>([]);
   const [rankInfo, setRankInfo] = useState<{ rank: number | null; total: number | null }>({ rank: null, total: null });
   const [resolvedId, setResolvedId] = useState<string | null>(null);
+  const [followedMatches, setFollowedMatches] = useState<any[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const cached = localStorage.getItem(`followed_matches_${userId || "guest"}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed)) return parsed;
+        }
+      } catch {}
+    }
+    return [];
+  });
   const matchId = rawId === "latest" ? (resolvedId ?? "") : rawId;
+  // "latest" -> real id. Own latest match when activity has loaded; otherwise (no activity, slow or failed
+  // requests) the most recent finished match from /api/matches, so the URL always ends up with a match id.
+  const [fallbackId, setFallbackId] = useState<string | null>(null);
+  const [waited, setWaited] = useState(false);
+  const [sharedId, setSharedId] = useState<string | null>(null);
   useEffect(() => {
-    if (rawId !== "latest" || !activities || !engagements) return;
-    const id = latestMatchId(buildMatchStats(activities, engagements)) ?? "";
-    setResolvedId(id);
-    // Swap /latest for the real match id in the address bar (same page, no reload).
-    if (id) router.replace(`/MainModules/FanScorecard/${encodeURIComponent(id)}`);
-  }, [rawId, activities, engagements, router]);
+    if (rawId !== "latest") return;
+    let id: string | null = null;
+    if (activities && engagements) {
+      id = latestMatchId(buildMatchStats(activities, engagements));
+    }
+    if (!id && matchesList.length > 0) {
+      id = String(matchesList[0]?.match_id ?? matchesList[0]?.id ?? "");
+    }
+    if (id) {
+      setResolvedId(id);
+      router.replace(`/MainModules/FanScorecard/${encodeURIComponent(id)}`);
+    }
+  }, [rawId, activities, engagements, matchesList, router]);
+
+  useEffect(() => {
+    if (matchesList.length > 0 && matchId) {
+      setMatch(matchesList.find((m) => String(m?.match_id ?? m?.id) === matchId) || null);
+    }
+  }, [matchesList, matchId]);
 
   useEffect(() => {
     if (!userId) return;
@@ -85,6 +135,23 @@ export default function FanScorecardPage() {
       .then((r) => { if (!off && r.data?.success) setProfileUser(r.data.user); })
       .catch(() => {})
       .finally(() => { if (!off) setProfileLoading(false); });
+    // Fetch followed matches with instant localStorage fallback
+    try {
+      const cached = localStorage.getItem(`followed_matches_${userId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0 && !off) setFollowedMatches(parsed);
+      }
+    } catch {}
+    axios.get("/api/user/followed-matches", { params: { userId } })
+      .then((r) => {
+        if (!off && r.data?.success && Array.isArray(r.data.followedMatches)) {
+          setFollowedMatches(r.data.followedMatches);
+          try { localStorage.setItem(`followed_matches_${userId}`, JSON.stringify(r.data.followedMatches)); } catch {}
+        }
+      })
+      .catch(() => {});
+
     axios.get(`/api/user-activity?userId=${encodeURIComponent(userId)}&limit=200`)
       .then((r) => { if (!off) setActivities(r.data?.activities || []); })
       .catch(() => { if (!off) setActivities([]); });
@@ -92,17 +159,18 @@ export default function FanScorecardPage() {
     axios.get("/api/matches").then((r) => {
       const d = r.data;
       const rows: any[] = d?.data || d?.matches || (Array.isArray(d) ? d : []);
-      if (!off) setMatch(rows.find((m) => String(m?.match_id ?? m?.id) === matchId) || null);
+      if (!off) {
+        setMatchesList(rows);
+        setMatch(rows.find((m) => String(m?.match_id ?? m?.id) === matchId) || null);
+      }
     }).catch(() => {});
     // GET /api/user-points?matchId= returns { totalUsers, userRank, userMatchPoints, leaderboard[{ userId, userName, userHandle, avatarUrl, matchPoints, rank }] }.
     // The backend rejects an empty matchId (400), so wait until "latest" has been resolved.
     if (matchId) {
-      axios.get("/api/user/match-kpis", { params: { matchId, userId: profileId } })
+      axios.get("/api/user/match-kpis", { params: { matchId, userId: profileId, recompute: "true" } })
         .then((r) => { if (!off && r.data?.success) setKpis(r.data); })
         .catch(() => {});
-      const norm = (v: unknown) => String(v ?? "").replace(/^USER#/, "").toLowerCase();
-      const mine = new Set([user?.actualUserId, user?.userId, user?.email, user?.email?.replace(/[@.]/g, "_")].filter(Boolean).map(norm));
-      axios.get("/api/user-points", { params: { limit: 100, matchId, userId } }).then((r) => {
+      axios.get("/api/user-points", { params: { limit: 100, matchId, userId: profileId || userId } }).then((r) => {
         const apiRank = Number(r.data?.userRank) || null;
         const total = Number(r.data?.totalUsers) || null;
         if (!off) setRankInfo({ rank: apiRank, total });
@@ -126,10 +194,77 @@ export default function FanScorecardPage() {
     const all = buildMatchStats(activities, engagements);
     // No activity in this match: show the full scorecard with zeros instead of an empty message.
     return all.get(matchId) ?? {
-      matchId, interactions: 0, predictionsTotal: 0, predictionsCorrect: 0, debates: 0, reactions: 0, sxp: 0, last: 0,
+      matchId, interactions: 0, predictionsTotal: 0, predictionsCorrect: 0, debates: 0, reactions: 0,
+      triviaTotal: 0, triviaCorrect: 0, sxp: 0, last: 0,
       sxpByCategory: { predictions: 0, debates: 0, community: 0, athlete: 0 },
     };
   }, [activities, engagements, matchId]);
+
+  const matchSxp = Number(stats?.sxp ?? 0);
+
+  const leaderboard: Row[] = useMemo(() => {
+    // Deduplicate by canonical user key to guarantee one single consistent row per user
+    const userMap = new Map<string, Row>();
+
+    for (const r of board) {
+      const isMe = Boolean(r.isMe || mine.has(norm(r.name)) || (myName && norm(r.name) === norm(myName)));
+      const key = isMe ? "__me__" : norm(r.name);
+      const existing = userMap.get(key);
+
+      if (!existing) {
+        userMap.set(key, {
+          name: isMe ? myName : r.name,
+          sxp: r.sxp,
+          avatar: isMe ? (myAvatar || r.avatar) : r.avatar,
+          isMe,
+        });
+      } else {
+        // One point of consistency: keep highest match SXP
+        if (r.sxp > existing.sxp) {
+          existing.sxp = r.sxp;
+        }
+        if (isMe) {
+          existing.isMe = true;
+          existing.name = myName;
+          if (myAvatar) existing.avatar = myAvatar;
+        }
+      }
+    }
+
+    // Ensure current user is in the leaderboard with consistent points
+    const meRow = userMap.get("__me__");
+    if (!meRow) {
+      if (matchSxp > 0 || userMap.size === 0) {
+        userMap.set("__me__", { name: myName, sxp: matchSxp, avatar: myAvatar, isMe: true });
+      }
+    } else {
+      if (matchSxp > meRow.sxp) {
+        meRow.sxp = matchSxp;
+      }
+    }
+
+    return Array.from(userMap.values()).sort((a, b) => b.sxp - a.sxp);
+  }, [board, mine, myName, myAvatar, matchSxp]);
+
+  const eventTabs = useMemo(() => {
+    const tabs: { id: string; label: string; sublabel?: string; isLive?: boolean }[] = [
+      { id: "AUCTION", label: "AUCTION JOURNEY - 9–23 DEC" },
+    ];
+    const seen = new Set<string>(["AUCTION"]);
+    followedMatches.forEach((fm) => {
+      const mid = String(fm.matchId || "").replace(/^MATCH#/i, "").trim();
+      if (mid && !seen.has(mid)) {
+        seen.add(mid);
+        tabs.push({
+          id: mid,
+          label: fm.matchTitle || (fm.teamA && fm.teamB ? `${fm.teamA} vs ${fm.teamB}` : `Match ${mid}`),
+          sublabel: fm.date || "10 DEC",
+          isLive: fm.status === "live",
+        });
+      }
+    });
+    return tabs;
+  }, [followedMatches]);
 
   const title = match?.team1 && match?.team2
     ? `${match.team1} vs ${match.team2}`
@@ -139,36 +274,61 @@ export default function FanScorecardPage() {
       })();
   const sub = [match?.tournament, match?.format, match?.venue].filter(Boolean).join(" · ");
 
-  if (!stats) {
-    return (
-      <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub}>
-        <div style={{ textAlign: "center", padding: 40 }}>
-          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-[#e91e8c] animate-spin" style={{ margin: "0 auto" }} />
-        </div>
-      </Shell>
-    );
-  }
-
-  const accuracy = stats.predictionsTotal ? Math.round((stats.predictionsCorrect / stats.predictionsTotal) * 100) : 0;
-const fanScore: number | null = kpis?.kpis
-    ? IMPACT_ROWS.reduce((sum, r) => sum + (Number(kpis.kpis[r.key]?.score) || 0), 0) // knowledge + prediction + participation + community + insight
+  const accuracy = stats?.predictionsTotal ? Math.round((stats.predictionsCorrect / stats.predictionsTotal) * 100) : 0;
+  const overallKpi = Number(kpis?.overallScore);
+  const fanScore: number | null = Number.isFinite(overallKpi)
+    ? Math.round(overallKpi)
+    : kpis?.kpis
+    ? (() => {
+        const active = IMPACT_ROWS.filter((r) => {
+          const metric = String(kpis.kpis[r.key]?.metric || "").toLowerCase();
+          return !metric.startsWith("no ");
+        });
+        const targets = active.length > 0 ? active : IMPACT_ROWS;
+        return Math.round(targets.reduce((sum, r) => sum + (Number(kpis.kpis[r.key]?.score) || 0), 0) / targets.length);
+      })()
     : null;
-  const overall = Number(kpis?.overallScore);
-  const impact = Number.isFinite(overall) ? (overall >= 60 ? "High" : overall >= 30 ? "Medium" : "Low") : (stats.sxp >= 50 ? "High" : stats.sxp >= 20 ? "Medium" : "Low");
-  const badges = badgesForMatch(stats);
+  const overall = fanScore ?? Number(kpis?.overallScore);
+  const impact = Number.isFinite(overall)
+    ? (overall >= 70 ? "High" : overall >= 40 ? "Medium" : "Low")
+    : (matchSxp >= 50 ? "High" : matchSxp >= 20 ? "Medium" : "Low");
 
-  const leaderboard: Row[] = (() => {
-    const rows = board.map((r) => (r.isMe ? { ...r, name: myName, avatar: myAvatar || r.avatar } : r));
-    if (!rows.some((r) => r.isMe) && (stats.sxp > 0 || rows.length === 0)) rows.push({ name: myName, sxp: stats.sxp, avatar: myAvatar, isMe: true });
-    return rows.sort((a, b) => b.sxp - a.sxp);
-  })();
-  const myRowIdx = board.findIndex((r) => r.isMe);
-  // userRank is null when the user is outside the ranking; if they appear in the top rows use that position.
-  const myRank = rankInfo.rank ?? (myRowIdx >= 0 ? myRowIdx + 1 : null);
-  const topPct = myRank && rankInfo.total ? Math.max(1, Math.ceil((myRank / rankInfo.total) * 100)) : null;
+  const badges = stats
+    ? (() => {
+        const list = [...badgesForMatch(stats)];
+        const existingIds = new Set(list.map((b) => b.id));
+
+        const triviaCorrect = Number(kpis?.kpis?.knowledge?.correct || 0);
+        const triviaAttempted = Number(kpis?.kpis?.knowledge?.attempted || 0);
+        if (!existingIds.has("trivia_scholar") && (triviaCorrect >= 2 || (triviaAttempted >= 2 && triviaCorrect / triviaAttempted >= 0.5))) {
+          list.push({ id: "trivia_scholar", label: "Cricket Scholar", color: "#facc15", icon: "🧠" });
+        }
+
+        const predCorrect = Number(kpis?.kpis?.prediction?.correct || 0);
+        if (!existingIds.has("sharp") && predCorrect >= 2) {
+          list.push({ id: "sharp", label: "Sharp Predictor", color: "#22c55e", icon: "🎯" });
+        }
+
+        const debatesVoted = Number(kpis?.kpis?.community?.debatesVoted || 0);
+        if (!existingIds.has("debate") && debatesVoted >= 2) {
+          list.push({ id: "debate", label: "Debate Star", color: "#a855f7", icon: "💬" });
+        }
+
+        if (!existingIds.has("fan_champ") && Number(kpis?.overallScore) >= 75) {
+          list.push({ id: "fan_champ", label: "Super Fan", color: "#ff6b35", icon: "⭐" });
+        }
+
+        return list;
+      })()
+    : [];
+
+  const myLeaderboardIdx = leaderboard.findIndex((r) => r.isMe);
+  // Match Rank uses the exact same rank as the leaderboard below
+  const myRank = (myLeaderboardIdx >= 0 ? myLeaderboardIdx + 1 : null) ?? rankInfo.rank ?? null;
+  const totalFans = Math.max(rankInfo.total || 0, leaderboard.length, myRank || 0);
   const fmtFans = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n));
 
-  const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore}` : ""} for ${title}${topPct != null ? ` – Top ${topPct}%` : ""} on SportsFan360!`;
+  const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore}` : ""} for ${title}${myRank != null ? ` – Ranked #${myRank} of ${fmtFans(totalFans)} fans` : ""} on SportsFan360!`;
   const shareUrl = typeof window !== "undefined" ? window.location.href : "";
   const nativeShare = async () => {
     try {
@@ -183,6 +343,16 @@ const fanScore: number | null = kpis?.kpis
 
   return (
     <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub}>
+      {/* Followed Matches Filter Tabs */}
+
+
+      {!stats ? (
+        <div style={{ textAlign: "center", padding: 40 }}>
+          <div className="w-8 h-8 rounded-full border-2 border-white/20 border-t-[#e91e8c] animate-spin" style={{ margin: "0 auto" }} />
+        </div>
+      ) : (
+        <>
+
       {/* Fan score */}
       <div style={{ ...card, padding: "14px 8px", border: "1.5px solid #ff7a2f", boxShadow: "0 0 16px rgba(255,90,60,0.4)", display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1.1fr) minmax(0,0.9fr)", alignItems: "center", gap: 6 }}>
         <div style={{ textAlign: "center", minWidth: 0 }}>
@@ -191,11 +361,11 @@ const fanScore: number | null = kpis?.kpis
         </div>
         <div style={{ textAlign: "center", minWidth: 0, borderLeft: "1px solid rgba(255,255,255,0.12)", borderRight: "1px solid rgba(255,255,255,0.12)", padding: "0 4px" }}>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>Match Rank</div>
-          {topPct != null ? (
+          {myRank != null ? (
             <>
               <div style={{ fontSize: 20, lineHeight: 1.1, marginTop: 2 }}>🏆</div>
-              <div style={{ fontSize: "clamp(16px, 5vw, 22px)", fontWeight: 900, color: "#f5a623", whiteSpace: "nowrap" }}>Top {topPct}%</div>
-              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>of {fmtFans(rankInfo.total!)} fans</div>
+              <div style={{ fontSize: "clamp(20px, 6vw, 26px)", fontWeight: 900, color: "#f5a623", whiteSpace: "nowrap" }}>#{myRank}</div>
+              <div style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>of {fmtFans(totalFans)} fans</div>
             </>
           ) : (
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", marginTop: 8 }}>Not ranked yet</div>
@@ -210,39 +380,48 @@ const fanScore: number | null = kpis?.kpis
       </div>
 
       {/* Top stat tabs: from the match-kpis API (falls back to local activity counts until it loads) */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5,minmax(0,1fr))", gap: 6 }}>
         {[
           {
-            v: kpis?.kpis?.prediction
-              ? `${kpis.kpis.prediction.correct ?? 0}/${kpis.kpis.prediction.resolved ?? kpis.kpis.prediction.attempted ?? 0}`
-              : `${stats.predictionsCorrect}/${stats.predictionsTotal}`,
-            l: "Predictions Correct", ic: "pred",
+            v: kpis?.kpis?.knowledge
+              ? `${kpis.kpis.knowledge.correct ?? 0}/${kpis.kpis.knowledge.attempted ?? 0}`
+              : `${stats.triviaCorrect ?? 0}/${stats.triviaTotal ?? 0}`,
+            l: "Trivia", ic: "know",
           },
           {
-            // Interactions = participation data
-            v: kpis?.kpis?.participation ? String(kpis.kpis.participation.cardsEngaged ?? 0) : String(stats.interactions),
-            l: "Interactions", ic: "inter",
+            v: (() => {
+              const pCorrect = kpis?.kpis?.prediction?.correct ?? kpis?.kpis?.prediction?.won ?? stats.predictionsCorrect ?? 0;
+              const pTotal = kpis?.kpis?.prediction?.attempted ?? kpis?.kpis?.prediction?.resolved ?? stats.predictionsTotal ?? 0;
+              return `${pCorrect}/${pTotal}`;
+            })(),
+            l: "Prediction", ic: "pred",
           },
           {
-            v: kpis?.kpis?.community ? String(kpis.kpis.community.debatesVoted ?? 0) : String(stats.debates),
+            v: kpis?.kpis?.participation?.cardsEngaged != null
+              ? String(kpis.kpis.participation.cardsEngaged)
+              : String(stats.interactions),
+            l: "Interact", ic: "inter",
+          },
+          {
+            v: kpis?.kpis?.community?.debatesVoted != null
+              ? String(kpis.kpis.community.debatesVoted)
+              : String(stats.debates),
             l: "Debates", ic: "deb",
           },
           {
-            v: kpis?.kpis?.insight
-              ? String((Number(kpis.kpis.insight.peerLikesReceived) || 0) + (Number(kpis.kpis.insight.peerRepliesReceived) || 0))
-              : String(stats.reactions),
-            l: "Recognised Reactions", ic: "react",
+            v: String(kpis?.kpis?.insight?.recognitionsCount ?? kpis?.recognitionsCount ?? 0),
+            l: "Recognised", ic: "react",
           },
         ].map((t) => {
-          const sty = TAB_STYLE[t.ic];
+          const sty = TAB_STYLE[t.ic] || TAB_STYLE.inter;
           const Icon = sty.Icon;
           return (
-            <div key={t.l} style={{ ...card, padding: "8px 4px", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, background: sty.bg, border: `1px solid ${sty.border}` }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-                <Icon size={20} color={sty.color} strokeWidth={2.2} style={{ flexShrink: 0 }} />
-                <span style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{t.v}</span>
+            <div key={t.l} style={{ ...card, padding: "8px 2px", minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", gap: 3, background: sty.bg, border: `1px solid ${sty.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3 }}>
+                <Icon size={16} color={sty.color} strokeWidth={2.2} style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: 15, fontWeight: 800, lineHeight: 1 }}>{t.v}</span>
               </div>
-              <div style={{ fontSize: 9.5, color: "rgba(255,255,255,0.7)", lineHeight: 1.15, textAlign: "center", wordBreak: "break-word" }}>{t.l}</div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.7)", lineHeight: 1.1, textAlign: "center", wordBreak: "break-word" }}>{t.l}</div>
             </div>
           );
         })}
@@ -293,12 +472,10 @@ const fanScore: number | null = kpis?.kpis
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 10 }}>
           <span style={{ fontWeight: 800, minWidth: 0 }}>Match Leaderboard{showAllBoard ? "" : " (Top 3)"}</span>
-          {leaderboard.length > 3 && (
-            <button type="button" onClick={() => setShowAllBoard((v) => !v)}
-              style={{ background: "none", border: "none", color: "#a78bfa", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, whiteSpace: "nowrap", flexShrink: 0 }}>
-              {showAllBoard ? "Show less" : "View All ›"}
-            </button>
-          )}
+          <button type="button" onClick={() => router.push(`/MainModules/FanScorecard/${encodeURIComponent(matchId || rawId)}/leaderboard`)}
+            style={{ background: "none", border: "none", color: "#a78bfa", fontSize: 13, fontWeight: 600, cursor: "pointer", padding: 0, whiteSpace: "nowrap", flexShrink: 0 }}>
+            View Full Leaderboard ›
+          </button>
         </div>
         {showAllBoard ? (
           <div style={{ display: "flex", flexDirection: "column" }}>
@@ -354,10 +531,10 @@ const fanScore: number | null = kpis?.kpis
                 <div style={{ fontSize: 40, fontWeight: 900, lineHeight: 1.1 }}>{fanScore ?? "–"}</div>
               </div>
               <div style={{ ...card, textAlign: "center", padding: 10, display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                {topPct != null ? (
+                {myRank != null ? (
                   <>
-                    <div style={{ fontSize: 20, fontWeight: 900 }}>Top {topPct}%</div>
-                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>#{myRank} / {fmtFans(rankInfo.total!)}</div>
+                    <div style={{ fontSize: 24, fontWeight: 900, color: "#f5a623" }}>#{myRank}</div>
+                    <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>of {fmtFans(totalFans)} fans</div>
                   </>
                 ) : <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>Not ranked yet</div>}
               </div>
@@ -385,6 +562,8 @@ const fanScore: number | null = kpis?.kpis
             </div>
           </div>
         </div>
+      )}
+        </>
       )}
     </Shell>
   );
@@ -418,10 +597,10 @@ function Shell({ children, onBack, title, sub }: { children: React.ReactNode; on
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>Match Summary</div>
           </div>
         </div>
-        <div style={{ ...card, textAlign: "center" }}>
+        {/* <div style={{ ...card, textAlign: "center" }}>
           <div style={{ fontSize: 17, fontWeight: 800 }}>{title}</div>
           {sub && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>{sub}</div>}
-        </div>
+        </div> */}
         {children}
       </div>
     </div>

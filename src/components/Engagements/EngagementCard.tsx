@@ -1793,6 +1793,40 @@ export default function EngagementCard({
             setIsFollowing(nextActive);
             setFollowCount((c) => Math.max(0, c + (nextActive ? 1 : -1)));
             try { localStorage.setItem(followKey, String(nextActive)); } catch { }
+
+            // Persist follow match state across refresh to /api/user/followed-matches and localStorage
+            if (item.matchId) {
+                const targetMid = String(item.matchId).replace(/^MATCH#/i, "").trim();
+                const fd = (item as any).followData;
+                const matchTitle = (item as any).title || (fd?.team1Name && fd?.team2Name ? `${fd.team1Name} vs ${fd.team2Name}` : `Match ${targetMid}`);
+                axios.post(
+                    "/api/user/followed-matches",
+                    {
+                        userId: currentUserId,
+                        matchId: targetMid,
+                        matchTitle,
+                        teamA: fd?.team1Name || "",
+                        teamB: fd?.team2Name || "",
+                        action: nextActive ? "follow" : "unfollow",
+                        status: (item as any).status || "live",
+                    },
+                    { timeout: 8000 }
+                ).catch((err) => console.warn("Failed to persist followed match:", err));
+
+                try {
+                    const storageKey = `followed_matches_${currentUserId}`;
+                    const raw = localStorage.getItem(storageKey);
+                    let list: any[] = raw ? JSON.parse(raw) : [];
+                    if (nextActive) {
+                        if (!list.some((m: any) => String(m.matchId) === targetMid)) {
+                            list.push({ matchId: targetMid, matchTitle, status: (item as any).status || "live", isFollowing: true });
+                        }
+                    } else {
+                        list = list.filter((m: any) => String(m.matchId) !== targetMid);
+                    }
+                    localStorage.setItem(storageKey, JSON.stringify(list));
+                } catch {}
+            }
         } else {
             setIsReminded(nextActive);
             setRemindCount((c) => Math.max(0, c + (nextActive ? 1 : -1)));
