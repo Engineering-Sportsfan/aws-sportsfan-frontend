@@ -6417,6 +6417,8 @@ export default function Profile({
                 avatarSrc={displayAvatar}
                 teams={setupSummary.teams}
                 favPlayer={user?.favPlayer || editFavPlayer || ""}
+                maxItems={2}
+                onViewAll={() => router.push("/MainModules/FanScorecard")}
               />
             </div>
           )}

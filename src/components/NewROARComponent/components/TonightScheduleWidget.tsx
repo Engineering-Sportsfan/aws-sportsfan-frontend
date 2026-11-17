@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import { resolveSharedMatchId } from "./matchScorecard";
 
 interface TonightScheduleWidgetProps {
   roomId?: string;
@@ -331,7 +332,11 @@ export default function TonightScheduleWidget({
 
           {/* Card 3: Leaderboards */}
           <div
-            onClick={() => showToast("Opening Leaderboards...")}
+            onClick={async () => {
+              const id = matchId || (await resolveSharedMatchId());
+              if (!id) { showToast("No match available yet"); return; }
+              router.push(`/MainModules/FanScorecard/${encodeURIComponent(id)}/leaderboard`);
+            }}
             className="min-w-0 rounded-[10px] sm:rounded-[13px] px-1 py-1.5 sm:p-2 flex flex-col items-center justify-between text-center cursor-pointer transition-all duration-200 hover:scale-[1.02]"
             style={{
               background: "linear-gradient(180deg, #0f3050 0%, #071526 100%)",

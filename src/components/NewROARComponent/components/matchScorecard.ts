@@ -24,6 +24,8 @@ export interface MatchStats {
   predictionsCorrect: number;
   debates: number;
   reactions: number;
+  triviaTotal: number;
+  triviaCorrect: number;
   sxp: number;
   sxpByCategory: Record<Category, number>;
   last: number;
@@ -43,7 +45,10 @@ export function buildMatchStats(activities: any[], engagements: MomentEngagement
   for (const e of engagements) if (e.id) byId.set(String(e.id), e);
 
   const out = new Map<string, MatchStats>();
+  const cardsSeen = new Map<string, Set<string>>();
   const predSeen = new Map<string, Set<string>>();
+  const debSeen = new Map<string, Set<string>>();
+  const triviaSeen = new Map<string, Set<string>>();
 
   for (const a of activities || []) {
     const t = typeOf(a);
@@ -55,25 +60,57 @@ export function buildMatchStats(activities: any[], engagements: MomentEngagement
     let s = out.get(matchId);
     if (!s) {
       s = {
-        matchId, interactions: 0, predictionsTotal: 0, predictionsCorrect: 0, debates: 0, reactions: 0, sxp: 0, last: 0,
+        matchId, interactions: 0, predictionsTotal: 0, predictionsCorrect: 0, debates: 0, reactions: 0,
+        triviaTotal: 0, triviaCorrect: 0, sxp: 0, last: 0,
         sxpByCategory: { predictions: 0, debates: 0, community: 0, athlete: 0 },
       };
       out.set(matchId, s);
+      cardsSeen.set(matchId, new Set());
       predSeen.set(matchId, new Set());
+      debSeen.set(matchId, new Set());
+      triviaSeen.set(matchId, new Set());
     }
     const engType = String(eng.type ?? "");
     const pts = Number(a.points) || 0;
-    s.interactions += 1;
+    const engId = String(eng.id ?? "");
+
+    // Count unique cards/engagements engaged
+    if (engId) {
+      cardsSeen.get(matchId)!.add(engId);
+      s.interactions = cardsSeen.get(matchId)!.size;
+    }
+
     s.sxp += pts;
     s.last = Math.max(s.last, Number(a.createdAt) || 0);
     s.sxpByCategory[categoryOf(engType, t)] += pts;
 
     const lower = `${engType} ${t}`.toLowerCase();
-    if (lower.includes("debate")) s.debates += 1;
-    if (lower.includes("reaction")) s.reactions += 1;
+    if (lower.includes("reaction") || t.includes("REACT") || t.includes("LIKE")) {
+      s.reactions += 1;
+    }
 
-    if (engType.toLowerCase() === "prediction" && !predSeen.get(matchId)!.has(String(eng.id))) {
-      predSeen.get(matchId)!.add(String(eng.id));
+    // Unique debate participation
+    if (lower.includes("debate") && engId) {
+      debSeen.get(matchId)!.add(engId);
+      s.debates = debSeen.get(matchId)!.size;
+    }
+
+    // Trivia / Quiz accuracy
+    if ((engType.toLowerCase() === "quiz" || engType.toLowerCase() === "trivia" || engType.toLowerCase() === "question") && engId) {
+      if (!triviaSeen.get(matchId)!.has(engId)) {
+        triviaSeen.get(matchId)!.add(engId);
+        s.triviaTotal += 1;
+        const m = a?.metadata ?? {};
+        const winning = String(eng.winningChoiceId ?? eng.outcomeWinningChoiceId ?? eng.correctAnswer ?? eng.correctOptionId ?? "");
+        const picked = pickedOption(a);
+        const flagged = m.isCorrect === true || m.correct === true || String(m.result ?? "").toLowerCase() === "correct";
+        if (flagged || (winning && picked && picked === winning)) s.triviaCorrect += 1;
+      }
+    }
+
+    // Predictions accuracy
+    if (engType.toLowerCase() === "prediction" && !predSeen.get(matchId)!.has(engId)) {
+      predSeen.get(matchId)!.add(engId);
       s.predictionsTotal += 1;
       const m = a?.metadata ?? {};
       const winning = String(eng.winningChoiceId ?? eng.outcomeWinningChoiceId ?? "");

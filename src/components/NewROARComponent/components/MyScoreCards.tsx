@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { getMomentEngagements, type MomentEngagement } from "./momentEngagements";
 
 interface MatchInfo {
@@ -120,6 +121,9 @@ export function MyScoreCards({
   avatarSrc,
   teams = [],
   favPlayer,
+  maxItems,
+  onViewAll,
+  layout = "row",
 }: {
   /** Raw activity-log entries ({ type, points, metadata, createdAt }). */
   activities: any[];
@@ -130,10 +134,16 @@ export function MyScoreCards({
   teams?: { label: string; image?: string }[];
   /** Favourite player name; the row is hidden when empty. */
   favPlayer?: string;
+  /** Show only the latest N matches (all when omitted). */
+  maxItems?: number;
+  /** When set and there are more matches than maxItems, a "View all" button calls this. */
+  onViewAll?: () => void;
+  /** "row": horizontal swipe row; "list": vertical list. */
+  layout?: "row" | "list";
 }) {
   const router = useRouter();
+  const { user } = useAuth();
   const [list, setList] = useState<MomentEngagement[] | null>(null);
-  const [showAll, setShowAll] = useState(false);
   const [matches, setMatches] = useState<Map<string, MatchInfo> | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +221,30 @@ export function MyScoreCards({
     return Array.from(acc.values()).sort((x, y) => y.last - x.last);
   }, [activities, list, matches]);
 
+  // SXP per match comes from /api/user-points?matchId= (the user's matchPoints), not from summing the activity log.
+  const [matchPoints, setMatchPoints] = useState<Record<string, number>>({});
+  const idsKey = scores.slice(0, maxItems ?? scores.length).map((s) => s.matchId).join("|");
+  useEffect(() => {
+    if (!idsKey) return;
+    let off = false;
+    const norm = (v: unknown) => String(v ?? "").replace(/^USER#/, "").toLowerCase();
+    const mine = new Set([user?.actualUserId, user?.userId, user?.email, user?.email?.replace(/[@.]/g, "_")].filter(Boolean).map(norm));
+    const uid = user?.actualUserId || user?.userId || user?.email || "";
+    for (const id of idsKey.split("|")) {
+      axios.get("/api/user-points", { params: { limit: 100, matchId: id, ...(uid ? { userId: uid } : {}) }, timeout: 15000 })
+        .then((r) => {
+          if (off) return;
+          const rows: any[] = r.data?.leaderboard || [];
+          const me = rows.find((x) => mine.has(norm(x?.userId)));
+          // userMatchPoints can be 0 when the backend can't match the id, so prefer the user's own leaderboard row.
+          const pts = Number(me?.matchPoints ?? r.data?.userMatchPoints ?? 0) || 0;
+          setMatchPoints((p) => ({ ...p, [id]: pts }));
+        })
+        .catch(() => {});
+    }
+    return () => { off = true; };
+  }, [idsKey, user?.actualUserId, user?.userId, user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (listFailed) {
     return (
       <div style={{ padding: "22px 14px 8px" }}>
@@ -261,7 +295,8 @@ export function MyScoreCards({
     );
   }
 
-  const shown = scores; // collapsed: swipeable row of every match; expanded: vertical list
+  const shown = maxItems ? scores.slice(0, maxItems) : scores;
+  const showAll = layout === "list";
   const initial = (username || "F").trim().charAt(0).toUpperCase();
 
   return (
@@ -271,13 +306,13 @@ export function MyScoreCards({
           <span style={{ color: "#ff9f1c", fontSize: 16 }}>🏆</span>
           My Fan Score Card
         </span>
-        {scores.length > 1 && (
+        {onViewAll && scores.length > shown.length && (
           <button
             type="button"
-            onClick={() => setShowAll((v) => !v)}
+            onClick={onViewAll}
             style={{ background: "none", border: "none", color: "#3ea6ff", fontSize: 14, fontWeight: 600, cursor: "pointer", padding: 0 }}
           >
-            {showAll ? "Show less" : "View all"}
+            View all
           </button>
         )}
       </div>
@@ -361,7 +396,7 @@ export function MyScoreCards({
               {[
                 { v: String(s.interactions), l: "Interactions" },
                 { v: `${s.predictionsCorrect}/${s.predictionsTotal}`, l: "Prediction" },
-                { v: String(s.sxp), l: "SXP" },
+                { v: matchPoints[s.matchId] != null ? String(matchPoints[s.matchId]) : "–", l: "SXP" },
               ].map((c, i) => (
                 <div
                   key={c.l}
