@@ -5167,20 +5167,20 @@ function InlinePlayerMatchSummaryCard({ summary }: { summary: any }) {
     const interactions = Number(
         summary.interactionsCount ??
         (totalActions > 0 ? totalActions : Number(totals.participations || 0) + Number(totals.likes || 0) + Number(totals.comments || 0) + Number(totals.shares || 0) + Number(totals.impressions || 0))
-    ) || 18;
+    );
     const predictionsRatio = String(
         summary.predictionsRatio ||
-        (summary.predictionsCount ? `${summary.predictionsWon || 0}/${summary.predictionsCount}` : "8/10")
+        (summary.predictionsCount ? `${summary.predictionsWon || 0}/${summary.predictionsCount}` : "0/0")
     );
-    const sxp = Number(summary.sxpAwarded || totals.sxpAwarded || 320);
-    const rawName = summary.userName || summary.name || summary.userEmail || "Aarav";
+    const sxp = Number(summary.sxpAwarded ?? totals.sxpAwarded ?? 0);
+    const rawName = summary.userName || summary.name || summary.userEmail || "Sports Fan";
     const userName = rawName.includes("@") ? rawName.split("@")[0] : rawName;
     const userAvatar = summary.userAvatar || "";
     const countryFlag = summary.countryFlag || "🇮🇳";
-    const persona = summary.persona || "Analytical Fan";
-    const favorites = summary.favoritesLabel || "Bumrah • SKY | MI";
-    const leaderboardBadge = summary.leaderboardBadge || "Top 5% in Series Leaderboard";
-    const initial = userName.trim().slice(0, 1).toUpperCase() || "A";
+    const persona = summary.persona || "Active Fan";
+    const favorites = summary.favoritesLabel || "";
+    const leaderboardBadge = summary.leaderboardBadge || "Match Participant";
+    const initial = userName.trim().slice(0, 1).toUpperCase() || "F";
 
     return (
         <div
@@ -5618,6 +5618,10 @@ export default function OpenRoomDiscussionRoom({
     const [userMatchSummary, setUserMatchSummary] = useState<any | null>(null);
     const [matchSnapshotSummary, setMatchSnapshotSummary] = useState<any | null>(null);
     const [fanOfTheMatchSummary, setFanOfTheMatchSummary] = useState<any | null>(null);
+    const [userMatchSummaries, setUserMatchSummaries] = useState<Map<string, any>>(new Map());
+    const [matchSnapshotSummaries, setMatchSnapshotSummaries] = useState<Map<string, any>>(new Map());
+    const [fanOfTheMatchSummaries, setFanOfTheMatchSummaries] = useState<Map<string, any>>(new Map());
+    const summarySortKeyRef = useRef<Map<string, number>>(new Map());
     const prevSummaryMatchRef = useRef<string | null>(null);
     // const [engagementsLoading, setEngagementsLoading] = useState(false);
     // const [roomMatchId, setRoomMatchId] = useState<string | null>(null);
@@ -6004,9 +6008,36 @@ export default function OpenRoomDiscussionRoom({
                 const summaryObj = res.data.userMatchSummary || null;
                 const snapshotObj = res.data.matchSnapshotSummary || null;
                 const fanObj = res.data.fanOfTheMatchSummary || null;
+                const currentMidKey = String(res.data.matchId || roomMatchId || "default").replace(/^MATCH#/i, "").trim();
+
                 setUserMatchSummary(summaryObj);
                 setMatchSnapshotSummary(snapshotObj);
                 setFanOfTheMatchSummary(fanObj);
+
+                if (summaryObj) {
+                    setUserMatchSummaries(prev => {
+                        const m = new Map(prev);
+                        const k = String(summaryObj.matchId || currentMidKey).replace(/^MATCH#/i, "").trim();
+                        m.set(k, summaryObj);
+                        return m;
+                    });
+                }
+                if (snapshotObj) {
+                    setMatchSnapshotSummaries(prev => {
+                        const m = new Map(prev);
+                        const k = String(snapshotObj.matchId || currentMidKey).replace(/^MATCH#/i, "").trim();
+                        m.set(k, snapshotObj);
+                        return m;
+                    });
+                }
+                if (fanObj) {
+                    setFanOfTheMatchSummaries(prev => {
+                        const m = new Map(prev);
+                        const k = String(fanObj.matchId || currentMidKey).replace(/^MATCH#/i, "").trim();
+                        m.set(k, fanObj);
+                        return m;
+                    });
+                }
 
                 const hasAnySummary = Boolean(summaryObj || snapshotObj || fanObj);
                 const summaryKey = summaryObj?.id || snapshotObj?.id || fanObj?.id || "summary";
@@ -7535,9 +7566,22 @@ export default function OpenRoomDiscussionRoom({
             }
             return { kind: "engagement" as const, data: e, sortKey: key };
         });
-                // ── Visual Recognitions (Both stadium-wide and targeted VIP recognitions show in room) ──
+                // ── Visual Recognitions (Filtered: stadium-wide to all, targeted to recipient) ──
         const isRecTargetMatch = (rec: any) => {
-            return Boolean(rec && (rec.headline || rec.message || rec.recognitionId || rec.id));
+            if (!rec || (!rec.headline && !rec.message && !rec.recognitionId && !rec.id)) return false;
+            if (rec.targetType === "user" && rec.targetUserId) {
+                const targetClean = String(rec.targetUserId).trim().toLowerCase().replace(/^user#/i, "");
+                const targetNameClean = rec.targetUserName ? String(rec.targetUserName).trim().toLowerCase() : "";
+                const myName = String(userUsername || userProfile?.username || "").trim().toLowerCase();
+                const myEmail = String(userProfile?.email || "").trim().toLowerCase();
+
+                const matches = currentUserIdCandidates.some(cand => {
+                    const cleanCand = cand.replace(/^user#/i, "").toLowerCase();
+                    return cleanCand === targetClean || cleanCand.includes(targetClean) || targetClean.includes(cleanCand);
+                }) || (myName && (myName === targetClean || myName === targetNameClean)) || (myEmail && (myEmail === targetClean || myEmail.includes(targetClean)));
+                return Boolean(matches);
+            }
+            return true;
         };
 
         const recognitionItems: FeedItem[] = (engagementFilter === "all" ? recognitions : [])
@@ -7574,42 +7618,81 @@ export default function OpenRoomDiscussionRoom({
             }));
 
         const showCompletionSummaries = engagementFilter === "all";
-        const hasEngSnapshot = dedupedEngagements.some(e => e.type === "match_result" || e.type === "match_summary" || (e.matchResultData && Object.keys(e.matchResultData).length > 0));
-        const hasEngFotm = dedupedEngagements.some(e => e.type === "fan_of_the_match");
-        const hasEngUserSummary = dedupedEngagements.some(e => e.type === "player_match_summary" || e.type === "user_summary");
 
-        const snapshotItems: FeedItem[] =
-            matchSnapshotSummary && showCompletionSummaries && !hasEngSnapshot
-                ? [
-                      {
-                          kind: "match_snapshot_summary" as const,
-                          data: matchSnapshotSummary,
-                          sortKey: getTimestamp(matchSnapshotSummary.createdAt || Date.now()),
-                      },
-                  ]
-                : [];
+        // Collect all available snapshot summaries (by matchId so multiple matches don't override each other)
+        const allSnapshotsMap = new Map<string, any>(matchSnapshotSummaries);
+        if (matchSnapshotSummary) {
+            const k = String(matchSnapshotSummary.matchId || roomMatchId || "default").replace(/^MATCH#/i, "").trim();
+            if (!allSnapshotsMap.has(k)) allSnapshotsMap.set(k, matchSnapshotSummary);
+        }
 
-        const fanOfTheMatchItems: FeedItem[] =
-            fanOfTheMatchSummary && showCompletionSummaries && !hasEngFotm
-                ? [
-                      {
-                          kind: "fan_of_the_match" as const,
-                          data: fanOfTheMatchSummary,
-                          sortKey: getTimestamp(fanOfTheMatchSummary.createdAt || Date.now()) + 1,
-                      },
-                  ]
-                : [];
+        const snapshotItems: FeedItem[] = showCompletionSummaries
+            ? Array.from(allSnapshotsMap.entries())
+                .filter(([mId, snap]) => !dedupedEngagements.some(e => (e.type === "match_result" || e.type === "match_summary") && String(e.matchId || "").replace(/^MATCH#/i, "") === mId))
+                .map(([mId, snap]) => {
+                    const cacheKey = `snap_${mId}_${snap.id || ""}`;
+                    let sKey = summarySortKeyRef.current.get(cacheKey);
+                    if (!sKey) {
+                        sKey = getTimestamp(snap.createdAt || snap.settledAt || snap.completedAt || Date.now());
+                        summarySortKeyRef.current.set(cacheKey, sKey);
+                    }
+                    return {
+                        kind: "match_snapshot_summary" as const,
+                        data: snap,
+                        sortKey: sKey,
+                    };
+                })
+            : [];
 
-        const summaryItems: FeedItem[] =
-            userMatchSummary && showCompletionSummaries && !hasEngUserSummary
-                ? [
-                      {
-                          kind: "player_match_summary" as const,
-                          data: userMatchSummary,
-                          sortKey: getTimestamp(userMatchSummary.createdAt || Date.now()) + 2,
-                      },
-                  ]
-                : [];
+        // Collect all available Fan of the Match summaries
+        const allFotmMap = new Map<string, any>(fanOfTheMatchSummaries);
+        if (fanOfTheMatchSummary) {
+            const k = String(fanOfTheMatchSummary.matchId || roomMatchId || "default").replace(/^MATCH#/i, "").trim();
+            if (!allFotmMap.has(k)) allFotmMap.set(k, fanOfTheMatchSummary);
+        }
+
+        const fanOfTheMatchItems: FeedItem[] = showCompletionSummaries
+            ? Array.from(allFotmMap.entries())
+                .filter(([mId, fotm]) => !dedupedEngagements.some(e => e.type === "fan_of_the_match" && String(e.matchId || "").replace(/^MATCH#/i, "") === mId))
+                .map(([mId, fotm]) => {
+                    const cacheKey = `fotm_${mId}_${fotm.id || ""}`;
+                    let sKey = summarySortKeyRef.current.get(cacheKey);
+                    if (!sKey) {
+                        sKey = getTimestamp(fotm.createdAt || fotm.settledAt || fotm.completedAt || Date.now()) + 1;
+                        summarySortKeyRef.current.set(cacheKey, sKey);
+                    }
+                    return {
+                        kind: "fan_of_the_match" as const,
+                        data: fotm,
+                        sortKey: sKey,
+                    };
+                })
+            : [];
+
+        // Collect all available User Match summaries
+        const allUserSummariesMap = new Map<string, any>(userMatchSummaries);
+        if (userMatchSummary) {
+            const k = String(userMatchSummary.matchId || roomMatchId || "default").replace(/^MATCH#/i, "").trim();
+            if (!allUserSummariesMap.has(k)) allUserSummariesMap.set(k, userMatchSummary);
+        }
+
+        const summaryItems: FeedItem[] = showCompletionSummaries
+            ? Array.from(allUserSummariesMap.entries())
+                .filter(([mId, sum]) => !dedupedEngagements.some(e => (e.type === "player_match_summary" || e.type === "user_summary") && String(e.matchId || "").replace(/^MATCH#/i, "") === mId))
+                .map(([mId, sum]) => {
+                    const cacheKey = `sum_${mId}_${sum.id || sum.userId || ""}`;
+                    let sKey = summarySortKeyRef.current.get(cacheKey);
+                    if (!sKey) {
+                        sKey = getTimestamp(sum.createdAt || sum.settledAt || sum.completedAt || Date.now()) + 2;
+                        summarySortKeyRef.current.set(cacheKey, sKey);
+                    }
+                    return {
+                        kind: "player_match_summary" as const,
+                        data: sum,
+                        sortKey: sKey,
+                    };
+                })
+            : [];
 
         const allCombined = [
             ...postItems,

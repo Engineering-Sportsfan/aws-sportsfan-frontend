@@ -504,9 +504,7 @@ export default function FanScorecardPage() {
             l: "Debates", ic: "deb",
           },
           {
-            v: kpis?.kpis?.insight?.recognitionsCount != null
-              ? String(kpis.kpis.insight.recognitionsCount)
-              : String(kpis?.recognitionsCount ?? stats.reactions),
+            v: String(kpis?.kpis?.insight?.recognitionsCount ?? kpis?.recognitionsCount ?? 0),
             l: "Recognised", ic: "react",
           },
         ].map((t) => {
