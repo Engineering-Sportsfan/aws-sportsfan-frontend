@@ -200,7 +200,9 @@ export default function FanScorecardPage() {
     };
   }, [activities, engagements, matchId]);
 
-  const matchSxp = Number(stats?.sxp ?? 0);
+  const localMatchSxp = Number(stats?.sxp ?? 0);
+  const kpiMatchSxp = kpis?.totalMatchSxp != null ? Number(kpis.totalMatchSxp) : null;
+  const matchSxp = kpiMatchSxp != null ? Math.max(kpiMatchSxp, localMatchSxp) : localMatchSxp;
 
   const leaderboard: Row[] = useMemo(() => {
     // Deduplicate by canonical user key to guarantee one single consistent row per user
@@ -301,24 +303,63 @@ export default function FanScorecardPage() {
     </div>
   ) : null;
 
-  const accuracy = stats?.predictionsTotal ? Math.round((stats.predictionsCorrect / stats.predictionsTotal) * 100) : 0;
-  const overallKpi = Number(kpis?.overallScore);
-  const fanScore: number | null = Number.isFinite(overallKpi)
-    ? Math.round(overallKpi)
-    : kpis?.kpis
-    ? (() => {
-        const active = IMPACT_ROWS.filter((r) => {
-          const metric = String(kpis.kpis[r.key]?.metric || "").toLowerCase();
-          return !metric.startsWith("no ");
-        });
-        const targets = active.length > 0 ? active : IMPACT_ROWS;
-        return Math.round(targets.reduce((sum, r) => sum + (Number(kpis.kpis[r.key]?.score) || 0), 0) / targets.length);
-      })()
-    : null;
-  const overall = fanScore ?? Number(kpis?.overallScore);
-  const impact = Number.isFinite(overall)
-    ? (overall >= 70 ? "High" : overall >= 40 ? "Medium" : "Low")
-    : (matchSxp >= 50 ? "High" : matchSxp >= 20 ? "Medium" : "Low");
+  const myLeaderboardIdx = leaderboard.findIndex((r) => r.isMe);
+  const meLeaderboardRow = myLeaderboardIdx >= 0 ? leaderboard[myLeaderboardIdx] : null;
+  // Fan Score = user's exact Match SXPs (1:1 consistent with Match Leaderboard)
+  const effectiveMatchSxp = meLeaderboardRow ? meLeaderboardRow.sxp : matchSxp;
+  const fanScore: number | null = (kpis || meLeaderboardRow || stats) ? effectiveMatchSxp : null;
+
+  // Overall Impact strictly based on Match SXPs
+  const impact = effectiveMatchSxp >= 50 ? "High" : effectiveMatchSxp >= 20 ? "Medium" : "Low";
+  const impactColor = effectiveMatchSxp >= 50 ? "#16a34a" : effectiveMatchSxp >= 20 ? "#d97706" : "#475569";
+
+  // Build Match Impact rows from SXP breakdown so percentages always sum to 100% (or 0% if 0 SXP)
+  // and subfields always reflect SXP earned (+ Recognition SXP in the respective pillar)
+  const impactRowsData = (() => {
+    const kData = kpis?.kpis;
+    const raw = IMPACT_ROWS.map((row) => {
+      const item = kData?.[row.key];
+      const baseSxp = Number(item?.baseSxp ?? item?.sxp ?? 0);
+      const recognitionSxp = Number(item?.recognitionSxp ?? 0);
+      return { ...row, baseSxp, recognitionSxp, apiMetric: item?.metric };
+    });
+
+    const sumFromApi = raw.reduce((s, r) => s + r.baseSxp + r.recognitionSxp, 0);
+    if (effectiveMatchSxp > sumFromApi) {
+      const partRow = raw.find((r) => r.key === "participation");
+      if (partRow) partRow.baseSxp += effectiveMatchSxp - sumFromApi;
+    }
+
+    const totals = raw.map((r) => r.baseSxp + r.recognitionSxp);
+    const grandTotal = totals.reduce((a, b) => a + b, 0);
+
+    let pcts: number[];
+    if (grandTotal <= 0) {
+      pcts = totals.map(() => 0);
+    } else {
+      const exact = totals.map((v) => (v / grandTotal) * 100);
+      const floored = exact.map((e) => Math.floor(e));
+      const rem = 100 - floored.reduce((a, b) => a + b, 0);
+      const order = exact
+        .map((e, idx) => ({ idx, frac: e - floored[idx], val: totals[idx] }))
+        .sort((a, b) => (b.frac !== a.frac ? b.frac - a.frac : b.val - a.val));
+      for (let i = 0; i < rem && i < order.length; i++) floored[order[i].idx] += 1;
+      pcts = floored;
+    }
+
+    return raw.map((r, i) => {
+      const total = r.baseSxp + r.recognitionSxp;
+      const metric =
+        total <= 0
+          ? "0 SXP"
+          : r.recognitionSxp > 0 && r.baseSxp > 0
+          ? `${total} SXP (${r.baseSxp} SXP + ${r.recognitionSxp} SXP Recognition)`
+          : r.recognitionSxp > 0
+          ? `${total} SXP (${r.recognitionSxp} SXP Recognition)`
+          : `${total} SXP`;
+      return { ...r, pct: pcts[i], totalSxp: total, metric };
+    });
+  })();
 
   // Badges (frontend only, not stored): one per Match Impact field, earned with at least 3 participations in it.
   const BADGE_MIN = 3;
@@ -331,13 +372,12 @@ export default function FanScorecardPage() {
     { id: "insight", n: (Number(k?.insight?.peerLikesReceived) || 0) + (Number(k?.insight?.peerRepliesReceived) || 0), label: "Insight Guru", color: "#ec4899", icon: "💡" },
   ].filter((b) => b.n >= BADGE_MIN);
 
-  const myLeaderboardIdx = leaderboard.findIndex((r) => r.isMe);
   // Match Rank uses the exact same rank as the leaderboard below
   const myRank = (myLeaderboardIdx >= 0 ? myLeaderboardIdx + 1 : null) ?? rankInfo.rank ?? null;
   const totalFans = Math.max(rankInfo.total || 0, leaderboard.length, myRank || 0);
   const fmtFans = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : String(n));
 
-  const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore}` : ""} for ${title}${myRank != null ? ` – Ranked #${myRank} of ${fmtFans(totalFans)} fans` : ""} on SportsFan360!`;
+  const shareText = `My Fan Score${fanScore != null ? ` is ${fanScore} SXP` : ""} for ${title}${myRank != null ? ` – Ranked #${myRank} of ${fmtFans(totalFans)} fans` : ""} on SportsFan360!`;
   const shareUrl = typeof window !== "undefined" ? window.location.href : "";
   const nativeShare = async () => {
     try {
@@ -367,6 +407,7 @@ export default function FanScorecardPage() {
         <div style={{ textAlign: "center", minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 700 }}>Your Fan Score</div>
           <div style={{ fontSize: "clamp(36px, 12vw, 60px)", fontWeight: 900, lineHeight: 1.05, background: "linear-gradient(90deg,#ff6b35,#ec4899)", WebkitBackgroundClip: "text", color: "transparent" }}>{fanScore ?? "–"}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.65)", letterSpacing: 0.6 }}>SXPs</div>
         </div>
         <div style={{ textAlign: "center", minWidth: 0, borderLeft: "1px solid rgba(255,255,255,0.12)", borderRight: "1px solid rgba(255,255,255,0.12)", padding: "0 4px" }}>
           <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>Match Rank</div>
@@ -440,11 +481,10 @@ export default function FanScorecardPage() {
       <div style={card}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <span style={{ fontWeight: 800 }}>Your Match Impact</span>
-          <span style={{ fontSize: 12 }}>Overall Impact: <b style={{ background: "#16a34a", borderRadius: 8, padding: "2px 8px" }}>{impact}</b></span>
+          <span style={{ fontSize: 12 }}>Overall Impact: <b style={{ background: impactColor, borderRadius: 8, padding: "2px 8px" }}>{impact}</b></span>
         </div>
-        {IMPACT_ROWS.map((row) => {
-          const k = kpis?.kpis?.[row.key];
-          const pct = Math.max(0, Math.min(100, Math.round(Number(k?.score) || 0)));
+        {impactRowsData.map((row) => {
+          const pct = Math.max(0, Math.min(100, row.pct));
           return (
             <div key={row.key} style={{ margin: "8px 0", fontSize: 13 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -454,7 +494,7 @@ export default function FanScorecardPage() {
                 </div>
                 <span style={{ width: 36, textAlign: "right" }}>{kpis ? `${pct}%` : "–"}</span>
               </div>
-              {k?.metric && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.5)", marginLeft: 120 }}>{k.metric}</div>}
+              {kpis && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginLeft: 120 }}>{row.metric}</div>}
             </div>
           );
         })}
@@ -538,6 +578,7 @@ export default function FanScorecardPage() {
               <div style={{ ...card, textAlign: "center", padding: 10 }}>
                 <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)" }}>Fan Score</div>
                 <div style={{ fontSize: 40, fontWeight: 900, lineHeight: 1.1 }}>{fanScore ?? "–"}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(255,255,255,0.65)" }}>SXPs</div>
               </div>
               <div style={{ ...card, textAlign: "center", padding: 10, display: "flex", flexDirection: "column", justifyContent: "center" }}>
                 {myRank != null ? (
