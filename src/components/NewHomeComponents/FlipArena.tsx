@@ -3549,7 +3549,8 @@
 //             else if (t === "meme") setFilter("meme");
 //           }
 
-//           showToast(`🎯 Opened shared ${singleItem.type ? singleItem.type.toUpperCase() : "item"}: "${singleItem.title || 'Event'}"`);
+//           const displayType = singleItem.type === "express" ? "TAKES" : singleItem.type === "question" ? "TRIVIA" : singleItem.type ? singleItem.type.toUpperCase() : "item";
+//           showToast(`🎯 Opened shared ${displayType}: "${singleItem.title || 'Event'}"`);
 //         }
 //       }).catch((err) => {
 //         console.warn("Could not fetch shared engagement item:", err);
@@ -8673,7 +8674,8 @@ export default function FlipArena({
             else if (t === "meme") setFilter("meme");
           }
 
-          showToast(`🎯 Opened shared ${singleItem.type ? singleItem.type.toUpperCase() : "item"}: "${singleItem.title || 'Event'}"`);
+          const displayType = singleItem.type === "express" ? "TAKES" : singleItem.type === "question" ? "TRIVIA" : singleItem.type ? singleItem.type.toUpperCase() : "item";
+          showToast(`🎯 Opened shared ${displayType}: "${singleItem.title || 'Event'}"`);
         }
       }).catch((err) => {
         console.warn("Could not fetch shared engagement item:", err);
