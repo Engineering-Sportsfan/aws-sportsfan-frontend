@@ -681,10 +681,7 @@ function Shell({ children, onBack, title, sub, summary }: { children: React.Reac
             <div style={{ fontSize: 13, color: "rgba(255,255,255,0.7)" }}>Match Summary</div>
           </div>
         </div>
-        {/* <div style={{ ...card, textAlign: "center" }}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>{title}</div>
-          {sub && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>{sub}</div>}
-        </div> */}
+
         {summary}
         {children}
       </div>

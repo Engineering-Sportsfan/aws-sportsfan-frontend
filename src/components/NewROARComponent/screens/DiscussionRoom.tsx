@@ -2278,7 +2278,7 @@
 //         <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)", whiteSpace: "nowrap" }}>{p.timeAgo}</span>
 //         {p.type && (
 //           <span className={typeBadgeClass(p.type)}>
-//             {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
+//             {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "express" ? "TAKES" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
 //           </span>
 //         )}
 //       </div>
@@ -5807,7 +5807,7 @@ export default function DiscussionRoom({
         <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)", whiteSpace: "nowrap" }}>{p.timeAgo}</span>
         {p.type && (
           <span className={typeBadgeClass(p.type)}>
-            {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
+            {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "express" ? "TAKES" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
           </span>
         )}
       </div> */}
@@ -5826,7 +5826,7 @@ export default function DiscussionRoom({
           <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)", whiteSpace: "nowrap" }}>{p.timeAgo}</span>
           {p.type && (
             <span className={typeBadgeClass(p.type)}>
-              {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
+              {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "express" ? "TAKES" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
             </span>
           )}
         </div>
