@@ -148,7 +148,7 @@ const cleanMatchId = (v: unknown) => String(v ?? "").replace(/^MATCH#/, "").trim
 const isRealId = (s: string) => !!s && !["none", "undefined", "null", "all"].includes(s.toLowerCase());
 
 /** Demo/seed matches that must never be picked as the current match. */
-const EXCLUDED_MATCH_IDS = new Set(["IND-SL-2026-ODI1", "INDAW-ENGAW-2026-ODI2", "AUS-NZ-2026-TEST1-D3"]);
+const EXCLUDED_MATCH_IDS = new Set(["IND-SL-2026-ODI1", "INDAW-ENGAW-2026-ODI2", "AUS-NZ-2026-TEST1-D3", "MATCH-MVTEKVZE-HQT8C6"]);
 
 /**
  * The match whose match-moment engagement was created most recently. Only engagement creation counts, not
