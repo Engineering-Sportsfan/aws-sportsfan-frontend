@@ -2896,7 +2896,7 @@ import EngagementCommentsThread from "@/components/Engagements/EngagementComment
 //                                         <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)", whiteSpace: "nowrap" }}>{p.timeAgo}</span>
 //                                         {p.type && (
 //                                             <span className={typeBadgeClass(p.type)}>
-//                                                 {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
+//                                                 {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "express" ? "TAKES" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
 //                                             </span>
 //                                         )}
 //                                     </div>
@@ -3555,7 +3555,7 @@ const ENGAGEMENT_TABS = [
     { id: "prediction", label: "Prediction", color: "#fbbf24" },
     { id: "debate", label: "Debate", color: "#60a5fa" },
     { id: "question", label: "Question", color: "#22c55e" },
-    { id: "express", label: "Express", color: "#22d3ee" },
+    { id: "express", label: "Takes", color: "#22d3ee" },
     { id: "poll", label: "Poll", color: "#818cf8" },
 ] as const;
 
@@ -8243,7 +8243,7 @@ export default function OpenRoomDiscussionRoom({
                                         <span style={{ fontSize: 7, color: "rgba(255,255,255,0.48)", whiteSpace: "nowrap" }}>{p.timeAgo}</span>
                                         {p.type && (
                                             <span className={typeBadgeClass(p.type)}>
-                                                {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
+                                                {p.type === "post" ? "POST" : p.type === "hottake" ? "HOT TAKE" : p.type === "express" ? "TAKES" : p.type === "prediction" ? "PREDICTION" : p.type === "debate" ? "DEBATE" : p.type === "raw_reactions" ? "RAW REACTIONS" : p.type.toUpperCase()}
                                             </span>
                                         )}
                                     </div>

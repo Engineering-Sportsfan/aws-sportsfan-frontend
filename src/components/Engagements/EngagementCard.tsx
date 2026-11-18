@@ -1514,7 +1514,7 @@ export default function EngagementCard({
             case "poll":
                 return { label: "POLL", icon: "📊", badgeBg: "bg-blue-500/20 text-blue-400 border border-blue-500/40", accent: "#60a5fa" };
             case "express":
-                return { label: "EXPRESS", icon: "⚡", badgeBg: "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40", accent: "#22d3ee" };
+                return { label: "TAKES", icon: "⚡", badgeBg: "bg-cyan-500/20 text-cyan-400 border border-cyan-500/40", accent: "#22d3ee" };
             case "follow":
                 return { label: "FOLLOW MATCH", icon: "🔔", badgeBg: "bg-purple-500/20 text-purple-300 border border-purple-500/40", accent: "#a855f7" };
             case "match_result":
