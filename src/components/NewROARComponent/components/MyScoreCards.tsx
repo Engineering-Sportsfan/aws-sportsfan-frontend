@@ -223,6 +223,8 @@ export function MyScoreCards({
 
   // SXP per match comes from /api/user-points?matchId= (the user's matchPoints), not from summing the activity log.
   const [matchPoints, setMatchPoints] = useState<Record<string, number>>({});
+  // Interactions and Prediction come from /api/user/match-kpis (same values as the FanScorecard page).
+  const [kpiByMatch, setKpiByMatch] = useState<Record<string, { interactions: number; predText: string }>>({});
   const idsKey = scores.slice(0, maxItems ?? scores.length).map((s) => s.matchId).join("|");
   useEffect(() => {
     if (!idsKey) return;
@@ -231,6 +233,21 @@ export function MyScoreCards({
     const mine = new Set([user?.actualUserId, user?.userId, user?.email, user?.email?.replace(/[@.]/g, "_")].filter(Boolean).map(norm));
     const uid = user?.actualUserId || user?.userId || user?.email || "";
     for (const id of idsKey.split("|")) {
+      const kpiUserId = user?.actualUserId || user?.userId?.replace(/[@.]/g, "_") || user?.email?.replace(/[@.]/g, "_") || uid;
+      axios.get("/api/user/match-kpis", { params: { matchId: id, userId: kpiUserId }, timeout: 15000 })
+        .then((r) => {
+          if (off || !r.data?.success) return;
+          const k = r.data?.kpis;
+          const pred = k?.prediction;
+          setKpiByMatch((p) => ({
+            ...p,
+            [id]: {
+              interactions: Number(k?.participation?.cardsEngaged ?? 0) || 0,
+              predText: `${pred?.correct ?? 0}/${pred?.resolved ?? pred?.attempted ?? 0}`,
+            },
+          }));
+        })
+        .catch(() => {});
       axios.get("/api/user-points", { params: { limit: 100, matchId: id, ...(uid ? { userId: uid } : {}) }, timeout: 15000 })
         .then((r) => {
           if (off) return;
@@ -394,8 +411,8 @@ export function MyScoreCards({
 
             <div style={{ display: "flex", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, overflow: "hidden" }}>
               {[
-                { v: String(s.interactions), l: "Interactions" },
-                { v: `${s.predictionsCorrect}/${s.predictionsTotal}`, l: "Prediction" },
+                { v: kpiByMatch[s.matchId] ? String(kpiByMatch[s.matchId].interactions) : String(s.interactions), l: "Interactions" },
+                { v: kpiByMatch[s.matchId]?.predText ?? `${s.predictionsCorrect}/${s.predictionsTotal}`, l: "Prediction" },
                 { v: matchPoints[s.matchId] != null ? String(matchPoints[s.matchId]) : "–", l: "SXP" },
               ].map((c, i) => (
                 <div
