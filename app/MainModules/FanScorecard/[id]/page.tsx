@@ -54,6 +54,27 @@ export default function FanScorecardPage() {
   const { user } = useAuth();
   const userId = user?.actualUserId || user?.userId || user?.email || "";
   const [profileUser, setProfileUser] = useState<any>(null);
+  // The user's followed "League / IPL Teams" (Step 2 of onboarding), shown under the profile image.
+  const [leagueTeams, setLeagueTeams] = useState<{ id: string; label: string; image?: string }[]>([]);
+  useEffect(() => {
+    let off = false;
+    Promise.all([
+      axios.get("/api/roar/onboarding-config", { params: { type: "followEntities" } }),
+      axios.get("/api/roar/onboarding", { withCredentials: true }),
+    ])
+      .then(([cfg, ob]) => {
+        if (off) return;
+        const followed = new Set<string>((ob.data?.followEntities ?? []).map(String));
+        const items: any[] = cfg.data?.items ?? [];
+        setLeagueTeams(
+          items
+            .filter((i) => String(i.category || i.title || "").trim().toLowerCase() === "league / ipl teams" && followed.has(String(i.id)))
+            .map((i) => ({ id: String(i.id), label: String(i.label ?? ""), image: i.image || undefined }))
+        );
+      })
+      .catch(() => {});
+    return () => { off = true; };
+  }, []);
   const [profileLoading, setProfileLoading] = useState(true);
   const myName = profileUser?.username || profileUser?.displayName || (user as any)?.username || (user as any)?.displayName || user?.email?.split("@")[0] || "You";
   const myAvatar = profileUser?.avatarUrl || profileUser?.avatar || (user as any)?.avatarUrl || (user as any)?.avatar || null;
@@ -313,6 +334,18 @@ export default function FanScorecardPage() {
   const impact = effectiveMatchSxp >= 50 ? "High" : effectiveMatchSxp >= 20 ? "Medium" : "Low";
   const impactColor = effectiveMatchSxp >= 50 ? "#16a34a" : effectiveMatchSxp >= 20 ? "#d97706" : "#475569";
 
+  // DEBUG: compare with the [SXP-CARD] logs from MyScoreCards (Profile / FanScorecard list).
+  useEffect(() => {
+    if (!matchId) return;
+    console.log("[SXP-DETAIL]", matchId, {
+      shownFanScore: fanScore,
+      leaderboardMeRowSxp: meLeaderboardRow?.sxp ?? null,
+      kpiTotalMatchSxp: kpiMatchSxp,
+      localActivitySxp: localMatchSxp,
+      matchSxp,
+    });
+  }, [matchId, fanScore, meLeaderboardRow?.sxp, kpiMatchSxp, localMatchSxp, matchSxp]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Build Match Impact rows from SXP breakdown so percentages always sum to 100% (or 0% if 0 SXP)
   // and subfields always reflect SXP earned (+ Recognition SXP in the respective pillar)
   const impactRowsData = (() => {
@@ -426,6 +459,19 @@ export default function FanScorecardPage() {
           {profileLoading
             ? <div style={{ width: 50, height: 12, borderRadius: 6, background: "rgba(255,255,255,0.12)", margin: "8px auto 0" }} />
             : <div style={{ fontSize: 12, fontWeight: 700, marginTop: 4, wordBreak: "break-word", lineHeight: 1.2 }}>{myName}</div>}
+          {leagueTeams.length > 0 && (
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 4, marginTop: 5 }}>
+              {leagueTeams.map((t) => (
+                <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 999, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.15)" }}>
+                  {t.image && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={t.image} alt="" style={{ width: 12, height: 12, borderRadius: "50%", objectFit: "cover" }} />
+                  )}
+                  {t.label}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
