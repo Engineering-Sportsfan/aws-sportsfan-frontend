@@ -394,6 +394,7 @@
 import { useEffect, useState, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
+import { orderFollowGroups } from "@/utils/followGroupOrder";
 
 interface Props {
   onComplete: (prefs: any) => void;
@@ -568,7 +569,7 @@ export default function Onboarding({ onComplete }: Props) {
 
   // Group followOptions by category or title, only for chosen sports
   const groupedFollow = useMemo(() => {
-    return followOptions
+    const grouped = followOptions
       .filter((f) => !f.sportId || sports.includes(f.sportId))
       .reduce((acc: Record<string, ConfigItem[]>, item) => {
         const key = item.category || item.title || "Other";
@@ -576,6 +577,7 @@ export default function Onboarding({ onComplete }: Props) {
         acc[key].push(item);
         return acc;
       }, {});
+    return orderFollowGroups(grouped);
   }, [followOptions, sports]);
 
   const handleComplete = async () => {

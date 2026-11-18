@@ -195,6 +195,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import axios from "axios";
 import { trackFanDNACompleted, trackInterestFollowed } from "@/lib/analytics";
 import { ChevronLeft, X } from "lucide-react";
+import { orderFollowGroups } from "@/utils/followGroupOrder";
 
 type ConfigItem = {
   id: string;
@@ -427,7 +428,7 @@ export default function RoarPreferencesPage() {
 
   // Group follow entities by category or title
   const groupedFollow = useMemo(() => {
-    return followOptions
+    const grouped = followOptions
       .filter((f) => !f.sportId || sports.includes(f.sportId))
       .reduce((acc: Record<string, ConfigItem[]>, item) => {
         const key = item.category || item.title || "Other";
@@ -435,6 +436,7 @@ export default function RoarPreferencesPage() {
         acc[key].push(item);
         return acc;
       }, {});
+    return orderFollowGroups(grouped);
   }, [followOptions, sports]);
 
   // Group profile setup items by category (My Teams & Sports / My Loyalties / My Interests)

@@ -12,6 +12,10 @@ interface MatchInfo {
   team2?: string;
   tournament?: string;
   format?: string;
+  /** Match start time (ms) when the API provides one; field names are best guesses. */
+  ts?: number;
+  /** Position in the /api/matches response (newest first). */
+  order?: number;
 }
 
 // /api/matches is fetched once per 10 minutes and shared by every card.
@@ -28,10 +32,12 @@ function loadMatches(): Promise<Map<string, MatchInfo>> {
       const d = res.data;
       const rows: any[] = d?.data || d?.matches || (Array.isArray(d) ? d : []);
       const map = new Map<string, MatchInfo>();
-      for (const r of rows) {
+      rows.forEach((r, order) => {
         const id = String(r?.match_id ?? r?.id ?? "");
-        if (id) map.set(id, { id, team1: r.team1 || r.home_team, team2: r.team2 || r.away_team, tournament: r.tournament, format: r.format });
-      }
+        const rawTs = r?.start_time ?? r?.startTime ?? r?.match_date ?? r?.matchDate ?? r?.date ?? r?.scheduled_at ?? r?.created_at ?? r?.createdAt;
+        const ts = typeof rawTs === "number" ? (rawTs < 1e12 ? rawTs * 1000 : rawTs) : rawTs ? Date.parse(String(rawTs)) : NaN;
+        if (id) map.set(id, { id, team1: r.team1 || r.home_team, team2: r.team2 || r.away_team, tournament: r.tournament, format: r.format, ts: Number.isFinite(ts) ? ts : undefined, order });
+      });
       matchesCache = { at: Date.now(), map };
       return map;
     })
@@ -218,7 +224,14 @@ export function MyScoreCards({
         if (flagged || (winning && picked && picked === winning)) s.predictionsCorrect += 1;
       }
     }
-    return Array.from(acc.values()).sort((x, y) => y.last - x.last);
+    // Latest match first: by match date, else by /api/matches order (newest first), else by last activity.
+    return Array.from(acc.values()).sort((x, y) => {
+      const mx = matches?.get(x.matchId);
+      const my = matches?.get(y.matchId);
+      if (mx?.ts != null && my?.ts != null && mx.ts !== my.ts) return my.ts - mx.ts;
+      if (mx?.order != null && my?.order != null && mx.order !== my.order) return mx.order - my.order;
+      return y.last - x.last;
+    });
   }, [activities, list, matches]);
 
   // SXP per match comes from /api/user-points?matchId= (the user's matchPoints), not from summing the activity log.
@@ -243,7 +256,8 @@ export function MyScoreCards({
             ...p,
             [id]: {
               interactions: Number(k?.participation?.cardsEngaged ?? 0) || 0,
-              predText: `${pred?.correct ?? 0}/${pred?.resolved ?? pred?.attempted ?? 0}`,
+              // Same fields as FanScorecard/[id]/page.tsx so the card and the detail page always agree.
+              predText: `${pred?.correct ?? pred?.won ?? 0}/${pred?.attempted ?? pred?.resolved ?? 0}`,
             },
           }));
         })
