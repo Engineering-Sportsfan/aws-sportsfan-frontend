@@ -5,6 +5,7 @@ import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { getMomentEngagements, type MomentEngagement } from "./momentEngagements";
+import { buildMatchStats, type MatchStats } from "./matchScorecard";
 
 interface MatchInfo {
   id: string;
@@ -12,6 +13,10 @@ interface MatchInfo {
   team2?: string;
   tournament?: string;
   format?: string;
+  /** Match start time (ms) when the API provides one; field names are best guesses. */
+  ts?: number;
+  /** Position in the /api/matches response (newest first). */
+  order?: number;
 }
 
 // /api/matches is fetched once per 10 minutes and shared by every card.
@@ -28,10 +33,12 @@ function loadMatches(): Promise<Map<string, MatchInfo>> {
       const d = res.data;
       const rows: any[] = d?.data || d?.matches || (Array.isArray(d) ? d : []);
       const map = new Map<string, MatchInfo>();
-      for (const r of rows) {
+      rows.forEach((r, order) => {
         const id = String(r?.match_id ?? r?.id ?? "");
-        if (id) map.set(id, { id, team1: r.team1 || r.home_team, team2: r.team2 || r.away_team, tournament: r.tournament, format: r.format });
-      }
+        const rawTs = r?.start_time ?? r?.startTime ?? r?.match_date ?? r?.matchDate ?? r?.date ?? r?.scheduled_at ?? r?.created_at ?? r?.createdAt;
+        const ts = typeof rawTs === "number" ? (rawTs < 1e12 ? rawTs * 1000 : rawTs) : rawTs ? Date.parse(String(rawTs)) : NaN;
+        if (id) map.set(id, { id, team1: r.team1 || r.home_team, team2: r.team2 || r.away_team, tournament: r.tournament, format: r.format, ts: Number.isFinite(ts) ? ts : undefined, order });
+      });
       matchesCache = { at: Date.now(), map };
       return map;
     })
@@ -218,13 +225,22 @@ export function MyScoreCards({
         if (flagged || (winning && picked && picked === winning)) s.predictionsCorrect += 1;
       }
     }
-    return Array.from(acc.values()).sort((x, y) => y.last - x.last);
+    // Latest match first: by match date, else by /api/matches order (newest first), else by last activity.
+    return Array.from(acc.values()).sort((x, y) => {
+      const mx = matches?.get(x.matchId);
+      const my = matches?.get(y.matchId);
+      if (mx?.ts != null && my?.ts != null && mx.ts !== my.ts) return my.ts - mx.ts;
+      if (mx?.order != null && my?.order != null && mx.order !== my.order) return mx.order - my.order;
+      return y.last - x.last;
+    });
   }, [activities, list, matches]);
 
   // SXP per match comes from /api/user-points?matchId= (the user's matchPoints), not from summing the activity log.
   const [matchPoints, setMatchPoints] = useState<Record<string, number>>({});
   // Interactions and Prediction come from /api/user/match-kpis (same values as the FanScorecard page).
-  const [kpiByMatch, setKpiByMatch] = useState<Record<string, { interactions: number; predText: string }>>({});
+  const [kpiByMatch, setKpiByMatch] = useState<Record<string, { cardsEngaged: number | null; pCorrect: number | null; pTotal: number | null; totalSxp: number | null }>>({});
+  // Matches whose match-kpis call failed: show the API value instead of waiting forever.
+  const [kpiFailed, setKpiFailed] = useState<Record<string, boolean>>({});
   const idsKey = scores.slice(0, maxItems ?? scores.length).map((s) => s.matchId).join("|");
   useEffect(() => {
     if (!idsKey) return;
@@ -234,20 +250,27 @@ export function MyScoreCards({
     const uid = user?.actualUserId || user?.userId || user?.email || "";
     for (const id of idsKey.split("|")) {
       const kpiUserId = user?.actualUserId || user?.userId?.replace(/[@.]/g, "_") || user?.email?.replace(/[@.]/g, "_") || uid;
-      axios.get("/api/user/match-kpis", { params: { matchId: id, userId: kpiUserId }, timeout: 15000 })
+      axios.get("/api/user/match-kpis", { params: { matchId: id, userId: kpiUserId, recompute: "true" }, timeout: 90000 })
         .then((r) => {
-          if (off || !r.data?.success) return;
+          if (off) return;
+          if (!r.data?.success) { console.warn("[SXP-CARD] match-kpis not successful", id, kpiUserId, r.data); setKpiFailed((p) => ({ ...p, [id]: true })); return; }
           const k = r.data?.kpis;
           const pred = k?.prediction;
           setKpiByMatch((p) => ({
             ...p,
             [id]: {
-              interactions: Number(k?.participation?.cardsEngaged ?? 0) || 0,
-              predText: `${pred?.correct ?? 0}/${pred?.resolved ?? pred?.attempted ?? 0}`,
+              // Raw KPI fields; the local-stats fallbacks are applied at render, exactly like FanScorecard/[id].
+              cardsEngaged: k?.participation?.cardsEngaged != null ? Number(k.participation.cardsEngaged) : null,
+              pCorrect: (pred?.correct ?? pred?.won) != null ? Number(pred?.correct ?? pred?.won) : null,
+              pTotal: (pred?.attempted ?? pred?.resolved) != null ? Number(pred?.attempted ?? pred?.resolved) : null,
+              totalSxp: r.data?.totalMatchSxp != null ? Number(r.data.totalMatchSxp) || 0 : null,
             },
           }));
         })
-        .catch(() => {});
+        .catch((e) => {
+          console.warn("[SXP-CARD] match-kpis FAILED", id, kpiUserId, e?.code || e?.message);
+          if (!off) setKpiFailed((p) => ({ ...p, [id]: true }));
+        });
       axios.get("/api/user-points", { params: { limit: 100, matchId: id, ...(uid ? { userId: uid } : {}) }, timeout: 15000 })
         .then((r) => {
           if (off) return;
@@ -261,6 +284,46 @@ export function MyScoreCards({
     }
     return () => { off = true; };
   }, [idsKey, user?.actualUserId, user?.userId, user?.email]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // SXP shown = exactly what FanScorecard/[id] shows: the highest of the API's matchPoints, the KPI total and the local activity sum.
+  const localStatsByMatch = useMemo(() => (list ? buildMatchStats(activities || [], list) : new Map<string, MatchStats>()), [activities, list]);
+  const localSxpByMatch = useMemo(() => {
+    const m = new Map<string, number>();
+    localStatsByMatch.forEach((v, k) => m.set(k, Number(v.sxp) || 0));
+    return m;
+  }, [localStatsByMatch]);
+  // Interactions / Prediction: same rules as FanScorecard/[id]: KPI value, else the local activity stats.
+  const kpiReady = (id: string) => kpiByMatch[id] != null || !!kpiFailed[id];
+  const interactionsFor = (id: string): string | null => {
+    if (!kpiReady(id)) return null;
+    return String(kpiByMatch[id]?.cardsEngaged ?? localStatsByMatch.get(id)?.interactions ?? 0);
+  };
+  const predictionFor = (id: string): string | null => {
+    if (!kpiReady(id)) return null;
+    const k = kpiByMatch[id];
+    const l = localStatsByMatch.get(id);
+    return `${k?.pCorrect ?? l?.predictionsCorrect ?? 0}/${k?.pTotal ?? l?.predictionsTotal ?? 0}`;
+  };
+  const sxpFor = (id: string): string | null => {
+    const api = matchPoints[id];
+    const kpi = kpiByMatch[id]?.totalSxp;
+    // Wait for the recomputed KPI total (the API's matchPoints alone can be stale), so the value never jumps.
+    if (kpi == null && !kpiFailed[id]) return null;
+    if (api == null && kpi == null) return null;
+    return String(Math.max(api ?? 0, kpi ?? 0, localSxpByMatch.get(id) ?? 0));
+  };
+
+  // DEBUG: compare with the [SXP-DETAIL] log from FanScorecard/[id].
+  useEffect(() => {
+    for (const id of Object.keys({ ...matchPoints, ...kpiByMatch })) {
+      console.log("[SXP-CARD]", id, {
+        shownSxp: sxpFor(id),
+        apiUserPointsMatchPoints: matchPoints[id] ?? null,
+        kpiTotalMatchSxp: kpiByMatch[id]?.totalSxp ?? null,
+        localActivitySxp: localSxpByMatch.get(id) ?? 0,
+      });
+    }
+  }, [matchPoints, kpiByMatch, localSxpByMatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (listFailed) {
     return (
@@ -411,9 +474,9 @@ export function MyScoreCards({
 
             <div style={{ display: "flex", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 12, overflow: "hidden" }}>
               {[
-                { v: kpiByMatch[s.matchId] ? String(kpiByMatch[s.matchId].interactions) : String(s.interactions), l: "Interactions" },
-                { v: kpiByMatch[s.matchId]?.predText ?? `${s.predictionsCorrect}/${s.predictionsTotal}`, l: "Prediction" },
-                { v: matchPoints[s.matchId] != null ? String(matchPoints[s.matchId]) : "–", l: "SXP" },
+                { v: interactionsFor(s.matchId) ?? "–", l: "Interactions" },
+                { v: predictionFor(s.matchId) ?? "–", l: "Prediction" },
+                { v: sxpFor(s.matchId) ?? "–", l: "SXP" },
               ].map((c, i) => (
                 <div
                   key={c.l}
