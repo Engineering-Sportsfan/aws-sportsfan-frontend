@@ -7,7 +7,7 @@ import { Target, MessageSquare, Swords, Flame, Share2, History, HelpCircle, Trop
 import { useAuth } from "@/context/AuthContext";
 import { handleGoBack } from "@/utils/backButton";
 import { getMomentEngagements, type MomentEngagement } from "@/src/components/NewROARComponent/components/momentEngagements";
-import { buildMatchStats, badgesForMatch, latestMatchId, resolveSharedMatchId, type Category } from "@/src/components/NewROARComponent/components/matchScorecard";
+import { buildMatchStats, latestMatchId, resolveSharedMatchId, type Category } from "@/src/components/NewROARComponent/components/matchScorecard";
 
 interface Row { name: string; sxp: number; avatar?: string; isMe?: boolean }
 
@@ -274,6 +274,33 @@ export default function FanScorecardPage() {
       })();
   const sub = [match?.tournament, match?.format, match?.venue].filter(Boolean).join(" · ");
 
+  // ── Match summary card (below the "Match Summary" heading) ──
+  const matchDate = match?.date || match?.start_date;
+  const prettyDate = matchDate
+    ? new Date(`${String(matchDate).slice(0, 10)}T00:00:00`).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+    : "";
+  const winner = String(match?.winner ?? "").trim();
+  const hasWinner = !!winner && winner.toUpperCase() !== "TBD";
+  const statusText = String(match?.status ?? "").trim();
+  const resultText = hasWinner ? `${winner.toUpperCase()} WON` : statusText ? statusText.toUpperCase() : "";
+  const summaryCard = match ? (
+    <div style={{ ...card, padding: "12px 10px", border: "1.5px solid #ff7a2f", boxShadow: "0 0 14px rgba(255,90,60,0.35)", background: "linear-gradient(135deg, rgba(255,90,60,0.18), rgba(18,18,26,0.9) 45%, rgba(124,58,237,0.2))" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,2fr) minmax(0,1fr)", alignItems: "center", gap: 6 }}>
+        <div style={{ fontSize: 18, fontWeight: 900, textAlign: "center", minWidth: 0 }}>{match.team1_short || match.team1}</div>
+        <div style={{ textAlign: "center", minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 800 }}>{match.team1_short || match.team1} vs {match.team2_short || match.team2}{match.stage ? ` · ${match.stage}` : ""}</div>
+          <div style={{ fontSize: 11.5, color: "rgba(255,255,255,0.7)", marginTop: 2 }}>{[prettyDate, match.city || match.venue].filter(Boolean).join(" · ")}</div>
+        </div>
+        <div style={{ fontSize: 18, fontWeight: 900, textAlign: "center", minWidth: 0 }}>{match.team2_short || match.team2}</div>
+      </div>
+      {resultText && (
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 10 }}>
+          <span style={{ fontSize: 11.5, fontWeight: 800, padding: "4px 14px", borderRadius: 999, border: `1px solid ${hasWinner ? "#16a34a" : "rgba(255,255,255,0.25)"}`, background: hasWinner ? "rgba(22,163,74,0.35)" : "rgba(255,255,255,0.08)" }}>{resultText}</span>
+        </div>
+      )}
+    </div>
+  ) : null;
+
   const accuracy = stats?.predictionsTotal ? Math.round((stats.predictionsCorrect / stats.predictionsTotal) * 100) : 0;
   const overallKpi = Number(kpis?.overallScore);
   const fanScore: number | null = Number.isFinite(overallKpi)
@@ -293,34 +320,16 @@ export default function FanScorecardPage() {
     ? (overall >= 70 ? "High" : overall >= 40 ? "Medium" : "Low")
     : (matchSxp >= 50 ? "High" : matchSxp >= 20 ? "Medium" : "Low");
 
-  const badges = stats
-    ? (() => {
-        const list = [...badgesForMatch(stats)];
-        const existingIds = new Set(list.map((b) => b.id));
-
-        const triviaCorrect = Number(kpis?.kpis?.knowledge?.correct || 0);
-        const triviaAttempted = Number(kpis?.kpis?.knowledge?.attempted || 0);
-        if (!existingIds.has("trivia_scholar") && (triviaCorrect >= 2 || (triviaAttempted >= 2 && triviaCorrect / triviaAttempted >= 0.5))) {
-          list.push({ id: "trivia_scholar", label: "Cricket Scholar", color: "#facc15", icon: "🧠" });
-        }
-
-        const predCorrect = Number(kpis?.kpis?.prediction?.correct || 0);
-        if (!existingIds.has("sharp") && predCorrect >= 2) {
-          list.push({ id: "sharp", label: "Sharp Predictor", color: "#22c55e", icon: "🎯" });
-        }
-
-        const debatesVoted = Number(kpis?.kpis?.community?.debatesVoted || 0);
-        if (!existingIds.has("debate") && debatesVoted >= 2) {
-          list.push({ id: "debate", label: "Debate Star", color: "#a855f7", icon: "💬" });
-        }
-
-        if (!existingIds.has("fan_champ") && Number(kpis?.overallScore) >= 75) {
-          list.push({ id: "fan_champ", label: "Super Fan", color: "#ff6b35", icon: "⭐" });
-        }
-
-        return list;
-      })()
-    : [];
+  // Badges (frontend only, not stored): one per Match Impact field, earned with at least 3 participations in it.
+  const BADGE_MIN = 3;
+  const k = kpis?.kpis;
+  const badges = [
+    { id: "knowledge", n: Number(k?.knowledge?.attempted || 0), label: "Cricket Scholar", color: "#facc15", icon: "🧠" },
+    { id: "prediction", n: Number(k?.prediction?.attempted ?? k?.prediction?.resolved ?? 0), label: "Sharp Predictor", color: "#22c55e", icon: "🎯" },
+    { id: "participation", n: Number(k?.participation?.cardsEngaged || 0), label: "Active Fan", color: "#38bdf8", icon: "🔥" },
+    { id: "community", n: Number(k?.community?.debatesVoted || 0), label: "Debate Champion", color: "#a855f7", icon: "💬" },
+    { id: "insight", n: (Number(k?.insight?.peerLikesReceived) || 0) + (Number(k?.insight?.peerRepliesReceived) || 0), label: "Insight Guru", color: "#ec4899", icon: "💡" },
+  ].filter((b) => b.n >= BADGE_MIN);
 
   const myLeaderboardIdx = leaderboard.findIndex((r) => r.isMe);
   // Match Rank uses the exact same rank as the leaderboard below
@@ -342,7 +351,7 @@ export default function FanScorecardPage() {
   const enc = encodeURIComponent(`${shareText} ${shareUrl}`);
 
   return (
-    <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub}>
+    <Shell onBack={() => handleGoBack(router, "/MainModules/Profile")} title={title} sub={sub} summary={summaryCard}>
       {/* Followed Matches Filter Tabs */}
 
 
@@ -457,7 +466,7 @@ export default function FanScorecardPage() {
         {badges.length === 0 ? (
           <div style={{ fontSize: 13, color: "rgba(255,255,255,0.6)" }}>No badges earned in this match yet.</div>
         ) : (
-          <div style={{ display: "flex", justifyContent: "space-around" }}>
+          <div style={{ display: "flex", justifyContent: "space-around", flexWrap: "wrap", rowGap: 12 }}>
             {badges.map((b) => (
               <div key={b.id} style={{ textAlign: "center", width: 90 }}>
                 <div style={{ width: 70, height: 78, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, border: `2px solid ${b.color}`, boxShadow: `0 0 14px ${b.color}`, clipPath: "polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)", background: "rgba(0,0,0,0.4)" }}>{b.icon}</div>
@@ -586,7 +595,7 @@ function Avatar({ src, name, size, ring, loading }: { src?: string | null; name:
   );
 }
 
-function Shell({ children, onBack, title, sub }: { children: React.ReactNode; onBack: () => void; title: string; sub: string }) {
+function Shell({ children, onBack, title, sub, summary }: { children: React.ReactNode; onBack: () => void; title: string; sub: string; summary?: React.ReactNode }) {
   return (
     <div style={{ minHeight: "100%", background: "#070b14", color: "#fff", padding: "14px 14px calc(var(--roar-bottom-nav-height, 72px) + 32px + env(safe-area-inset-bottom))" }}>
       <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", flexDirection: "column", gap: 12 }}>
@@ -601,6 +610,7 @@ function Shell({ children, onBack, title, sub }: { children: React.ReactNode; on
           <div style={{ fontSize: 17, fontWeight: 800 }}>{title}</div>
           {sub && <div style={{ fontSize: 12, color: "rgba(255,255,255,0.65)", marginTop: 2 }}>{sub}</div>}
         </div> */}
+        {summary}
         {children}
       </div>
     </div>
