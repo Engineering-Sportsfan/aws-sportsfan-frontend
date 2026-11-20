@@ -6,6 +6,7 @@ import axios from "axios";
 import { Target, MessageSquare, Swords, Flame, Share2, History, HelpCircle, Trophy } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { handleGoBack } from "@/utils/backButton";
+import { getSharedMatches } from "@/utils/sharedMatches";
 import { getMomentEngagements, type MomentEngagement } from "@/src/components/NewROARComponent/components/momentEngagements";
 import { buildMatchStats, latestMatchId, resolveSharedMatchId, type Category } from "@/src/components/NewROARComponent/components/matchScorecard";
 
@@ -177,9 +178,7 @@ export default function FanScorecardPage() {
       .then((r) => { if (!off) setActivities(r.data?.activities || []); })
       .catch(() => { if (!off) setActivities([]); });
     getMomentEngagements().then((l) => { if (!off) setEngagements(l); }).catch(() => { if (!off) setEngagements([]); });
-    axios.get("/api/matches").then((r) => {
-      const d = r.data;
-      const rows: any[] = d?.data || d?.matches || (Array.isArray(d) ? d : []);
+    getSharedMatches().then((rows) => {
       if (!off) {
         setMatchesList(rows);
         setMatch(rows.find((m) => String(m?.match_id ?? m?.id) === matchId) || null);
