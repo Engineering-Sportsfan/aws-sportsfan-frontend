@@ -253,7 +253,7 @@ export function MyScoreCards({
       axios.get("/api/user/match-kpis", { params: { matchId: id, userId: kpiUserId, recompute: "true" }, timeout: 90000 })
         .then((r) => {
           if (off) return;
-          if (!r.data?.success) { console.warn("[SXP-CARD] match-kpis not successful", id, kpiUserId, r.data); setKpiFailed((p) => ({ ...p, [id]: true })); return; }
+          if (!r.data?.success) { setKpiFailed((p) => ({ ...p, [id]: true })); return; }
           const k = r.data?.kpis;
           const pred = k?.prediction;
           setKpiByMatch((p) => ({
@@ -267,8 +267,7 @@ export function MyScoreCards({
             },
           }));
         })
-        .catch((e) => {
-          console.warn("[SXP-CARD] match-kpis FAILED", id, kpiUserId, e?.code || e?.message);
+        .catch(() => {
           if (!off) setKpiFailed((p) => ({ ...p, [id]: true }));
         });
       axios.get("/api/user-points", { params: { limit: 100, matchId: id, ...(uid ? { userId: uid } : {}) }, timeout: 15000 })
@@ -312,18 +311,6 @@ export function MyScoreCards({
     if (api == null && kpi == null) return null;
     return String(Math.max(api ?? 0, kpi ?? 0, localSxpByMatch.get(id) ?? 0));
   };
-
-  // DEBUG: compare with the [SXP-DETAIL] log from FanScorecard/[id].
-  useEffect(() => {
-    for (const id of Object.keys({ ...matchPoints, ...kpiByMatch })) {
-      console.log("[SXP-CARD]", id, {
-        shownSxp: sxpFor(id),
-        apiUserPointsMatchPoints: matchPoints[id] ?? null,
-        kpiTotalMatchSxp: kpiByMatch[id]?.totalSxp ?? null,
-        localActivitySxp: localSxpByMatch.get(id) ?? 0,
-      });
-    }
-  }, [matchPoints, kpiByMatch, localSxpByMatch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (listFailed) {
     return (

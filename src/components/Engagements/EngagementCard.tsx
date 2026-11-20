@@ -1506,7 +1506,7 @@ export default function EngagementCard({
 
     // ── Type Theme Info ──
     const theme = useMemo(() => {
-        switch (item.type) {
+        switch (String(item.type || "").toLowerCase()) {
             case "prediction":
                 return { label: "PREDICTION", icon: "🎯", badgeBg: "bg-amber-500/20 text-amber-400 border border-amber-500/40", accent: "#fbbf24" };
             case "debate":
@@ -1526,7 +1526,7 @@ export default function EngagementCard({
             case "user_summary":
                 return { label: "YOUR SERIES PROGRESS", icon: "⭐", badgeBg: "bg-sky-500/20 text-sky-300 border border-sky-500/40", accent: "#38bdf8" };
             case "question":
-                return { label: "QUESTION", icon: "❓", badgeBg: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40", accent: "#22c55e" };
+                return { label: "TRIVIA", icon: "❓", badgeBg: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40", accent: "#22c55e" };
             case "quiz":
                 return { label: "QUIZ", icon: "🧠", badgeBg: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40", accent: "#22c55e" };
             case "fan_battle":
