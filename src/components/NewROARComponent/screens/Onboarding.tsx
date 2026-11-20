@@ -425,7 +425,7 @@ const SLIDE = {
 };
 
 export default function Onboarding({ onComplete }: Props) {
-  const [step, setStep] = useState(1); // 1, 2, 3
+  const [step, setStep] = useState(1); // 1, 2, 3, 4
   const [dir, setDir] = useState(1);
 
   // Dynamic step questions & subheadings loaded from admin config
@@ -442,11 +442,16 @@ export default function Onboarding({ onComplete }: Props) {
       heading: "How do you like to enjoy a match?",
       subheading: "Pick as many as you like. This shapes how your Rooms and feed are set up — you can always change it later.",
     },
+    4: {
+      heading: "Set up your profile",
+      subheading: "Pick your teams, loyalties and interests",
+    },
   });
 
   const [sportsOptions, setSportsOptions] = useState<ConfigItem[]>([]);
   const [followOptions, setFollowOptions] = useState<ConfigItem[]>([]);
   const [engagementOptions, setEngagementOptions] = useState<ConfigItem[]>([]);
+  const [profileSetupOptions, setProfileSetupOptions] = useState<ConfigItem[]>([]);
 
   // "Don't see your favorite sports?" Dropdown config & user selection
   const [requestedSportsOptions, setRequestedSportsOptions] = useState<ConfigItem[]>([]);
@@ -489,17 +494,19 @@ export default function Onboarding({ onComplete }: Props) {
   const [sports, setSports] = useState<string[]>([]);
   const [followEntities, setFollowEntities] = useState<string[]>([]);
   const [engagementPrefs, setEngagementPrefs] = useState<string[]>([]);
+  const [profileSetup, setProfileSetup] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       try {
-        const [configS, configF, configE, configReq, user] = await Promise.all([
+        const [configS, configF, configE, configReq, configP, user] = await Promise.all([
           axios.get(`${CONFIG_API}?type=sports`),
           axios.get(`${CONFIG_API}?type=followEntities`),
           axios.get(`${CONFIG_API}?type=engagement`),
           axios.get(`${CONFIG_API}?type=requestedSports`),
+          axios.get(`${CONFIG_API}?type=profileSetup`).catch(() => null),
           axios.get("/api/roar/onboarding").catch(() => ({ data: null })),
         ]);
 
@@ -507,6 +514,7 @@ export default function Onboarding({ onComplete }: Props) {
         setFollowOptions(configF.data?.items ?? []);
         setEngagementOptions(configE.data?.items ?? []);
         setRequestedSportsOptions(configReq.data?.items ?? []);
+        setProfileSetupOptions(configP?.data?.items ?? []);
 
         setStepHeadings({
           1: {
@@ -520,6 +528,10 @@ export default function Onboarding({ onComplete }: Props) {
           3: {
             heading: configE.data?.question || "How do you like to enjoy a match?",
             subheading: configE.data?.subtitle ?? "Pick as many as you like. This shapes how your Rooms and feed are set up — you can always change it later.",
+          },
+          4: {
+            heading: configP?.data?.question || "Set up your profile",
+            subheading: configP?.data?.subtitle ?? "Pick your teams, loyalties and interests",
           },
         });
 
@@ -539,6 +551,9 @@ export default function Onboarding({ onComplete }: Props) {
           }
           if (Array.isArray(user.data.engagementPrefs) && user.data.engagementPrefs.length > 0) {
             setEngagementPrefs(user.data.engagementPrefs);
+          }
+          if (Array.isArray(user.data.profileSetup) && user.data.profileSetup.length > 0) {
+            setProfileSetup(user.data.profileSetup);
           }
           if (user.data.requestedSport) {
             setRequestedSport(user.data.requestedSport);
@@ -567,6 +582,23 @@ export default function Onboarding({ onComplete }: Props) {
   const toggleEngagement = (id: string) =>
     setEngagementPrefs((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
+  const toggleProfileSetup = (id: string) =>
+    setProfileSetup((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  // Group profile setup items by category (My Teams & Sports / My Loyalties / My Interests)
+  const groupedProfileSetup = useMemo(() => {
+    return profileSetupOptions
+      .filter((i) => i.active !== false)
+      .slice()
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .reduce((acc: Record<string, ConfigItem[]>, item) => {
+        const key = item.category || item.title || "Other";
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+      }, {});
+  }, [profileSetupOptions]);
+
   // Group followOptions by category or title, only for chosen sports
   const groupedFollow = useMemo(() => {
     const grouped = followOptions
@@ -587,10 +619,17 @@ export default function Onboarding({ onComplete }: Props) {
       await axios.post("/api/roar/onboarding", payload);
     } catch (err) {
       console.warn("Could not save onboarding preferences to server, applying locally:", err);
-    } finally {
-      setSubmitting(false);
-      onComplete(payload);
     }
+    // Step 4 is saved the same way the preferences page saves it (PATCH accepts profileSetup).
+    if (profileSetup.length > 0) {
+      try {
+        await axios.patch("/api/roar/onboarding", { profileSetup });
+      } catch (err) {
+        console.warn("Could not save profile setup to server:", err);
+      }
+    }
+    setSubmitting(false);
+    onComplete({ ...payload, profileSetup });
   };
 
   const canContinueStep1 = sports.length > 0;
@@ -604,6 +643,11 @@ export default function Onboarding({ onComplete }: Props) {
     return hasAvailableOptions ? engagementPrefs.length > 0 : true;
   }, [engagementOptions, engagementPrefs]);
 
+  const canContinueStep4 = useMemo(() => {
+    const hasAvailableOptions = profileSetupOptions.length > 0;
+    return hasAvailableOptions ? profileSetup.length > 0 : true;
+  }, [profileSetupOptions, profileSetup]);
+
   if (loading) {
     return (
       <div className="fixed inset-0 z-[1050] bg-black flex items-center justify-center">
@@ -614,14 +658,14 @@ export default function Onboarding({ onComplete }: Props) {
 
   return (
     <div className="fixed inset-0 z-[1050] bg-black overflow-hidden flex flex-col">
-      {/* Progress bar — 3 segments */}
+      {/* Progress bar — 4 segments */}
       <div className="flex gap-1.5 px-6 pt-6">
-        {[1, 2, 3].map((i) => (
+        {[1, 2, 3, 4].map((i) => (
           <button
             key={i}
             type="button"
             onClick={() => {
-              if (i < step || (i === 2 && canContinueStep1) || (i === 3 && canContinueStep1 && canContinueStep2)) {
+              if (i < step || (i === 2 && canContinueStep1) || (i === 3 && canContinueStep1 && canContinueStep2) || (i === 4 && canContinueStep1 && canContinueStep2 && canContinueStep3)) {
                 go(i);
               }
             }}
@@ -641,7 +685,7 @@ export default function Onboarding({ onComplete }: Props) {
 
       <div className="flex items-center justify-between px-6 pt-4">
         <p className="text-[11px] tracking-[0.15em] uppercase text-gray-500 font-semibold">
-          Step {step} of 3
+          Step {step} of 4
         </p>
         {step > 1 && (
           <button
@@ -988,10 +1032,129 @@ export default function Onboarding({ onComplete }: Props) {
 
               <button
                 type="button"
-                onClick={() => canContinueStep3 && handleComplete()}
-                disabled={!canContinueStep3 || submitting}
+                onClick={() => canContinueStep3 && go(4)}
+                disabled={!canContinueStep3}
                 className={`w-full mt-8 h-[52px] rounded-full text-[16px] font-bold text-white border-none cursor-pointer bg-gradient-to-r from-pink-600 to-orange-500 transition-opacity ${
-                  canContinueStep3 && !submitting ? "opacity-100" : "opacity-40"
+                  canContinueStep3 ? "opacity-100" : "opacity-40"
+                }`}
+              >
+                Continue
+              </button>
+            </motion.div>
+          )}
+
+          {/* STEP 4 — Profile setup */}
+          {step === 4 && (
+            <motion.div
+              key="s4"
+              custom={dir}
+              variants={SLIDE}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.25 }}
+              className="flex flex-col min-h-full"
+            >
+              <h2 className="font-black text-[32px] leading-[1.05] text-white mt-4">
+                {stepHeadings[4].heading}
+              </h2>
+              <p className="text-[14px] text-gray-400 mt-2">
+                {stepHeadings[4].subheading}
+              </p>
+
+              <div className="mt-6 space-y-6">
+                {Object.entries(groupedProfileSetup).map(([category, items]) => {
+                  const isTeams = category === "My Teams & Sports";
+                  return (
+                    <div key={category}>
+                      <p className="text-[11px] tracking-[0.1em] uppercase text-gray-400 font-semibold mb-3">
+                        {category}
+                      </p>
+                      {isTeams ? (
+                        <div className="flex flex-wrap gap-4">
+                          {items.map((it) => {
+                            const sel = profileSetup.includes(it.id);
+                            return (
+                              <button
+                                key={it.id}
+                                type="button"
+                                onClick={() => toggleProfileSetup(it.id)}
+                                className="flex flex-col items-center gap-1.5 w-16 bg-transparent border-none p-0 cursor-pointer"
+                              >
+                                <span className="relative">
+                                  <span
+                                    className={`w-14 h-14 rounded-full bg-gray-900 flex items-center justify-center overflow-hidden border-2 transition-all ${
+                                      sel
+                                        ? "border-orange-400 ring-2 ring-orange-500 ring-offset-2 ring-offset-black shadow-lg shadow-orange-500/40"
+                                        : "border-gray-800 opacity-60"
+                                    }`}
+                                  >
+                                    {it.image ? (
+                                      <img src={it.image} alt={it.label} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <span className="text-[11px] font-bold text-gray-300">
+                                        {it.label.slice(0, 2).toUpperCase()}
+                                      </span>
+                                    )}
+                                  </span>
+                                  {sel && (
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-gradient-to-r from-pink-600 to-orange-500 text-white text-[11px] font-bold flex items-center justify-center border-2 border-black">
+                                      ✓
+                                    </span>
+                                  )}
+                                </span>
+                                <span
+                                  className={`text-[11px] font-semibold text-center leading-tight ${
+                                    sel ? "text-orange-400" : "text-gray-300"
+                                  }`}
+                                >
+                                  {it.label}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {items.map((it) => {
+                            const sel = profileSetup.includes(it.id);
+                            return (
+                              <button
+                                key={it.id}
+                                type="button"
+                                onClick={() => toggleProfileSetup(it.id)}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 bg-gray-900/60 transition-all cursor-pointer ${
+                                  sel
+                                    ? "border-orange-400 shadow-sm shadow-orange-500/20"
+                                    : "border-gray-800 hover:border-gray-700"
+                                }`}
+                              >
+                                <span className="text-[12px] font-semibold text-white">{it.label}</span>
+                                {sel && <span className="text-orange-400 font-bold text-[11px]">✓</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {profileSetupOptions.length === 0 && (
+                  <div className="py-6 text-center">
+                    <p className="text-gray-400 text-sm">No profile options configured yet.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 mt-6" />
+
+              <button
+                type="button"
+                onClick={() => canContinueStep4 && handleComplete()}
+                disabled={!canContinueStep4 || submitting}
+                className={`w-full mt-8 h-[52px] rounded-full text-[16px] font-bold text-white border-none cursor-pointer bg-gradient-to-r from-pink-600 to-orange-500 transition-opacity ${
+                  canContinueStep4 && !submitting ? "opacity-100" : "opacity-40"
                 }`}
               >
                 {submitting ? "Saving..." : "Start Roaring!"}
