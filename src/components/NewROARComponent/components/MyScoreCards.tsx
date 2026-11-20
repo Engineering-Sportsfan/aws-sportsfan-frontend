@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { getSharedMatches } from "@/utils/sharedMatches";
 import { getMomentEngagements, type MomentEngagement } from "./momentEngagements";
 import { buildMatchStats, type MatchStats } from "./matchScorecard";
 
@@ -27,11 +28,8 @@ let matchesInflight: Promise<Map<string, MatchInfo>> | null = null;
 function loadMatches(): Promise<Map<string, MatchInfo>> {
   if (matchesCache && Date.now() - matchesCache.at < MATCHES_TTL_MS) return Promise.resolve(matchesCache.map);
   if (matchesInflight) return matchesInflight;
-  matchesInflight = axios
-    .get("/api/matches", { timeout: 15000 })
-    .then((res) => {
-      const d = res.data;
-      const rows: any[] = d?.data || d?.matches || (Array.isArray(d) ? d : []);
+  matchesInflight = getSharedMatches()
+    .then((rows) => {
       const map = new Map<string, MatchInfo>();
       rows.forEach((r, order) => {
         const id = String(r?.match_id ?? r?.id ?? "");

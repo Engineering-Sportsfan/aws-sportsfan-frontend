@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ChevronRight, User } from "lucide-react";
 import Image from "next/image";
+import { getSharedMatches } from "@/utils/sharedMatches";
 
 interface HubItem {
   id: string;
@@ -25,10 +26,9 @@ export default function FlipGuruPage() {
     // Optionally fetch active matches count
     const fetchLiveCount = async () => {
       try {
-        const res = await fetch("/api/matches");
-        const data = await res.json();
-        if (data.success && Array.isArray(data.matches)) {
-          const live = data.matches.filter((m: any) => m.isLive).length;
+        const matches = await getSharedMatches();
+        if (Array.isArray(matches)) {
+          const live = matches.filter((m: any) => m.isLive).length;
           if (live > 0) setLiveMatchesCount(live);
         }
       } catch {

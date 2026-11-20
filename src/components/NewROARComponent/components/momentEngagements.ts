@@ -9,7 +9,7 @@ export interface MomentEngagement {
   [k: string]: unknown;
 }
 
-const LIST_URL = "/api/engagements?excludeFlipArena=true&source=match_moment&allEnvs=true&limit=500";
+const LIST_URL = "/api/engagements?excludeFlipArena=true&source=match_moment&limit=500";
 const TTL_MS = 5 * 60 * 1000;
 
 let cache: { at: number; items: MomentEngagement[] } | null = null;
