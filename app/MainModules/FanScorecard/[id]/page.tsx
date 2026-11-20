@@ -333,17 +333,6 @@ export default function FanScorecardPage() {
   const impact = effectiveMatchSxp >= 50 ? "High" : effectiveMatchSxp >= 20 ? "Medium" : "Low";
   const impactColor = effectiveMatchSxp >= 50 ? "#16a34a" : effectiveMatchSxp >= 20 ? "#d97706" : "#475569";
 
-  // DEBUG: compare with the [SXP-CARD] logs from MyScoreCards (Profile / FanScorecard list).
-  useEffect(() => {
-    if (!matchId) return;
-    console.log("[SXP-DETAIL]", matchId, {
-      shownFanScore: fanScore,
-      leaderboardMeRowSxp: meLeaderboardRow?.sxp ?? null,
-      kpiTotalMatchSxp: kpiMatchSxp,
-      localActivitySxp: localMatchSxp,
-      matchSxp,
-    });
-  }, [matchId, fanScore, meLeaderboardRow?.sxp, kpiMatchSxp, localMatchSxp, matchSxp]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Build Match Impact rows from SXP breakdown so percentages always sum to 100% (or 0% if 0 SXP)
   // and subfields always reflect SXP earned (+ Recognition SXP in the respective pillar)
