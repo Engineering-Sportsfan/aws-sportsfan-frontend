@@ -236,6 +236,12 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
+// Amplify's server only sees localhost:3000, so tell Auth.js the real public URL of this branch
+// (NEXT_PUBLIC_APP_URL is set per branch in Amplify). Without this the Google callback is built as localhost.
+if (process.env.NEXT_PUBLIC_APP_URL) {
+    process.env.AUTH_URL = process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, "");
+}
+
 // console.log("RUNTIME CHECK - GOOGLE_CLIENT_ID:", process.env.GOOGLE_CLIENT_ID ? "PRESENT" : "MISSING");
 // console.log("ALL ENV KEYS WITH GOOGLE:", Object.keys(process.env).filter(k => k.toUpperCase().includes("GOOGLE")));
 // console.log("ALL ENV KEYS COUNT:", Object.keys(process.env).length);
